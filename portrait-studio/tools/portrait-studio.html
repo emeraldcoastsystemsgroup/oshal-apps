@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<!--
+  Portrait Studio — upload a photo, crop the head, generate a portrait.
+  Two modes: Professional (studio headshot) and Character (the fun side:
+  the subject's face — person OR pet — on a human-type body, hands in frame,
+  in a themed scene). Served by portrait-studio-routes at /api/portrait-studio/app.
+  Self-contained: no CDN scripts, cockpit-iframe friendly.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portrait Studio</title>
+<style>
+  :root {
+    --bg: #101418; --panel: #181f26; --panel2: #1f2831; --line: #2c3843;
+    --text: #e8eef4; --dim: #93a4b3; --accent: #4da3ff; --accent2: #ffb454;
+    --ok: #4ecf8a; --err: #ff6b6b; --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 "Segoe UI", system-ui, sans-serif; min-height: 100%; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 22px 60px; }
+
+  header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+  header h1 { font-size: 22px; margin: 0; letter-spacing: .3px; }
+  header .sub { color: var(--dim); font-size: 13px; }
+
+  .mode-toggle { margin-left: auto; display: flex; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+  .mode-toggle button { border: 0; background: transparent; color: var(--dim); padding: 7px 18px; border-radius: 999px; cursor: pointer; font-size: 13.5px; font-weight: 600; }
+  .mode-toggle button.active { background: var(--accent); color: #06121f; }
+  .mode-toggle button#modeCharacter.active { background: var(--accent2); }
+
+  .grid { display: grid; grid-template-columns: minmax(340px, 520px) 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  .panel h2 { margin: 0 0 10px; font-size: 15px; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .panel h2 .step { background: var(--panel2); border: 1px solid var(--line); color: var(--dim); border-radius: 999px; font-size: 11.5px; padding: 2px 9px; }
+
+  /* Upload / crop */
+  #dropzone { border: 2px dashed var(--line); border-radius: var(--radius); padding: 34px 16px; text-align: center; color: var(--dim); cursor: pointer; transition: border-color .15s, background .15s; }
+  #dropzone.drag { border-color: var(--accent); background: rgba(77,163,255,.06); }
+  #dropzone .big { font-size: 34px; }
+  #cropStage { display: none; }
+  #cropCanvasWrap { position: relative; width: 100%; user-select: none; touch-action: none; }
+  #cropCanvas { width: 100%; display: block; border-radius: 8px; background: #000; }
+  .crop-tools { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+  .crop-tools .aspect { display: flex; gap: 4px; }
+  .crop-tools .aspect button { background: var(--panel2); color: var(--dim); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; cursor: pointer; font-size: 12.5px; }
+  .crop-tools .aspect button.active { color: var(--text); border-color: var(--accent); }
+  .hint { color: var(--dim); font-size: 12px; margin-top: 8px; }
+
+  /* Styles / themes */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 10px; }
+  .card { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 10px; text-align: center; cursor: pointer; transition: transform .08s, border-color .12s; }
+  .card:hover { transform: translateY(-1px); }
+  .card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  body.mode-character .card.active { border-color: var(--accent2); box-shadow: 0 0 0 1px var(--accent2); }
+  .card .ico { font-size: 26px; }
+  .card .name { font-weight: 600; font-size: 12.5px; margin-top: 6px; }
+  .card .desc { color: var(--dim); font-size: 11px; margin-top: 2px; min-height: 26px; }
+
+  .opts { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 14px; }
+  .opt-group { flex: 1; min-width: 170px; }
+  .opt-group label { display: block; color: var(--dim); font-size: 12px; margin-bottom: 5px; }
+  .opt-group select, .opt-group input[type=text] { width: 100%; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+
+  #generateBtn { margin-top: 16px; width: 100%; padding: 13px; border: 0; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; background: var(--accent); color: #06121f; }
+  body.mode-character #generateBtn { background: var(--accent2); }
+  #generateBtn:disabled { opacity: .45; cursor: not-allowed; }
+  #genStatus { margin-top: 10px; font-size: 13px; color: var(--dim); min-height: 18px; }
+  #genStatus.err { color: var(--err); }
+
+  /* Gallery */
+  #gallery { margin-top: 22px; }
+  #gallery h2 { font-size: 16px; margin: 0 0 12px; }
+  .g-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
+  .g-item { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .g-item .imgbox { position: relative; aspect-ratio: 4/5; background: var(--panel2); display: flex; align-items: center; justify-content: center; }
+  .g-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .g-item .spin { width: 34px; height: 34px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .g-item .meta { padding: 9px 11px; display: flex; align-items: center; gap: 8px; }
+  .g-item .meta .lbl { font-size: 12.5px; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .g-item .meta .sub2 { display: block; color: var(--dim); font-weight: 400; font-size: 11px; }
+  .g-item .meta button, .g-item .meta a { background: var(--panel2); border: 1px solid var(--line); color: var(--dim); border-radius: 7px; padding: 4px 8px; font-size: 12px; cursor: pointer; text-decoration: none; }
+  .g-item .meta a:hover, .g-item .meta button:hover { color: var(--text); }
+  .g-item .failed { color: var(--err); font-size: 12px; padding: 8px 10px; }
+  .empty { color: var(--dim); font-size: 13px; padding: 18px; text-align: center; border: 1px dashed var(--line); border-radius: var(--radius); }
+</style>
+</head>
+<body class="mode-professional">
+<div class="wrap">
+  <header>
+    <h1>🎨 Portrait Studio</h1>
+    <span class="sub">Upload a photo → crop the head → get a portrait worth framing.</span>
+    <div class="mode-toggle">
+      <button id="modeProfessional" class="active">💼 Professional</button>
+      <button id="modeCharacter">🎭 Character</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- LEFT: photo + crop -->
+    <div class="panel">
+      <h2><span class="step">Step 1</span> Photo</h2>
+      <div id="dropzone">
+        <div class="big">📷</div>
+        <div><b>Drop a photo here</b> or click to choose</div>
+        <div class="hint">A person for a headshot — or your pet for a character portrait. JPEG/PNG/WebP, up to 20&nbsp;MB.</div>
+        <input type="file" id="fileInput" accept="image/*" hidden>
+      </div>
+      <div id="cropStage">
+        <div id="cropCanvasWrap"><canvas id="cropCanvas"></canvas></div>
+        <div class="crop-tools">
+          <div class="aspect">
+            <button data-aspect="0.8" class="active" title="4:5 portrait">4:5</button>
+            <button data-aspect="1" title="Square">1:1</button>
+            <button data-aspect="0.75" title="3:4">3:4</button>
+          </div>
+          <button class="aspect-reset" id="resetCrop" style="background:var(--panel2);color:var(--dim);border:1px solid var(--line);border-radius:8px;padding:5px 10px;cursor:pointer;font-size:12.5px;">Reset box</button>
+          <button id="changePhoto" style="margin-left:auto;background:var(--panel2);color:var(--dim);border:1px solid var(--line);border-radius:8px;padding:5px 10px;cursor:pointer;font-size:12.5px;">Different photo</button>
+        </div>
+        <div class="hint">Drag the box over the face/head (include a little space above the head). Drag corners to resize.</div>
+      </div>
+    </div>
+
+    <!-- RIGHT: style + generate -->
+    <div class="panel">
+      <h2><span class="step">Step 2</span> <span id="styleTitle">Pick a profile</span></h2>
+      <div id="groupChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
+      <div class="cards" id="styleCards"></div>
+
+      <h2 style="margin-top:18px"><span class="step">Step 3</span> Fine-tune — every piece is swappable</h2>
+      <div class="opts" id="tuneOpts">
+        <div class="opt-group">
+          <label for="tuneBackground">Background</label>
+          <select id="tuneBackground" data-layer="background"></select>
+        </div>
+        <div class="opt-group">
+          <label for="tuneAttire">Clothing</label>
+          <select id="tuneAttire" data-layer="attire"></select>
+        </div>
+        <div class="opt-group">
+          <label for="tuneHeadwear">Hat</label>
+          <select id="tuneHeadwear" data-layer="headwear"></select>
+        </div>
+        <div class="opt-group">
+          <label for="tuneProp">Prop (in hand)</label>
+          <select id="tuneProp" data-layer="prop"></select>
+        </div>
+        <div class="opt-group">
+          <label for="tuneFinish">Finish</label>
+          <select id="tuneFinish" data-layer="finish"></select>
+        </div>
+        <div class="opt-group">
+          <label for="tuneFraming">Framing</label>
+          <select id="tuneFraming" data-layer="framing"></select>
+        </div>
+      </div>
+
+      <div class="opts">
+        <div class="opt-group" style="flex-basis:100%">
+          <label for="notes">Anything else? (optional)</label>
+          <input type="text" id="notes" maxlength="300" placeholder="e.g. warm smile, glasses on, teal background…">
+        </div>
+      </div>
+
+      <button id="generateBtn" disabled>Upload a photo first</button>
+      <div id="genStatus"></div>
+      <div id="providerBanner" style="display:none;margin-top:10px;padding:10px 12px;border:1px solid #6b4a1f;background:rgba(255,180,84,.08);border-radius:8px;color:#ffb454;font-size:12.5px;"></div>
+    </div>
+  </div>
+
+  <div id="gallery">
+    <h2>Your portraits</h2>
+    <div class="g-grid" id="galleryGrid"></div>
+    <div class="empty" id="galleryEmpty" style="display:none">Nothing here yet — your generated portraits will appear in this gallery.</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var API = '/api/portrait-studio';
+  var state = {
+    mode: 'professional',
+    style: null,
+    presetGroup: 'All',
+    catalog: { presets: { professional: [], character: [] }, backgrounds: [], attire: [], headwear: [], props: [], finishes: [], framings: [] },
+    img: null,            // HTMLImageElement of the ORIGINAL upload
+    crop: null,           // {x,y,w,h} in image pixels
+    aspect: 0.8,          // w/h of the crop box
+    generating: false,
+    pollTimer: null
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ── catalog: grouped preset cards + fine-tune layer pickers ────────────────
+  var LAYER_LISTS = { background: 'backgrounds', attire: 'attire', headwear: 'headwear', prop: 'props', finish: 'finishes', framing: 'framings' };
+
+  function currentPresets() { return (state.catalog.presets || {})[state.mode] || []; }
+
+  function renderGroupChips() {
+    var host = $('groupChips');
+    host.innerHTML = '';
+    var groups = ['All'];
+    currentPresets().forEach(function (p) { if (groups.indexOf(p.group) < 0) groups.push(p.group); });
+    if (groups.indexOf(state.presetGroup) < 0) state.presetGroup = 'All';
+    groups.forEach(function (g) {
+      var chip = document.createElement('button');
+      var active = state.presetGroup === g;
+      chip.textContent = g;
+      chip.style.cssText = 'border-radius:999px;padding:5px 12px;font-size:12px;cursor:pointer;border:1px solid ' +
+        (active ? 'var(--accent);color:#06121f;background:var(--accent);font-weight:700' : 'var(--line);color:var(--dim);background:var(--panel2)');
+      chip.onclick = function () { state.presetGroup = g; renderGroupChips(); renderStyles(); };
+      host.appendChild(chip);
+    });
+  }
+
+  function renderStyles() {
+    var all = currentPresets();
+    var list = state.presetGroup === 'All' ? all : all.filter(function (p) { return p.group === state.presetGroup; });
+    var host = $('styleCards');
+    host.innerHTML = '';
+    list.forEach(function (s) {
+      var el = document.createElement('div');
+      el.className = 'card' + (state.style === s.id ? ' active' : '');
+      el.innerHTML = '<div class="ico">' + s.icon + '</div><div class="name">' + s.label + '</div><div class="desc">' + s.blurb + '</div>';
+      el.onclick = function () { state.style = s.id; renderStyles(); syncTuneToPreset(); updateGenerateBtn(); };
+      host.appendChild(el);
+    });
+    if (!all.some(function (s) { return s.id === state.style; })) {
+      state.style = all.length ? all[0].id : null;
+      if (state.style) { renderStyles(); syncTuneToPreset(); }
+    }
+  }
+
+  function populateTunePickers() {
+    Object.keys(LAYER_LISTS).forEach(function (layerKey) {
+      var sel = document.querySelector('select[data-layer="' + layerKey + '"]');
+      if (!sel) return;
+      sel.innerHTML = '';
+      var def = document.createElement('option');
+      def.value = '';
+      def.textContent = layerKey === 'prop' ? '— preset pose —' : '— preset default —';
+      sel.appendChild(def);
+      var groups = {};
+      (state.catalog[LAYER_LISTS[layerKey]] || []).forEach(function (item) {
+        var g = item.group || 'Options';
+        if (!groups[g]) { groups[g] = document.createElement('optgroup'); groups[g].label = g; sel.appendChild(groups[g]); }
+        var o = document.createElement('option');
+        o.value = item.id;
+        o.textContent = item.icon + ' ' + item.label;
+        groups[g].appendChild(o);
+      });
+    });
+  }
+
+  // Selecting a preset resets the pickers to "preset default" and shows what that default IS.
+  function syncTuneToPreset() {
+    var preset = currentPresets().find(function (s) { return s.id === state.style; });
+    Object.keys(LAYER_LISTS).forEach(function (layerKey) {
+      var sel = document.querySelector('select[data-layer="' + layerKey + '"]');
+      if (!sel || !sel.options.length) return;
+      sel.value = '';
+      if (layerKey === 'prop') { sel.options[0].textContent = '— preset pose —'; return; }
+      if (preset) {
+        var items = state.catalog[LAYER_LISTS[layerKey]] || [];
+        var hit = items.find(function (i) { return i.id === preset[layerKey]; });
+        sel.options[0].textContent = hit ? '— preset: ' + hit.label + ' —' : '— preset default —';
+      }
+    });
+  }
+
+  function tuneOverrides() {
+    var out = {};
+    Object.keys(LAYER_LISTS).forEach(function (layerKey) {
+      var sel = document.querySelector('select[data-layer="' + layerKey + '"]');
+      if (sel && sel.value) out[layerKey] = sel.value;
+    });
+    return out;
+  }
+
+  function setMode(mode) {
+    state.mode = mode;
+    document.body.className = 'mode-' + mode;
+    $('modeProfessional').classList.toggle('active', mode === 'professional');
+    $('modeCharacter').classList.toggle('active', mode === 'character');
+    $('styleTitle').textContent = mode === 'professional' ? 'Pick a profile' : 'Pick a character';
+    state.presetGroup = 'All';
+    renderGroupChips();
+    renderStyles();
+    updateGenerateBtn();
+  }
+  $('modeProfessional').onclick = function () { setMode('professional'); };
+  $('modeCharacter').onclick = function () { setMode('character'); };
+
+  // ── upload + crop ──────────────────────────────────────────────────────────
+  var dz = $('dropzone'), fi = $('fileInput');
+  dz.onclick = function () { fi.click(); };
+  dz.ondragover = function (e) { e.preventDefault(); dz.classList.add('drag'); };
+  dz.ondragleave = function () { dz.classList.remove('drag'); };
+  dz.ondrop = function (e) {
+    e.preventDefault(); dz.classList.remove('drag');
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  };
+  fi.onchange = function () { if (fi.files[0]) loadFile(fi.files[0]); };
+  $('changePhoto').onclick = function () { fi.click(); };
+  $('resetCrop').onclick = function () { if (state.img) { defaultCrop(); drawCrop(); } };
+
+  function loadFile(file) {
+    if (!/^image\//.test(file.type)) { setStatus('That file is not an image.', true); return; }
+    if (file.size > 20 * 1024 * 1024) { setStatus('Image is over 20 MB — please use a smaller one.', true); return; }
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function () {
+      URL.revokeObjectURL(url);
+      state.img = img;
+      dz.style.display = 'none';
+      $('cropStage').style.display = 'block';
+      defaultCrop();
+      sizeCanvas();
+      drawCrop();
+      updateGenerateBtn();
+      setStatus('');
+    };
+    img.onerror = function () { setStatus('Could not read that image.', true); };
+    img.src = url;
+  }
+
+  function defaultCrop() {
+    var iw = state.img.naturalWidth, ih = state.img.naturalHeight;
+    var h = Math.min(ih, iw / state.aspect) * 0.85;
+    var w = h * state.aspect;
+    state.crop = { x: (iw - w) / 2, y: (ih - h) * 0.35, w: w, h: h };
+  }
+
+  var canvas = $('cropCanvas'), ctx = canvas.getContext('2d');
+  var view = { scale: 1 }; // canvas px per image px
+
+  function sizeCanvas() {
+    var maxW = canvas.parentElement.clientWidth || 480;
+    var iw = state.img.naturalWidth, ih = state.img.naturalHeight;
+    view.scale = maxW / iw;
+    canvas.width = maxW;
+    canvas.height = Math.round(ih * view.scale);
+    if (canvas.height > 560) { // very tall photos: cap height, letterbox scale
+      view.scale = 560 / ih;
+      canvas.height = 560;
+      canvas.width = Math.round(iw * view.scale);
+    }
+  }
+
+  function drawCrop() {
+    if (!state.img) return;
+    var c = state.crop, s = view.scale;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(state.img, 0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'rgba(0,0,0,.55)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(state.img, c.x, c.y, c.w, c.h, c.x * s, c.y * s, c.w * s, c.h * s);
+    ctx.strokeStyle = '#4da3ff'; ctx.lineWidth = 2;
+    ctx.strokeRect(c.x * s, c.y * s, c.w * s, c.h * s);
+    // thirds guides
+    ctx.strokeStyle = 'rgba(77,163,255,.35)'; ctx.lineWidth = 1;
+    for (var i = 1; i <= 2; i++) {
+      ctx.beginPath(); ctx.moveTo((c.x + c.w * i / 3) * s, c.y * s); ctx.lineTo((c.x + c.w * i / 3) * s, (c.y + c.h) * s); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(c.x * s, (c.y + c.h * i / 3) * s); ctx.lineTo((c.x + c.w) * s, (c.y + c.h * i / 3) * s); ctx.stroke();
+    }
+    // corner handles
+    ctx.fillStyle = '#4da3ff';
+    corners().forEach(function (pt) { ctx.fillRect(pt.x * s - 5, pt.y * s - 5, 10, 10); });
+  }
+
+  function corners() {
+    var c = state.crop;
+    return [
+      { k: 'nw', x: c.x, y: c.y }, { k: 'ne', x: c.x + c.w, y: c.y },
+      { k: 'sw', x: c.x, y: c.y + c.h }, { k: 'se', x: c.x + c.w, y: c.y + c.h }
+    ];
+  }
+
+  // pointer interactions: drag inside = move; drag a corner = resize (aspect-locked)
+  var drag = null;
+  function evtPos(e) {
+    var r = canvas.getBoundingClientRect();
+    var cx = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+    var cy = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+    return { x: cx / view.scale * (canvas.width / r.width), y: cy / view.scale * (canvas.height / r.height) };
+  }
+  function onDown(e) {
+    if (!state.img) return;
+    var p = evtPos(e), c = state.crop, grab = 14 / view.scale;
+    var corner = corners().find(function (pt) { return Math.abs(p.x - pt.x) < grab && Math.abs(p.y - pt.y) < grab; });
+    if (corner) drag = { kind: corner.k, start: p, orig: { x: c.x, y: c.y, w: c.w, h: c.h } };
+    else if (p.x > c.x && p.x < c.x + c.w && p.y > c.y && p.y < c.y + c.h) drag = { kind: 'move', start: p, orig: { x: c.x, y: c.y, w: c.w, h: c.h } };
+    else drag = null;
+    if (drag) e.preventDefault();
+  }
+  function onMove(e) {
+    if (!drag || !state.img) return;
+    e.preventDefault();
+    var p = evtPos(e), o = drag.orig, c = state.crop;
+    var iw = state.img.naturalWidth, ih = state.img.naturalHeight;
+    var dx = p.x - drag.start.x, dy = p.y - drag.start.y;
+    if (drag.kind === 'move') {
+      c.x = Math.max(0, Math.min(iw - o.w, o.x + dx));
+      c.y = Math.max(0, Math.min(ih - o.h, o.y + dy));
+    } else {
+      // resize keeping aspect; anchor = opposite corner
+      var anchor = { nw: { x: o.x + o.w, y: o.y + o.h }, ne: { x: o.x, y: o.y + o.h }, sw: { x: o.x + o.w, y: o.y }, se: { x: o.x, y: o.y } }[drag.kind];
+      var w = Math.abs(p.x - anchor.x);
+      var h = w / state.aspect;
+      if (Math.abs(p.y - anchor.y) > h) { h = Math.abs(p.y - anchor.y); w = h * state.aspect; }
+      w = Math.max(60, w); h = w / state.aspect;
+      var nx = Math.min(anchor.x, anchor.x + (p.x < anchor.x ? -w : w));
+      var ny = Math.min(anchor.y, anchor.y + (p.y < anchor.y ? -h : h));
+      nx = Math.min(anchor.x, p.x < anchor.x ? anchor.x - w : anchor.x);
+      ny = Math.min(anchor.y, p.y < anchor.y ? anchor.y - h : anchor.y);
+      // clamp into the image
+      if (nx < 0) { w += nx; h = w / state.aspect; nx = 0; }
+      if (ny < 0) { h += ny; w = h * state.aspect; ny = 0; }
+      if (nx + w > iw) { w = iw - nx; h = w / state.aspect; }
+      if (ny + h > ih) { h = ih - ny; w = h * state.aspect; }
+      c.x = nx; c.y = ny; c.w = w; c.h = h;
+    }
+    drawCrop();
+  }
+  function onUp() { drag = null; }
+  canvas.addEventListener('mousedown', onDown);
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+  canvas.addEventListener('touchstart', onDown, { passive: false });
+  window.addEventListener('touchmove', onMove, { passive: false });
+  window.addEventListener('touchend', onUp);
+  window.addEventListener('resize', function () { if (state.img) { sizeCanvas(); drawCrop(); } });
+
+  document.querySelectorAll('.aspect button[data-aspect]').forEach(function (b) {
+    b.onclick = function () {
+      document.querySelectorAll('.aspect button[data-aspect]').forEach(function (x) { x.classList.remove('active'); });
+      b.classList.add('active');
+      state.aspect = parseFloat(b.dataset.aspect);
+      if (state.img) { defaultCrop(); drawCrop(); }
+    };
+  });
+
+  // ── generate ───────────────────────────────────────────────────────────────
+  function updateGenerateBtn() {
+    var btn = $('generateBtn');
+    if (!state.img) { btn.disabled = true; btn.textContent = 'Upload a photo first'; return; }
+    if (state.generating) { btn.disabled = true; btn.textContent = 'Generating…'; return; }
+    btn.disabled = !state.style;
+    btn.textContent = state.mode === 'professional' ? '✨ Generate my headshot' : '🎭 Generate my character portrait';
+  }
+
+  function setStatus(msg, isErr) {
+    var el = $('genStatus');
+    el.textContent = msg;
+    el.className = isErr ? 'err' : '';
+  }
+
+  function cropBlob(maxW, cb) {
+    var c = state.crop;
+    var scale = Math.min(1, maxW / c.w);
+    var out = document.createElement('canvas');
+    out.width = Math.round(c.w * scale);
+    out.height = Math.round(c.h * scale);
+    out.getContext('2d').drawImage(state.img, c.x, c.y, c.w, c.h, 0, 0, out.width, out.height);
+    // PNG: the image-edit providers take the reference photo as PNG bytes.
+    out.toBlob(cb, 'image/png');
+  }
+
+  $('generateBtn').onclick = function () {
+    if (!state.img || !state.style || state.generating) return;
+    state.generating = true; updateGenerateBtn(); setStatus('Preparing your photo…');
+    cropBlob(1280, function (blob) {
+      if (!blob) { state.generating = false; updateGenerateBtn(); setStatus('Could not crop the photo.', true); return; }
+      var fd = new FormData();
+      fd.append('photo', blob, 'crop.png');
+      fd.append('mode', state.mode);
+      fd.append('style', state.style);
+      var opts = tuneOverrides();
+      opts.notes = $('notes').value.trim();
+      fd.append('options', JSON.stringify(opts));
+      setStatus('Uploading + queuing generation…');
+      fetch(API + '/portraits', { method: 'POST', body: fd })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          state.generating = false; updateGenerateBtn();
+          if (!res.ok) { setStatus(res.j.error || 'Generation failed to start.', true); return; }
+          setStatus('Queued! Your portrait will appear in the gallery below (usually under a minute).');
+          refreshGallery(true);
+        })
+        .catch(function (e) { state.generating = false; updateGenerateBtn(); setStatus('Upload failed: ' + e.message, true); });
+    });
+  };
+
+  // ── gallery ────────────────────────────────────────────────────────────────
+  function styleLabel(row) {
+    var p = state.catalog.presets || {};
+    var all = (p.professional || []).concat(p.character || []);
+    var hit = all.find(function (s) { return s.id === row.style; });
+    return hit ? hit.icon + ' ' + hit.label : row.style;
+  }
+
+  function refreshGallery(startPolling) {
+    fetch(API + '/portraits').then(function (r) { return r.json(); }).then(function (j) {
+      var rows = j.portraits || [];
+      var grid = $('galleryGrid');
+      grid.innerHTML = '';
+      $('galleryEmpty').style.display = rows.length ? 'none' : 'block';
+      var pending = false;
+      rows.forEach(function (row) {
+        var el = document.createElement('div');
+        el.className = 'g-item';
+        var when = new Date(row.created_at).toLocaleString();
+        var box;
+        if (row.status === 'done') {
+          box = '<div class="imgbox"><img loading="lazy" src="' + API + '/portraits/' + row.portrait_id + '/image?v=' + (row.updated_at || '') + '" alt=""></div>';
+        } else if (row.status === 'failed') {
+          box = '<div class="imgbox"><div class="failed">✗ ' + (row.error ? String(row.error).slice(0, 120) : 'Generation failed') + '</div></div>';
+        } else {
+          pending = true;
+          box = '<div class="imgbox"><div class="spin"></div></div>';
+        }
+        el.innerHTML = box +
+          '<div class="meta"><span class="lbl">' + styleLabel(row) + '<span class="sub2">' + when + '</span></span>' +
+          (row.status === 'done' ? '<a href="' + API + '/portraits/' + row.portrait_id + '/image?download=1" download>⬇</a>' : '') +
+          '<button data-del="' + row.portrait_id + '" title="Delete">🗑</button></div>';
+        grid.appendChild(el);
+      });
+      grid.querySelectorAll('button[data-del]').forEach(function (b) {
+        b.onclick = function () {
+          fetch(API + '/portraits/' + b.dataset.del, { method: 'DELETE' }).then(function () { refreshGallery(); });
+        };
+      });
+      if (pending || startPolling) schedulePoll();
+    }).catch(function () { /* transient — next poll retries */ });
+  }
+
+  function schedulePoll() {
+    if (state.pollTimer) return;
+    state.pollTimer = setInterval(function () {
+      fetch(API + '/portraits').then(function (r) { return r.json(); }).then(function (j) {
+        var rows = j.portraits || [];
+        var pending = rows.some(function (r2) { return r2.status === 'queued' || r2.status === 'generating'; });
+        refreshGalleryFromRows(rows);
+        if (!pending) { clearInterval(state.pollTimer); state.pollTimer = null; }
+      }).catch(function () { });
+    }, 3000);
+  }
+  function refreshGalleryFromRows() { refreshGallery(); }
+
+  // ── boot ───────────────────────────────────────────────────────────────────
+  fetch(API + '/catalog').then(function (r) { return r.json(); }).then(function (j) {
+    state.catalog = j;
+    populateTunePickers();
+    renderGroupChips();
+    renderStyles();
+    updateGenerateBtn();
+  }).catch(function () { setStatus('Could not load the style catalog — is the app installed?', true); });
+  fetch(API + '/provider').then(function (r) { return r.json(); }).then(function (j) {
+    var b = $('providerBanner');
+    if (!j.configured) {
+      b.style.display = 'block';
+      b.textContent = '⚠ Image engine not working — generations will fail until the operator fixes it. ' + (j.hint || '');
+    } else if (j.detail) {
+      b.style.display = 'block';
+      b.style.borderColor = '#2c5a3f';
+      b.style.background = 'rgba(78,207,138,.07)';
+      b.style.color = '#4ecf8a';
+      b.textContent = '✓ Engine: ' + j.provider + ' — ' + j.detail;
+    }
+  }).catch(function () { });
+  refreshGallery();
+})();
+</script>
+</body>
+</html>

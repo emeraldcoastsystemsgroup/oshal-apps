@@ -1,0 +1,189 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — camera ("Camera Ops")
+# Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
+# ADR-093). This package is the app: the /api/camera routes + the Camera Ops
+# surface + the manifest + a package COPY of the camera-operator persona for the
+# registrar.
+#
+# Cameras are device nodes (like drones, ADR-099): the embedded sim is always
+# present, real cameras (GoPro first) join via authenticated camera-node
+# heartbeats. The camera-operator concierge interprets natural language into ONE
+# validated command; control is deterministic code. Non-destructive ops execute
+# immediately; destructive ops (delete-all) require an explicit human confirm.
+#
+# What STAYS framework-resident per ADR-093 (this package ships none of it):
+#   - the camera ENGINE (src/features/camera): CameraService, the sim provider,
+#     the real GoPro (Open GoPro HTTP) provider, the remote provider, the fleet
+#     plane, and the command validator — imported via @/ aliases;
+#   - the standalone camera NODE (src/app/camera-node-server.ts) that heartbeats
+#     real hardware into the fleet with the swarm service secret;
+#   - the camera-operator INLINE concierge node (registered in BOTH
+#     swarm-bot-registry blocks) — the app's reasoning owner; the persona here is
+#     a package COPY for the registrar;
+#   - the concierge envelope helpers (@/app/routes/concierge-envelope) and the
+#     runtime schema bootstrap (@/shared/services/database);
+#   - the default Camera Ops tile in config-seed/profiles/oshal-framework.json
+#     (carved apps keep their default tiles).
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: camera
+suite: ai-creative   # ADR-097: primary catalog shelf (remote capture = content creation)
+displayName: Camera Ops
+description: >-
+  Remote camera control — connect to a GoPro (and other Wi-Fi/USB cameras) and
+  drive it: start/stop recording, take photos, switch modes, change settings, and
+  run a low-latency preview. A control concierge turns natural language into one
+  validated command; a human confirms anything destructive. Sim engine built in,
+  real GoPro (Open GoPro HTTP) at the camera node.
+version: 1.0.0
+status: active
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: camera
+  ref: main
+
+# No connector allow-list: cameras are DEVICE NODES that join by authenticated
+# heartbeat (swarm service secret), not per-user OAuth connectors.
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — the control brain (Form B inline concierge — interprets NL into ONE
+# validated command; registered in BOTH swarm-bot-registry blocks, framework-
+# resident). The persona here is a package COPY for the registrar; the inline
+# node keeps using /app/ai-lab (core).
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: b0200000-0000-0000-0000-000000000001
+    name: camera-operator
+    persona: personas/camera-operator.yaml
+    role: devices/camera-control
+    capabilities:
+      - camera-control-intent
+      - camera-status-briefing
+      - capture-planning
+
+tools:
+  - name: camera-status
+    displayName: Camera Status
+    type: api
+    category: devices
+    description: Read the selected camera's live state — status, mode, recording, battery, SD headroom, preview.
+    executor: { executorType: api, apiEndpoint: "GET /api/camera/state" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Read-only. Use the returned telemetry as the only source of camera state.
+    routingTags: [camera, status, telemetry]
+    skills: [camera-status-briefing]
+    tags: [camera, route-backed]
+
+  - name: camera-fleet-status
+    displayName: Camera Fleet Status
+    type: api
+    category: devices
+    description: List every camera in the fleet — engine kind, online/offline, model, mode, recording, battery.
+    executor: { executorType: api, apiEndpoint: "GET /api/camera/fleet" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Read-only. The fleet listing is the only source of which cameras exist and which are reachable.
+    routingTags: [camera, fleet, status]
+    skills: [camera-status-briefing]
+    tags: [camera, route-backed]
+
+  - name: control-camera
+    displayName: Control Camera
+    type: api
+    category: devices
+    description: Issue one camera command (record/stop/photo/setMode/preview/connect). Destructive ops (delete-all) are confirmation-gated by the route.
+    executor: { executorType: api, apiEndpoint: "POST /api/camera/control" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        cameraId: { type: string }
+        op: { type: string }
+        mode: { type: string }
+        presetId: { type: number }
+        setting: { type: number }
+        option: { type: number }
+        confirm: { type: boolean }
+      required: [op]
+    usageInstructions: >-
+      Call with {op} (and cameraId; defaults to sim-1). Non-destructive ops run immediately;
+      deleteAll returns 428 until re-sent with confirm:true.
+    routingTags: [camera, control, record, photo]
+    skills: [camera-control-intent]
+    tags: [camera, route-backed]
+
+  - name: camera-assistant
+    displayName: Camera Assistant
+    type: api
+    category: devices
+    description: Ask the camera-operator concierge to interpret a natural-language instruction into one validated camera command and execute it (non-destructive).
+    executor: { executorType: api, apiEndpoint: "POST /api/camera/chat" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        message: { type: string }
+        cameraId: { type: string }
+      required: [message]
+    usageInstructions: >-
+      Call with {message}. The reply contains the spoken response plus which op (if any) was executed.
+    routingTags: [camera, assistant, control]
+    skills: [camera-control-intent, camera-status-briefing]
+    tags: [camera, route-backed]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon icon opens the Camera Ops surface, self-served
+# by this package's route from tools/camera-ops.html (ctx.appPackageDir).
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: camera-ops
+      label: Camera Ops
+      icon: codicon codicon-device-camera-video
+      iframeUrl: /api/camera/app
+      section: top
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — the packaged surface router, mounted /api/camera on activation. (In
+# core server.ts this was createCameraRoutes behind serviceSecretOr(requiresAuth);
+# it now mounts from this package — camera nodes authenticate with the service
+# secret, operators with OIDC. The heartbeat route additionally REQUIRES the
+# secret itself: a node identity, never an operator browser.)
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - module: routes/camera-routes.js
+    factory: createCameraRoutes
+    mountPath: /api/camera
+    auth: service-or-oidc   # what core server.ts mounted (ADR-085 D2)
+    requiresAuth: true
+    requiresContext: true
+
+# No migrations: camera_command_log is created by the packaged route's lazy
+# ensureCameraSchema (runRuntimeSchemaBootstrap + owner-RLS via
+# buildOwnerRlsPolicyStatements).
+
+# RIBBON VISIBILITY — focus mode for /cockpit?app=camera
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  hideChatPanel: true
+  defaultView: camera-ops

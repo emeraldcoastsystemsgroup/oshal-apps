@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Ready to Apply · Job Hunter{% endblock %}
+{% block body %}
+<style>
+  .rh { display:flex; flex-wrap:wrap; align-items:baseline; gap:14px; margin-bottom:4px; }
+  .rh h1 { margin:0; font-size:20px; }
+  .sub { color:var(--mut); font-size:13px; }
+  .ctl { margin:8px 0 14px; font-size:13px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  .ctl input[type=number]{ width:90px; }
+  .coq { margin:0 0 14px; border:1px solid #e2e7ee; border-radius:8px; overflow:hidden; white-space:normal; }
+  .coq > h2 { margin:0; font-size:15px; padding:8px 12px; background:#f4f7fb; border-bottom:1px solid #e2e7ee;
+              display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .reccontact { padding:6px 12px; font-size:12.5px; color:#243a5e; background:#f0f5fb; border-bottom:1px solid #e2e7ee; }
+  .reccontact a { color:#1f5fa8; text-decoration:none; }
+  .reccontact a:hover { text-decoration:underline; }
+  .reccontact.norec { color:#9a5a12; background:#fff7e6; }
+  details.intro { margin:0; padding:6px 12px; border-bottom:1px solid #eef1f5; background:#f7faff; }
+  details.intro > summary { cursor:pointer; font-size:12px; color:#1f5fa8; }
+  details.intro .msg { margin-top:6px; white-space:pre-wrap; font-size:13px; color:#243a5e; }
+  table.q { width:100%; border-collapse:collapse; }
+  table.q td { padding:7px 12px; border-bottom:1px solid #f2f4f8; vertical-align:top; font-size:13px; }
+  table.q tr:last-child td { border-bottom:none; }
+  td.sc { width:42px; } td.pay { white-space:nowrap; color:#1f7a3d; font-weight:600; }
+  td.title a { font-weight:600; text-decoration:none; } td.title a:hover { text-decoration:underline; }
+  td.dl { white-space:nowrap; } td.dl a { text-decoration:none; background:#eef3fb; padding:2px 7px; border-radius:5px; margin-left:4px; font-size:12px; }
+  td.act { white-space:nowrap; text-align:right; }
+  td.act .applied { color:#1f7a3d; font-weight:600; font-size:12px; }
+  td.act button { font-size:12px; padding:3px 9px; }
+  .apply { text-decoration:none; background:#243a5e; color:#fff; padding:3px 9px; border-radius:5px; font-size:12px; }
+</style>
+
+<div class="rh">
+  <h1>Ready to Apply</h1>
+  <span class="sub">{{ total }} roles · {{ n_companies }} companies · résumé generated · ≥ ${{ '{:,}'.format(min_pay) }}/yr</span>
+</div>
+<form class="ctl" method="get">
+  <input type="text" name="q" placeholder="search title/description" value="{{ args.get('q','') }}" style="width:170px">
+  <input type="text" name="company" placeholder="company" value="{{ args.get('company','') }}" style="width:130px">
+  <label>min fit <input type="number" name="min_fit" value="{{ min_fit }}" style="width:56px"></label>
+  <label>min pay $<input type="number" name="min_pay" step="10000" value="{{ min_pay }}" style="width:90px"></label>
+  <select name="days" title="posted within">
+    <option value="">posted: any</option>
+    {% for d,l in [('7','last 7d'),('14','last 14d'),('30','last 30d'),('60','last 60d'),('90','last 90d')] %}
+    <option value="{{ d }}" {{ 'selected' if args.get('days')==d }}>{{ l }}</option>{% endfor %}
+  </select>
+  <select name="type" title="employment type">
+    <option value="">type: any</option>
+    {% for v,l in [('fte','full-time'),('contract','contract'),('intern','intern'),('parttime','part-time')] %}
+    <option value="{{ v }}" {{ 'selected' if args.get('type')==v }}>{{ l }}</option>{% endfor %}
+  </select>
+  <select name="remote">
+    <option value="">remote?</option>
+    <option value="1" {{ 'selected' if args.get('remote')=='1' }}>remote</option>
+    <option value="0" {{ 'selected' if args.get('remote')=='0' }}>on-site</option>
+  </select>
+  <select name="status" title="application status">
+    <option value="">status: active</option>
+    {% for s in ['new','promoted','generated','applied','dismissed'] %}
+    <option value="{{ s }}" {{ 'selected' if args.get('status')==s }}>{{ s }}</option>{% endfor %}
+  </select>
+  <label><input type="checkbox" name="rec" value="1" {{ 'checked' if only_rec }}> w/ recruiter</label>
+  <button>Filter</button>
+  <a class="clear" href="{{ url_for('ready') }}" style="font-size:12px;color:var(--mut)">reset</a>
+</form>
+<p class="sub" style="margin-top:0"><b>Apply ↗</b> opens the posting and copies your contact details to paste · grab the résumé/cover to attach · open a company's drafted intro to <b>Copy</b> &amp; send it yourself on LinkedIn · then <b>Mark applied</b>.</p>
+{# Constant contact fields, dropped on the clipboard by every Apply ↗ / Copy details click. #}
+<textarea id="fieldpack" hidden>{{ field_pack() }}</textarea>
+
+{% for g in groups %}
+  <div class="coq">
+    <h2><span>{{ g.company }} <span class="sub">· {{ g.jobs|length }} role{{ '' if g.jobs|length==1 else 's' }}</span></span></h2>
+    {% if g.rec %}
+    <div class="reccontact">
+      <b>In-house recruiter:</b> {{ g.rec.contact_name }}{% if g.rec.contact_role %} — {{ g.rec.contact_role }}{% endif %}
+      {% if g.rec.contact_link %} ·
+        {% if '@' in g.rec.contact_link %}<a href="mailto:{{ g.rec.contact_link }}">{{ g.rec.contact_link }}</a>
+        {% else %}<a href="{{ g.rec.contact_link }}" target="_blank" rel="noopener">{{ g.rec.contact_link.replace('https://www.','').replace('https://','').rstrip('/') }} ↗</a>{% endif %}
+      {% endif %}
+    </div>
+    {% else %}<div class="reccontact norec">No in-house recruiter logged yet — fills in after the résumé phase.</div>{% endif %}
+    {% if g.rec and g.rec.notes %}
+    <details class="intro"><summary>Drafted intro for {{ g.rec.contact_name }}</summary>
+      <div class="msg" id="note-{{ loop.index }}">{{ g.rec.notes }}</div>
+      <div style="margin-top:6px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        {% if g.rec.contact_link and 'linkedin' in g.rec.contact_link %}
+        <a class="btn" href="{{ g.rec.contact_link }}" target="_blank" rel="noopener"
+           data-copy-target="#note-{{ loop.index }}" data-copied-label="✓ copied · profile opening">Copy intro &amp; open profile ↗</a>
+        {% endif %}
+        <button class="btn" type="button" data-copy-target="#note-{{ loop.index }}" data-copied-label="✓ intro copied">Copy intro</button>
+      </div>
+    </details>
+    {% endif %}
+    <table class="q">
+      {% for j in g.jobs %}
+      {% set r = j.row %}
+      <tr>
+        <td class="sc"><span class="score s{{ [5,((r.fit or 0)//20)]|min }}">{{ r.fit }}</span></td>
+        <td class="title"><a href="{{ url_for('job', pid=r.id) }}">{{ r.title }}</a>
+          <div class="sub" style="font-size:11px">posted {{ fmt_date(r.posted_date) if r.posted_date else fmt_date(r.posted_at) }}{% if r.generated_at %} · résumé {{ r.generated_at[:10] }}{% endif %}</div></td>
+        <td class="pay">{{ j.salary }}</td>
+        <td class="dl">
+          {% if j.has_ats %}<a href="{{ url_for('file', path=r.resume_path) }}" target="_blank">ATS</a>{% endif %}
+          {% if j.has_prem %}<a href="{{ url_for('file', path=j.prem) }}" target="_blank">★Premium</a>{% endif %}
+          {% if j.has_1pg %}<a href="{{ url_for('file', path=j.one) }}" target="_blank">1pg</a>{% endif %}
+          {% if j.has_cover %}<a href="{{ url_for('file', path=r.cover_path) }}" target="_blank">Cover</a>{% endif %}
+          {% if not j.has_1pg %}<span class="sub" style="font-size:11px">· 1pg pending regen</span>{% endif %}
+        </td>
+        <td class="act">
+          {% if r.url %}<a class="apply" href="{{ r.url }}" target="_blank" rel="noopener"
+             data-copy-target="#fieldpack" data-copied-label="↗ details copied"
+             title="Opens the posting and copies your contact details to paste">Apply ↗</a>{% endif %}
+          {% if r.status == 'applied' %}<span class="applied">applied</span>
+          {% else %}
+          <form method="post" action="{{ url_for('act', pid=r.id, action='apply') }}" style="display:inline">
+            <input type="hidden" name="back" value="{{ request.full_path }}">
+            <button>Mark applied</button>
+          </form>
+          {% endif %}
+          {% if r.outreach_sent_at %}<span class="applied" title="recruiter intro sent">intro ✓</span>
+          {% else %}
+          <form method="post" action="{{ url_for('act', pid=r.id, action='outreach') }}" style="display:inline">
+            <input type="hidden" name="back" value="{{ request.full_path }}">
+            <button title="mark the recruiter intro sent for this role">Intro sent</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+{% endfor %}
+
+{% if not groups %}<p>No generated résumés ≥ ${{ '{:,}'.format(min_pay) }}/yr yet. Lower the pay filter, or generate from <a href="{{ url_for('report') }}">By Company</a>.</p>{% endif %}
+{% endblock %}

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>My Day — Intelligent Communication</title>
+<!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
+     Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
+     matters — without it the surface would have no colors at all. -->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  /* Short alias names kept, but DERIVED from framework theme tokens instead of hardcoded hex, so
+     all eleven themes work — not just the dark one whose palette the old literals happened to match.
+     Status/accent aliases carry the old hex as a fallback to stay legible if a theme omits one. */
+  :root {
+    --bg: var(--bg-primary);
+    --panel: var(--bg-card);
+    --panel2: var(--bg-tertiary);
+    --line: var(--border-color);
+    --text: var(--text-primary);
+    --muted: var(--text-muted);
+    --accent: var(--accent-primary, #7c6cff);
+    --accent2: var(--status-success, #00d3a7);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family: system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  .page { max-width:840px; margin:0 auto; padding:34px 28px 60px; }
+  h1 { font-size:24px; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:26px; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin-bottom:26px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  .card .n { font-size:28px; font-weight:700; }
+  .card .l { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.5px; margin-top:4px; }
+  .summary { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px 22px; margin-bottom:26px; }
+  .summary h3 { margin:0 0 10px; font-size:13px; color:var(--accent2); text-transform:uppercase; letter-spacing:.6px; }
+  .summary .body { white-space:pre-wrap; line-height:1.65; font-size:15px; color:var(--text); }
+  .section { margin-bottom:26px; }
+  .section h3 { font-size:14px; margin:0 0 12px; color:var(--text); }
+  .ev, .se { background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:11px 14px; margin-bottom:8px; display:flex; gap:12px; align-items:center; }
+  .ev .t { color:var(--accent2); font-size:13px; font-weight:600; min-width:74px; }
+  .ev .s { font-size:14px; }
+  .ev .loc { color:var(--muted); font-size:12px; margin-left:auto; }
+  .se .nm { font-size:14px; flex:1; }
+  .se .ct { color:var(--muted); font-size:12px; }
+  .muted { color:var(--muted); font-size:13px; }
+  .notice { color:var(--muted); padding:50px 0; text-align:center; }
+  .notice a { color:var(--accent); }
+  .spin { color:var(--muted); font-size:14px; }
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--muted,rgba(255,255,255,.28))}
+  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
+  @media (max-width: 640px) {
+    .page { padding: 20px 14px 40px; }
+    .ev { flex-wrap: wrap; }
+    .ev .loc { margin-left: 0; font-size: 12px; flex-basis: 100%; }
+  }
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+  <div class="page">
+    <h1>☀️ Good day</h1>
+    <div class="sub" id="sub">Here's your day at a glance.</div>
+    <div id="content"><div class="spin">Pulling your inbox and calendar…</div></div>
+  </div>
+
+<script>
+const content = document.getElementById('content');
+function esc(s){ return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function evTime(s){ const t=Date.parse(s); if(!t) return 'all day'; return new Date(t).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}); }
+
+async function run(){
+  const r = await fetch('/api/email/digest?surface=1');
+  if (!r.ok) { content.innerHTML = '<div class="notice">Could not load your day ('+r.status+').</div>'; return; }
+  const d = await r.json();
+  if (d.connected === false) { content.innerHTML = '<div class="notice">No Google account connected.<br><a href="/utilities" target="_top">Connect Google →</a></div>'; return; }
+  document.getElementById('sub').textContent = d.date + ' · ' + d.unreadCount + ' unread · ' + d.events.length + ' events today';
+
+  const events = d.events.map(e => `<div class="ev"><span class="t">${esc(evTime(e.start))}</span><span class="s">${esc(e.summary)}</span>${e.location?`<span class="loc">${esc(e.location)}</span>`:''}</div>`).join('') || '<div class="muted">No events today.</div>';
+  const senders = d.topSenders.map(s => `<div class="se"><span class="nm">${esc(s.name)}</span><span class="ct">${s.count} msg${s.count>1?'s':''}</span></div>`).join('') || '<div class="muted">Quiet inbox.</div>';
+
+  content.innerHTML = `
+    <div class="cards">
+      <div class="card"><div class="n">${d.unreadCount}</div><div class="l">Unread today</div></div>
+      <div class="card"><div class="n">${d.total}</div><div class="l">Recent (24h)</div></div>
+      <div class="card"><div class="n">${d.events.length}</div><div class="l">Events today</div></div>
+    </div>
+    <div class="summary"><h3>Your day, summarized</h3><div class="body" id="aiBody"><span class="spin">Thinking…</span></div></div>
+    <div class="section"><h3>📅 Today's calendar</h3>${events}</div>
+    <div class="section"><h3>📨 Who's emailing you</h3>${senders}</div>`;
+
+  // Kick off the AI narrative (separate call — it's the slow part).
+  const sr = await fetch('/api/email/summary', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
+  const aiBody = document.getElementById('aiBody');
+  if (!sr.ok) { aiBody.innerHTML = '<span class="muted">Summary unavailable right now.</span>'; return; }
+  const { summary } = await sr.json();
+  aiBody.textContent = summary;
+}
+run();
+</script>
+</body>
+</html>

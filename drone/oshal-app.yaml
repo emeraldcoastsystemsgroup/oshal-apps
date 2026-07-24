@@ -1,0 +1,188 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — drone ("Drone Ops")
+# Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
+# ADR-093). This package is the app: the /api/drone routes + the Drone Ops
+# surface + the manifest + a package COPY of the drone-operator persona for the
+# registrar.
+#
+# Drones are swarm nodes (ADR-099): the embedded sim is always present, real
+# vehicles join via authenticated drone-node heartbeats (sim or MAVLink at the
+# airframe). The drone-operator concierge DRAFTS missions — single-drone plans
+# and coordinated FLEET plans ({droneId → plan} assignments, deconflicted by a
+# deterministic separation validator). Safety doctrine: every draft is
+# geofence-validated, nothing flies without an explicit human Execute, and
+# real hardware additionally requires the confirm rail.
+#
+# What STAYS framework-resident per ADR-093 (this package ships none of it):
+#   - the drone ENGINE (src/features/drone): DroneService, the sim + MAVLink +
+#     remote providers, the fleet plane, mission/show validators, patterns, and
+#     the FleetShowRunner conductor — imported via @/ aliases (its engine specs
+#     stay in the kernel too);
+#   - the standalone drone NODE (src/app/drone-node-server.ts) and the
+#     DRONE_EMBEDDED_SIMS compose knob (extra embedded sim drones on the api);
+#   - the drone-operator INLINE concierge node (registered in BOTH
+#     swarm-bot-registry blocks) — the app's reasoning owner; the persona here is
+#     a package COPY for the registrar;
+#   - the concierge helpers (@/app/routes/concierge-envelope + concierge-store —
+#     the kernel-owned 'drone' conversation prefix) and the schema bootstrap;
+#   - the default Drone Ops tile in config-seed/profiles/oshal-framework.json
+#     (carved apps keep their default tiles).
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: drone
+suite: ai-home   # ADR-097: primary catalog shelf (device/automation family)
+displayName: Drone Ops
+description: >-
+  Drone fleet automation control — arm, take off, fly waypoint missions, and
+  coordinate multi-drone fleet plans inside a hard geofence with deterministic
+  separation checks. A flight-planning concierge drafts single or fleet
+  missions from natural language; a human approves every flight. Sim engine
+  built in, MAVLink (ArduPilot/PX4) at the drone node.
+version: 1.1.0
+status: active
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: drone
+  ref: main
+
+# No connector allow-list: drones are SWARM NODES that join by authenticated
+# heartbeat (swarm service secret), not per-user OAuth connectors.
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — the flight-planning brain (Form B inline concierge — drafts only, never
+# actuates; registered in BOTH swarm-bot-registry blocks, framework-resident).
+# The persona here is a package COPY for the registrar; the inline node keeps
+# using /app/ai-lab (core).
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: b00f0000-0000-0000-0000-000000000001
+    name: drone-operator
+    persona: personas/drone-operator.yaml
+    role: robotics/drone-flight-planning
+    capabilities:
+      - drone-mission-drafting
+      - waypoint-planning
+      - drone-telemetry-briefing
+      - geofence-awareness
+      - fleet-mission-coordination
+
+tools:
+  - name: drone-status
+    displayName: Drone Status
+    type: api
+    category: robotics
+    description: Read the drone's live telemetry, geofence, and engine kind.
+    executor: { executorType: api, apiEndpoint: "GET /api/drone/state" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Read-only. Use the returned telemetry as the only source of drone position, battery, and status.
+    routingTags: [drone, telemetry, status]
+    skills: [drone-telemetry-briefing]
+    tags: [drone, route-backed]
+
+  - name: drone-fleet-status
+    displayName: Drone Fleet Status
+    type: api
+    category: robotics
+    description: List every drone in the fleet — engine kind, online/offline, battery, and telemetry — plus the active geofence.
+    executor: { executorType: api, apiEndpoint: "GET /api/drone/fleet" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Read-only. The fleet listing is the only source of which drones exist and which are reachable.
+    routingTags: [drone, fleet, telemetry, status]
+    skills: [drone-telemetry-briefing, fleet-mission-coordination]
+    tags: [drone, route-backed]
+
+  - name: draft-drone-mission
+    displayName: Draft Drone Mission
+    type: api
+    category: robotics
+    description: Ask the drone-operator concierge to draft a geofence-compliant waypoint mission from natural language — single drone or a coordinated fleet plan. Drafts never fly by themselves.
+    executor: { executorType: api, apiEndpoint: "POST /api/drone/chat" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        message: { type: string }
+      required: [message]
+    usageInstructions: >-
+      Call with {message}. The reply contains a saved draft mission id when a plan was produced;
+      execution is a separate human-approved step.
+    routingTags: [drone, mission, planning]
+    skills: [drone-mission-drafting, waypoint-planning]
+    tags: [drone, route-backed]
+
+  - name: execute-drone-mission
+    displayName: Execute Drone Mission
+    type: api
+    category: robotics
+    description: Execute a stored mission on the drone. Approval-gated — the human confirms every flight.
+    executor: { executorType: api, apiEndpoint: "POST /api/drone/missions/{input.missionId}/execute" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        missionId: { type: string }
+      required: [missionId]
+    usageInstructions: >-
+      Call only after the human explicitly confirms the flight. The plan is re-validated against
+      the geofence at execution time.
+    routingTags: [drone, mission, execute]
+    skills: [waypoint-planning]
+    tags: [drone, route-backed, approval-required]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon icon opens the Drone Ops surface, self-served
+# by this package's route from tools/drone-ops.html (ctx.appPackageDir).
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: drone-ops
+      label: Drone Ops
+      icon: codicon codicon-rocket
+      iframeUrl: /api/drone/app
+      section: top
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — the packaged surface router, mounted /api/drone on activation. (In
+# core server.ts this was createDroneRoutes behind serviceSecretOr(requiresAuth);
+# it now mounts from this package — drone nodes authenticate with the service
+# secret, operators with OIDC. The heartbeat route additionally REQUIRES the
+# secret itself: a node identity, never an operator browser.)
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - module: routes/drone-routes.js
+    factory: createDroneRoutes
+    mountPath: /api/drone
+    auth: service-or-oidc   # what core server.ts mounted (ADR-085 D2)
+    requiresAuth: true
+    requiresContext: true
+
+# No migrations: drone_missions / drone_command_log / drone_conversations /
+# drone_messages are created by the packaged route's lazy ensureDroneSchema
+# (runRuntimeSchemaBootstrap + owner-RLS via buildOwnerRlsPolicyStatements).
+
+# RIBBON VISIBILITY — focus mode for /cockpit?app=drone
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  hideChatPanel: true
+  defaultView: drone-ops

@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<!--
+  Payments surface — take payments through a connected merchant account (Square / PayPal).
+  Self-contained iframe page served by createPaymentsRoutes at /api/payments/. The merchant
+  connects their account on /utilities (Payments category); this page picks a connected rail,
+  takes a payment (Square: a card token; PayPal: a customer email → invoice), and lists history.
+  All work is auth-gated server-side; the charge runs on the merchant's brokered token.
+-->
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Payments</title>
+<script>
+  (() => {
+    const supported = ['midnight','daylight','ocean','sakura','forest','gray','black','light-blue','aurora','graphite','amber'];
+    try {
+      const saved = localStorage.getItem('cockpit-theme');
+      if (saved && supported.includes(saved)) {
+        document.documentElement.setAttribute('data-theme', saved);
+      }
+    } catch (_) {}
+  })();
+</script>
+<link rel="stylesheet" href="/fonts/codicon.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/midnight.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/daylight.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/ocean.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/sakura.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/forest.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/gray.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/black.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/light-blue.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/aurora.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/graphite.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/amber.css" />
+<style>
+  :root {
+    --bg:#0f1417; --panel:#151b20; --panel2:#1c252b; --line:#28333a;
+    --text:#e9f0f4; --muted:#90a4b0; --accent:#3aa0ff; --accent2:#9ed0ff; --danger:#ff8b8b; --ok:#37d27f;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  .page { max-width:760px; margin:0 auto; padding:30px 24px 70px; }
+  .head { display:flex; align-items:center; gap:12px; margin-bottom:4px; }
+  h1 { font-size:23px; margin:0; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:18px; line-height:1.5; }
+  .btn { border:none; border-radius:8px; padding:9px 15px; cursor:pointer; font-size:13px; font-weight:600; }
+  .btn.primary { background:var(--accent); color:#03121f; }
+  .btn.ghost { background:var(--panel2); border:1px solid var(--line); color:var(--text); }
+  .btn:disabled { opacity:.5; cursor:default; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:22px; margin-bottom:16px; }
+  .panel h2 { font-size:16px; margin:0 0 12px; }
+  .tabs { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+  .tab { background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:10px 16px; cursor:pointer; font-size:14px; font-weight:600; display:flex; gap:8px; align-items:center; }
+  .tab.active { border-color:var(--accent); color:var(--accent2); }
+  .tab .st { font-size:11px; font-weight:500; color:var(--muted); }
+  .field { display:block; margin-bottom:12px; }
+  .field span { display:block; font-size:12px; color:var(--muted); margin-bottom:5px; }
+  .field input { width:100%; padding:9px; background:var(--panel2); border:1px solid var(--line); border-radius:8px; color:var(--text); font-size:14px; }
+  .chip { display:inline-block; background:#3a2a10; border:1px solid #6b4a18; border-radius:20px; padding:3px 10px; font-size:11px; margin-left:8px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.4px; padding:6px 8px; border-bottom:1px solid var(--line); }
+  td { padding:7px 8px; border-bottom:1px solid var(--line); }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  a { color:var(--accent2); }
+  .err { color:var(--danger); }
+  .ok { color:var(--ok); }
+  .spin { color:var(--muted); font-size:14px; padding:28px 0; text-align:center; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent); animation:p 1s infinite; }
+  @keyframes p { 0%,100%{opacity:.3} 50%{opacity:1} }
+  @media (max-width:640px) {
+    .page { padding:16px 12px 50px; }
+    .panel { padding:14px 12px; }
+    .field input { font-size:16px; }
+    .btn { padding:12px 15px; font-size:14px; }
+    .tab { padding:10px 12px; font-size:13px; }
+    table { display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  }
+
+  :root {
+    color-scheme: light dark;
+    --pay-bg: var(--bg-primary, var(--bg));
+    --pay-panel: var(--bg-card, var(--panel));
+    --pay-panel-2: var(--bg-secondary, var(--panel2));
+    --pay-control: color-mix(in srgb, var(--pay-panel-2) 76%, var(--pay-bg));
+    --pay-line: var(--border-color, var(--line));
+    --pay-line-strong: var(--border-color-hover, var(--line));
+    --pay-text: var(--text-primary, var(--text));
+    --pay-muted: var(--text-secondary, var(--muted));
+    --pay-accent: var(--accent-primary, var(--accent));
+    --pay-accent-2: var(--accent-primary-hover, var(--accent2));
+    --pay-shadow: 0 18px 48px rgba(15, 23, 42, .12);
+  }
+
+  body {
+    background:
+      radial-gradient(circle at 18% 14%, color-mix(in srgb, var(--pay-accent) 16%, transparent), transparent 32rem),
+      linear-gradient(135deg, var(--pay-bg), color-mix(in srgb, var(--pay-bg) 72%, var(--pay-panel)));
+    color: var(--pay-text);
+  }
+
+  .page {
+    width: min(980px, calc(100% - 36px));
+    max-width: none;
+  }
+
+  .head {
+    align-items: center;
+    gap: 14px;
+    padding: 22px;
+    border: 1px solid var(--pay-line);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--pay-panel) 86%, transparent);
+    box-shadow: var(--pay-shadow);
+  }
+
+  .head span {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--pay-accent), var(--pay-accent-2));
+    color: #fff;
+  }
+
+  h1 {
+    font-size: clamp(28px, 3.4vw, 44px);
+    letter-spacing: 0;
+  }
+
+  .page > .sub {
+    max-width: 760px;
+    margin: 12px 0 20px 22px;
+    color: var(--pay-muted);
+  }
+
+  .panel,
+  .tab {
+    border-color: var(--pay-line);
+    background: color-mix(in srgb, var(--pay-panel) 88%, transparent);
+    box-shadow: var(--pay-shadow);
+    backdrop-filter: blur(var(--glass-blur-light, 12px)) saturate(130%);
+    -webkit-backdrop-filter: blur(var(--glass-blur-light, 12px)) saturate(130%);
+  }
+
+  .panel {
+    border-radius: 14px;
+  }
+
+  .tabs {
+    gap: 10px;
+  }
+
+  .tab {
+    min-height: 46px;
+    color: var(--pay-text);
+  }
+
+  .tab.active {
+    border-color: color-mix(in srgb, var(--pay-accent) 62%, var(--pay-line));
+    background: color-mix(in srgb, var(--pay-accent) 12%, var(--pay-panel));
+    color: var(--pay-text);
+  }
+
+  .tab .st,
+  .sub,
+  .field span,
+  th {
+    color: var(--pay-muted);
+  }
+
+  .btn,
+  .field input {
+    border: 1px solid var(--pay-line);
+    background: var(--pay-control);
+    color: var(--pay-text);
+  }
+
+  .btn.primary {
+    border-color: transparent;
+    background: linear-gradient(135deg, var(--pay-accent), var(--pay-accent-2));
+    color: #fff;
+  }
+
+  .btn.ghost:hover,
+  .btn.primary:hover,
+  .tab:hover {
+    border-color: color-mix(in srgb, var(--pay-accent) 56%, var(--pay-line));
+  }
+
+  .chip {
+    border-color: color-mix(in srgb, var(--status-warning, #f4b64a) 44%, var(--pay-line));
+    background: color-mix(in srgb, var(--status-warning, #f4b64a) 13%, var(--pay-panel));
+    color: var(--pay-text);
+  }
+
+  td {
+    border-bottom-color: var(--pay-line);
+  }
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<div class="page">
+  <div class="head"><span style="font-size:20px">💳</span><h1>Payments</h1></div>
+  <div class="sub">Take a payment through your connected merchant account. Pick a provider, enter the amount, and charge — the payment runs on your own Square / PayPal account.</div>
+  <div id="main"><div class="spin"><span class="dot"></span> Loading…</div></div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const main = $('main');
+const money = (c) => '$' + (Number(c||0)/100).toLocaleString(undefined, { minimumFractionDigits: 2 });
+const fmtDate = (iso) => { try { return new Date(iso).toLocaleString(); } catch { return iso || '—'; } };
+const PROVIDER_LABEL = { square: 'Square', paypal: 'PayPal' };
+
+async function api(path, opts) {
+  const r = await fetch('/api/payments' + path, Object.assign({ credentials: 'include' }, opts || {}));
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.message || j.error || ('HTTP ' + r.status));
+  return j;
+}
+
+let providers = [];
+let active = null;
+
+/** Boot: load providers + history. */
+(async function init() {
+  try {
+    providers = (await api('/providers')).providers || [];
+    active = (providers.find((p) => p.connected) || providers[0] || {}).provider || null;
+    render();
+  } catch (e) { main.innerHTML = '<div class="panel err">Could not load: ' + e.message + '</div>'; }
+})();
+
+function render() {
+  const tabs = providers.map((p) => `
+    <div class="tab ${p.provider === active ? 'active' : ''}" data-p="${p.provider}">
+      ${PROVIDER_LABEL[p.provider] || p.provider}
+      <span class="st">${p.connected ? '● connected' : '○ not connected'}</span>
+    </div>`).join('');
+  const p = providers.find((x) => x.provider === active) || {};
+  main.innerHTML = `
+    <div class="tabs">${tabs}</div>
+    <div class="panel" id="formPanel">${p.connected ? chargeForm(p) : connectPrompt(p)}</div>
+    <div class="panel" id="histPanel"><h2>Recent payments</h2><div id="hist"><div class="spin"><span class="dot"></span> Loading…</div></div></div>`;
+  document.querySelectorAll('.tab').forEach((t) => t.onclick = () => { active = t.getAttribute('data-p'); render(); });
+  if (p.connected) $('chargeBtn').onclick = submitCharge;
+  loadHistory();
+}
+
+function connectPrompt(p) {
+  return `<h2>Connect ${PROVIDER_LABEL[p.provider] || p.provider}</h2>
+    <div class="sub">To take payments through ${PROVIDER_LABEL[p.provider] || p.provider}, connect your merchant account first.</div>
+    <a class="btn primary" href="/api/connect/${p.provider}/start" target="_blank" rel="noopener">Connect ${PROVIDER_LABEL[p.provider] || p.provider}</a>
+    <div class="sub" style="margin-top:10px">After connecting, reload this page.</div>`;
+}
+
+function chargeForm(p) {
+  const test = p.testMode ? '<span class="chip">test mode — no real money</span>' : '';
+  return `<h2>Take a payment — ${PROVIDER_LABEL[p.provider] || p.provider} ${test}</h2>
+    <label class="field"><span>Amount (USD)</span><input id="amt" type="number" min="0.01" step="0.01" placeholder="25.00"></label>
+    <label class="field"><span>${p.sourceLabel || 'Source'}</span><input id="src" placeholder="${p.provider === 'square' ? (p.testMode ? 'cnon:card-nonce-ok (Square test card)' : 'card token from Web Payments SDK') : 'customer@email.com'}" value="${p.provider === 'square' && p.testMode ? 'cnon:card-nonce-ok' : ''}"></label>
+    <label class="field"><span>Note (optional)</span><input id="note" placeholder="Invoice #1024 / Order"></label>
+    <button class="btn primary" id="chargeBtn">Take payment</button> <span id="msg" class="sub"></span>`;
+}
+
+async function submitCharge() {
+  const msg = $('msg'); const btn = $('chargeBtn');
+  const dollars = Number($('amt').value);
+  const amountCents = Math.round(dollars * 100);
+  const source = $('src').value.trim();
+  if (!(amountCents > 0)) { msg.className = 'sub err'; msg.textContent = 'Enter an amount.'; return; }
+  if (!source) { msg.className = 'sub err'; msg.textContent = 'Enter the ' + (PROVIDER_LABEL[active] || active) + ' source.'; return; }
+  if (!confirm('Take ' + money(amountCents) + ' via ' + (PROVIDER_LABEL[active] || active) + '?')) return;
+  btn.disabled = true; msg.className = 'sub'; msg.innerHTML = '<span class="dot"></span> Processing…';
+  const requestId = 'req-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+  try {
+    const r = await api('/charge', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: active, amountCents, currency: 'USD', source, note: $('note').value, requestId, confirm: true }) });
+    const c = r.charge;
+    msg.className = 'sub ok';
+    msg.innerHTML = 'Payment ' + c.status + ' (' + c.id + ').' + (c.payerActionUrl ? ' <a href="' + c.payerActionUrl + '" target="_blank" rel="noopener">View invoice</a>' : '');
+    loadHistory();
+  } catch (e) { msg.className = 'sub err'; msg.textContent = e.message; btn.disabled = false; }
+}
+
+async function loadHistory() {
+  const host = $('hist');
+  if (!host) return;
+  try {
+    const charges = (await api('/history')).charges || [];
+    if (!charges.length) { host.innerHTML = '<div class="sub">No payments yet.</div>'; return; }
+    host.innerHTML = `<table><thead><tr><th>Date</th><th>Provider</th><th class="num">Amount</th><th>Status</th><th>Note</th></tr></thead><tbody>` +
+      charges.map((c) => `<tr><td>${fmtDate(c.created_at)}</td><td>${PROVIDER_LABEL[c.provider] || c.provider}${c.test_mode ? ' <span class="sub">(test)</span>' : ''}</td><td class="num">${money(c.amount_cents)}</td><td>${c.status}${c.payer_url ? ' · <a href="' + c.payer_url + '" target="_blank" rel="noopener">invoice</a>' : ''}</td><td>${c.note || '—'}</td></tr>`).join('') +
+      `</tbody></table>`;
+  } catch (e) { host.innerHTML = '<div class="sub err">' + e.message + '</div>'; }
+}
+
+/** Cockpit theme-sync: inherit the parent cockpit's CSS variables when available. */
+(function syncTheme() {
+  try {
+    const cs = window.parent && window.parent !== window ? getComputedStyle(window.parent.document.documentElement) : null;
+    if (!cs) return;
+    const map = {
+      '--bg':'--bg-primary',
+      '--panel':'--bg-card',
+      '--panel2':'--bg-secondary',
+      '--line':'--border-color',
+      '--text':'--text-primary',
+      '--muted':'--text-secondary',
+      '--accent':'--accent-primary',
+      '--accent2':'--accent-primary-hover',
+      '--ok':'--status-success',
+      '--danger':'--status-error'
+    };
+    for (const [local, parentVar] of Object.entries(map)) { const v = cs.getPropertyValue(parentVar); if (v && v.trim()) document.documentElement.style.setProperty(local, v.trim()); }
+  } catch { /* standalone — keep defaults */ }
+})();
+</script>
+</body>
+</html>

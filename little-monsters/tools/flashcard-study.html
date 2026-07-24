@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Little Monsters - Flashcard Study</title>
+<!--
+  CHANGE LOG
+  ---------------------------------------------------------------------------
+  DATE           | AUTHOR                    | DESCRIPTION
+  ---------------------------------------------------------------------------
+  2026-04-19     | roger.murphy@emeraldcoastsystemsgroup.com    | Initial creation — flashcard study mode
+  2026-04-22     | roger.murphy@agenticfederal.us   | Follow parent cockpit theme via theme-sync.js so the iframe recolors when the operator cycles themes instead of being pinned to midnight
+  ---------------------------------------------------------------------------
+-->
+<script>
+// Sync iframe theme to parent cockpit's data-theme. Storage events don't fire
+// in the writing window, so a MutationObserver on the parent <html> is the
+// reliable path for live same-tab updates when the operator cycles themes.
+(function(){
+  function applyTheme(n){
+    if(!n)return;
+    document.documentElement.setAttribute('data-theme',n);
+    var href='/cockpit/css/themes/'+n+'.css';
+    var link=document.querySelector('link[data-lm-theme-link="1"]');
+    if(link){if(link.getAttribute('href')!==href)link.setAttribute('href',href);return;}
+    link=document.createElement('link');link.rel='stylesheet';link.href=href;
+    link.setAttribute('data-lm-theme-link','1');document.head.appendChild(link);
+  }
+  function initial(){
+    try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(_e){}
+    try{var s=window.localStorage.getItem('cockpit-theme');if(s)return s;}catch(_e){}
+    return 'midnight';
+  }
+  applyTheme(initial());
+  try{if(window.parent&&window.parent!==window){
+    var ph=window.parent.document.documentElement;
+    new MutationObserver(function(ms){for(var i=0;i<ms.length;i++){if(ms[i].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)applyTheme(t);}}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});
+  }}catch(_e){}
+})();
+</script>
+<link rel="stylesheet" href="/api/education/education.css">
+<style>
+  body {
+    display: flex; flex-direction: column; align-items: center;
+    padding: var(--space-lg);
+  }
+
+  .header { text-align: center; margin-bottom: 24px; }
+  .header h1 { font-size: 20px; margin-bottom: 4px; }
+  .header p { color: var(--text-muted); font-size: 13px; }
+
+  /* ── Progress Bar ── */
+  .progress {
+    width: 100%; max-width: 440px;
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 24px;
+  }
+  .progress-bar {
+    flex: 1; height: 8px; background: rgba(139,92,246,0.15);
+    border-radius: 99px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-primary), var(--status-active));
+    border-radius: 99px; transition: width 0.3s;
+  }
+  .progress-text { font-size: 12px; color: var(--text-muted); min-width: 44px; text-align: right; }
+
+  /* ── Flashcard ── */
+  .card-container {
+    width: 100%; max-width: 440px; height: 260px;
+    perspective: 1000px; cursor: pointer;
+    margin-bottom: 20px;
+  }
+  .card-inner {
+    width: 100%; height: 100%;
+    position: relative; transition: transform 0.5s;
+    transform-style: preserve-3d;
+  }
+  .card-inner.flipped { transform: rotateY(180deg); }
+
+  .card-face {
+    position: absolute; width: 100%; height: 100%;
+    backface-visibility: hidden;
+    border-radius: var(--radius-md);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 28px; text-align: center;
+    border: 1px solid var(--border-color);
+  }
+  .card-front {
+    background: var(--bg-card);
+  }
+  .card-back {
+    background: rgba(6, 182, 212, 0.08);
+    border-color: rgba(6, 182, 212, 0.15);
+    transform: rotateY(180deg);
+  }
+  .card-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
+  .card-text { font-size: 18px; font-weight: 500; line-height: 1.5; }
+  .card-hint { font-size: 12px; color: var(--status-active); margin-top: 16px; cursor: pointer; }
+  .card-hint:hover { text-decoration: underline; }
+
+  .tap-hint { font-size: 12px; color: var(--text-muted); margin-bottom: 20px; }
+
+  /* ── Answer Buttons ── */
+  .answer-btns {
+    display: flex; gap: 12px; width: 100%; max-width: 440px;
+    margin-bottom: 24px;
+  }
+  .answer-btn {
+    flex: 1; padding: 14px; border-radius: 12px; border: none;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: transform 0.15s, opacity 0.2s;
+  }
+  .answer-btn:hover { transform: translateY(-2px); }
+  .answer-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-wrong { background: rgba(248,113,113,0.15); color: var(--status-error); border: 1px solid rgba(248,113,113,0.2); }
+  .btn-hard { background: rgba(251,191,36,0.15); color: var(--status-warning); border: 1px solid rgba(251,191,36,0.2); }
+  .btn-good { background: rgba(52,211,153,0.15); color: var(--status-success); border: 1px solid rgba(52,211,153,0.2); }
+
+  /* ── Stats ── */
+  .stats { display: flex; gap: 20px; font-size: 13px; color: var(--text-muted); }
+  .stat-val { font-weight: 600; }
+  .stat-val.correct { color: var(--status-success); }
+  .stat-val.wrong { color: var(--status-error); }
+
+  /* ── Done Screen ── */
+  .done-screen {
+    text-align: center; padding: 40px;
+    width: 100%; max-width: 440px;
+  }
+  .done-screen .big-emoji { font-size: 64px; margin-bottom: 16px; }
+  .done-screen h2 { font-size: 22px; margin-bottom: 8px; }
+  .done-screen p { color: var(--text-muted); font-size: 14px; margin-bottom: 24px; }
+  .done-screen .btn {
+    padding: 12px 24px; border-radius: 12px; border: none;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+    background: var(--accent-primary); color: #fff;
+  }
+  .done-screen .btn:hover { background: #7c3aed; }
+
+  .read-card-btn {
+    padding: 6px 14px; border-radius: 8px;
+    border: 1px solid var(--border-color); background: transparent;
+    color: var(--status-active); font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  .read-card-btn:hover { background: rgba(6,182,212,0.1); }
+
+  .voice-answer-btn { color: var(--status-error); border-color: rgba(239,68,68,0.3); }
+  .voice-answer-btn:hover { background: rgba(239,68,68,0.1); }
+  .voice-answer-btn.listening {
+    background: var(--status-error); color: #fff; border-color: var(--status-error);
+    animation: pulse-voice 1.5s infinite;
+  }
+  @keyframes pulse-voice { 0%,100%{box-shadow:none} 50%{box-shadow:0 0 12px rgba(239,68,68,0.4)} }
+
+  .voice-result {
+    width: 100%; max-width: 440px; text-align: center;
+    margin-bottom: 16px; padding: 14px 20px;
+    background: rgba(6,182,212,0.08); border: 1px solid rgba(6,182,212,0.2);
+    border-radius: var(--radius-md);
+  }
+  .voice-result-label { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; }
+  .voice-result-text { font-size: 16px; font-weight: 600; color: var(--text-primary); line-height: 1.4; min-height: 24px; }
+
+  .flip-check-btn {
+    margin-top: 10px; padding: 8px 20px; border-radius: 10px;
+    border: none; background: var(--accent-primary); color: #fff;
+    font-size: 14px; font-weight: 700; cursor: pointer;
+  }
+  .flip-check-btn:hover { background: #7c3aed; }
+
+  .my-answer {
+    margin-top: 12px; padding: 10px 14px; border-radius: 8px;
+    background: rgba(6,182,212,0.08); border: 1px solid rgba(6,182,212,0.15);
+    font-size: 13px; color: var(--status-active); text-align: left;
+  }
+  .my-answer::before { content: 'You said: '; font-weight: 700; font-size: 11px; text-transform: uppercase; display: block; margin-bottom: 4px; color: var(--text-muted); }
+
+  .hide { display: none; }
+
+  @media (max-width: 640px) {
+    body {
+      padding: 16px 12px;
+    }
+
+    /* Prevent the three answer buttons from becoming razor-thin — stack them */
+    .answer-btns {
+      flex-direction: column;
+      gap: 8px;
+    }
+    .answer-btn {
+      padding: 14px;
+      font-size: 15px; /* comfortable tap target */
+    }
+
+    /* Stack the two in-card buttons (Read aloud / Speak answer) */
+    .card-face > div[style*="display:flex"] {
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+    }
+    .read-card-btn {
+      width: 100%;
+      font-size: 14px;
+      padding: 10px 14px;
+    }
+
+    /* Ensure card text stays readable and wraps */
+    .card-text {
+      font-size: 16px;
+    }
+
+    /* Stats row: allow wrapping so it never overflows */
+    .stats {
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    /* Inputs / buttons: keep font-size >= 16px to prevent iOS zoom */
+    input, select, textarea {
+      font-size: 16px;
+    }
+  }
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+
+<div class="header">
+  <div style="text-align:left;margin-bottom:6px;"><span onclick="window.location.href='/api/education/flashcards-hub'" style="cursor:pointer;color:var(--accent-primary);font-weight:700;font-size:14px;">&#8592; My flashcards</span></div>
+  <h1>Flashcard Study</h1>
+  <p id="deckTitle">Loading deck...</p>
+</div>
+
+<!-- Progress -->
+<div class="progress">
+  <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+  <div class="progress-text" id="progressText">0/0</div>
+</div>
+
+<!-- Flashcard -->
+<div class="card-container" id="cardContainer" onclick="flipCard()" role="button" aria-label="Flashcard - click or press Space to flip" tabindex="0">
+  <div class="card-inner" id="cardInner">
+    <div class="card-face card-front">
+      <div class="card-label">Question</div>
+      <div class="card-text" id="cardFront">Loading...</div>
+      <div class="card-hint hide" id="hintBtn" onclick="event.stopPropagation(); showHint()">Show hint</div>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button class="read-card-btn" onclick="event.stopPropagation(); speakCard('front')">&#128264; Read aloud</button>
+        <button class="read-card-btn voice-answer-btn" id="voiceAnswerBtn" onclick="event.stopPropagation(); startVoiceAnswer()">&#127908; Speak answer</button>
+      </div>
+    </div>
+    <div class="card-face card-back">
+      <div class="card-label" id="backLabel">Answer</div>
+      <div class="card-text" id="cardBack"></div>
+      <div class="my-answer hide" id="myAnswer"></div>
+      <button class="read-card-btn" onclick="event.stopPropagation(); speakCard('back')">&#128264; Read answer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Voice answer display (shown between question and flip) -->
+<div class="voice-result hide" id="voiceResult">
+  <div class="voice-result-label">Your answer:</div>
+  <div class="voice-result-text" id="voiceResultText"></div>
+  <button class="flip-check-btn" onclick="flipCard()">Flip to check &#8594;</button>
+</div>
+
+<div class="tap-hint" id="tapHint">Tap to flip &mdash; or speak your answer first<br><span style="font-size:10px;opacity:0.6;">Keyboard: Space=flip, 1/2/3=rate, R=read, V=voice, H=hint</span></div>
+
+<!-- Answer Buttons -->
+<div class="answer-btns hide" id="answerBtns">
+  <button class="answer-btn btn-wrong" onclick="answer(0)">Don't got it</button>
+  <button class="answer-btn btn-good" onclick="answer(2)">Got it!</button>
+</div>
+
+<!-- Stats -->
+<div class="stats">
+  <div>Correct: <span class="stat-val correct" id="correctCount">0</span></div>
+  <div>Reviewing: <span class="stat-val wrong" id="wrongCount">0</span></div>
+  <div>Remaining: <span class="stat-val" id="remainCount">0</span></div>
+</div>
+
+<!-- Done Screen -->
+<div class="done-screen hide" id="doneScreen">
+  <div class="big-emoji" id="doneEmoji"></div>
+  <h2 id="doneTitle"></h2>
+  <p id="doneMessage"></p>
+  <button class="btn" onclick="restartDeck()">Study Again</button>
+</div>
+
+<div id="mascot-container"></div>
+
+<script src="/api/education/mascot.js?v=3"></script>
+<script src="/api/education/lm-voice.js"></script>
+<script>
+/**
+ * Flashcard Study Mode — Implements spaced repetition review.
+ *
+ * Cards are scored on a 3-point scale:
+ *   0 = Didn't know (show again soon)
+ *   1 = Hard (show again later)
+ *   2 = Got it (move to done)
+ */
+
+var deck = [];
+var currentIndex = 0;
+var isFlipped = false;
+var correct = 0;
+var reviewing = 0;
+var mascot = null;
+
+// Initialize mascot
+if (typeof LMMascot !== 'undefined') {
+  mascot = new LMMascot(document.getElementById('mascot-container'));
+}
+
+/** One-tap: auto-generate a grounded flashcard set from this class's own textbook, then reload. */
+async function generateFromTextbook() {
+  var classId = new URLSearchParams(window.location.search).get('classId');
+  if (!classId) return;
+  var btn = document.getElementById('genBtn');
+  var status = document.getElementById('genStatus');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating from your textbook…'; }
+  try {
+    var resp = await fetch('/api/education/flashcards/generate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ classId: classId, count: 8 }),
+    });
+    var data = await resp.json();
+    if (!resp.ok || data.error) {
+      if (status) status.textContent = data.reason || data.error || 'Could not generate cards.';
+      if (btn) { btn.disabled = false; btn.textContent = 'Generate from your textbook'; }
+      return;
+    }
+    if (status) status.textContent = 'Created ' + data.cardCount + ' cards grounded in your textbook — loading…';
+    setTimeout(function () { window.location.reload(); }, 900);
+  } catch (e) {
+    if (status) status.textContent = 'Error: ' + e.message;
+    if (btn) { btn.disabled = false; btn.textContent = 'Generate from your textbook'; }
+  }
+}
+
+/** Load a flashcard deck from the API. Falls back to empty state if no sets exist. */
+async function loadDeck() {
+  var params = new URLSearchParams(window.location.search);
+  var setId = params.get('setId');
+  var classId = params.get('classId');
+
+  try {
+    if (setId) {
+      // Load specific set
+      var resp = await fetch('/api/education/flashcards/sets/' + setId + '/cards');
+      if (resp.ok) {
+        var data = await resp.json();
+        deck = (data.cards || []).map(function(c) {
+          return { id: c.card_id, front: c.front, back: c.back, hints: c.hints || [], topic: c.topic || '' };
+        });
+      }
+    } else {
+      // Load first available set for the class (or all sets)
+      var setsUrl = '/api/education/flashcards/sets' + (classId ? '?classId=' + classId : '');
+      var setsResp = await fetch(setsUrl);
+      if (setsResp.ok) {
+        var setsData = await setsResp.json();
+        if (setsData.sets && setsData.sets.length > 0) {
+          var firstSet = setsData.sets[0];
+          var cardsResp = await fetch('/api/education/flashcards/sets/' + firstSet.set_id + '/cards');
+          if (cardsResp.ok) {
+            var cardsData = await cardsResp.json();
+            deck = (cardsData.cards || []).map(function(c) {
+              return { id: c.card_id, front: c.front, back: c.back, hints: c.hints || [], topic: c.topic || '' };
+            });
+            document.getElementById('deckTitle').textContent = firstSet.title + ' — ' + deck.length + ' cards';
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[Flashcards] API fetch failed:', e.message);
+  }
+
+  if (deck.length === 0) {
+    document.getElementById('deckTitle').textContent = 'No flashcards yet';
+    var cf = document.getElementById('cardFront');
+    if (classId) {
+      cf.innerHTML = 'No flashcards yet for this class.<br><br>'
+        + '<button id="genBtn" class="btn" onclick="generateFromTextbook()" style="margin-top:6px">Generate from your textbook</button>'
+        + '<div id="genStatus" style="margin-top:10px;font-size:13px;color:#9fb3c8"></div>';
+    } else {
+      cf.textContent = 'No flashcards available. Open a class to generate cards from its textbook.';
+    }
+    return;
+  }
+
+  document.getElementById('deckTitle').textContent = (document.getElementById('deckTitle').textContent || 'Study Deck') + (deck.length ? '' : '');
+  if (!document.getElementById('deckTitle').textContent.includes('cards')) {
+    document.getElementById('deckTitle').textContent += ' — ' + deck.length + ' cards';
+  }
+  document.getElementById('remainCount').textContent = deck.length;
+  showCard();
+}
+
+/** Display the current card (front side). */
+function showCard() {
+  if (currentIndex >= deck.length) {
+    showDoneScreen();
+    return;
+  }
+
+  var card = deck[currentIndex];
+  document.getElementById('cardFront').textContent = card.front;
+  document.getElementById('cardBack').textContent = card.back;
+
+  // Reset flip and voice answer
+  isFlipped = false;
+  mySpokenAnswer = '';
+  document.getElementById('cardInner').classList.remove('flipped');
+  document.getElementById('answerBtns').classList.add('hide');
+  document.getElementById('tapHint').classList.remove('hide');
+  document.getElementById('voiceResult').classList.add('hide');
+  document.getElementById('myAnswer').classList.add('hide');
+  stopVoiceAnswer();
+
+  // Show hint button if hints available
+  var hintBtn = document.getElementById('hintBtn');
+  hintBtn.classList.toggle('hide', !card.hints || card.hints.length === 0);
+  hintBtn.textContent = 'Show hint';
+
+  updateProgress();
+}
+
+/** Flip the card to show the answer. */
+/** Voice answer — speak your answer, see it transcribed, then flip to check. */
+var voiceRecognition = null;
+var isVoiceListening = false;
+var mySpokenAnswer = '';
+
+function startVoiceAnswer() {
+  if (isVoiceListening) { stopVoiceAnswer(); return; }
+
+  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    alert('Voice input not supported in this browser. Try Chrome.');
+    return;
+  }
+
+  voiceRecognition = new SpeechRecognition();
+  voiceRecognition.continuous = false;
+  voiceRecognition.interimResults = true;
+  voiceRecognition.lang = 'en-US';
+
+  voiceRecognition.onstart = function() {
+    isVoiceListening = true;
+    document.getElementById('voiceAnswerBtn').classList.add('listening');
+    document.getElementById('voiceAnswerBtn').innerHTML = '&#127908; Listening...';
+    document.getElementById('voiceResult').classList.remove('hide');
+    document.getElementById('voiceResultText').textContent = 'Listening...';
+  };
+
+  voiceRecognition.onresult = function(event) {
+    var transcript = '';
+    for (var i = 0; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
+    }
+    mySpokenAnswer = transcript;
+    document.getElementById('voiceResultText').textContent = transcript || 'Listening...';
+  };
+
+  voiceRecognition.onend = function() {
+    stopVoiceAnswer();
+    if (mySpokenAnswer) {
+      document.getElementById('voiceResultText').textContent = mySpokenAnswer;
+    }
+  };
+
+  voiceRecognition.onerror = function(event) {
+    stopVoiceAnswer();
+    if (event.error !== 'no-speech') {
+      document.getElementById('voiceResultText').textContent = '(Could not hear you — try again)';
+    }
+  };
+
+  voiceRecognition.start();
+}
+
+function stopVoiceAnswer() {
+  isVoiceListening = false;
+  var btn = document.getElementById('voiceAnswerBtn');
+  btn.classList.remove('listening');
+  btn.innerHTML = '&#127908; Speak answer';
+  if (voiceRecognition) { try { voiceRecognition.stop(); } catch (e) {} }
+}
+
+/** Read a card side aloud using browser TTS. */
+function speakCard(side) {
+  var text = side === 'front'
+    ? document.getElementById('cardFront').textContent
+    : document.getElementById('cardBack').textContent;
+  if (window.lmSpeak) { window.lmSpeak(text); return; } // neural voice + fallback
+  if ('speechSynthesis' in window && text) {
+    speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.rate = 0.85;
+    speechSynthesis.speak(u);
+  }
+}
+
+function flipCard() {
+  if (isFlipped) return;
+  isFlipped = true;
+  stopVoiceAnswer();
+  document.getElementById('cardInner').classList.add('flipped');
+  document.getElementById('answerBtns').classList.remove('hide');
+  document.getElementById('tapHint').classList.add('hide');
+  document.getElementById('voiceResult').classList.add('hide');
+
+  // Show spoken answer on the back for comparison
+  var myAnswerEl = document.getElementById('myAnswer');
+  if (mySpokenAnswer) {
+    myAnswerEl.textContent = mySpokenAnswer;
+    myAnswerEl.classList.remove('hide');
+  } else {
+    myAnswerEl.classList.add('hide');
+  }
+}
+
+/** Show a progressive hint. */
+function showHint() {
+  var card = deck[currentIndex];
+  if (!card.hints || card.hints.length === 0) return;
+  var hintBtn = document.getElementById('hintBtn');
+  hintBtn.textContent = card.hints[0];
+  hintBtn.style.cursor = 'default';
+}
+
+/** Record answer and advance. Sends review to SM-2 API. */
+function answer(score) {
+  var card = deck[currentIndex];
+
+  if (score === 0) {
+    reviewing++;
+    deck.push(card);
+  } else if (score === 1) {
+    correct++;
+  } else {
+    correct++;
+    if (mascot && correct % 3 === 0) {
+      mascot.setMood('proud');
+    }
+  }
+
+  // Record review via API (fire-and-forget — don't block UI)
+  if (card.id) {
+    var studentId = localStorage.getItem('lm-student-id') || '00000000-0000-0000-0000-000000000000';
+    fetch('/api/education/flashcards/review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ studentId: studentId, cardId: card.id, score: score }),
+    }).catch(function(e) { console.debug('[Flashcards] Review sync failed:', e.message); });
+  }
+
+  currentIndex++;
+  document.getElementById('correctCount').textContent = correct;
+  document.getElementById('wrongCount').textContent = reviewing;
+  document.getElementById('remainCount').textContent = Math.max(0, deck.length - currentIndex);
+
+  showCard();
+}
+
+/** Update the progress bar. */
+function updateProgress() {
+  var total = deck.length;
+  var done = currentIndex;
+  var pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressText').textContent = done + '/' + total;
+}
+
+/** Show the completion screen. */
+function showDoneScreen() {
+  document.getElementById('cardContainer').classList.add('hide');
+  document.getElementById('answerBtns').classList.add('hide');
+  document.getElementById('tapHint').classList.add('hide');
+  document.getElementById('voiceResult').classList.add('hide');
+
+  var screen = document.getElementById('doneScreen');
+  screen.classList.remove('hide');
+
+  var total = correct + reviewing;
+  var accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+
+  if (accuracy >= 90) {
+    document.getElementById('doneEmoji').textContent = '\uD83C\uDF1F';
+    document.getElementById('doneTitle').textContent = 'Outstanding!';
+    document.getElementById('doneMessage').textContent = correct + ' out of ' + total + ' correct (' + accuracy + '%). You crushed it!';
+  } else if (accuracy >= 70) {
+    document.getElementById('doneEmoji').textContent = '\uD83D\uDCAA';
+    document.getElementById('doneTitle').textContent = 'Great work!';
+    document.getElementById('doneMessage').textContent = correct + ' out of ' + total + ' correct (' + accuracy + '%). You\'re getting stronger!';
+  } else if (accuracy >= 50) {
+    document.getElementById('doneEmoji').textContent = '\uD83D\uDE80';
+    document.getElementById('doneTitle').textContent = 'Making progress!';
+    document.getElementById('doneMessage').textContent = correct + ' out of ' + total + ' (' + accuracy + '%). Try again — you\'ll do even better!';
+  } else {
+    document.getElementById('doneEmoji').textContent = '\uD83D\uDCA1';
+    document.getElementById('doneTitle').textContent = 'Learning takes practice!';
+    document.getElementById('doneMessage').textContent = 'You reviewed ' + total + ' cards. That takes courage! Try the ones you missed again.';
+  }
+
+  // Speak the result
+  if ('speechSynthesis' in window) {
+    var msg = document.getElementById('doneTitle').textContent + '. ' + document.getElementById('doneMessage').textContent;
+    var u = new SpeechSynthesisUtterance(msg);
+    u.rate = 0.9;
+    speechSynthesis.speak(u);
+  }
+
+  if (mascot) mascot.setMood('proud');
+  if (typeof lmConfetti === 'function') lmConfetti();
+
+  // Record XP via API (fire-and-forget)
+  var studentId = localStorage.getItem('lm-student-id');
+  if (studentId) {
+    fetch('/api/education/xp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ studentId: studentId, eventType: 'flashcard_session' }),
+    }).catch(function() {});
+  }
+}
+
+/** Reset and study the deck again. */
+function restartDeck() {
+  currentIndex = 0;
+  correct = 0;
+  reviewing = 0;
+  document.getElementById('correctCount').textContent = '0';
+  document.getElementById('wrongCount').textContent = '0';
+  document.getElementById('cardContainer').classList.remove('hide');
+  document.getElementById('doneScreen').classList.add('hide');
+  loadDeck();
+  if (mascot) mascot.setMood('happy');
+}
+
+// ── Keyboard Shortcuts (ADHD: reduce friction, study faster) ──
+document.addEventListener('keydown', function(e) {
+  // Don't capture if typing in an input
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+  switch (e.key) {
+    case ' ':       // Space = flip card
+    case 'Enter':
+      e.preventDefault();
+      if (!isFlipped) flipCard();
+      break;
+    case '1':       // 1 = Didn't know
+      if (isFlipped) answer(0);
+      break;
+    case '2':       // 2 = Hard
+      if (isFlipped) answer(1);
+      break;
+    case '3':       // 3 = Got it!
+      if (isFlipped) answer(2);
+      break;
+    case 'r':       // R = read aloud current side
+    case 'R':
+      speakCard(isFlipped ? 'back' : 'front');
+      break;
+    case 'h':       // H = show hint
+    case 'H':
+      if (!isFlipped) showHint();
+      break;
+    case 'v':       // V = voice answer
+    case 'V':
+      if (!isFlipped) startVoiceAnswer();
+      break;
+  }
+});
+
+// Boot
+loadDeck();
+</script>
+</body>
+</html>

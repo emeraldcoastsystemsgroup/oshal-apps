@@ -1,0 +1,117 @@
+<!doctype html>
+<!--
+  Career Hunter — native Strengthen surface (Phase 4): the "talk and it strengthens
+  your resume" flow. Reads gap themes via /api/career-hunter/strengthen; an answer saves
+  the example AND enriches the durable profile (so future tailored resumes pull it).
+  Author: roger.murphy@emeraldcoastsystemsgroup.com
+-->
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Strengthen</title>
+<style>
+  :root { --bg:#0e0e16; --panel:#15151f; --panel2:#1b1b27; --line:#272735; --text:#e6e6f0; --muted:#8b8ba3; --accent:#7c6cff; --accent2:#00d3a7; --warn:#ffb454; --scrollbar-thumb:rgba(255,255,255,.14); }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  .wrap { max-width:820px; margin:0 auto; padding:22px 22px 60px; }
+  h1 { font-size:20px; margin:0 0 4px; } .sub { color:var(--muted); font-size:12.5px; margin:0 0 16px; line-height:1.5; }
+  .bar { display:flex; gap:10px; align-items:center; margin:0 0 16px; }
+  .btn { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 13px; font-size:12.5px; cursor:pointer; } .btn:hover { border-color:var(--accent); }
+  .btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); } .btn.ghost { background:transparent; color:var(--muted); }
+  .prog { color:var(--muted); font-size:12px; margin-left:auto; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:13px; padding:16px 18px; margin-bottom:11px; }
+  .card.focus { border-color:var(--accent); }
+  .q { font-size:15px; font-weight:600; margin:0 0 3px; } .impact { color:var(--warn); font-size:12px; margin:0 0 11px; }
+  textarea { width:100%; min-height:84px; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:9px; padding:10px 12px; font-size:13px; font-family:inherit; resize:vertical; }
+  .ans { display:flex; gap:8px; margin-top:9px; }
+  .answered { background:rgba(0,211,167,.08); border-color:rgba(0,211,167,.3); }
+  .answered .q { color:var(--accent2); } .resp { color:var(--text); font-size:13px; line-height:1.5; white-space:pre-wrap; margin:6px 0 0; }
+  .pill { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:2px 8px; border-radius:10px; background:var(--panel2); color:var(--muted); }
+  .grp { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:18px 0 8px; }
+  .empty { color:var(--muted); font-size:13px; padding:40px; text-align:center; border:1px dashed var(--line); border-radius:12px; }
+  .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:9px 15px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; } .toast.show { opacity:1; }
+  ::-webkit-scrollbar{width:11px;height:11px} ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px} ::-webkit-scrollbar-track{background:transparent}
+  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
+  @media (max-width:640px){
+    .wrap { padding:14px 14px 48px; }
+    textarea { font-size:16px; }
+    .ans { flex-wrap:wrap; }
+    .ans .btn { flex:1 1 auto; min-height:40px; font-size:14px; }
+    .bar { flex-wrap:wrap; }
+    .prog { margin-left:0; width:100%; }
+  }
+</style>
+<script>(function(){const M={'--bg':'--bg-primary','--panel':'--bg-secondary','--panel2':'--bg-tertiary','--line':'--border-color','--text':'--text-primary','--muted':'--text-secondary','--accent':'--accent-primary','--accent2':'--status-success','--scrollbar-thumb':'--scrollbar-thumb'};function m(){try{const p=(window.parent&&window.parent!==window)?window.parent:null;if(!p)return;const cs=p.getComputedStyle(p.document.documentElement);for(const k in M){const v=cs.getPropertyValue(M[k]).trim();if(v)document.documentElement.style.setProperty(k,v);}}catch(e){}}m();window.addEventListener('storage',e=>{if(e.key==='cockpit-theme')setTimeout(m,30);});try{const p=window.parent;if(p&&p!==window)new MutationObserver(m).observe(p.document.documentElement,{attributes:true,attributeFilter:['data-theme']});}catch(e){}document.addEventListener('DOMContentLoaded',m);})();</script>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<div class="wrap">
+  <h1>Strengthen your resume</h1>
+  <p class="sub">Every gap the AI flagged across your in-lane jobs, clustered into themes. Answer one with a real example — it's woven into your profile, so every future tailored resume pulls from it.</p>
+  <div class="bar">
+    <button class="btn" onclick="rescan()">↻ Rescan gaps</button>
+    <span class="prog" id="prog"></span>
+  </div>
+  <div id="list"></div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const $=id=>document.getElementById(id); const listEl=$('list'), toastEl=$('toast'), progEl=$('prog');
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(m){ toastEl.textContent=m; toastEl.className='toast show'; setTimeout(()=>toastEl.className='toast',2600); }
+
+function openCard(t,focus){
+  return `<div class="card${focus?' focus':''}">
+    <p class="q">${esc(t.title||t.key)}</p>
+    <p class="impact">Costs you ~${t.n_jobs} in-lane job${t.n_jobs===1?'':'s'} — give a concrete example of your experience here.</p>
+    <textarea id="ta-${esc(t.key)}" placeholder="e.g. At my last company I built the CI/CD pipeline that…"></textarea>
+    <div class="ans">
+      <button class="btn primary" onclick="answer('${esc(t.key)}')">Save &amp; strengthen</button>
+      <button class="btn ghost" onclick="setStatus('${esc(t.key)}','skipped')">Skip</button>
+    </div>
+  </div>`;
+}
+function answeredCard(t){
+  return `<div class="card answered">
+    <p class="q">✓ ${esc(t.title||t.key)} <span class="pill">answered</span></p>
+    ${t.response?`<div class="resp">${esc(t.response)}</div>`:''}
+    <div class="ans"><button class="btn ghost" onclick="setStatus('${esc(t.key)}','open')">Reopen</button></div>
+  </div>`;
+}
+
+async function load(){
+  listEl.innerHTML='<div class="empty">Loading gaps…</div>';
+  try {
+    const { themes=[], total=0 } = await (await fetch('/api/career-hunter/strengthen')).json();
+    const addr=themes.filter(t=>t.addressable && (t.n_jobs>0 || t.status!=='open'));
+    const open=addr.filter(t=>t.status==='open' && t.n_jobs>0).sort((a,b)=>b.n_jobs-a.n_jobs);
+    const answered=addr.filter(t=>t.status==='answered');
+    const skipped=addr.filter(t=>t.status==='skipped');
+    progEl.textContent=`${answered.length} answered · ${open.length} open`;
+    if(!open.length && !answered.length){ listEl.innerHTML='<div class="empty">No addressable gaps right now. Try ↻ Rescan after scoring more jobs.</div>'; return; }
+    let html='';
+    if(open.length) html+=`<div class="grp">Highest impact — answer one</div>`+openCard(open[0],true)+open.slice(1,8).map(t=>openCard(t,false)).join('');
+    if(answered.length) html+=`<div class="grp">Answered (${answered.length})</div>`+answered.map(answeredCard).join('');
+    if(skipped.length) html+=`<div class="grp">Skipped (${skipped.length})</div>`+skipped.map(t=>`<div class="card"><p class="q" style="color:var(--muted)">${esc(t.title||t.key)}</p><div class="ans"><button class="btn ghost" onclick="setStatus('${esc(t.key)}','open')">Reopen</button></div></div>`).join('');
+    listEl.innerHTML=html;
+  } catch(e){ listEl.innerHTML='<div class="empty">Could not load: '+esc(e.message)+'</div>'; }
+}
+async function answer(key){
+  const ta=document.getElementById('ta-'+key); const response=(ta&&ta.value||'').trim();
+  if(!response){ toast('Type an example first'); return; }
+  try { const r=await fetch('/api/career-hunter/strengthen/answer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,response})});
+    if(r.status!==202&&!r.ok) throw new Error('HTTP '+r.status);
+    toast('Saved — weaving it into your profile…'); setTimeout(load,1200);
+  } catch(e){ toast('Failed: '+e.message); }
+}
+async function setStatus(key,status){
+  try { const r=await fetch('/api/career-hunter/strengthen/'+encodeURIComponent(key)+'/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
+    if(!r.ok) throw new Error('HTTP '+r.status); load();
+  } catch(e){ toast('Failed: '+e.message); }
+}
+async function rescan(){
+  try { await fetch('/api/career-hunter/strengthen/scan',{method:'POST'}); toast('Rescanning gaps…'); setTimeout(load,1500); }
+  catch(e){ toast('Failed: '+e.message); }
+}
+load();
+</script>
+</body></html>

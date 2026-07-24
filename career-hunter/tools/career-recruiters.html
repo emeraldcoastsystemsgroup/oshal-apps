@@ -1,0 +1,119 @@
+<!doctype html>
+<!--
+  Career Hunter — native Recruiters tracker (Phase 3). Reads/writes per-user
+  recruiter_firms via /api/career-hunter/recruiters CRUD. Author: roger.murphy@emeraldcoastsystemsgroup.com
+-->
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Recruiters</title>
+<style>
+  :root { --bg:#0e0e16; --panel:#15151f; --panel2:#1b1b27; --line:#272735; --text:#e6e6f0; --muted:#8b8ba3; --accent:#7c6cff; --accent2:#00d3a7; --danger:#ff6b6b; --scrollbar-thumb:rgba(255,255,255,.14); }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  .wrap { max-width:1080px; margin:0 auto; padding:20px 22px 60px; }
+  h1 { font-size:20px; margin:0 0 4px; } .sub { color:var(--muted); font-size:12.5px; margin:0 0 14px; }
+  .tabs { display:flex; gap:7px; flex-wrap:wrap; margin:0 0 12px; }
+  .tab { background:var(--panel2); border:1px solid var(--line); border-radius:16px; padding:5px 12px; font-size:12px; cursor:pointer; color:var(--text); }
+  .tab .n { color:var(--muted); margin-left:5px; } .tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .add { display:flex; gap:7px; flex-wrap:wrap; margin:0 0 16px; align-items:center; }
+  .add input { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 10px; font-size:12.5px; }
+  .btn { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:6px 12px; font-size:12.5px; cursor:pointer; }
+  .btn:hover { border-color:var(--accent); } .btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); } .btn.danger:hover { border-color:var(--danger); color:var(--danger); }
+  .row { display:flex; align-items:center; gap:12px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 14px; margin-bottom:8px; }
+  .row .firm { font-weight:600; font-size:13.5px; min-width:0; } .row .firm a { color:var(--accent); text-decoration:none; }
+  .row .bucket { font-size:11px; color:var(--muted); }
+  .row .contact { font-size:12px; color:var(--muted); flex:1; min-width:120px; } .row .contact a { color:var(--accent2); }
+  .row select, .row input.note { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:5px 8px; font-size:12px; }
+  .row input.note { flex:1; min-width:120px; }
+  .grp { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:16px 0 8px; }
+  .empty { color:var(--muted); font-size:13px; padding:30px; text-align:center; border:1px dashed var(--line); border-radius:12px; }
+  .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:9px 15px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; } .toast.show { opacity:1; } .toast.err { border-color:var(--danger); color:var(--danger); }
+  ::-webkit-scrollbar{width:11px;height:11px} ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px} ::-webkit-scrollbar-track{background:transparent}
+  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
+  @media (max-width:640px){
+    .wrap { padding:14px 12px 48px; }
+    .add { flex-direction:column; align-items:stretch; }
+    .add input { min-width:0 !important; width:100%; font-size:16px; }
+    .add .btn { width:100%; padding:10px; font-size:14px; }
+    .row { flex-direction:column; align-items:stretch; gap:8px; }
+    .row > div[style*="min-width"] { min-width:0 !important; width:100%; }
+    .row .contact { min-width:0; width:100%; }
+    .row select { width:100%; font-size:16px; padding:8px; }
+    .row input.note { min-width:0; width:100%; font-size:16px; padding:8px; }
+    .row .btn { width:100%; padding:9px; font-size:13px; }
+  }
+</style>
+<script>(function(){const M={'--bg':'--bg-primary','--panel':'--bg-secondary','--panel2':'--bg-tertiary','--line':'--border-color','--text':'--text-primary','--muted':'--text-secondary','--accent':'--accent-primary','--accent2':'--status-success','--scrollbar-thumb':'--scrollbar-thumb'};function m(){try{const p=(window.parent&&window.parent!==window)?window.parent:null;if(!p)return;const cs=p.getComputedStyle(p.document.documentElement);for(const k in M){const v=cs.getPropertyValue(M[k]).trim();if(v)document.documentElement.style.setProperty(k,v);}}catch(e){}}m();window.addEventListener('storage',e=>{if(e.key==='cockpit-theme')setTimeout(m,30);});try{const p=window.parent;if(p&&p!==window)new MutationObserver(m).observe(p.document.documentElement,{attributes:true,attributeFilter:['data-theme']});}catch(e){}document.addEventListener('DOMContentLoaded',m);})();</script>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<div class="wrap">
+  <h1>Recruiters</h1>
+  <p class="sub">Your recruiter & headhunter tracker — status, contacts, follow-ups.</p>
+  <div class="tabs" id="tabs"></div>
+  <div class="add">
+    <input id="firm" placeholder="Firm / recruiter name *" style="min-width:200px"/>
+    <input id="bucket" placeholder="Bucket (e.g. Cleared / GovTech)"/>
+    <input id="website" placeholder="Website"/>
+    <input id="contact_name" placeholder="Contact name"/>
+    <button class="btn primary" onclick="addRecruiter()">Add</button>
+  </div>
+  <div id="list"></div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const STATUSES=["To contact","Contacted","Replied","Call scheduled","Submitted me","On radar","Dead"];
+const $=id=>document.getElementById(id); const listEl=$('list'), tabsEl=$('tabs'), toastEl=$('toast');
+let activeStatus='';
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(m,err){ toastEl.textContent=m; toastEl.className='toast show'+(err?' err':''); setTimeout(()=>toastEl.className='toast',2200); }
+
+function row(r){
+  const opts=STATUSES.map(s=>`<option${r.status===s?' selected':''}>${s}</option>`).join('');
+  const site=r.website?`<a href="${esc(r.website)}" target="_blank" rel="noopener">${esc(r.firm)}</a>`:esc(r.firm);
+  const contact=r.contact_name?(r.contact_link?`<a href="${esc(r.contact_link)}" target="_blank">${esc(r.contact_name)}</a>`:esc(r.contact_name)):'';
+  return `<div class="row">
+    <div style="min-width:200px"><div class="firm">${site}</div><div class="bucket">${esc(r.bucket||'')}</div></div>
+    <div class="contact">${contact}${r.contact_role?` · ${esc(r.contact_role)}`:''}</div>
+    <select onchange="upd(${r.id},'status',this.value)">${opts}</select>
+    <input class="note" value="${esc(r.next_action||'')}" placeholder="next action…" onchange="upd(${r.id},'next_action',this.value)"/>
+    <button class="btn danger" onclick="del(${r.id},'${esc(r.firm).replace(/'/g,'&#39;')}')">✕</button>
+  </div>`;
+}
+
+async function load(){
+  listEl.innerHTML='<div class="empty">Loading…</div>';
+  try {
+    const u=new URLSearchParams(); if(activeStatus) u.set('status',activeStatus);
+    const { recruiters=[], byStatus=[], empty } = await (await fetch('/api/career-hunter/recruiters?'+u)).json();
+    if(empty){ listEl.innerHTML='<div class="empty">No recruiters tracked yet — add one above.</div>'; tabsEl.innerHTML=''; return; }
+    const map=Object.fromEntries(byStatus.map(s=>[s.status,s.n])); const total=byStatus.reduce((a,s)=>a+s.n,0);
+    const tabs=[{k:'',label:'All',n:total}].concat(STATUSES.filter(s=>map[s]).map(s=>({k:s,label:s,n:map[s]})));
+    tabsEl.innerHTML=tabs.map(t=>`<button class="tab${t.k===activeStatus?' active':''}" data-k="${t.k}">${t.label}<span class="n">${t.n}</span></button>`).join('');
+    tabsEl.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{ activeStatus=b.dataset.k; load(); });
+    // group by bucket
+    const groups={}; recruiters.forEach(r=>{ const b=r.bucket||'Other'; (groups[b]=groups[b]||[]).push(r); });
+    listEl.innerHTML=Object.keys(groups).sort().map(b=>`<div class="grp">${esc(b)} (${groups[b].length})</div>`+groups[b].map(row).join('')).join('')
+      || '<div class="empty">No recruiters in this view.</div>';
+  } catch(e){ listEl.innerHTML='<div class="empty">Could not load: '+esc(e.message)+'</div>'; }
+}
+async function upd(id,field,value){
+  try { const r=await fetch('/api/career-hunter/recruiters/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[field]:value})});
+    if(!r.ok) throw new Error('HTTP '+r.status); toast('Saved'); if(field==='status') load();
+  } catch(e){ toast('Save failed: '+e.message,true); }
+}
+async function addRecruiter(){
+  const firm=$('firm').value.trim(); if(!firm){ toast('Enter a firm name',true); return; }
+  try { const r=await fetch('/api/career-hunter/recruiters',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({firm,bucket:$('bucket').value.trim(),website:$('website').value.trim(),contact_name:$('contact_name').value.trim()})});
+    if(!r.ok) throw new Error('HTTP '+r.status); ['firm','bucket','website','contact_name'].forEach(k=>$(k).value=''); toast('Added '+firm); load();
+  } catch(e){ toast('Add failed: '+e.message,true); }
+}
+async function del(id,firm){
+  if(!window.confirm('Delete "'+firm+'"?')) return;
+  try { const r=await fetch('/api/career-hunter/recruiters/'+id,{method:'DELETE'}); if(!r.ok) throw new Error('HTTP '+r.status); toast('Deleted'); load(); }
+  catch(e){ toast('Delete failed: '+e.message,true); }
+}
+load();
+</script>
+</body></html>

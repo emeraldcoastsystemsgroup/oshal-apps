@@ -1,0 +1,142 @@
+{
+  "_license": "Original adventure and setting by Emerald Coast Systems Group. Rules references use SRD 5.1 under CC-BY-4.0.",
+  "id": "bells-beneath-blackwater",
+  "title": "The Bells Beneath Blackwater",
+  "summary": "In a rain-black harbor town, a bell rings from a chapel drowned forty years ago. Fisherfolk vanish, old debts surface, and the tide is carrying something home.",
+  "theme": {
+    "id": "blackwater",
+    "label": "Gaslight Harbor Horror",
+    "narration": "Tell this as restrained folk horror: salt, rain, lamplight, old guilt, and ordinary people protecting one another. Humor should come from eccentric townspeople, never from the danger. Reveal the supernatural through earned clues."
+  },
+  "scenes": [
+    {
+      "id": "blackwater-harbor",
+      "kind": "exploration",
+      "act": "beginning",
+      "title": "A Bell Under the Tide",
+      "objective": "Meet the people of Blackwater, investigate three disappearances, and learn why a drowned chapel has begun to ring.",
+      "storyAnchor": "The submerged Saint Orra chapel cannot physically ring: its bronze bell was recovered decades ago and hangs in the harbor office. Someone is striking a second bell beneath the water. The missing fisherfolk all received knots of red eelgrass first.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "Blackwater meets the sea with its shoulders hunched. Rain stitches the harbor to a pewter sky, and every door bears a little bowl of salt. Your landlady, Mags Candlewick, gives you one room, four keys, and a warning not to answer bells after midnight. At supper, Harbor Master Edda Vane insists no bell is ringing. Then the sound rolls up through the floorboards—deep, patient, and wet—and every dog in town crawls beneath a table. By dawn, a third fisher has vanished from a boat still tied to the pier.",
+      "openingChoices": ["Inspect the abandoned fishing boat", "Ask Mags about the salt bowls", "Visit the recovered chapel bell"],
+      "exploration": {
+        "required": 4,
+        "guidance": "Blackwater's people know fragments. Earn their trust, compare their stories, and do not assume fear makes them dishonest.",
+        "leads": [
+          { "id": "boat", "name": "The Tied Fishing Boat", "type": "place", "prompt": "Search the deck, nets, hold, and waterline.", "reveal": "The deck is dry despite the rain. Red eelgrass is knotted around the anchor chain, and wet bare footprints begin at the mast but never reach the rail." },
+          { "id": "mags", "name": "Mags Candlewick", "type": "person", "prompt": "Ask why every threshold has a bowl of salt.", "reveal": "Mags says the custom began after Saint Orra flooded. Salt is not meant to keep the sea out; it is an apology to those the town left beneath it." },
+          { "id": "bell", "name": "The Recovered Bronze Bell", "type": "object", "prompt": "Examine the harbor office bell and its old inscriptions.", "reveal": "The recovered bell is real and untouched. Inside its lip, someone recently scratched four family names—the three missing fishers and Harbor Master Vane." },
+          { "id": "nix", "name": "Nix Widdershins", "type": "person", "prompt": "Question the child who claims to hear words inside rain barrels.", "reveal": "Nix hears the drowned counting debts, not victims. The voice says: \"Four promised. Three returned. One kept the key.\"" },
+          { "id": "ledger", "name": "Old Flood Ledger", "type": "object", "prompt": "Compare the scratched names with the flood records.", "requires": ["bell"], "reveal": "Forty years ago, four families swore to open Saint Orra's floodgate. Three lost someone below. Edda Vane's father kept the key and saved the upper town instead." },
+          { "id": "eelgrass", "name": "Red Eelgrass Knots", "type": "object", "prompt": "Learn who still ties the drowned chapel's warning knot.", "requires": ["boat"], "reveal": "Only Old Tomber remembers the knot. He admits tying them as warnings after seeing lanterns moving beneath the water—but he did not take the fishers." }
+        ]
+      },
+      "terrain": { "blocking": [{ "x": 4, "y": 3, "kind": "cart" }, { "x": 11, "y": 2, "kind": "rock" }, { "x": 15, "y": 8, "kind": "cart" }], "difficult": [{ "x": 7, "y": 7, "kind": "brush" }, { "x": 8, "y": 7, "kind": "brush" }] },
+      "partyStart": [{ "x": 3, "y": 8 }, { "x": 4, "y": 8 }, { "x": 3, "y": 9 }, { "x": 4, "y": 9 }],
+      "props": [
+        { "id": "mags-candlewick", "name": "Mags Candlewick", "role": "Innkeeper and Keeper of Unwelcome Truths", "personality": "Practical, protective, and forever polishing a lamp that is already clean.", "storyHook": "Mags lost her sister in the chapel flood.", "x": 5, "y": 5, "glyph": "♨", "color": "#f59e0b" },
+        { "id": "nix-widdershins", "name": "Nix Widdershins", "role": "Rain-Barrel Prophet, Age Nine", "personality": "Solemn about ghosts and delighted by terrible jokes.", "storyHook": "Nix hears the drowned count an old promise.", "x": 9, "y": 6, "glyph": "◉", "color": "#67e8f9" }
+      ],
+      "monsters": [],
+      "xpReward": 0,
+      "storyAward": 450,
+      "afterword": "The vanishings are tied to the floodgate oath, and Edda Vane has disappeared with the old iron key. At the next low tide, a stone road will emerge toward Saint Orra's drowned parish.",
+      "next": "blackwater-low-tide"
+    },
+    {
+      "id": "blackwater-low-tide",
+      "kind": "exploration",
+      "act": "middle",
+      "title": "The Road the Sea Remembers",
+      "objective": "Cross the exposed tidal road, find the missing fishers, and decide whether Edda Vane is culprit, victim, or both.",
+      "storyAnchor": "Edda came willingly to return the key and end her family's debt. The missing fishers are alive in dry crypt chambers, lured by voices of lost relatives. A lantern cult is using the old oath to awaken the Tidebound beneath the chapel.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "At moonless low tide, Blackwater gives back a road of black stones. Pools on either side reflect stars the clouded sky does not contain. Old Tomber guides you in a boat with no oars—he distrusts oars because, he says, they encourage the sea. Saint Orra's steeple rises ahead, streaming weeds. From inside comes warm lamplight and the murmur of a congregation that drowned before any of you were born.",
+      "openingChoices": ["Follow the warm lamplight", "Search the exposed graveyard", "Call Edda Vane by name"],
+      "exploration": {
+        "required": 4,
+        "guidance": "The tide limits time, but the truth is divided between the living, the dead, and those exploiting both.",
+        "leads": [
+          { "id": "crypt", "name": "The Dry Crypt Chambers", "type": "place", "prompt": "Search behind the altar for the missing fishers.", "reveal": "The three fishers are alive, sleeping behind a wax-sealed door. Each followed the voice of someone lost at sea and remembers a kind face carrying a hooded lantern." },
+          { "id": "edda", "name": "Edda Vane", "type": "person", "prompt": "Find Edda and ask why she brought the floodgate key.", "reveal": "Edda came to surrender the key and confess her family's choice. She believed the bells offered restitution, until the hooded congregation chained her beside the floodwheel." },
+          { "id": "graveyard", "name": "The Exposed Graveyard", "type": "place", "prompt": "Read the stones visible only at low tide.", "reveal": "Several stones are newly disturbed from below. Between them lie dry lamp wicks stamped with a closed-eye sigil unknown to Blackwater." },
+          { "id": "hymnal", "name": "Saint Orra's Waterlogged Hymnal", "type": "object", "prompt": "Compare the congregation's chant with the original hymn.", "reveal": "The cult reversed Saint Orra's hymn. It is not calling the dead home; it is teaching something under the chapel to answer in their voices." },
+          { "id": "floodwheel", "name": "The Floodwheel", "type": "object", "prompt": "Determine what turning the old key will release.", "requires": ["edda"], "reveal": "The key opens a lower cistern where four Tidebound sleep in brine. The cult intends Edda to turn it at the next bell, making the old betrayal look fulfilled." },
+          { "id": "lanterns", "name": "The Hooded Lanterns", "type": "object", "prompt": "Trace the dry lamp wicks to their owners.", "requires": ["graveyard"], "reveal": "The lanterns belong to outsiders led by Brother Pell, a traveling mourner who arrived after every recent shipwreck. He profits by turning grief into obedience." }
+        ]
+      },
+      "terrain": { "blocking": [{ "x": 8, "y": 3, "kind": "rock" }, { "x": 8, "y": 4, "kind": "rock" }, { "x": 13, "y": 7, "kind": "rock" }], "difficult": [{ "x": 5, "y": 5, "kind": "scree" }, { "x": 10, "y": 8, "kind": "scree" }] },
+      "partyStart": [{ "x": 2, "y": 6 }, { "x": 3, "y": 6 }, { "x": 2, "y": 7 }, { "x": 3, "y": 7 }],
+      "props": [
+        { "id": "edda-vane", "name": "Edda Vane", "role": "Harbor Master and Heir to the Floodgate Key", "personality": "Commanding in public, exhausted in private, and unwilling to inherit her father's silence.", "storyHook": "Edda is ready to confess, but not to become a sacrifice.", "x": 14, "y": 5, "glyph": "⚓", "color": "#60a5fa" },
+        { "id": "old-tomber", "name": "Old Tomber", "role": "Ferryman Without Oars", "personality": "Suspicious of modern boats, modern weather, and most modern centuries.", "storyHook": "Tomber tied warning knots to protect the fishers.", "x": 4, "y": 9, "glyph": "◇", "color": "#a3a3a3" }
+      ],
+      "monsters": [],
+      "xpReward": 0,
+      "storyAward": 550,
+      "afterword": "The missing fishers are freed, Edda is no sacrifice, and the cult's purpose is clear. Brother Pell turns the floodgate key himself. The chapel floor splits, black water climbs the pews, and four Tidebound rise as the bell below begins to swing.",
+      "next": "blackwater-drowned-chapel"
+    },
+    {
+      "id": "blackwater-drowned-chapel",
+      "kind": "combat",
+      "act": "climax",
+      "title": "When the Lower Bell Rings",
+      "objective": "Defeat the Tidebound and lantern cult before the cistern floods Saint Orra's chapel.",
+      "storyAnchor": "The party knows the cult manufactured the haunting from Blackwater's grief. Edda and the fishers are alive. Brother Pell retreats behind the lower bell while his followers and the Tidebound hold the nave.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "The first Tidebound tears itself through the chapel floor in a gown of weed and broken chain. Another unfolds behind the altar. Hooded lanterns flare green along the pews as Brother Pell cries that Blackwater has finally paid what it owes. But Edda Vane is still breathing, the missing fishers are climbing toward daylight, and you have read the original hymn. The thing beneath Saint Orra is not justice. It is hungry.",
+      "openingChoices": ["Hold the aisle above the cistern", "Break the hooded lanterns", "Sing Saint Orra's hymn forward"],
+      "terrain": {
+        "blocking": [{ "x": 6, "y": 3, "kind": "rock" }, { "x": 6, "y": 4, "kind": "rock" }, { "x": 6, "y": 7, "kind": "rock" }, { "x": 6, "y": 8, "kind": "rock" }, { "x": 11, "y": 3, "kind": "rock" }, { "x": 11, "y": 4, "kind": "rock" }, { "x": 11, "y": 7, "kind": "rock" }, { "x": 11, "y": 8, "kind": "rock" }],
+        "difficult": [{ "x": 8, "y": 5, "kind": "scree" }, { "x": 9, "y": 5, "kind": "scree" }, { "x": 8, "y": 6, "kind": "scree" }, { "x": 9, "y": 6, "kind": "scree" }]
+      },
+      "partyStart": [{ "x": 2, "y": 5 }, { "x": 2, "y": 6 }, { "x": 3, "y": 5 }, { "x": 3, "y": 6 }],
+      "props": [
+        { "id": "brother-pell", "name": "Brother Pell", "role": "Traveling Mourner and Cult Leader", "personality": "Soft-spoken, certain, and skilled at making cruelty sound like closure.", "storyHook": "Pell chose Blackwater because its guilt made every lie feel deserved.", "x": 16, "y": 5, "glyph": "☼", "color": "#a7f3d0" }
+      ],
+      "monsters": [
+        { "ref": "tidebound", "instanceId": "tide-1", "name": "Mara-of-the-Nets", "role": "First Tidebound", "personality": "Moves as if remembering a dance.", "storyHook": "The cult borrowed Mara's name from a grave.", "x": 12, "y": 4, "hidden": false },
+        { "ref": "tidebound", "instanceId": "tide-2", "name": "The Bell-Roper", "role": "Cistern Guardian", "personality": "Patient and immensely strong.", "storyHook": "It pulls the lower bell between attacks.", "x": 14, "y": 7, "hidden": false },
+        { "ref": "lantern-cultist", "instanceId": "lamp-1", "name": "Sister Vale", "role": "Lantern Keeper", "personality": "Grieving, devoted, and beginning to doubt.", "storyHook": "Vale's lost son never speaks through the bell.", "x": 10, "y": 2, "hidden": false },
+        { "ref": "lantern-cultist", "instanceId": "lamp-2", "name": "Hollis Reed", "role": "Floodgate Guard", "personality": "Brittle, frightened, and desperate to belong.", "storyHook": "Hollis knows Pell locked the cult inside too.", "x": 13, "y": 9, "hidden": false }
+      ],
+      "xpReward": 650,
+      "storyAward": 650,
+      "afterword": "The lower bell cracks. Without its stolen voices, the Tidebound collapse into seawater and weed. Brother Pell's congregation breaks, and Saint Orra's cistern begins to drain—but Blackwater must still choose what to remember and what to forgive.",
+      "next": "blackwater-morning"
+    },
+    {
+      "id": "blackwater-morning",
+      "kind": "exploration",
+      "act": "falling-action",
+      "title": "Salt at Every Door",
+      "objective": "Return the missing people, settle the floodgate truth, and decide how Blackwater remembers Saint Orra.",
+      "storyAnchor": "The threat is ended. Falling action centers survivors, confession, ritual, and changed relationships rather than another surprise enemy.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "Morning finds Blackwater standing ankle-deep in sunlight and chapel silt. The three fishers walk home under their own power. Edda Vane carries the old floodgate key openly for the first time in forty years. Mags has set a long table on the quay, and Nix is charging one copper to anyone who wants to hear what the rain barrels are saying now. They are saying nothing. It is, everyone agrees, excellent news.",
+      "openingChoices": ["Hear Edda's public confession", "Return names to the chapel stones", "Ask Mags about her sister"],
+      "exploration": {
+        "required": 2,
+        "guidance": "Choose the truths and acts of repair that close this chapter.",
+        "leads": [
+          { "id": "confession", "name": "Edda's Harbor Confession", "type": "person", "prompt": "Stand with Edda while she tells the floodgate story.", "reveal": "Edda names her father's choice without excusing it and the three families' losses without weaponizing them. Blackwater hears a confession instead of another legend." },
+          { "id": "stones", "name": "Saint Orra's Name Stones", "type": "place", "prompt": "Restore the disturbed graves and every stolen name.", "reveal": "The party returns the borrowed names to their stones. The townspeople add a new marker for those who were abandoned below and a second for those who came back." },
+          { "id": "mags-sister", "name": "Mags's Sister Elian", "type": "person", "prompt": "Give Mags the truth about the voices beneath the chapel.", "reveal": "Mags accepts that the bell never held Elian—only a cultist's imitation of grief. She empties the salt bowl at her own door, then fills it again by choice rather than fear." },
+          { "id": "nix-weather", "name": "Nix's Rain-Barrel Forecast", "type": "person", "prompt": "Ask what the quiet rain means now.", "reveal": "Nix listens gravely, then announces a ninety-percent chance of soup. For the first time, Blackwater laughs when the child mentions the rain." }
+        ]
+      },
+      "terrain": { "blocking": [{ "x": 5, "y": 3, "kind": "cart" }, { "x": 13, "y": 4, "kind": "rock" }], "difficult": [] },
+      "partyStart": [{ "x": 4, "y": 7 }, { "x": 5, "y": 7 }, { "x": 6, "y": 7 }, { "x": 7, "y": 7 }],
+      "props": [
+        { "id": "edda-returned", "name": "Edda Vane", "role": "Harbor Master, No Longer Silent", "personality": "Steadier now that the truth is public.", "storyHook": "She will rebuild Saint Orra as a memorial, not a lock.", "x": 9, "y": 4, "glyph": "⚓", "color": "#60a5fa" },
+        { "id": "nix-returned", "name": "Nix Widdershins", "role": "Rain-Barrel Meteorologist", "personality": "Still solemn; now accepting payment in soup.", "storyHook": "Nix hears only weather.", "x": 12, "y": 7, "glyph": "◉", "color": "#67e8f9" }
+      ],
+      "monsters": [],
+      "xpReward": 0,
+      "storyAward": 450,
+      "afterword": "Blackwater survives without pretending it was innocent. The lost return, the old key is displayed beside the recovered bell, and Saint Orra becomes a memorial whose doors open at low tide. When the party leaves, four bowls of salt stand on the quay—not as payment to the sea, but as a promise to remember.",
+      "next": null
+    }
+  ]
+}

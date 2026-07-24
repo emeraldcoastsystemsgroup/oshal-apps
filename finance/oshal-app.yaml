@@ -1,0 +1,110 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — finance ("Finance")
+# Carved out of OSHAL core 2026-07-17 (ADR-085 Wave 1 carve #5 — the FINALE).
+#
+# Read-only money aggregation. The user links banks + brokerages through Plaid
+# (one connection → ~12,000 institutions); the app reads balances, investment
+# holdings, and transactions and turns them into a plain-English money brief:
+# net worth, portfolio (with concentration/drift flags), spending trends,
+# watch-outs. Plus the ADR-048 money-movement addendum: idempotency-keyed
+# transfers via the provider-agnostic PaymentAdapter (Stripe), explicit-confirm
+# gated (428 no-charge), owner-scoped audit table.
+#
+# v1 scope: READ-ONLY aggregation + gated transfers. NO trade execution
+# (broker-dealer territory), NO crypto.
+#
+# Plaid is intentionally NOT a generic connectors-routes provider: it uses Link
+# (a public_token exchange), not a redirect OAuth handshake. Connect happens on
+# the Finance surface, not /utilities.
+#
+# BOT NOTE (ADR-093 interim): finance-analyst (a0…0044) is a REAL bot-node —
+# its own compose container (finance-bot, codex, requiresOwnNode), echo-registry
+# entry, persona, and the oshal-plaid.js CLI it shells. The manifest bot mapper
+# only expresses inline concierges, so the heavy-bot quadruple STAYS in the
+# framework repo as the operator-applied fragment (vids-operator precedent).
+# This manifest therefore declares NO bots; the workflow's workerBot resolves
+# via the framework's static registry.
+#
+# KERNEL DEPENDENCY: @/features/payments is a PINNED kernel skill (11th, added
+# at this carve) — this package imports the Stripe half, the payments package
+# the merchant half; both resolve it from the running framework dist.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: finance
+suite: ai-finance   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Finance
+description: >-
+  Link your banks and brokerages (via Plaid — OSHAL never sees your bank password)
+  and see everything in one place: net worth, accounts, holdings, and spending, with
+  a plain-English brief. Read-only — nothing is traded or moved. No crypto.
+version: 1.0.0
+status: active
+
+# Calm money-green skin (cockpit built-in — see COCKPIT_THEMES in theme-manager.js).
+theme: forest
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: finance
+  ref: main
+
+# Plaid links on the app's own surface (not the connector hub) → empty connector
+# allow-list is correct; no app/tool deps.
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+# Kernel skills this app CALLS (ADR-090 uses: contract, fail-closed at load).
+uses:
+  - payments
+
+ticketType: finance-brief
+
+workflow:
+  name: Finance Brief
+  # No `pipeline:` — single-bot worker dispatch. Interactive work (link → sync → brief)
+  # uses the direct BotNodeClient path in the packaged routes; a ticketType=finance-brief
+  # ticket routes to the same bot over the mesh. The bot itself is the framework-resident
+  # finance-analyst node (see BOT NOTE above).
+  workerBot: finance-analyst
+
+# Compiled-JS route (built from src-routes/ by `oshal-app build`). One OIDC mount;
+# every route self-checks the caller, POST /pay additionally requires the explicit
+# write confirmation (428 no-charge) and is idempotency-keyed.
+routes:
+  - module: routes/finance-routes.js
+    factory: createFinanceRoutes
+    mountPath: /api/finance
+    auth: oidc
+    requiresContext: true
+
+# No migrations: all three owner-scoped stores (oshal_finance_items/data/payments)
+# are created lazily by the route at first use with tier-1 owner RLS at the chokepoint.
+migrations: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon icon opens the Finance page (served by
+# createFinanceRoutes from this package's tools/). The page handles linking,
+# sync, the dashboard, and the rendered brief for the signed-in user.
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: finance-home
+      label: Finance
+      icon: codicon codicon-graph-line
+      iframeUrl: /api/finance/
+      section: top
+
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  defaultView: finance-home

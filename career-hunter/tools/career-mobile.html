@@ -1,0 +1,587 @@
+<!doctype html>
+<!--
+  Intelligent Career — Mobile
+  A phone-first surface over the EXISTING career-hunter + apply pipeline. Three views:
+
+    1. Discover  — Tinder-style swipe deck of top-scored, not-yet-decided roles.
+                   swipe right  = approve  (queues a tailored resume + cover draft)   POST /applications/:id/approve
+                   swipe left   = deny                                                POST /applications/:id/deny
+                   (deck source = GET /applications rows at status 'approval_required',
+                    topped up via POST /enqueue-drafts; cards enriched via GET /jobs/:id)
+
+    2. Ready     — the drafted, packet-ready queue (GET /jobs?status=generated). Tap a
+                   role to REVIEW its posting + resume + cover, then "Auto-apply on my
+                   desktop" -> POST /api/apply-operator/submit {postingId}. Assist mode:
+                   the desktop worker fills the real form; you finish the final Submit there.
+
+    3. Status    — the auto-apply board, four lanes:
+                     Ready       GET /jobs?status=generated
+                     Queued      GET /api/apply-operator/inflight   (submissions in flight)
+                     Needs you   GET /jobs?status=deferred          (blocked -> apply on web, links + resume)
+                     Applied     GET /jobs?status=applied
+
+  No new data endpoints — this is a view over what already exists. Self-contained (works when
+  opened directly on a phone at /api/career-hunter/mobile); dark-default, prefers-color-scheme aware.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
+<title>Intelligent Career — Mobile</title>
+<style>
+:root{
+  --bg:#0d1117; --bg2:#111827; --card:#161d2b; --card2:#1c2536;
+  --ink:#eef2f7; --muted:#9aa7b8; --line:rgba(255,255,255,.10);
+  --teal:#22b8a0; --teal-ink:#062a25;
+  --green:#4ea363; --red:#e0574c; --amber:#e0a54b; --blue:#4f83e6;
+  --shadow:0 12px 34px rgba(0,0,0,.45);
+  --radius:20px;
+  --safe-b:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: light){
+  :root{
+    --bg:#eef1f5; --bg2:#e6eaf0; --card:#ffffff; --card2:#f4f6f9;
+    --ink:#151b22; --muted:#5a6672; --line:rgba(21,27,34,.12);
+    --teal:#118a76; --teal-ink:#ffffff; --shadow:0 12px 30px rgba(21,27,34,.16);
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{
+  background:radial-gradient(120% 90% at 50% -10%, var(--bg2), var(--bg) 60%);
+  color:var(--ink);
+  font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  overscroll-behavior:none;
+}
+.app{display:flex;flex-direction:column;height:100dvh;max-width:520px;margin:0 auto;position:relative}
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px 10px;flex:0 0 auto;
+}
+header .brand{font-weight:800;letter-spacing:-.01em;font-size:1.05rem}
+header .brand small{display:block;color:var(--muted);font-weight:600;font-size:.68rem;letter-spacing:.06em;text-transform:uppercase}
+.pill{font-size:.7rem;font-weight:700;padding:4px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--card)}
+.pill.busy{color:var(--amber);border-color:rgba(224,165,75,.4)}
+
+main{flex:1 1 auto;position:relative;overflow:hidden}
+.view{position:absolute;inset:0;display:none;flex-direction:column}
+.view.active{display:flex}
+
+/* ---------- Discover / swipe deck ---------- */
+#deck{flex:1 1 auto;position:relative;margin:6px 16px}
+.jobcard{
+  position:absolute;inset:0;background:linear-gradient(160deg,var(--card),var(--card2));
+  border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);
+  padding:20px 20px 16px;display:flex;flex-direction:column;
+  will-change:transform;touch-action:pan-y;
+}
+.jobcard.dragging{transition:none}
+.jobcard.settle{transition:transform .28s cubic-bezier(.2,.7,.3,1),opacity .28s}
+.jobcard .co{color:var(--muted);font-weight:700;font-size:.82rem;letter-spacing:.02em}
+.jobcard h2{margin:4px 0 10px;font-size:1.5rem;line-height:1.15;font-weight:850;letter-spacing:-.01em}
+.jc-meta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.chip{font-size:.72rem;font-weight:700;padding:4px 9px;border-radius:999px;background:var(--bg2);border:1px solid var(--line);color:var(--muted)}
+.chip.pay{color:var(--green);border-color:rgba(78,163,99,.35)}
+.chip.remote{color:var(--teal);border-color:rgba(34,184,160,.35)}
+.fit{display:flex;align-items:center;gap:12px;margin:2px 0 14px}
+.fit .ring{--v:0;width:56px;height:56px;border-radius:50%;flex:0 0 auto;
+  background:conic-gradient(var(--teal) calc(var(--v)*1%), var(--line) 0);
+  display:grid;place-items:center}
+.fit .ring i{width:44px;height:44px;border-radius:50%;background:var(--card);display:grid;place-items:center;font-style:normal;font-weight:850;font-size:.95rem}
+.fit .lbl{font-size:.74rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.jc-body{overflow:auto;flex:1 1 auto;-webkit-overflow-scrolling:touch;color:var(--muted);font-size:.92rem}
+.jc-body strong{color:var(--ink)}
+.jc-foot{display:flex;align-items:center;gap:10px;padding-top:12px}
+.oshal-toggle{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:.74rem;color:var(--muted);font-weight:700;user-select:none;cursor:pointer}
+.oshal-toggle input{appearance:none;width:36px;height:20px;border-radius:999px;background:var(--line);position:relative;transition:.15s;flex:0 0 auto}
+.oshal-toggle input:checked{background:var(--teal)}
+.oshal-toggle input::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s}
+.oshal-toggle input:checked::after{transform:translateX(16px)}
+.stamp{position:absolute;top:22px;font-size:1.5rem;font-weight:900;letter-spacing:.06em;padding:6px 14px;border-radius:12px;border:3px solid;opacity:0;transform:rotate(-12deg);pointer-events:none}
+.stamp.like{left:20px;color:var(--green);border-color:var(--green)}
+.stamp.nope{right:20px;color:var(--red);border-color:var(--red);transform:rotate(12deg)}
+
+.deck-actions{flex:0 0 auto;display:flex;justify-content:center;align-items:center;gap:26px;padding:14px 0 6px}
+.round{width:62px;height:62px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--ink);
+  display:grid;place-items:center;font-size:1.5rem;box-shadow:var(--shadow);cursor:pointer;transition:transform .1s}
+.round:active{transform:scale(.92)}
+.round.pass{color:var(--red)} .round.queue{color:var(--green)}
+.round.small{width:48px;height:48px;font-size:1.1rem;box-shadow:none}
+
+/* ---------- Ready list + review ---------- */
+.scroll{flex:1 1 auto;overflow:auto;-webkit-overflow-scrolling:touch;padding:6px 16px 20px}
+.row{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+.row .rmeta{min-width:0;flex:1 1 auto}
+.row .rt{font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .rc{color:var(--muted);font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .rfit{flex:0 0 auto;font-weight:850;font-size:.82rem;color:var(--teal);min-width:34px;text-align:right}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:10px 14px;font:inherit;font-weight:800;cursor:pointer}
+.btn.primary{background:var(--teal);color:var(--teal-ink);border-color:transparent}
+.btn.ghost{background:transparent}
+.btn.block{width:100%;padding:14px;font-size:1rem}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.small{padding:7px 11px;font-size:.78rem;border-radius:10px}
+
+/* ---------- Review overlay ---------- */
+.sheet{position:absolute;inset:0;background:var(--bg);display:none;flex-direction:column;z-index:20}
+.sheet.open{display:flex}
+.sheet-top{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.sheet-top .st-title{min-width:0;flex:1 1 auto}
+.sheet-top .st-title b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sheet-top .st-title span{color:var(--muted);font-size:.8rem}
+.tabs{display:flex;gap:6px;padding:10px 14px 4px}
+.tab{flex:1;text-align:center;padding:9px;border-radius:10px;font-weight:800;font-size:.82rem;color:var(--muted);background:var(--card2);cursor:pointer}
+.tab.active{color:var(--ink);background:var(--card);border:1px solid var(--line)}
+.tabpane{flex:1 1 auto;overflow:auto;-webkit-overflow-scrolling:touch;padding:14px}
+.tabpane.pdf{padding:0}
+.tabpane iframe{width:100%;height:100%;border:0;background:#fff}
+.kchips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.kchips .ok{color:var(--green);border-color:rgba(78,163,99,.35)}
+.kchips .gap{color:var(--amber);border-color:rgba(224,165,75,.35)}
+.sheet-foot{flex:0 0 auto;padding:12px 14px calc(12px + var(--safe-b));border-top:1px solid var(--line);background:var(--card)}
+.hint{color:var(--muted);font-size:.78rem;margin:0 0 9px;text-align:center}
+.offline{border:1px solid rgba(224,165,75,.4);background:rgba(224,165,75,.08);border-radius:12px;padding:12px;margin-bottom:10px}
+.offline b{color:var(--amber)}
+.offline .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.offline a.btn{display:block;text-align:center;text-decoration:none}
+
+/* ---------- Status lanes ---------- */
+.lane{margin-bottom:16px}
+.lane h3{display:flex;align-items:center;gap:8px;font-size:.82rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 8px}
+.lane h3 .n{color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:1px 8px;font-size:.72rem}
+.lane .dot{width:9px;height:9px;border-radius:50%}
+.lane.ready .dot{background:var(--blue)} .lane.queued .dot{background:var(--amber)}
+.lane.needs .dot{background:var(--red)} .lane.applied .dot{background:var(--green)}
+.blk{color:var(--red);font-size:.8rem;margin-top:6px}
+.tsub{color:var(--muted);font-size:.76rem}
+
+/* ---------- Bottom nav ---------- */
+nav{flex:0 0 auto;display:flex;border-top:1px solid var(--line);background:var(--card);
+  padding-bottom:var(--safe-b)}
+nav button{flex:1;background:none;border:0;color:var(--muted);font:inherit;font-weight:700;font-size:.72rem;
+  padding:9px 0 8px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;position:relative}
+nav button .ic{font-size:1.25rem;line-height:1}
+nav button.active{color:var(--teal)}
+nav button .badge{position:absolute;top:4px;left:calc(50% + 8px);min-width:16px;height:16px;border-radius:999px;
+  background:var(--red);color:#fff;font-size:.62rem;font-weight:800;display:grid;place-items:center;padding:0 4px}
+
+.empty{text-align:center;color:var(--muted);padding:44px 20px}
+.empty .big{font-size:2.4rem;margin-bottom:8px}
+.spin{display:inline-block;width:15px;height:15px;border:2px solid var(--line);border-top-color:var(--teal);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.toast{position:fixed;left:50%;bottom:calc(78px + var(--safe-b));transform:translateX(-50%) translateY(20px);
+  background:#0b0f16;color:#fff;border:1px solid var(--line);padding:11px 16px;border-radius:12px;font-weight:700;font-size:.86rem;
+  opacity:0;pointer-events:none;transition:.2s;max-width:88%;text-align:center;z-index:50}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">Intelligent Career<small>Swipe · Review · Auto-apply</small></div>
+    <div class="pill" id="statePill">—</div>
+  </header>
+
+  <main>
+    <!-- ===== Discover ===== -->
+    <section class="view active" id="v-discover">
+      <div id="deck"></div>
+      <div class="deck-actions">
+        <button class="round small" id="btnUndo" title="Bring the last card back">↺</button>
+        <button class="round pass" id="btnPass" title="Pass">✕</button>
+        <button class="round queue" id="btnQueue" title="Queue + draft resume">♥</button>
+        <button class="round small" id="btnMore" title="Pull more roles">⤓</button>
+      </div>
+    </section>
+
+    <!-- ===== Ready ===== -->
+    <section class="view" id="v-ready">
+      <div class="scroll" id="readyList"></div>
+    </section>
+
+    <!-- ===== Status ===== -->
+    <section class="view" id="v-status">
+      <div class="scroll" id="statusBoard"></div>
+    </section>
+
+    <!-- ===== Review sheet (over Ready) ===== -->
+    <div class="sheet" id="reviewSheet">
+      <div class="sheet-top">
+        <button class="btn small ghost" id="revBack">‹ Back</button>
+        <div class="st-title"><b id="revTitle">—</b><span id="revCompany"></span></div>
+      </div>
+      <div class="tabs">
+        <div class="tab active" data-pane="posting">Posting</div>
+        <div class="tab" data-pane="resume">Résumé</div>
+        <div class="tab" data-pane="cover">Cover</div>
+      </div>
+      <div class="tabpane" id="pane-posting"></div>
+      <div class="tabpane pdf" id="pane-resume" style="display:none"></div>
+      <div class="tabpane pdf" id="pane-cover" style="display:none"></div>
+      <div class="sheet-foot" id="revFoot"></div>
+    </div>
+  </main>
+
+  <nav>
+    <button class="active" data-view="discover"><span class="ic">🔥</span>Discover</button>
+    <button data-view="ready"><span class="ic">📋</span>Ready<span class="badge" id="badgeReady" style="display:none">0</span></button>
+    <button data-view="status"><span class="ic">📡</span>Status<span class="badge" id="badgeNeeds" style="display:none">0</span></button>
+  </nav>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const CH='/api/career-hunter', AP='/api/apply-operator';
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2600);}
+async function jget(u){const r=await fetch(u,{headers:{Accept:'application/json'}});if(!r.ok)throw Object.assign(new Error('HTTP '+r.status),{status:r.status});return r.json();}
+async function jpost(u,b){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});let j={};try{j=await r.json();}catch{}return{status:r.status,ok:r.ok,body:j};}
+const money=v=>v?('$'+Math.round(v/1000)+'k'):'';
+const jobCache=new Map();               // posting_id -> {title, company} (title enrichment for lanes/inflight)
+
+/* ============================ view switching ============================ */
+function show(view){
+  $$('.view').forEach(v=>v.classList.toggle('active',v.id==='v-'+view));
+  $$('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
+  if(view==='ready'){ loadReady(); } else { stopReadyPoll(); }
+  if(view==='status'){loadStatus();startStatusPoll();}else stopStatusPoll();
+}
+$$('nav button').forEach(b=>b.onclick=()=>show(b.dataset.view));
+
+/* ============================ Discover deck ============================ */
+let deck=[];            // {posting_id, company, title, detail?}
+let history=[];         // {card, action} for undo
+let drafting=0;         // in-flight approve drafts
+const draftQ=[];        // sequential draft queue {postingId, oshal}
+let deckLoading=false;
+
+async function loadDeck(topUp){
+  if(deckLoading)return; deckLoading=true; setPill();
+  try{
+    let apps=(await jget(CH+'/applications').catch(()=>({applications:[]}))).applications||[];
+    let pending=apps.filter(a=>a.status==='approval_required');
+    if(topUp||pending.length<3){
+      await jpost(CH+'/enqueue-drafts',{limit:20});
+      apps=(await jget(CH+'/applications').catch(()=>({applications:[]}))).applications||[];
+      pending=apps.filter(a=>a.status==='approval_required');
+    }
+    const have=new Set(deck.map(d=>d.posting_id));
+    for(const a of pending){ if(!have.has(a.posting_id)){ deck.push({posting_id:a.posting_id,company:a.company,title:a.title}); have.add(a.posting_id);} }
+    renderDeck(); ensureDetail(0); ensureDetail(1);
+  }catch(e){ renderDeck(); }
+  deckLoading=false; setPill();
+}
+
+async function ensureDetail(i){
+  const c=deck[i]; if(!c||c.detail)return;
+  try{ const {job}=await jget(CH+'/jobs/'+c.posting_id); c.detail=job||{}; jobCache.set(c.posting_id,{title:job.title,company:job.company});
+       if(i<=1)renderDeck(); }catch{ c.detail={}; }
+}
+
+function cardHTML(c,top){
+  const d=c.detail||{};
+  const fit=Math.round(d.ai_fit_score||d.fit_score||0);
+  const pay=money(d.salary_max||d.salary_min);
+  const loc=d.location||(d.remote?'Remote':'');
+  const why=d.ai_fit_rationale||'';
+  return `<article class="jobcard settle" data-id="${c.posting_id}" style="z-index:${top?2:1};${top?'':'transform:scale(.96) translateY(10px);opacity:.85'}">
+    <div class="stamp like">QUEUE</div><div class="stamp nope">PASS</div>
+    <div class="co">${esc(c.company||d.company||'')}</div>
+    <h2>${esc(c.title||d.title||'Role')}</h2>
+    ${fit?`<div class="fit"><div class="ring" style="--v:${fit}"><i>${fit}</i></div><div class="lbl">Fit<br>score</div></div>`:''}
+    <div class="jc-meta">
+      ${loc?`<span class="chip">${esc(loc)}</span>`:''}
+      ${d.remote?`<span class="chip remote">Remote</span>`:''}
+      ${pay?`<span class="chip pay">${pay}</span>`:''}
+      ${d.job_type?`<span class="chip">${esc(d.job_type)}</span>`:''}
+    </div>
+    <div class="jc-body">${why?esc(why):(c.detail?'<em>No fit rationale on file.</em>':'<span class="spin"></span> loading…')}</div>
+    <div class="jc-foot">
+      <label class="oshal-toggle" title="Add your open-source / agentic section to the resume">
+        <input type="checkbox" class="oshalChk"> +OSHAL
+      </label>
+    </div>
+  </article>`;
+}
+
+function renderDeck(){
+  const el=$('#deck');
+  if(!deck.length){
+    el.innerHTML=`<div class="empty"><div class="big">🎉</div><b>All caught up</b><div class="tsub" style="margin-top:6px">No more roles in your queue.</div><br><button class="btn primary" onclick="loadDeck(true)">Pull more roles</button></div>`;
+    setPill(); return;
+  }
+  const top=deck[0], next=deck[1];
+  el.innerHTML=(next?cardHTML(next,false):'')+cardHTML(top,true);
+  bindDrag($('.jobcard[style*="z-index:2"]')||el.lastElementChild);
+  setPill();
+}
+
+/* pointer-drag swipe on the top card */
+function bindDrag(card){
+  if(!card)return;
+  let sx=0,sy=0,dx=0,dy=0,drag=false;
+  const like=$('.stamp.like',card),nope=$('.stamp.nope',card);
+  card.onpointerdown=e=>{ if(e.target.closest('.oshal-toggle'))return; drag=true;sx=e.clientX;sy=e.clientY;dx=dy=0;
+    card.setPointerCapture(e.pointerId);card.classList.add('dragging');card.classList.remove('settle'); };
+  card.onpointermove=e=>{ if(!drag)return; dx=e.clientX-sx;dy=e.clientY-sy;
+    card.style.transform=`translate(${dx}px,${dy}px) rotate(${dx/18}deg)`;
+    like.style.opacity=Math.max(0,Math.min(1,dx/90)); nope.style.opacity=Math.max(0,Math.min(1,-dx/90)); };
+  card.onpointerup=card.onpointercancel=e=>{ if(!drag)return; drag=false;card.classList.remove('dragging');card.classList.add('settle');
+    if(dx>95)fling(card,1); else if(dx<-95)fling(card,-1);
+    else{ card.style.transform='';like.style.opacity=nope.style.opacity=0; } };
+}
+function fling(card,dir){
+  card.style.transform=`translate(${dir*140}%,${0}px) rotate(${dir*20}deg)`;card.style.opacity='0';
+  setTimeout(()=>commit(dir>0?'queue':'pass'),210);
+}
+
+function commit(action){
+  const c=deck.shift(); if(!c)return;
+  history.push({card:c,action});
+  if(action==='queue'){
+    const oshal=!!$('.oshalChk')?.checked;
+    draftQ.push({postingId:c.posting_id,oshal}); pumpDrafts();
+  }else{
+    jpost(CH+'/applications/'+c.posting_id+'/deny',{}).catch(()=>{});
+  }
+  renderDeck(); ensureDetail(0); ensureDetail(1);
+  if(deck.length<3&&!deckLoading) loadDeck(false);
+}
+
+/* sequential drafting so a burst of right-swipes never fires N concurrent LLM drafts */
+async function pumpDrafts(){
+  if(pumpDrafts.running||!draftQ.length)return; pumpDrafts.running=true;
+  while(draftQ.length){
+    const j=draftQ.shift(); drafting++; setPill();
+    try{ const r=await jpost(CH+'/applications/'+j.postingId+'/approve',{oshal:j.oshal});
+         if(!r.ok) toast('Draft failed for #'+j.postingId); }
+    catch{ toast('Draft error for #'+j.postingId); }
+    drafting--; setPill(); refreshBadges();
+  }
+  pumpDrafts.running=false;
+}
+
+$('#btnPass').onclick=()=>{const card=$('.jobcard[style*="z-index:2"]')||$('#deck').lastElementChild; if(card&&deck.length)fling(card,-1);};
+$('#btnQueue').onclick=()=>{const card=$('.jobcard[style*="z-index:2"]')||$('#deck').lastElementChild; if(card&&deck.length)fling(card,1);};
+$('#btnMore').onclick=()=>loadDeck(true);
+$('#btnUndo').onclick=()=>{
+  const h=history.pop(); if(!h){toast('Nothing to undo');return;}
+  deck.unshift(h.card);
+  if(h.action==='queue'){ const i=draftQ.findIndex(x=>x.postingId===h.card.posting_id); if(i>=0)draftQ.splice(i,1); toast('Un-queued'); }
+  else toast('Brought back');
+  renderDeck();
+};
+
+function setPill(){
+  const p=$('#statePill');
+  if(drafting>0){p.className='pill busy';p.textContent='Drafting '+drafting+'…';}
+  else if(deckLoading){p.className='pill busy';p.innerHTML='<span class="spin"></span> loading';}
+  else{p.className='pill';p.textContent=deck.length+' to review';}
+}
+
+/* ============================ Ready + review ============================ */
+let readyTimer=null;
+function stopReadyPoll(){ if(readyTimer){clearTimeout(readyTimer);readyTimer=null;} }
+/** true while the swipe-deck's sequential draft queue still has work in this tab. */
+function draftInFlight(){ return drafting>0 || draftQ.length>0 || !!pumpDrafts.running; }
+
+async function loadReady(){
+  const el=$('#readyList');
+  if(!el.dataset.loaded) el.innerHTML='<div class="empty"><span class="spin"></span> loading…</div>';
+  try{
+    // Three sources: the ticketed approval table (drafting/error transient states after a swipe),
+    // the generated packet-ready list (what you review), and the in-flight submissions (to exclude
+    // jobs already sent to the desktop so they don't look re-submittable here).
+    const [appsR,jobsR,flightR]=await Promise.all([
+      jget(CH+'/applications').catch(()=>({applications:[]})),
+      jget(CH+'/jobs?status=generated&sort=generated&per=100&lane=all').catch(()=>({jobs:[]})),
+      jget(AP+'/inflight').catch(()=>({inflight:[]})),
+    ]);
+    const apps=appsR.applications||[];
+    const draftingRows=apps.filter(a=>a.status==='drafting');
+    const erroredRows =apps.filter(a=>a.status==='error');
+    const flying=new Set((flightR.inflight||[]).map(f=>Number(f.postingId)));
+    const ready=(jobsR.jobs||[]).filter(j=>!flying.has(Number(j.id)));
+    ready.forEach(j=>jobCache.set(j.id,{title:j.title,company:j.company}));
+
+    let html='';
+    if(draftingRows.length) html+=section('✍️ Drafting your résumé…',draftingRows.map(a=>
+      `<div class="row"><div class="rmeta"><div class="rt">${esc(a.title)}</div><div class="rc">${esc(a.company)}</div></div>
+       <div class="rfit" style="color:var(--amber)"><span class="spin"></span></div></div>`).join(''));
+    if(erroredRows.length) html+=section('⚠ Couldn’t draft — check your Anthropic key, then retry',erroredRows.map(a=>
+      `<div class="row"><div class="rmeta"><div class="rt">${esc(a.title)}</div><div class="rc">${esc(a.company)}</div></div>
+       <button class="btn small" data-retry="${a.posting_id}">Retry</button></div>`).join(''));
+    if(ready.length) html+=section('📋 Ready to review + apply',ready.map(j=>{
+      const fit=Math.round(j.ai_fit_score||j.fit_score||0);
+      return `<div class="row" data-id="${j.id}" role="button">
+        <div class="rmeta"><div class="rt">${esc(j.title)}</div><div class="rc">${esc(j.company)}${j.location?' · '+esc(j.location):''}${j.has_resume?'':' · <span style="color:var(--amber)">no packet</span>'}</div></div>
+        <div class="rfit">${fit||'—'}</div>
+        <button class="btn small primary" data-open="${j.id}">Review</button></div>`;
+    }).join(''));
+    if(!html) html=`<div class="empty"><div class="big">📋</div><b>Nothing here yet</b><div class="tsub" style="margin-top:6px">Swipe right in Discover to queue résumés; they draft in the background and land here to review + apply.</div></div>`;
+
+    el.innerHTML=html; el.dataset.loaded='1';
+    $$('[data-open]',el).forEach(b=>b.onclick=e=>{e.stopPropagation();openReview(Number(b.dataset.open));});
+    $$('.row[data-id]',el).forEach(r=>r.onclick=()=>openReview(Number(r.dataset.id)));
+    $$('[data-retry]',el).forEach(b=>b.onclick=async()=>{ b.disabled=true; b.innerHTML='<span class="spin"></span>';
+      await jpost(CH+'/applications/'+b.dataset.retry+'/approve',{oshal:false}); loadReady(); });
+    const br=$('#badgeReady'); br.style.display=ready.length?'grid':'none'; br.textContent=ready.length;
+
+    // Keep refreshing while drafts are in flight so freshly-drafted roles appear without a manual reload.
+    stopReadyPoll();
+    if(draftingRows.length||draftInFlight()) readyTimer=setTimeout(loadReady,7000);
+  }catch(e){ el.innerHTML='<div class="empty">Could not load. '+esc(e.message)+'</div>'; }
+}
+function section(title,rows){ return `<div class="lane"><h3 style="border:0;text-transform:none;letter-spacing:0">${title}</h3>${rows}</div>`; }
+
+let reviewId=null;
+async function openReview(id){
+  reviewId=id;
+  $('#reviewSheet').classList.add('open'); selectTab('posting');
+  $('#pane-posting').innerHTML='<div class="empty"><span class="spin"></span> loading…</div>';
+  $('#pane-resume').innerHTML=''; $('#pane-cover').innerHTML=''; $('#revFoot').innerHTML='';
+  try{
+    const {job}=await jget(CH+'/jobs/'+id);
+    jobCache.set(id,{title:job.title,company:job.company});
+    $('#revTitle').textContent=job.title||'Role'; $('#revCompany').textContent=job.company||'';
+    const fit=Math.round(job.ai_fit_score||job.fit_score||0);
+    const matched=(job.matched||[]).slice(0,8), gaps=(job.gaps||[]).slice(0,6);
+    $('#pane-posting').innerHTML=`
+      <div class="jc-meta">
+        ${fit?`<span class="chip remote">Fit ${fit}</span>`:''}
+        ${job.location?`<span class="chip">${esc(job.location)}</span>`:''}
+        ${job.remote?`<span class="chip remote">Remote</span>`:''}
+        ${money(job.salary_max||job.salary_min)?`<span class="chip pay">${money(job.salary_max||job.salary_min)}</span>`:''}
+      </div>
+      ${job.ai_fit_rationale?`<p style="color:var(--muted)">${esc(job.ai_fit_rationale)}</p>`:''}
+      ${matched.length?`<div class="kchips">${matched.map(m=>`<span class="chip ok">✓ ${esc(m)}</span>`).join('')}</div>`:''}
+      ${gaps.length?`<div class="kchips">${gaps.map(m=>`<span class="chip gap">△ ${esc(m)}</span>`).join('')}</div>`:''}
+      ${job.url?`<a class="btn block ghost" style="margin-top:12px;text-decoration:none;text-align:center" href="${esc(job.url)}" target="_blank" rel="noopener">Open posting ↗</a>`:''}
+      ${job.description?`<div style="margin-top:14px;color:var(--muted);white-space:pre-wrap;font-size:.86rem">${esc(String(job.description).slice(0,4000))}</div>`:''}`;
+    $('#pane-resume').innerHTML = job.has_resume
+      ? `<iframe src="${CH}/resume?id=${id}" title="Résumé"></iframe>`
+      : `<div class="empty">No résumé packet on file for this role.</div>`;
+    $('#pane-cover').innerHTML = job.has_cover
+      ? `<iframe src="${CH}/resume?id=${id}&kind=cover" title="Cover letter"></iframe>`
+      : `<div class="empty">No cover letter on file.</div>`;
+    renderReviewFoot(job);
+  }catch(e){ $('#pane-posting').innerHTML='<div class="empty">Could not load. '+esc(e.message)+'</div>'; }
+}
+
+function renderReviewFoot(job){
+  $('#revFoot').innerHTML=`
+    <p class="hint disclaimer"><b>How auto-apply works.</b> It drives a real web browser on a connected <b>desktop worker node</b> — a separate machine you set up for this, not OSHAL's servers. Using your résumé packet, it fills the employer's application form <b>on your behalf</b> in <b>assist mode</b>: <b>you review the filled form and click the final Submit yourself</b>, so nothing is ever sent without you. Your résumé and cover letter are AI-assisted from the profile you provided — read them before applying.</p>
+    <button class="btn primary block" id="doApply">⚡ Auto-apply on a desktop worker</button>`;
+  $('#doApply').onclick=()=>doApply(job);
+}
+
+async function doApply(job){
+  const btn=$('#doApply'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> Queuing…';
+  // Durable path: file a job-apply TICKET (one per résumé). The swarm queue dispatches it to your
+  // desktop worker one at a time and it SURVIVES a restart — unlike the old fire-and-forget submit.
+  // If the desktop is momentarily offline the ticket just waits its turn instead of hard-failing.
+  const r=await jpost(AP+'/enqueue',{postingId:reviewId,company:job.company||job.company_name,title:job.title,url:job.url,location:job.location});
+  if(r.status===201||r.status===200){
+    toast(r.status===200?'Already queued for submission':'Queued — your desktop will submit it'); closeReview(); show('status');
+  }else{
+    btn.disabled=false; btn.innerHTML='⚡ Auto-apply on a desktop worker';
+    // Couldn't file the ticket (bad posting, not signed in, …) — offer the manual web-apply fallback.
+    $('#revFoot').insertAdjacentHTML('afterbegin',`
+      <div class="offline">
+        <b>Couldn't queue this one.</b>
+        <div class="tsub" style="margin-top:4px">${esc((r.body&&r.body.error)||'Try again, or apply on the web now with your packet:')}</div>
+        <div class="grid">
+          ${job.url?`<a class="btn small" href="${esc(job.url)}" target="_blank" rel="noopener">Open posting ↗</a>`:''}
+          ${job.has_resume?`<a class="btn small" href="${CH}/resume?id=${reviewId}" target="_blank">Résumé ↓</a>`:''}
+          ${job.has_cover?`<a class="btn small" href="${CH}/resume?id=${reviewId}&kind=cover" target="_blank">Cover ↓</a>`:''}
+          <button class="btn small primary" id="markApplied">I applied it ✓</button>
+        </div>
+      </div>`);
+    $('#markApplied').onclick=async()=>{ await jpost(CH+'/jobs/'+reviewId+'/status',{status:'applied'}); toast('Marked applied'); closeReview(); loadReady(); refreshBadges(); };
+  }
+}
+
+function selectTab(name){
+  $$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.pane===name));
+  ['posting','resume','cover'].forEach(p=>$('#pane-'+p).style.display=(p===name?'':'none'));
+}
+$$('.tab').forEach(t=>t.onclick=()=>selectTab(t.dataset.pane));
+function closeReview(){ $('#reviewSheet').classList.remove('open'); reviewId=null; }
+$('#revBack').onclick=closeReview;
+
+/* ============================ Status board ============================ */
+let statusTimer=null;
+function startStatusPoll(){ stopStatusPoll(); statusTimer=setInterval(loadStatus,15000); }
+function stopStatusPoll(){ if(statusTimer){clearInterval(statusTimer);statusTimer=null;} }
+
+async function loadStatus(){
+  const el=$('#statusBoard');
+  try{
+    const [ready,deferred,applied,inflight]=await Promise.all([
+      jget(CH+'/jobs?status=generated&sort=generated&per=100&lane=all').catch(()=>({jobs:[]})),
+      jget(CH+'/jobs?status=deferred&per=100&lane=all').catch(()=>({jobs:[]})),
+      jget(CH+'/jobs?status=applied&sort=applied&per=100&lane=all').catch(()=>({jobs:[]})),
+      jget(AP+'/inflight').catch(()=>({inflight:[]})),
+    ]);
+    [ready.jobs,deferred.jobs,applied.jobs].forEach(a=>(a||[]).forEach(j=>jobCache.set(j.id,{title:j.title,company:j.company})));
+    const queued=inflight.inflight||[];
+    el.innerHTML=
+      lane('ready','Ready to auto-apply',ready.jobs,j=>lineJob(j,'Review','open'))+
+      lane('queued','Queued — applying',queued,q=>lineInflight(q))+
+      lane('needs','Needs you — apply on web',deferred.jobs,j=>lineNeeds(j))+
+      lane('applied','Applied',applied.jobs,j=>lineApplied(j));
+    $$('[data-open]',el).forEach(b=>b.onclick=()=>{show('ready');setTimeout(()=>openReview(Number(b.dataset.open)),60);});
+    $$('[data-applied]',el).forEach(b=>b.onclick=async()=>{await jpost(CH+'/jobs/'+b.dataset.applied+'/status',{status:'applied'});toast('Marked applied');loadStatus();refreshBadges();});
+    // lazily fill inflight titles we don't know yet
+    queued.forEach(q=>{ if(!jobCache.has(q.postingId)) jget(CH+'/jobs/'+q.postingId).then(({job})=>{jobCache.set(q.postingId,{title:job.title,company:job.company});}).catch(()=>{}); });
+    refreshBadges(ready.jobs.length,deferred.jobs.length);
+  }catch(e){ el.innerHTML='<div class="empty">Could not load status. '+esc(e.message)+'</div>'; }
+}
+function lane(k,label,items,row){
+  return `<div class="lane ${k}"><h3><span class="dot"></span>${label}<span class="n">${items.length}</span></h3>
+    ${items.length?items.map(row).join(''):'<div class="tsub" style="padding:2px 2px 4px">—</div>'}</div>`;
+}
+function lineJob(j,btn,act){
+  return `<div class="row"><div class="rmeta"><div class="rt">${esc(j.title)}</div><div class="rc">${esc(j.company)}</div></div>
+    <button class="btn small primary" data-${act}="${j.id}">${btn}</button></div>`;
+}
+function lineInflight(q){
+  const c=jobCache.get(q.postingId)||{}; const mins=Math.max(1,Math.round((q.ageMs||0)/60000));
+  return `<div class="row"><div class="rmeta"><div class="rt">${esc(c.title||('Posting #'+q.postingId))}</div>
+    <div class="rc">${esc(c.company||'')} · <span style="color:var(--amber)"><span class="spin"></span> filling · ${mins}m</span></div></div></div>`;
+}
+function lineNeeds(j){
+  return `<div class="row" style="flex-wrap:wrap"><div class="rmeta"><div class="rt">${esc(j.title)}</div><div class="rc">${esc(j.company)}</div>
+      ${j.notes?`<div class="blk">⚠ ${esc(j.notes)}</div>`:''}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;width:100%;margin-top:4px">
+      ${j.url?`<a class="btn small" href="${esc(j.url)}" target="_blank" rel="noopener">Open posting ↗</a>`:''}
+      ${j.has_resume?`<a class="btn small" href="${CH}/resume?id=${j.id}" target="_blank">Résumé ↓</a>`:''}
+      <button class="btn small primary" data-applied="${j.id}">I applied it ✓</button>
+    </div></div>`;
+}
+function lineApplied(j){
+  const when=j.applied_at?String(j.applied_at).slice(0,10):'';
+  return `<div class="row"><div class="rmeta"><div class="rt">${esc(j.title)}</div><div class="rc">${esc(j.company)}${when?' · '+when:''}</div></div>
+    <div class="rfit" style="color:var(--green)">✓</div></div>`;
+}
+
+/* ============================ badges ============================ */
+async function refreshBadges(readyN,needsN){
+  try{
+    if(readyN==null){ const r=await jget(CH+'/jobs?status=generated&per=100&lane=all').catch(()=>({jobs:[]})); readyN=(r.jobs||[]).length; }
+    if(needsN==null){ const d=await jget(CH+'/jobs?status=deferred&per=100&lane=all').catch(()=>({jobs:[]})); needsN=(d.jobs||[]).length; }
+  }catch{ return; }
+  const br=$('#badgeReady'); br.style.display=readyN?'grid':'none'; br.textContent=readyN;
+  const bn=$('#badgeNeeds'); bn.style.display=needsN?'grid':'none'; bn.textContent=needsN;
+}
+
+/* ============================ boot ============================ */
+loadDeck(false); refreshBadges();
+</script>
+</body>
+</html>

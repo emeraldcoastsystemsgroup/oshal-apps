@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Content Calendar — Switchboard</title>
+<!-- ONE link gives this standalone surface every OSHAL theme; the active one is chosen by the
+     data-theme on <html> above (and kept in sync live by surface-theme.js). Every colour below is
+     DERIVED from a framework token with a hardcoded fallback, so the surface is native to all 11
+     themes in-cockpit AND still renders if opened on its own (fallbacks = the midnight palette,
+     with a light-scheme set under @media so a bare open respects the OS theme too). Mirrors the
+     switchboard-today.html token block exactly — one design language across the app. -->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  /* ── standalone fallback palette (only applies when framework tokens are absent) ──────────── */
+  :root {
+    --sb-bg:#0a0a12; --sb-surface:#12121e; --sb-card:rgba(28,28,48,.55); --sb-card-hover:rgba(40,40,68,.66);
+    --sb-line:rgba(255,255,255,.09); --sb-text:#eeeef5; --sb-text2:#c8c8da; --sb-muted:#8a8aa0;
+    --sb-accent:#7c7cff; --sb-ok:#00d3a7; --sb-warn:#f5b342; --sb-err:#ff6f5e; --sb-active:#4aa3ff;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --sb-bg:#eef1f5; --sb-surface:#f6f8fb; --sb-card:#ffffff; --sb-card-hover:#fbfcfe;
+      --sb-line:rgba(22,26,34,.10); --sb-text:#191c22; --sb-text2:#3a4048; --sb-muted:#5a606b;
+      --sb-accent:#5a5af0; --sb-ok:#1f9d74; --sb-warn:#b3762e; --sb-err:#d94f3d; --sb-active:#2f77c9;
+    }
+  }
+
+  /* ── aliases: framework token first, standalone fallback second ───────────────────────────── */
+  :root {
+    --bg:      var(--bg-primary,      var(--sb-bg));
+    --surface: var(--bg-secondary,    var(--sb-surface));
+    --card:    var(--bg-card,         var(--sb-card));
+    --cardh:   var(--bg-card-hover,   var(--sb-card-hover));
+    --line:    var(--border-color,    var(--sb-line));
+    --lineh:   var(--border-color-hover, var(--sb-line));
+    --text:    var(--text-primary,    var(--sb-text));
+    --text2:   var(--text-secondary,  var(--sb-text2));
+    --muted:   var(--text-muted,      var(--sb-muted));
+    --accent:  var(--accent-primary,  var(--sb-accent));
+    --accent-grad: var(--accent-gradient, linear-gradient(135deg, var(--accent), var(--sb-active)));
+    --ok:      var(--status-success,  var(--sb-ok));
+    --warn:    var(--status-warning,  var(--sb-warn));
+    --err:     var(--status-error,    var(--sb-err));
+    --active:  var(--status-active,   var(--sb-active));
+
+    /* platform brand marks (fixed — same as the today surface) */
+    --gmail:#d64b3f; --li:#0a66c2; --x:#e9eaec; --fb:#1877f2; --ig:#d6297a;
+    --sms:#2aa87d; --cal:#7857c9; --voice:#3f9e5a; --slack:#611f69;
+
+    --r-sm:10px; --r-md:16px; --r-lg:22px; --pill:999px;
+    --ease:cubic-bezier(.32,.72,.24,1);
+  }
+  /* keep X's chip readable on light themes */
+  @media (prefers-color-scheme: light) { :root { --x:#16181c; --slack:#4a154b; } }
+  :root[data-theme="daylight"], :root[data-theme="gray"], :root[data-theme="light-blue"],
+  :root[data-theme="sakura"], :root[data-theme="amber"] { --x:#16181c; --slack:#4a154b; }
+
+  * { box-sizing:border-box; }
+  html,body { height:100%; }
+  body {
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Segoe UI",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased; font-size:14px; line-height:1.45;
+  }
+  .tnum { font-variant-numeric:tabular-nums; }
+  a { color:var(--accent); text-decoration:none; }
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+
+  .wrap { max-width:1240px; margin:0 auto; padding:28px 26px 70px; }
+
+  /* ── header ───────────────────────────────────────────────────────────────────────────────── */
+  .head { display:flex; align-items:flex-start; gap:16px; margin-bottom:20px; flex-wrap:wrap; }
+  .head .h-main { flex:1; min-width:240px; }
+  .greet { font-size:26px; font-weight:680; letter-spacing:-.025em; margin:0 0 6px; text-wrap:balance; }
+  .subline { color:var(--muted); font-size:14.5px; margin:0; }
+  .subline b { color:var(--text); font-weight:600; }
+
+  .controls { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .nav { display:inline-flex; align-items:center; gap:2px; background:var(--card); border:1px solid var(--line); border-radius:var(--pill); padding:3px; }
+  .nav button {
+    appearance:none; border:0; background:transparent; color:var(--muted); cursor:pointer;
+    height:30px; padding:0 10px; border-radius:var(--pill); display:grid; place-items:center;
+    font:inherit; font-size:13px; font-weight:560; transition:all var(--ease) .15s;
+  }
+  .nav button:hover { color:var(--accent); background:var(--surface); }
+  .nav button.today { padding:0 14px; }
+  .nav button svg { width:16px; height:16px; }
+  .wkrange { font-size:13.5px; font-weight:600; color:var(--text2); min-width:158px; text-align:center; letter-spacing:-.01em; }
+
+  select.wsfilter {
+    appearance:none; font:inherit; font-size:13px; font-weight:550; color:var(--text2);
+    background:var(--card); border:1px solid var(--line); border-radius:var(--pill);
+    padding:7px 30px 7px 14px; cursor:pointer; transition:border-color var(--ease) .15s;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a8aa0' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+    background-repeat:no-repeat; background-position:right 11px center;
+  }
+  select.wsfilter:hover { border-color:var(--accent); }
+
+  .btn {
+    appearance:none; border:1px solid var(--line); background:var(--card); color:var(--muted);
+    width:34px; height:34px; border-radius:10px; cursor:pointer; display:grid; place-items:center;
+    transition:all var(--ease) .16s;
+  }
+  .btn:hover { color:var(--accent); border-color:var(--accent); }
+  .btn svg { width:16px; height:16px; }
+  .btn.spin svg { animation:spin 1s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  .newbtn {
+    appearance:none; border:0; cursor:pointer; font:inherit; font-size:13.5px; font-weight:620;
+    background:var(--accent-grad); color:#fff; padding:0 18px; height:34px; border-radius:var(--pill);
+    display:inline-flex; align-items:center; gap:8px; box-shadow:0 8px 20px rgba(0,0,0,.16);
+    transition:filter var(--ease) .15s, transform var(--ease) .15s;
+  }
+  .newbtn:hover { filter:brightness(1.07); transform:translateY(-1px); }
+  .newbtn svg { width:15px; height:15px; }
+
+  /* preview ribbon */
+  .previewpill {
+    display:none; align-items:center; gap:7px; font-size:12px; color:var(--warn);
+    background:color-mix(in srgb, var(--warn) 12%, transparent); border:1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+    padding:5px 12px; border-radius:var(--pill); margin-bottom:16px; width:fit-content;
+  }
+  .previewpill.show { display:inline-flex; }
+  .previewpill svg { width:13px; height:13px; }
+
+  /* ── week grid ────────────────────────────────────────────────────────────────────────────── */
+  .grid { display:grid; grid-template-columns:repeat(7,1fr); gap:11px; }
+  .col {
+    background:var(--card); border:1px solid var(--line); border-radius:var(--r-md);
+    padding:10px 9px 12px; min-height:230px; display:flex; flex-direction:column;
+    animation:rise .4s var(--ease) backwards;
+  }
+  @keyframes rise { from { opacity:0; transform:translateY(9px); } to { opacity:1; transform:none; } }
+  .col.today { border-color:color-mix(in srgb, var(--accent) 55%, var(--line)); box-shadow:0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent) inset; }
+  .colhead { display:flex; align-items:baseline; justify-content:space-between; padding:2px 4px 9px; margin-bottom:4px; border-bottom:1px solid var(--line); }
+  .colhead .dow { font-size:11px; font-weight:650; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); }
+  .col.today .colhead .dow { color:var(--accent); }
+  .colhead .dnum { font-size:16px; font-weight:700; letter-spacing:-.02em; color:var(--text2); }
+  .col.today .colhead .dnum { color:var(--accent); }
+  .colhead .addday {
+    appearance:none; border:0; background:transparent; color:var(--muted); cursor:pointer;
+    width:22px; height:22px; border-radius:7px; display:grid; place-items:center; opacity:0; transition:all var(--ease) .15s;
+  }
+  .col:hover .colhead .addday { opacity:1; }
+  .colhead .addday:hover { color:var(--accent); background:var(--surface); }
+  .colhead .addday svg { width:14px; height:14px; }
+  .colbody { display:flex; flex-direction:column; gap:8px; flex:1; }
+  .dayempty { flex:1; display:grid; place-items:center; color:var(--muted); opacity:.35; font-size:20px; user-select:none; }
+
+  /* ── post card ────────────────────────────────────────────────────────────────────────────── */
+  .post {
+    position:relative; background:var(--surface); border:1px solid var(--line); border-radius:var(--r-sm);
+    padding:9px 10px 10px; cursor:pointer; overflow:hidden;
+    transition:transform var(--ease) .15s, box-shadow var(--ease) .15s, border-color var(--ease) .15s;
+  }
+  .post:hover { transform:translateY(-2px); box-shadow:0 10px 24px rgba(0,0,0,.16); border-color:var(--lineh); }
+  .post::before { content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--pc,var(--accent)); }
+  .post .prow { display:flex; align-items:center; gap:7px; margin-bottom:5px; }
+  .post .pmark { width:8px; height:8px; border-radius:3px; background:var(--pc,var(--accent)); flex:none; }
+  .post .plabel { font-size:11px; font-weight:640; color:var(--text2); letter-spacing:-.01em; }
+  .post .ptime { margin-left:auto; font-size:11px; font-weight:560; color:var(--muted); white-space:nowrap; }
+  .post .pbody { font-size:12.5px; color:var(--text); line-height:1.42; margin-bottom:8px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .post .pfoot { display:flex; align-items:center; gap:7px; }
+  .pill { font-size:10px; font-weight:650; padding:2px 8px; border-radius:var(--pill); letter-spacing:.01em; text-transform:capitalize; white-space:nowrap; }
+  .pill.draft { color:var(--muted); background:var(--line); }
+  .pill.scheduled { color:var(--active); background:color-mix(in srgb,var(--active) 15%,transparent); }
+  .pill.needs_approval { color:var(--warn); background:color-mix(in srgb,var(--warn) 15%,transparent); }
+  .pill.published { color:var(--ok); background:color-mix(in srgb,var(--ok) 15%,transparent); }
+  .wsdot { width:9px; height:9px; border-radius:50%; margin-left:auto; box-shadow:0 0 0 2px var(--surface); flex:none; }
+
+  /* ── states: loading / connect / error ─────────────────────────────────────────────────────── */
+  .skelcol { background:var(--card); border:1px solid var(--line); border-radius:var(--r-md); padding:10px 9px; min-height:230px; }
+  .shimmer { position:relative; overflow:hidden; background:var(--line); border-radius:8px; }
+  .shimmer::after { content:""; position:absolute; inset:0; transform:translateX(-100%); background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--text) 8%,transparent),transparent); animation:sh 1.4s infinite; }
+  @keyframes sh { 100% { transform:translateX(100%); } }
+
+  .empty { text-align:center; padding:40px 24px; color:var(--muted); }
+  .empty svg { width:32px; height:32px; color:var(--accent); margin-bottom:12px; }
+  .empty h3 { color:var(--text); font-size:17px; font-weight:620; margin:0 0 6px; }
+
+  /* footer legend */
+  .legend { display:flex; gap:16px; align-items:center; flex-wrap:wrap; margin-top:26px; padding-top:16px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); }
+  .legend .k { display:flex; align-items:center; gap:6px; }
+  .legend .sw { width:10px; height:10px; border-radius:3px; }
+  .legend .bot { margin-left:auto; display:flex; align-items:center; gap:7px; color:var(--accent); }
+  .legend .bot svg { width:13px; height:13px; }
+
+  /* ── modal ────────────────────────────────────────────────────────────────────────────────── */
+  .scrim { position:fixed; inset:0; background:rgba(4,6,12,.5); backdrop-filter:blur(3px); display:none; place-items:center; z-index:40; padding:20px; }
+  .scrim.show { display:grid; animation:fade .18s var(--ease); }
+  @keyframes fade { from { opacity:0; } to { opacity:1; } }
+  .modal {
+    width:min(480px,100%); background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg);
+    box-shadow:0 30px 80px rgba(0,0,0,.4); overflow:hidden; animation:pop .22s var(--ease);
+  }
+  @keyframes pop { from { opacity:0; transform:translateY(12px) scale(.98); } to { opacity:1; transform:none; } }
+  .modal h2 { font-size:17px; font-weight:680; letter-spacing:-.02em; margin:0; padding:18px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:9px; }
+  .modal h2 svg { width:17px; height:17px; color:var(--accent); }
+  .mbody { padding:16px 20px; display:flex; flex-direction:column; gap:13px; }
+  .fld { display:flex; flex-direction:column; gap:6px; }
+  .fld label { font-size:11.5px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+  .fld input, .fld textarea, .fld select {
+    font:inherit; font-size:14px; color:var(--text); background:var(--card); border:1px solid var(--line);
+    border-radius:var(--r-sm); padding:10px 12px; width:100%; transition:border-color var(--ease) .15s;
+  }
+  .fld textarea { resize:vertical; min-height:96px; line-height:1.5; }
+  .fld input:focus, .fld textarea:focus, .fld select:focus { outline:none; border-color:var(--accent); }
+  .frow { display:grid; grid-template-columns:1fr 1fr; gap:11px; }
+  .cc { font-size:11px; color:var(--muted); text-align:right; margin-top:-3px; }
+  .cc.over { color:var(--err); }
+  .mfoot { display:flex; align-items:center; gap:10px; padding:14px 20px 18px; }
+  .mfoot .grow { flex:1; }
+  .mbtn {
+    appearance:none; border:1px solid var(--line); background:var(--card); color:var(--text2);
+    font:inherit; font-size:13.5px; font-weight:600; padding:9px 16px; border-radius:var(--pill); cursor:pointer;
+    transition:all var(--ease) .15s;
+  }
+  .mbtn:hover { border-color:var(--accent); color:var(--accent); }
+  .mbtn.primary { background:var(--accent-grad); border-color:transparent; color:#fff; box-shadow:0 8px 20px rgba(0,0,0,.16); }
+  .mbtn.primary:hover { filter:brightness(1.07); color:#fff; }
+  .mbtn.danger { color:var(--err); }
+  .mbtn.danger:hover { border-color:var(--err); color:var(--err); }
+  .mbtn[disabled] { opacity:.5; cursor:not-allowed; }
+  .merr { color:var(--err); font-size:12.5px; padding:0 20px 12px; display:none; }
+  .merr.show { display:block; }
+
+  @media (max-width:920px) {
+    .grid { grid-template-columns:1fr; gap:10px; }
+    .col { min-height:auto; }
+    .colhead .addday { opacity:1; }
+    .dayempty { display:none; }
+  }
+  @media (max-width:620px) {
+    .wrap { padding:20px 15px 50px; }
+    .greet { font-size:22px; }
+    .frow { grid-template-columns:1fr; }
+    .wkrange { min-width:0; }
+  }
+  @media (prefers-reduced-motion:reduce) { * { animation:none !important; transition:none !important; } }
+</style>
+</head>
+<body>
+
+<!-- icon sprite -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-cal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4M9 14h.01M15 14h.01"/><path d="M2 13v2M22 13v2"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
+</defs></svg>
+
+<div class="wrap">
+  <div class="previewpill" id="previewpill"><svg><use href="#i-eye"/></svg> Preview — sample calendar; connect + schedule to see your real pipeline</div>
+
+  <header class="head">
+    <div class="h-main">
+      <h1 class="greet">Content Calendar</h1>
+      <p class="subline" id="subline">Plan, schedule, and approve every post — one week at a glance.</p>
+    </div>
+    <div class="controls">
+      <select class="wsfilter" id="wsfilter" title="Filter by workspace"><option value="">All workspaces</option></select>
+      <div class="nav">
+        <button id="prevBtn" title="Previous week"><svg><use href="#i-prev"/></svg></button>
+        <button class="today" id="todayBtn">Today</button>
+        <button id="nextBtn" title="Next week"><svg><use href="#i-next"/></svg></button>
+      </div>
+      <span class="wkrange tnum" id="wkrange">—</span>
+      <button class="btn" id="refreshBtn" title="Refresh"><svg><use href="#i-refresh"/></svg></button>
+      <button class="newbtn" id="newBtn"><svg><use href="#i-plus"/></svg> New post</button>
+    </div>
+  </header>
+
+  <div id="content">
+    <div class="grid" id="skel">
+      <div class="skelcol"><div class="shimmer" style="width:60%;height:14px"></div><div class="shimmer" style="width:100%;height:52px;margin-top:12px"></div></div>
+      <div class="skelcol"><div class="shimmer" style="width:60%;height:14px"></div><div class="shimmer" style="width:100%;height:52px;margin-top:12px"></div><div class="shimmer" style="width:100%;height:52px;margin-top:8px"></div></div>
+      <div class="skelcol"><div class="shimmer" style="width:60%;height:14px"></div></div>
+      <div class="skelcol"><div class="shimmer" style="width:60%;height:14px"></div><div class="shimmer" style="width:100%;height:52px;margin-top:12px"></div></div>
+      <div class="skelcol"><div class="shimmer" style="width:60%;height:14px"></div></div>
+      <div class="skelcol"><div class="shimmer" style="width:60%;height:14px"></div><div class="shimmer" style="width:100%;height:52px;margin-top:12px"></div></div>
+      <div class="skelcol"><div class="shimmer" style="width:60%;height:14px"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- composer / editor modal -->
+<div class="scrim" id="scrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mtitle">
+    <h2 id="mtitle"><svg><use href="#i-edit"/></svg><span id="mtitletext">New post</span></h2>
+    <div class="mbody">
+      <div class="frow">
+        <div class="fld">
+          <label for="fPlatform">Platform</label>
+          <select id="fPlatform">
+            <option value="linkedin">LinkedIn</option>
+            <option value="x">X</option>
+            <option value="facebook">Facebook</option>
+            <option value="instagram">Instagram</option>
+            <option value="slack">Slack</option>
+          </select>
+        </div>
+        <div class="fld">
+          <label for="fStatus">Status</label>
+          <select id="fStatus">
+            <option value="draft">Draft</option>
+            <option value="needs_approval">Needs approval</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="published">Published</option>
+          </select>
+        </div>
+      </div>
+      <div class="frow">
+        <div class="fld">
+          <label for="fDate">Date</label>
+          <input type="date" id="fDate" />
+        </div>
+        <div class="fld">
+          <label for="fTime">Time</label>
+          <input type="time" id="fTime" />
+        </div>
+      </div>
+      <div class="fld">
+        <label for="fWorkspace">Workspace</label>
+        <select id="fWorkspace"><option value="">No workspace</option></select>
+      </div>
+      <div class="fld">
+        <label for="fBody">Post</label>
+        <textarea id="fBody" placeholder="What do you want to say?" maxlength="8000"></textarea>
+        <div class="cc" id="cc">0</div>
+      </div>
+    </div>
+    <div class="merr" id="merr"></div>
+    <div class="mfoot">
+      <button class="mbtn danger" id="delBtn" style="display:none">Delete</button>
+      <span class="grow"></span>
+      <button class="mbtn" id="cancelBtn">Cancel</button>
+      <button class="mbtn primary" id="saveBtn">Schedule post</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var API = "/api/switchboard/calendar";
+  var WS_API = "/api/switchboard/workspaces";
+
+  // platform metadata (label + brand token) — same marks as the today surface
+  var PL = {
+    linkedin:{ label:"LinkedIn",  v:"--li" },
+    twitter: { label:"X",         v:"--x" },
+    x:       { label:"X",         v:"--x" },
+    facebook:{ label:"Facebook",  v:"--fb" },
+    instagram:{label:"Instagram", v:"--ig" },
+    slack:   { label:"Slack",     v:"--slack" }
+  };
+  // workspace colour key → hex (matches switchboard-routes.ts WS_COLORS)
+  var WSC = { brass:"#b8892b", emerald:"#1f9d74", indigo:"#5a5af0", magenta:"#c026a8",
+             slate:"#64748b", teal:"#0d9488", coral:"#f0603e", amber:"#d99a1c" };
+  var DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  var STLABEL = { draft:"Draft", scheduled:"Scheduled", needs_approval:"Needs approval", published:"Published" };
+
+  var weekOffset = 0;         // 0 = current week
+  var workspaces = [];        // [{workspaceId,name,color}]
+  var editing = null;         // the post row being edited, or null for a new post
+
+  function esc(s){ var d=document.createElement("div"); d.textContent=s==null?"":String(s); return d.innerHTML; }
+  function el(id){ return document.getElementById(id); }
+  function pad(n){ return (n<10?"0":"")+n; }
+
+  // Sunday-anchored week start for the active offset, at local midnight.
+  function weekStart(){ var d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-d.getDay()+weekOffset*7); return d; }
+  function addDays(d,n){ var x=new Date(d); x.setDate(x.getDate()+n); return x; }
+  function dayKey(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+  function keyOfIso(iso){ var d=new Date(iso); return isNaN(d)?"":dayKey(d); }
+  function clockTime(iso){ var d=new Date(iso); return isNaN(d)?"":d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}); }
+
+  function rangeLabel(a,b){
+    var opt={month:"short",day:"numeric"};
+    var same=a.getFullYear()===b.getFullYear();
+    var yr=same?"":(" "+b.getFullYear());
+    return a.toLocaleDateString(undefined,opt)+" – "+b.toLocaleDateString(undefined,opt)+yr;
+  }
+  function wsColor(id){ var w=workspaces.find(function(x){return x.workspaceId===id;}); return w?WSC[w.color]||"#888":null; }
+
+  // ── render ─────────────────────────────────────────────────────────────────
+  function postHTML(p){
+    var m=PL[p.platform]||{label:p.platform,v:"--accent"};
+    var dot=wsColor(p.workspaceId);
+    var wsHtml=dot?'<span class="wsdot" title="workspace" style="background:'+dot+'"></span>':"";
+    var st=p.status||"draft";
+    return ''
+      +'<div class="post" data-id="'+esc(p.postId)+'" style="--pc:var('+m.v+')">'
+      +  '<div class="prow"><span class="pmark"></span><span class="plabel">'+esc(m.label)+'</span>'
+      +    '<span class="ptime tnum">'+esc(clockTime(p.scheduledAt))+'</span></div>'
+      +  '<div class="pbody">'+esc(p.body)+'</div>'
+      +  '<div class="pfoot"><span class="pill '+esc(st)+'">'+esc(STLABEL[st]||st)+'</span>'+wsHtml+'</div>'
+      +'</div>';
+  }
+
+  function render(posts){
+    var start=weekStart(), end=addDays(start,6);
+    el("wkrange").textContent=rangeLabel(start,end);
+    var todayKey=dayKey(new Date());
+    var byDay={}; (posts||[]).forEach(function(p){ var k=keyOfIso(p.scheduledAt); (byDay[k]=byDay[k]||[]).push(p); });
+
+    var html='<div class="grid">';
+    for(var i=0;i<7;i++){
+      var d=addDays(start,i), k=dayKey(d), list=byDay[k]||[];
+      list.sort(function(a,b){ return new Date(a.scheduledAt)-new Date(b.scheduledAt); });
+      var isToday=k===todayKey;
+      html+='<div class="col'+(isToday?" today":"")+'" style="animation-delay:'+(i*35)+'ms">'
+        +   '<div class="colhead"><span><span class="dow">'+DOW[d.getDay()]+'</span></span>'
+        +     '<span class="dnum tnum">'+d.getDate()+'</span>'
+        +     '<button class="addday" data-day="'+k+'" title="Add a post"><svg><use href="#i-plus"/></svg></button></div>'
+        +   '<div class="colbody">';
+      if(!list.length){ html+='<div class="dayempty">·</div>'; }
+      else { list.forEach(function(p){ html+=postHTML(p); }); }
+      html+=  '</div></div>';
+    }
+    html+='</div>'+legend();
+    el("content").innerHTML=html;
+  }
+
+  function legend(){
+    var order=["linkedin","x","facebook","instagram","slack"], out="";
+    order.forEach(function(k){ out+='<span class="k"><span class="sw" style="background:var('+PL[k].v+')"></span>'+PL[k].label+'</span>'; });
+    return '<div class="legend"><span class="k" style="color:var(--text2)"><b>Pipeline:</b></span>'
+      +'<span class="k"><span class="pill draft">Draft</span></span>'
+      +'<span class="k"><span class="pill needs_approval">Needs approval</span></span>'
+      +'<span class="k"><span class="pill scheduled">Scheduled</span></span>'
+      +'<span class="k"><span class="pill published">Published</span></span>'
+      +'<span class="bot"><svg><use href="#i-bot"/></svg>Draft on the comms bot in the Composer</span></div>';
+  }
+
+  // ── data ───────────────────────────────────────────────────────────────────
+  function currentWs(){ return el("wsfilter").value||""; }
+
+  function load(spin){
+    var btn=el("refreshBtn"); if(btn&&spin) btn.classList.add("spin");
+    var start=weekStart(), end=addDays(start,7);
+    var qs="?from="+encodeURIComponent(start.toISOString())+"&to="+encodeURIComponent(end.toISOString());
+    var ws=currentWs(); if(ws) qs+="&workspace="+encodeURIComponent(ws);
+    fetch(API+"/posts"+qs,{headers:{Accept:"application/json"}})
+      .then(function(r){ return r.ok? r.json() : Promise.reject(r.status); })
+      .then(function(d){ el("previewpill").classList.remove("show"); render(d.posts||[]); })
+      .catch(function(){ el("previewpill").classList.add("show"); render(sample()); })
+      .finally(function(){ if(btn) btn.classList.remove("spin"); });
+  }
+
+  function loadWorkspaces(){
+    fetch(WS_API,{headers:{Accept:"application/json"}})
+      .then(function(r){ return r.ok? r.json():Promise.reject(0); })
+      .then(function(d){ workspaces=(d.workspaces||[]).map(function(w){ return {workspaceId:w.workspaceId,name:w.name,color:w.color}; }); paintWorkspaceSelects(); })
+      .catch(function(){ /* standalone / not connected — selects stay "All workspaces" only */ });
+  }
+  function paintWorkspaceSelects(){
+    var opts='<option value="">All workspaces</option>'+workspaces.map(function(w){ return '<option value="'+esc(w.workspaceId)+'">'+esc(w.name)+'</option>'; }).join("");
+    el("wsfilter").innerHTML=opts;
+    el("fWorkspace").innerHTML='<option value="">No workspace</option>'+workspaces.map(function(w){ return '<option value="'+esc(w.workspaceId)+'">'+esc(w.name)+'</option>'; }).join("");
+    // adopt the portal-wide workspace scope (shared 'switchboard.ws'); re-scope if one is set
+    try{ var sv=localStorage.getItem("switchboard.ws")||""; if(sv){ el("wsfilter").value=sv; load(true); } }catch(e){}
+  }
+
+  // ── modal ──────────────────────────────────────────────────────────────────
+  function openModal(post, dayKeyStr){
+    editing=post||null;
+    var d=post? new Date(post.scheduledAt) : defaultDateTime(dayKeyStr);
+    el("mtitletext").textContent=post?"Edit post":"New post";
+    el("fPlatform").value=post? (post.platform==="twitter"?"x":post.platform) : "linkedin";
+    el("fStatus").value=post? post.status : "draft";
+    el("fDate").value=dayKey(d);
+    el("fTime").value=pad(d.getHours())+":"+pad(d.getMinutes());
+    el("fWorkspace").value=post&&post.workspaceId? post.workspaceId : currentWs();
+    el("fBody").value=post? post.body : "";
+    el("delBtn").style.display=post?"inline-flex":"none";
+    el("saveBtn").textContent=post?"Save changes":"Schedule post";
+    updateCount(); clearErr();
+    el("scrim").classList.add("show");
+    setTimeout(function(){ el("fBody").focus(); },40);
+  }
+  function defaultDateTime(dayKeyStr){
+    var d=dayKeyStr? new Date(dayKeyStr+"T09:00") : new Date();
+    if(!dayKeyStr){ d.setMinutes(0,0,0); d.setHours(d.getHours()+1); }
+    return d;
+  }
+  function closeModal(){ el("scrim").classList.remove("show"); editing=null; }
+  function updateCount(){ var n=el("fBody").value.length; var c=el("cc"); c.textContent=n; c.classList.toggle("over",n>8000); }
+  function showErr(m){ var e=el("merr"); e.textContent=m; e.classList.add("show"); }
+  function clearErr(){ el("merr").classList.remove("show"); }
+
+  function collect(){
+    var date=el("fDate").value, time=el("fTime").value||"09:00";
+    if(!date) return {error:"Pick a date."};
+    var body=el("fBody").value.trim();
+    if(!body) return {error:"Write something to post."};
+    if(body.length>8000) return {error:"Post is over 8000 characters."};
+    var iso=new Date(date+"T"+time);
+    if(isNaN(iso)) return {error:"That date/time isn't valid."};
+    return { platform:el("fPlatform").value, status:el("fStatus").value, body:body,
+             scheduledAt:iso.toISOString(), workspaceId:el("fWorkspace").value||null };
+  }
+
+  function save(){
+    var p=collect(); if(p.error){ showErr(p.error); return; }
+    clearErr(); var btn=el("saveBtn"); btn.disabled=true;
+    var url=editing? API+"/posts/"+encodeURIComponent(editing.postId) : API+"/posts";
+    var method=editing?"PATCH":"POST";
+    fetch(url,{method:method,headers:{"Content-Type":"application/json",Accept:"application/json"},body:JSON.stringify(p)})
+      .then(function(r){ return r.ok? r.json() : r.json().then(function(j){ throw new Error(j.error||("HTTP "+r.status)); }); })
+      .then(function(){ closeModal(); load(false); })
+      .catch(function(e){ showErr(String(e.message||e)); })
+      .finally(function(){ btn.disabled=false; });
+  }
+
+  function del(){
+    if(!editing) return;
+    var btn=el("delBtn"); btn.disabled=true;
+    fetch(API+"/posts/"+encodeURIComponent(editing.postId),{method:"DELETE",headers:{Accept:"application/json"}})
+      .then(function(r){ return r.ok? r.json():Promise.reject(r.status); })
+      .then(function(){ closeModal(); load(false); })
+      .catch(function(e){ showErr("Couldn't delete ("+e+")."); })
+      .finally(function(){ btn.disabled=false; });
+  }
+
+  // ── events ─────────────────────────────────────────────────────────────────
+  el("prevBtn").addEventListener("click",function(){ weekOffset--; load(true); });
+  el("nextBtn").addEventListener("click",function(){ weekOffset++; load(true); });
+  el("todayBtn").addEventListener("click",function(){ weekOffset=0; load(true); });
+  el("refreshBtn").addEventListener("click",function(){ load(true); });
+  el("wsfilter").addEventListener("change",function(){ try{ localStorage.setItem("switchboard.ws",currentWs()); }catch(e){} load(true); });
+  el("newBtn").addEventListener("click",function(){ openModal(null,null); });
+  el("cancelBtn").addEventListener("click",closeModal);
+  el("saveBtn").addEventListener("click",save);
+  el("delBtn").addEventListener("click",del);
+  el("fBody").addEventListener("input",updateCount);
+  el("scrim").addEventListener("click",function(e){ if(e.target===el("scrim")) closeModal(); });
+  document.addEventListener("keydown",function(e){ if(e.key==="Escape"&&el("scrim").classList.contains("show")) closeModal(); });
+
+  el("content").addEventListener("click",function(e){
+    var add=e.target.closest(".addday"); if(add){ openModal(null,add.getAttribute("data-day")); return; }
+    var card=e.target.closest(".post"); if(!card) return;
+    var id=card.getAttribute("data-id");
+    var p=(lastPosts||[]).find(function(x){ return String(x.postId)===String(id); });
+    if(p) openModal(p,null);
+  });
+
+  // remember the last rendered posts so a card click can re-open the exact row
+  var lastPosts=[];
+  var _render=render;
+  render=function(posts){ lastPosts=posts||[]; _render(posts); };
+
+  // ── labelled sample (only when the live API is unreachable) ──────────────────
+  function sample(){
+    var s=weekStart();
+    function on(i,h,m){ var d=addDays(s,i); d.setHours(h,m,0,0); return d.toISOString(); }
+    return [
+      {postId:"s1",platform:"linkedin",status:"scheduled",workspaceId:null,body:"How we route multi-agent work across six harnesses without a single vendor lock-in — a thread.",scheduledAt:on(1,9,30)},
+      {postId:"s2",platform:"x",status:"needs_approval",workspaceId:null,body:"Shipping the Switchboard content calendar today. Every line, one board. 🎛️",scheduledAt:on(1,13,0)},
+      {postId:"s3",platform:"instagram",status:"draft",workspaceId:null,body:"Behind the build — the swarm cockpit, dark mode.",scheduledAt:on(3,17,15)},
+      {postId:"s4",platform:"facebook",status:"published",workspaceId:null,body:"Recap: the AI D&D dungeon master is live and playtested.",scheduledAt:on(4,11,0)},
+      {postId:"s5",platform:"slack",status:"scheduled",workspaceId:null,body:"Weekly ship note → posting to #announcements.",scheduledAt:on(5,8,45)}
+    ];
+  }
+
+  loadWorkspaces();
+  load(false);
+})();
+</script>
+</body>
+</html>

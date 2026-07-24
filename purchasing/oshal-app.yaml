@@ -1,0 +1,242 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — purchasing ("Shopping" Concierge)
+# Carved out of OSHAL core 2026-07-18 (ADR-085 Wave 2 carve #5). The shop-concierge
+# REAL bot-node (purchasing container, BOTH registry blocks, worker+foundation personas,
+# walmartProvider.js / walmartToolKit.js / purchasingTools.js, oshal-walmart.js CLI,
+# migration 036 bot seed) STAYS in the framework repo per ADR-093 interim — this manifest
+# declares NO bots; workflow.workerBot resolves via the static registry.
+#
+# An AI shopping concierge that drives a surface: it searches real retailer
+# catalogs (Walmart I/O Affiliate API first, Amazon PA-API next), builds and
+# displays shopping lists, learns each shopper's preferences ("add milk" ->
+# their usual 2% store brand, and it tells them what + why), watches deal feeds,
+# and — because it lives in the swarm — answers OTHER bots that need a purchase
+# made (the home/IoT bot says "we're low on milk", this bot builds the basket).
+#
+# Checkout truth: retailers complete payment on their own domain. This app
+# builds the basket and hands off a tracked checkout link (affiliate) — it does
+# not take the shopper's money. That handoff is also how the business earns.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: purchasing
+suite: ai-productivity   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Shopping
+description: >-
+  AI shopping concierge — search Walmart/Amazon, build lists, learn your
+  preferences, find deals, and hand off a ready-to-checkout cart. Other swarm
+  bots can ask it to make a purchase.
+version: 1.0.0
+status: active  # active | inactive
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: purchasing
+  ref: main
+
+# walmart is the connector this app uses (operator affiliate cred via broker;
+# checkout is a deep-link handoff).
+dependencies:
+  apps: []
+  tools: []
+  connectors: [walmart]
+
+# Guests never build carts (this app hands off to retailer checkout). Request only —
+# grants come from the operator endpoint (D4).
+guestTier: blocked
+
+# Framework tools exposed to the selector/runtime layer. These are route-backed
+# app actions, not UI buttons; the executor calls them with the signed-in user's
+# scoped identity and connector credentials.
+tools:
+  - name: search-products
+    displayName: Search Products
+    type: api
+    category: commerce
+    description: Search the shopper's connected retail catalog for real products.
+    executor: { executorType: api, apiEndpoint: "GET /api/purchasing/search?q={input.query}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        query: { type: string }
+      required: [query]
+    usageInstructions: >-
+      Call with {query}. Returns real product cards scoped to the signed-in shopper.
+    routingTags: [shopping, products, retail]
+    skills: [product-search, price-comparison]
+    tags: [shopping, route-backed]
+
+  - name: compare-prices
+    displayName: Compare Prices
+    type: api
+    category: commerce
+    description: Compare real retailer product options for a shopping intent.
+    executor: { executorType: api, apiEndpoint: "GET /api/purchasing/search?q={input.query}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        query: { type: string }
+      required: [query]
+    usageInstructions: >-
+      Call with {query} before recommending an item; summarize price, retailer, and tradeoffs from the returned cards.
+    routingTags: [shopping, prices, retail]
+    skills: [price-comparison, product-search]
+    tags: [shopping, route-backed]
+
+  - name: scan-deals
+    displayName: Scan Deals
+    type: api
+    category: commerce
+    description: Find current deal candidates for a shopping query.
+    executor: { executorType: api, apiEndpoint: "GET /api/purchasing/deals?q={input.query}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        query: { type: string }
+      required: [query]
+    usageInstructions: >-
+      Call with {query} when the shopper asks for deals, savings, or cheaper alternatives.
+    routingTags: [shopping, deals, retail]
+    skills: [deal-finding, product-search]
+    tags: [shopping, route-backed]
+
+  - name: suggest-from-history
+    displayName: Suggest From History
+    type: api
+    category: commerce
+    description: Read shopper-scoped repeat-purchase suggestions and remembered preferences.
+    executor: { executorType: api, apiEndpoint: "GET /api/purchasing/suggestions" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Call with {} when the shopper asks what they usually buy, what to restock, or what OSHAL remembers.
+    routingTags: [shopping, preferences, history]
+    skills: [preference-learning, shopping-list-management]
+    tags: [shopping, route-backed]
+
+  - name: explain-pick
+    displayName: Explain Shopping Pick
+    type: api
+    category: commerce
+    description: Ask the shopping concierge to explain or refine a choice using current cart, profile, and catalog context.
+    executor: { executorType: api, apiEndpoint: "POST /api/purchasing/chat" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        message: { type: string }
+      required: [message]
+    usageInstructions: >-
+      Call with {message} to explain why an item fits, compare candidates, or refine the basket.
+    routingTags: [shopping, explanation, preferences]
+    skills: [preference-learning, product-search]
+    tags: [shopping, route-backed]
+
+  - name: prepare-checkout
+    displayName: Prepare Checkout Handoff
+    type: api
+    category: commerce
+    description: Build a retailer checkout handoff for the shopper's current cart. No payment is taken in OSHAL.
+    executor: { executorType: api, apiEndpoint: "POST /api/purchasing/checkout" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        listId: { type: string }
+    usageInstructions: >-
+      Call only after the shopper asks to checkout or order. It returns a handoff URL; the shopper finishes payment on the retailer site.
+    routingTags: [shopping, checkout, handoff]
+    skills: [checkout-handoff, shopping-list-management]
+    tags: [shopping, route-backed, approval-required]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# UI SURFACES — ribbon icons that open the concierge surface.
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: shop-concierge
+      label: Assistant
+      icon: codicon codicon-comment-discussion
+      iframeUrl: /api/purchasing/chat
+      section: top
+    - toolName: shop-browse
+      label: Browse
+      icon: codicon codicon-search
+      iframeUrl: /api/purchasing/dashboard
+      section: top
+    - toolName: shop-lists
+      label: Cart
+      icon: codicon codicon-list-unordered
+      iframeUrl: /api/purchasing/dashboard?view=lists
+      section: top
+    - toolName: shop-deals
+      label: Deals
+      icon: codicon codicon-tag
+      iframeUrl: /api/purchasing/dashboard?view=deals
+      section: top
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — app-owned API + surface, gated to this app's activation.
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - module: routes/purchasing-routes.js
+    factory: createPurchasingRoutes
+    mountPath: /api/purchasing
+    auth: service-or-oidc   # what server.ts ACTUALLY mounts (ADR-085 D2)
+    requiresAuth: true
+    requiresContext: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DATABASE MIGRATIONS — applied idempotently on first load.
+# ─────────────────────────────────────────────────────────────────────────────
+# Belt-and-braces: the eight shop_* tables ensurePurchasingSchema creates lazily (owner
+# RLS at the chokepoint). Idempotent — safe where core migrations already ran. 036 (bot
+# seed) stays core with the bot.
+migrations:
+  - migrations/035-purchasing-platform.sql
+  - migrations/037-purchasing-chat-memory.sql
+  - migrations/038-purchasing-profile.sql
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WORKFLOW — tickets of type 'shopping' route to the concierge.
+# Used when another bot (or the surface) dispatches an async purchase task.
+# ─────────────────────────────────────────────────────────────────────────────
+ticketType: shopping
+workflow:
+  name: Shopping Concierge Pipeline
+  pipeline: shopping
+  workerBot: shopping-concierge
+  phases:
+    - intake       # understand the request (resolve "milk" -> a concrete SKU)
+    - shop         # search, compare, apply preferences, build the basket
+    - delivery     # hand off a tracked checkout link, record history
+
+# THEMING — the dashboard loads /api/purchasing/purchasing.css, which the packaged
+# route serves from this package's tools/ (ctx.appPackageDir). No framework-level
+# sharedCss field needed: the surface references the css by its own route URL.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RIBBON VISIBILITY — focus mode for /cockpit?app=purchasing
+# ─────────────────────────────────────────────────────────────────────────────
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  # The Assistant surface IS the chat, so hide the cockpit's generic right-rail
+  # swarm-bot panel (same as jarvis).
+  hideChatPanel: true
+  defaultView: shop-concierge

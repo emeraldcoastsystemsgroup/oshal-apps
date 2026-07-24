@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<!--
+  Finance surface — read-only money aggregation (Plaid). Self-contained iframe page
+  (served by createFinanceRoutes at /api/finance/). States: not-connected (link a bank /
+  brokerage, or demo-connect in Sandbox) and dashboard (net worth, accounts, holdings,
+  spending, + the AI brief). All work is auth-gated server-side; this page calls the JSON API.
+  Read-only: nothing is traded or moved. Theme syncs to the cockpit.
+-->
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Finance</title>
+<!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
+     Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
+     matters — without it the surface would have no colors at all. -->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  /* This surface keeps its own short alias names, but DERIVES them from the framework theme rather
+     than hardcoding hex — so all eleven themes work, not just the dark ones. The palette used to be
+     literal (#0f1713 …), which is why it only ever looked right in a dark theme. Semantic status
+     colors come from the theme too; the fallbacks after the comma keep the surface legible if a
+     theme omits one. */
+  :root {
+    --bg: var(--bg-primary);
+    --panel: var(--bg-card);
+    --panel2: var(--bg-tertiary);
+    --line: var(--border-color);
+    --text: var(--text-primary);
+    --muted: var(--text-muted);
+    --accent: var(--accent-primary, #37d27f);
+    --accent2: var(--accent-primary-hover, #9ee6b8);
+    --danger: var(--status-error, #ff8b8b);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  .page { max-width:880px; margin:0 auto; padding:30px 24px 70px; }
+  .head { display:flex; align-items:center; gap:12px; margin-bottom:4px; }
+  h1 { font-size:23px; margin:0; }
+  .badge { font-size:20px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:22px; line-height:1.5; }
+  .actions { margin-left:auto; display:flex; gap:8px; }
+  .btn { border:none; border-radius:8px; padding:9px 15px; cursor:pointer; font-size:13px; font-weight:600; }
+  .btn.primary { background:var(--accent); color:#04190e; }
+  .btn.ghost { background:var(--panel2); border:1px solid var(--line); color:var(--text); }
+  .btn:disabled { opacity:.5; cursor:default; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:22px; margin-bottom:16px; }
+  .panel h2 { font-size:16px; margin:0 0 10px; }
+  .stats { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:11px 15px; min-width:120px; }
+  .stat .n { font-size:21px; font-weight:700; color:var(--accent); }
+  .stat .n.neg { color:var(--danger); }
+  .stat .l { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.4px; padding:6px 8px; border-bottom:1px solid var(--line); }
+  td { padding:7px 8px; border-bottom:1px solid var(--line); }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .chip { display:inline-flex; align-items:center; gap:6px; background:var(--panel2); border:1px solid var(--line); border-radius:20px; padding:5px 12px; font-size:12px; margin:0 6px 6px 0; }
+  .chip button { background:none; border:none; color:var(--muted); cursor:pointer; font-size:13px; line-height:1; }
+  .brief h2 { color:var(--accent2); font-size:15px; border-bottom:1px solid var(--line); padding-bottom:6px; margin:20px 0 10px; }
+  .brief h3 { font-size:14px; margin:14px 0 6px; }
+  .brief ul { margin:6px 0; padding-left:20px; }
+  .brief li { font-size:14px; line-height:1.6; margin:3px 0; }
+  .brief p { font-size:14px; line-height:1.65; color:var(--text-secondary, #dcebe1); }
+  .brief strong { color:var(--text); }
+  .notice { color:var(--muted); padding:24px 0; text-align:center; font-size:14px; }
+  .err { color:var(--danger); }
+  .spin { color:var(--muted); font-size:14px; padding:28px 0; text-align:center; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent); animation:p 1s infinite; }
+  @keyframes p { 0%,100%{opacity:.3} 50%{opacity:1} }
+  .foot { color:var(--muted); font-size:11px; margin-top:8px; }
+  @media (max-width:640px) {
+    .page { padding:16px 12px 50px; }
+    .head { flex-wrap:wrap; gap:8px; }
+    .actions { margin-left:0; width:100%; justify-content:flex-start; }
+    .btn { padding:10px 14px; font-size:14px; }
+    .stat { min-width:calc(50% - 5px); flex:1 1 calc(50% - 5px); }
+    /* Payment grid: override the inline grid-template-columns:1fr 1fr */
+    #payPanel [style*="grid-template-columns"] { grid-template-columns:1fr !important; }
+    #payPanel [style*="grid-column"] { grid-column:auto !important; }
+    /* Tables: allow horizontal scroll so they never overflow the viewport */
+    .panel { overflow-x:auto; }
+    table { min-width:360px; }
+    /* Inputs: keep font-size >= 16px to prevent iOS zoom */
+    input { font-size:16px !important; }
+    .sub { font-size:13px; }
+  }
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<div class="page">
+  <div class="head">
+    <span class="badge">💵</span>
+    <h1>Finance</h1>
+    <div class="actions" id="actions" style="display:none">
+      <button class="btn ghost" id="syncBtn">Sync</button>
+      <button class="btn primary" id="briefBtn">Re-analyze</button>
+    </div>
+  </div>
+  <div class="sub">Your money in one view — balances, holdings, and spending across every linked bank and brokerage, with a plain-English brief. Reading is read-only; the only action that moves funds is the Send-money panel. No trading, no crypto.</div>
+  <div id="main"><div class="spin"><span class="dot"></span> Loading…</div></div>
+</div>
+
+<!-- Plaid Link (loaded lazily only when the user clicks Connect a bank). -->
+<script>
+const $ = (id) => document.getElementById(id);
+const main = $('main');
+const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(Number(n||0)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+const fmtDate = (iso) => { try { return new Date(iso).toLocaleDateString(); } catch { return iso || '—'; } };
+
+/** Tiny Markdown → HTML for the brief. */
+function renderMarkdown(md) {
+  const esc = (s) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const inline = (s) => esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  const lines = String(md || '').split(/\r?\n/);
+  let html = '', inList = false;
+  const closeList = () => { if (inList) { html += '</ul>'; inList = false; } };
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) { closeList(); continue; }
+    if (line.startsWith('## ')) { closeList(); html += '<h2>' + inline(line.slice(3)) + '</h2>'; }
+    else if (line.startsWith('### ')) { closeList(); html += '<h3>' + inline(line.slice(4)) + '</h3>'; }
+    else if (/^[-*]\s+/.test(line)) { if (!inList) { html += '<ul>'; inList = true; } html += '<li>' + inline(line.replace(/^[-*]\s+/,'')) + '</li>'; }
+    else { closeList(); html += '<p>' + inline(line) + '</p>'; }
+  }
+  closeList();
+  return html;
+}
+
+async function api(path, opts) {
+  const r = await fetch('/api/finance' + path, Object.assign({ credentials: 'include' }, opts || {}));
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.message || j.error || ('HTTP ' + r.status));
+  return j;
+}
+
+/** Not-connected screen — link a real bank/brokerage, or demo-connect in Sandbox. */
+function renderConnect(status) {
+  $('actions').style.display = 'none';
+  const demo = status.env === 'sandbox';
+  main.innerHTML = `
+    <div class="panel">
+      <h2>Connect a bank or brokerage</h2>
+      <div class="sub" style="margin-bottom:16px">Linking is handled by Plaid — OSHAL never sees your bank password. We read balances, holdings, and transactions only. ${status.configured ? '' : '<span class="err">Plaid keys are not configured yet (set PLAID_CLIENT_ID / PLAID_SECRET).</span>'}</div>
+      <button class="btn primary" id="connectBtn" ${status.configured ? '' : 'disabled'}>Connect a bank / brokerage</button>
+      ${demo ? '<button class="btn ghost" id="demoBtn" ' + (status.configured ? '' : 'disabled') + '>Demo-connect (Sandbox)</button>' : ''}
+      <div id="cmsg" style="margin-top:14px;font-size:13px;"></div>
+      <div class="foot">Environment: ${status.env}. ${demo ? 'Demo-connect links a Plaid Sandbox test bank — no real account needed.' : ''}</div>
+    </div>`;
+  $('connectBtn').onclick = startLink;
+  if (demo) $('demoBtn').onclick = demoConnect;
+}
+
+/** Open Plaid Link for a real institution. */
+async function startLink() {
+  const msg = $('cmsg');
+  msg.className = ''; msg.style.color = 'var(--muted)'; msg.innerHTML = '<span class="dot"></span> Preparing secure link…';
+  try {
+    const { linkToken } = await api('/link-token', { method: 'POST' });
+    await ensurePlaidScript();
+    const handler = window.Plaid.create({
+      token: linkToken,
+      onSuccess: async (publicToken) => {
+        msg.innerHTML = '<span class="dot"></span> Linking…';
+        try { const r = await api('/exchange', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ publicToken }) });
+          msg.style.color = 'var(--accent2)'; msg.textContent = 'Linked ' + r.institution + '. Syncing…'; await afterConnect();
+        } catch (e) { msg.className = 'err'; msg.textContent = e.message; }
+      },
+      onExit: (err) => { if (err) { msg.className = 'err'; msg.textContent = err.display_message || err.error_message || 'Link cancelled.'; } else { msg.textContent = ''; } },
+    });
+    handler.open();
+  } catch (e) { msg.className = 'err'; msg.textContent = e.message; }
+}
+
+/** Sandbox demo connect — no widget, no real bank. */
+async function demoConnect() {
+  const msg = $('cmsg');
+  msg.className = ''; msg.style.color = 'var(--muted)'; msg.innerHTML = '<span class="dot"></span> Linking a Sandbox test bank…';
+  try {
+    const r = await api('/link-sandbox', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    msg.style.color = 'var(--accent2)'; msg.textContent = 'Linked ' + r.institution + '. Syncing…';
+    await afterConnect();
+  } catch (e) { msg.className = 'err'; msg.textContent = e.message; }
+}
+
+/** Lazy-load the Plaid Link script once. */
+function ensurePlaidScript() {
+  return new Promise((resolve, reject) => {
+    if (window.Plaid) return resolve();
+    const s = document.createElement('script');
+    s.src = 'https://cdn.plaid.com/link/v2/stable/link-initialize.js';
+    s.onload = () => resolve(); s.onerror = () => reject(new Error('Could not load Plaid Link.'));
+    document.head.appendChild(s);
+  });
+}
+
+/** After a successful link: sync, then show the dashboard. */
+async function afterConnect() {
+  try { await api('/sync', { method: 'POST' }); } catch (e) { /* surface still renders; sync errors show as notes */ }
+  await renderDashboard(true);
+}
+
+/** Dashboard — net worth, accounts, holdings, spending, + brief. */
+async function renderDashboard(freshBrief) {
+  $('actions').style.display = 'flex';
+  main.innerHTML = '<div class="spin"><span class="dot"></span> Loading your finances…</div>';
+  let summary;
+  try { summary = await api('/summary'); }
+  catch (e) {
+    if (/no_data/.test(e.message)) { main.innerHTML = '<div class="notice">Linked, but not synced yet.</div><div style="text-align:center"><button class="btn primary" id="s2">Sync now</button></div>'; $('s2').onclick = () => doSync(); return; }
+    main.innerHTML = '<div class="notice err">' + e.message + '</div>'; return;
+  }
+  const a = summary.aggregate; const cur = a.currency || 'USD';
+  const nwClass = a.netWorth.net < 0 ? 'neg' : '';
+  main.innerHTML = `
+    <div class="stats">
+      <div class="stat"><div class="n ${nwClass}">${money(a.netWorth.net, cur)}</div><div class="l">net worth</div></div>
+      <div class="stat"><div class="n">${money(a.netWorth.assets, cur)}</div><div class="l">assets</div></div>
+      <div class="stat"><div class="n">${money(a.netWorth.liabilities, cur)}</div><div class="l">liabilities</div></div>
+      <div class="stat"><div class="n">${a.holdings.length}</div><div class="l">holdings</div></div>
+    </div>
+    <div class="foot" style="margin-bottom:14px">Synced ${fmtDate(summary.syncedAt)} · ${(summary.aggregate.notes||[]).join(' · ')}</div>
+    ${renderAccounts(a, cur)}
+    ${a.holdings.length ? renderHoldings(a, cur) : ''}
+    ${a.topSpending.length ? renderSpending(a, cur) : ''}
+    <div class="panel brief" id="briefPanel"><div class="spin"><span class="dot"></span> Finance analyst is reading your accounts… (~30s)</div></div>
+    <div id="payPanel"></div>`;
+  loadBrief(freshBrief);
+  loadPay();
+}
+
+/** Render the Send-money panel: a transfer form (gated on a configured rail) + history. */
+async function loadPay() {
+  const host = $('payPanel');
+  if (!host) return;
+  let st, hist = { payments: [] };
+  try { st = await api('/pay-status'); } catch (e) { st = { configured: false, message: e.message, provider: 'stripe' }; }
+  try { hist = await api('/payments'); } catch (e) { /* history optional */ }
+  const test = st.testMode ? '<span class="chip" style="background:#3a2a10;border-color:#6b4a18">test mode — no real money</span>' : '';
+  const gate = st.configured ? '' : `<div class="sub err">Payments rail not configured: ${st.message || 'set the rail credentials (e.g. STRIPE_SECRET_KEY).'}</div>`;
+  host.innerHTML = `
+    <div class="panel">
+      <h2>Send money ${test}</h2>
+      <div class="sub">Move money out of a linked account (ACH). Read-everything-else stays read-only; this is the only action that moves funds.</div>
+      ${gate}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:560px;${st.configured ? '' : 'opacity:.5;pointer-events:none'}">
+        <label class="sub">Amount (USD)<input id="payAmt" type="number" min="0.01" step="0.01" placeholder="100.00" style="width:100%;padding:8px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--text)"></label>
+        <label class="sub">Pay to (label)<input id="payTo" placeholder="Landlord / Card / Person" style="width:100%;padding:8px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--text)"></label>
+        <label class="sub" style="grid-column:1/3">Funding source (bank PaymentMethod id)<input id="paySrc" placeholder="${st.testMode ? 'pm_usBankAccount_success (Stripe test ACH)' : 'pm_…'}" value="${st.testMode ? 'pm_usBankAccount_success' : ''}" style="width:100%;padding:8px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--text)"></label>
+        <label class="sub" style="grid-column:1/3">Memo<input id="payMemo" placeholder="Rent — June" style="width:100%;padding:8px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--text)"></label>
+      </div>
+      <div style="margin-top:12px"><button class="btn primary" id="payBtn" ${st.configured ? '' : 'disabled'}>Send money</button> <span id="payMsg" class="sub"></span></div>
+      ${renderPayHistory(hist.payments || [])}
+    </div>`;
+  if (st.configured) $('payBtn').onclick = submitPay;
+}
+
+function renderPayHistory(payments) {
+  if (!payments.length) return '';
+  return `<div style="margin-top:18px"><h2 style="font-size:14px">Recent transfers</h2><table><thead><tr><th>Date</th><th>To</th><th class="num">Amount</th><th>Status</th></tr></thead><tbody>` +
+    payments.map((p) => `<tr><td>${fmtDate(p.created_at)}</td><td>${p.payee || p.description || '—'}</td><td class="num">${money((p.amount_cents||0)/100)}</td><td>${p.status}${p.test_mode ? ' <span class="sub">(test)</span>' : ''}</td></tr>`).join('') +
+    `</tbody></table></div>`;
+}
+
+/** Submit a transfer. Generates a per-attempt requestId so the server can idempotency-key it. */
+async function submitPay() {
+  const msg = $('payMsg'); const btn = $('payBtn');
+  const dollars = Number($('payAmt').value);
+  const amountCents = Math.round(dollars * 100);
+  const source = $('paySrc').value.trim();
+  if (!(amountCents > 0)) { msg.className = 'sub err'; msg.textContent = 'Enter an amount.'; return; }
+  if (!source) { msg.className = 'sub err'; msg.textContent = 'Enter a funding source.'; return; }
+  if (!confirm(`Send ${money(dollars)} to "${$('payTo').value || 'recipient'}"? This moves real funds (unless in test mode).`)) return;
+  btn.disabled = true; msg.className = 'sub'; msg.innerHTML = '<span class="dot"></span> Sending…';
+  const requestId = 'req-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+  try {
+    const r = await api('/pay', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amountCents, currency: 'usd', source, payeeLabel: $('payTo').value, description: $('payMemo').value, requestId, confirm: true }) });
+    msg.className = 'sub'; msg.style.color = 'var(--accent2)'; msg.textContent = `Transfer ${r.transfer.status} (${r.transfer.id}).`;
+    await loadPay();
+  } catch (e) { msg.className = 'sub err'; msg.textContent = e.message; btn.disabled = false; }
+}
+
+function renderAccounts(a, cur) {
+  return `<div class="panel"><h2>Accounts</h2><table><thead><tr><th>Account</th><th>Institution</th><th>Type</th><th class="num">Balance</th></tr></thead><tbody>` +
+    a.accounts.map((x) => `<tr><td>${x.name}${x.mask ? ' ····' + x.mask : ''}</td><td>${x.institution}</td><td>${x.subtype || x.type}</td><td class="num">${money(x.balance, cur)}</td></tr>`).join('') +
+    `</tbody></table></div>`;
+}
+function renderHoldings(a, cur) {
+  return `<div class="panel"><h2>Holdings</h2><table><thead><tr><th>Holding</th><th>Ticker</th><th class="num">Qty</th><th class="num">Value</th></tr></thead><tbody>` +
+    a.holdings.slice(0, 25).map((h) => `<tr><td>${h.name}</td><td>${h.ticker || '—'}</td><td class="num">${(h.quantity||0).toLocaleString()}</td><td class="num">${money(h.value, cur)}</td></tr>`).join('') +
+    `</tbody></table></div>`;
+}
+function renderSpending(a, cur) {
+  return `<div class="panel"><h2>Top spending (last ${a.transactionWindowDays} days)</h2><table><thead><tr><th>Category</th><th class="num">Spent</th><th class="num">#</th></tr></thead><tbody>` +
+    a.topSpending.map((s) => `<tr><td>${s.category}</td><td class="num">${money(s.total, cur)}</td><td class="num">${s.count}</td></tr>`).join('') +
+    `</tbody></table></div>`;
+}
+
+/** Load the AI brief into its panel. */
+async function loadBrief(forceRefresh) {
+  const panel = $('briefPanel');
+  if (!panel) return;
+  try {
+    const j = await api('/brief' + (forceRefresh ? '?refresh=1' : ''));
+    panel.innerHTML = renderMarkdown(j.brief);
+  } catch (e) { panel.innerHTML = '<div class="notice err">' + e.message + '</div>'; }
+}
+
+async function doSync() {
+  main.innerHTML = '<div class="spin"><span class="dot"></span> Syncing your accounts…</div>';
+  try { await api('/sync', { method: 'POST' }); await renderDashboard(true); }
+  catch (e) { main.innerHTML = '<div class="notice err">' + e.message + '</div>'; }
+}
+
+$('syncBtn').onclick = doSync;
+$('briefBtn').onclick = () => loadBrief(true);
+
+/** Boot: dashboard if connected, else the connect screen. */
+(async function init() {
+  try {
+    const st = await api('/status');
+    if (st.connected > 0 && st.hasData) await renderDashboard(false);
+    else if (st.connected > 0) await doSync();
+    else renderConnect(st);
+  } catch (e) {
+    main.innerHTML = '<div class="notice err">Could not load: ' + e.message + '</div>';
+  }
+})();
+</script>
+</body>
+</html>

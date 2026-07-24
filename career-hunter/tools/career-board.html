@@ -1,0 +1,506 @@
+<!doctype html>
+<!--
+  Career Hunter — native Job Board surface (Phase 1: full engine parity).
+  Reads /api/career-hunter/jobs (filters q/min_score/min_pay/days/remote/status/sort +
+  land_prob/high_win/salary) + /jobs/stats; opens resumes via /resume; marks status via
+  /jobs/:id/status. Replaces the proxy-to-Flask board. Author: roger.murphy@agenticfederal.us
+-->
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Job Board</title>
+<style>
+  :root { --bg:#0e0e16; --panel:#15151f; --panel2:#1b1b27; --line:#272735; --text:#e6e6f0; --muted:#8b8ba3; --accent:#7c6cff; --accent2:#00d3a7; --warn:#ffb454; --danger:#ff6b6b; --scrollbar-thumb:rgba(255,255,255,.14); }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  .wrap { max-width:1120px; margin:0 auto; padding:20px 22px 60px; }
+  h1 { font-size:20px; margin:0 0 3px; }
+  .sub { color:var(--muted); font-size:12.5px; margin:0 0 14px; } .sub a { color:var(--accent); text-decoration:none; }
+  .tabs { display:flex; gap:7px; flex-wrap:wrap; margin:0 0 12px; }
+  .tab { background:var(--panel2); border:1px solid var(--line); border-radius:16px; padding:5px 12px; font-size:12px; cursor:pointer; color:var(--text); }
+  .tab .n { color:var(--muted); margin-left:5px; } .tab.active { background:var(--accent); color:#fff; border-color:var(--accent); } .tab.active .n { color:rgba(255,255,255,.8); }
+  .bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:0 0 14px; }
+  .bar input, .bar select { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 10px; font-size:12.5px; }
+  .bar input[type=search] { flex:1; min-width:180px; }
+  .bar label { color:var(--muted); font-size:11.5px; display:flex; align-items:center; gap:5px; }
+  .count { color:var(--muted); font-size:12px; margin:0 0 10px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:13px 16px; margin-bottom:9px; }
+  .card.dismiss-pending { background:rgba(255,107,107,.12); border-color:rgba(255,107,107,.72);
+                          box-shadow:inset 4px 0 var(--danger); opacity:.78; }
+  .card.dismiss-away { opacity:0; transform:translateX(12px); max-height:0 !important;
+                       padding-top:0; padding-bottom:0; margin:0; overflow:hidden; border-width:0;
+                       transition:opacity .18s ease,transform .18s ease,max-height .26s ease,
+                                  padding .26s ease,margin .26s ease,border-width .26s ease; }
+  .top { display:flex; align-items:flex-start; gap:12px; }
+  .title { font-size:14.5px; font-weight:600; margin:0; } .co { color:var(--muted); font-size:12.5px; margin:2px 0 0; }
+  .scores { margin-left:auto; flex:none; display:flex; gap:14px; text-align:center; }
+  .scores .v { font-size:17px; font-weight:700; line-height:1; } .scores .l { font-size:9.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .fit .v { color:var(--accent2); } .prob .v { color:var(--accent); } .win .v { color:var(--warn); }
+  .meta { display:flex; gap:13px; flex-wrap:wrap; color:var(--muted); font-size:12px; margin:9px 0 0; align-items:center; }
+  .meta .sal { color:var(--accent2); font-weight:600; }
+  .pill { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:2px 7px; border-radius:9px; }
+  .st-applied { background:rgba(0,211,167,.15); color:var(--accent2); } .st-generated { background:rgba(124,108,255,.15); color:var(--accent); }
+  .st-promoted { background:rgba(255,180,84,.16); color:var(--warn); } .st-dismissed { background:rgba(139,149,167,.14); color:var(--muted); }
+  .acts { display:flex; gap:7px; flex-wrap:wrap; margin:10px 0 0; }
+  .btn { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:5px 11px; font-size:12px; cursor:pointer; text-decoration:none; display:inline-block; }
+  .btn:hover { border-color:var(--accent); } .btn.go { border-color:var(--accent2); color:var(--accent2); } .btn.danger:hover { border-color:var(--danger); color:var(--danger); }
+  /* Submission is the one action here that drives a real browser on a real machine — it reads as
+     the primary act, and goes visibly inert once the ticket is filed so it can't be double-fired. */
+  .btn.submit { border-color:var(--accent); color:var(--accent); font-weight:600; }
+  .btn.submit:hover { background:var(--accent); color:#0b0f14; }
+  .btn.submit:disabled { opacity:.6; cursor:default; }
+  .btn.submit.queued { border-color:var(--accent2); color:var(--accent2); background:transparent; }
+  .countrow { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:0 0 4px; }
+  .bulk { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .bulk .hint { font-size:11.5px; color:var(--muted); }
+  .bulk .hint.warn { color:var(--danger); }
+  .nodepick { font-size:12px; color:var(--muted); display:flex; align-items:center; gap:5px; }
+  .nodepick select { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:4px 7px; font-size:12px; }
+  .rules { margin:0 0 12px; border:1px solid var(--line); border-radius:9px; background:var(--panel); padding:0 12px; font-size:12.5px; }
+  .rules summary { cursor:pointer; padding:9px 0; color:var(--accent); font-weight:600; }
+  .rules ol { margin:0 0 12px; padding-left:20px; color:var(--text); } .rules li { margin:5px 0; line-height:1.5; }
+  .rules a { color:var(--accent); }
+  .detail { margin:11px 0 0; }
+  .detbox { background:var(--panel2); border:1px solid var(--line); border-radius:9px; padding:11px 13px; font-size:12.5px; }
+  .rat { color:var(--text); margin:0 0 9px; line-height:1.5; }
+  .cols { display:flex; gap:22px; flex-wrap:wrap; margin:0 0 9px; } .cols b { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .cols ul { margin:5px 0 0; padding-left:16px; } .cols li { margin:2px 0; }
+  .desc { white-space:pre-wrap; font-size:12px; color:var(--muted); max-height:280px; overflow:auto; margin:6px 0 0; background:var(--bg); padding:9px; border-radius:7px; }
+  details summary { cursor:pointer; color:var(--accent); font-size:12px; }
+  .detacts { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:10px 0 0; }
+  .empty { color:var(--muted); font-size:13px; padding:40px; text-align:center; border:1px dashed var(--line); border-radius:12px; }
+  .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:9px 15px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; } .toast.show { opacity:1; } .toast.err { border-color:var(--danger); color:var(--danger); }
+  ::-webkit-scrollbar{width:11px;height:11px} ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px} ::-webkit-scrollbar-track{background:transparent}
+  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
+  @media (max-width: 640px) {
+    .wrap { padding: 14px 12px 40px; }
+    .bar { gap: 6px; }
+    .bar input[type=search] { width: 100%; min-width: 0; }
+    .bar input, .bar select { font-size: 16px; padding: 8px 10px; }
+    .bar label { font-size: 13px; }
+    .top { flex-wrap: wrap; }
+    .scores { margin-left: 0; width: 100%; justify-content: flex-start; margin-top: 8px; }
+    .card { padding: 11px 12px; }
+    .acts { gap: 6px; }
+    .btn { padding: 7px 11px; font-size: 13px; }
+    .detacts { flex-wrap: wrap; gap: 8px; }
+    .detacts .btn { width: 100%; text-align: center; box-sizing: border-box; }
+    .cols { flex-direction: column; gap: 10px; }
+    .tabs { gap: 5px; }
+  }
+</style>
+<script>(function(){const M={'--bg':'--bg-primary','--panel':'--bg-secondary','--panel2':'--bg-tertiary','--line':'--border-color','--text':'--text-primary','--muted':'--text-secondary','--accent':'--accent-primary','--accent2':'--status-success','--scrollbar-thumb':'--scrollbar-thumb'};function m(){try{const p=(window.parent&&window.parent!==window)?window.parent:null;if(!p)return;const cs=p.getComputedStyle(p.document.documentElement);for(const k in M){const v=cs.getPropertyValue(M[k]).trim();if(v)document.documentElement.style.setProperty(k,v);}}catch(e){}}m();window.addEventListener('storage',e=>{if(e.key==='cockpit-theme')setTimeout(m,30);});try{const p=window.parent;if(p&&p!==window)new MutationObserver(m).observe(p.document.documentElement,{attributes:true,attributeFilter:['data-theme']});}catch(e){}document.addEventListener('DOMContentLoaded',m);})();</script>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<div class="wrap">
+  <h1>Job Board</h1>
+  <p class="sub">Scored corpus + your pipeline. <a href="/api/career-hunter/board" target="_top">Classic dashboard →</a></p>
+  <div class="tabs" id="tabs"></div>
+  <div id="onboard" hidden></div>
+  <div class="bar">
+    <input id="q" type="search" placeholder="Search title or description…"/>
+    <label>Sort
+      <select id="sort">
+        <option value="ai">Best fit</option><option value="prob">P(land)</option><option value="highwin">High-Win</option>
+        <option value="salary">Salary</option><option value="posted">Posted</option><option value="recent">Newest</option>
+        <option value="company">Company</option><option value="generated">Generated</option><option value="applied">Applied</option>
+      </select>
+    </label>
+    <label>Fit≥<select id="min_score"><option value="">any</option><option>70</option><option>80</option><option>90</option></select></label>
+    <label>$≥<select id="min_pay"><option value="">any</option><option value="100000">100k</option><option value="150000">150k</option><option value="200000">200k</option><option value="250000">250k</option></select></label>
+    <label>Posted<select id="days"><option value="">any</option><option value="7">7d</option><option value="14">14d</option><option value="30">30d</option></select></label>
+    <label><input type="checkbox" id="remote"/> Remote</label>
+  </div>
+  <div class="countrow">
+    <div class="count" id="count"></div>
+    <div class="bulk">
+      <label class="nodepick">On <select id="nodeSel" title="Which computer runs the browser"><option value="">auto-pick</option></select></label>
+      <span class="hint" id="workerHint"></span>
+      <button class="btn submit" id="subAll" onclick="submitAllReady()">Submit all ready ▶▶</button>
+      <a class="btn" href="/api/career-hunter/submissions" target="_top">Submissions queue →</a>
+    </div>
+  </div>
+  <details class="rules" id="applyRules">
+    <summary>How submitting works — 2 things to set up first</summary>
+    <ol>
+      <li><b>Install an OSHAL leaf node</b> on the computer that has your logged-in Chrome — your own desktop, or a remote box you've joined to the swarm — with <b>screen control enabled</b>. The browser is driven with real clicks/keystrokes, so it <b>runs in the foreground on that machine (no headless mode)</b> — leave it signed in and awake.</li>
+      <li><b>Connect your email provider in <a href="/api/career-hunter/settings" target="_top">Settings</a></b> so the worker can read the one-time verification codes some ATS forms (Greenhouse/Workday 2FA) email you mid-application.</li>
+      <li>Pick the target computer in the <b>On …</b> dropdown above (or leave it on <b>auto-pick</b>), then hit <b>Submit</b>. Watch each run in the <a href="/api/career-hunter/submissions" target="_top">Submissions</a> tab.</li>
+    </ol>
+  </details>
+  <div id="list"></div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const $ = id => document.getElementById(id);
+const listEl=$('list'), tabsEl=$('tabs'), toastEl=$('toast'), countEl=$('count');
+let activeStatus='';
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(m,err){ toastEl.textContent=m; toastEl.className='toast show'+(err?' err':''); setTimeout(()=>toastEl.className='toast',2400); }
+function salary(j){ const a=j.salary_max||j.salary_min; if(!a) return ''; const k=n=>'$'+Math.round(n/1000)+'k'; return (j.salary_min&&j.salary_max&&j.salary_min!==j.salary_max)?`${k(j.salary_min)}–${k(j.salary_max)}`:k(a); }
+
+async function loadStats(){
+  try {
+    const { byStatus=[] } = await (await fetch('/api/career-hunter/jobs/stats')).json();
+    // Pipeline lanes: a produced résumé = "Ready for submission"; a submitted app = "Submitted".
+    const LABELS={ generated:'Ready for submission', applied:'Submitted', interview:'Interview', offer:'Offer', promoted:'Promoted', deferred:'Needs you', dismissed:'Dismissed' };
+    const order=['generated','applied','interview','offer','promoted','deferred','dismissed']; const map=Object.fromEntries(byStatus.map(s=>[s.status,s.n]));
+    const tabs=[{k:'',label:'All'}].concat(order.filter(s=>map[s]).map(s=>({k:s,label:LABELS[s]||(s[0].toUpperCase()+s.slice(1)),n:map[s]})));
+    tabsEl.innerHTML=tabs.map(t=>`<button class="tab${t.k===activeStatus?' active':''}" data-k="${t.k}">${t.label}${t.n!=null?`<span class="n">${t.n}</span>`:''}</button>`).join('');
+    tabsEl.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{ activeStatus=b.dataset.k; loadStats(); loadJobs(); });
+  } catch(e){ tabsEl.innerHTML=''; }
+}
+
+function card(j){
+  const fit=j.ai_fit_score??j.fit_score, sal=salary(j);
+  const st=j.status&&j.status!=='new'?`<span class="pill st-${esc(j.status)}">${esc(j.status)}</span>`:'';
+  return `<div class="card" data-job-id="${j.id}">
+    <div class="top">
+      <div><p class="title">${esc(j.title)}</p><p class="co">${esc(j.company||'')}${j.referral?' · ⭐ referral':''}</p></div>
+      <div class="scores">
+        ${fit!=null?`<div class="fit"><div class="v">${fit}</div><div class="l">fit</div></div>`:''}
+        ${j.land_prob!=null?`<div class="prob"><div class="v">${j.land_prob}</div><div class="l">P land</div></div>`:''}
+        ${j.high_win!=null?`<div class="win"><div class="v">${j.high_win}</div><div class="l">hi-win</div></div>`:''}
+      </div>
+    </div>
+    <div class="meta">${st}${sal?`<span class="sal">${sal}</span>`:''}${j.location?`<span>${esc(j.location)}</span>`:''}${j.remote?'<span>remote</span>':''}${j.job_type?`<span>${esc(j.job_type)}</span>`:''}${j.posted_date?`<span>posted ${esc(j.posted_date)}</span>`:''}</div>
+    <div class="acts">
+      <button class="btn" onclick="toggleDetail(${j.id})">Details</button>
+      ${j.url?`<a class="btn go" href="${esc(j.url)}" target="_blank" rel="noopener">Open posting ↗</a>`:''}
+      ${j.has_resume?`<a class="btn" href="/api/career-hunter/resume?id=${j.id}&kind=resume" target="_blank">Resume</a>`:''}
+      ${j.has_cover?`<a class="btn" href="/api/career-hunter/resume?id=${j.id}&kind=cover" target="_blank">Cover</a>`:''}
+      ${(j.has_resume && j.status!=='applied')?`<button class="btn submit" id="sub${j.id}" onclick='submitJob(${JSON.stringify(subArg(j))})'>Submit on my desktop ▶</button>`:''}
+      ${j.status!=='applied'?`<button class="btn" onclick="setStatus(${j.id},'applied')">Mark applied</button>`:''}
+      ${j.status!=='dismissed'?`<button class="btn danger" onclick="setStatus(${j.id},'dismissed')">Dismiss</button>`:''}
+    </div>
+    <div class="detail" id="d${j.id}" hidden></div>
+  </div>`;
+}
+
+async function loadJobs(){
+  listEl.innerHTML='<div class="empty">Loading…</div>'; countEl.textContent='';
+  const p=new URLSearchParams();
+  if(activeStatus) p.set('status',activeStatus);
+  ['q','sort','min_score','min_pay','days'].forEach(k=>{ const v=$(k).value; if(v) p.set(k,v); });
+  if($('remote').checked) p.set('remote','1');
+  p.set('per','150');
+  try {
+    const { jobs=[], empty } = await (await fetch('/api/career-hunter/jobs?'+p)).json();
+    if(empty){ listEl.innerHTML='<div class="empty">No job data yet. Run a pull from Career Settings.</div>'; return; }
+    countEl.textContent = jobs.length?`${jobs.length} shown`:'';
+    listEl.innerHTML = jobs.length ? jobs.map(card).join('') : '<div class="empty">No jobs match these filters.</div>';
+  } catch(e){ listEl.innerHTML='<div class="empty">Could not load jobs: '+esc(e.message)+'</div>'; }
+}
+
+// ── Submission ───────────────────────────────────────────────────────────────
+// The durable rail: one persisted job-apply ticket per résumé (POST /enqueue), worked
+// one-at-a-time by the desktop worker node. NOT a direct browser call — the ticket is what
+// survives an api restart, and what the Submissions queue then narrates.
+function subArg(j){ return { postingId:j.id, company:j.company||'', title:j.title||'', url:j.url||'', location:j.location||'' }; }
+
+async function submitJob(p, btnId){
+  // The same posting can carry a button in the card row AND one under the preview; the caller says
+  // which one it clicked so the other doesn't get left mid-state.
+  const btn=$(btnId||('sub'+p.postingId));
+  if(btn){ btn.disabled=true; btn.textContent='Queueing…'; }
+  const node=selectedNode();
+  try {
+    const r=await fetch('/api/apply-operator/enqueue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...p, ...(node?{targetRemoteClientId:node}:{})})});
+    const out=await r.json().catch(()=>({}));
+    if(!r.ok || out.ok!==true) throw new Error(out.error||('HTTP '+r.status));
+    if(btn){ btn.textContent = out.deduped?'Already queued ✓':'Queued ✓'; btn.classList.add('queued'); }
+    toast(out.deduped?'Already in the submission queue.':'Queued — watch it run in Submissions.');
+  } catch(e){
+    if(btn){ btn.disabled=false; btn.textContent='Submit on my desktop ▶'; }
+    toast('Could not queue: '+e.message,true);
+  }
+}
+
+async function submitAllReady(){
+  const btn=$('subAll'); const prev=btn?btn.textContent:'';
+  const node=selectedNode();
+  const where=node ? ($('nodeSel').selectedOptions[0].textContent||'the selected computer') : 'your desktop';
+  if(!window.confirm(`Queue EVERY packet-ready résumé for submission on ${where}?\n\nThey are submitted one at a time, and you can watch each one in Submissions.`)) return;
+  if(btn){ btn.disabled=true; btn.textContent='Queueing…'; }
+  try {
+    const r=await fetch('/api/apply-operator/enqueue-queue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(node?{targetRemoteClientId:node}:{})});
+    const out=await r.json().catch(()=>({}));
+    if(!r.ok || out.ok!==true) throw new Error(out.error||('HTTP '+r.status));
+    toast(out.created?`Queued ${out.created} application${out.created===1?'':'s'}${out.deduped?` (${out.deduped} already waiting)`:''}.`:(out.note||'Nothing packet-ready to queue.'));
+    loadJobs();
+  } catch(e){ toast('Could not queue: '+e.message,true); }
+  finally { if(btn){ btn.disabled=false; btn.textContent=prev; } }
+}
+
+async function setStatus(id,status){
+  const el=listEl.querySelector(`.card[data-job-id="${id}"]`);
+  const dismissing=status==='dismissed' && el && activeStatus!=='dismissed';
+  if(dismissing){ el.style.maxHeight=el.offsetHeight+'px'; el.classList.add('dismiss-pending'); }
+  try {
+    const r=await fetch(`/api/career-hunter/jobs/${id}/status`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
+    const saved=await r.json().catch(()=>({}));
+    if(!r.ok || saved.ok!==true) throw new Error(saved.error||('HTTP '+r.status));
+    toast('Marked '+status); loadStats();
+    if(dismissing){
+      el.classList.add('dismiss-away');
+      window.setTimeout(()=>{
+        el.remove();
+        const left=listEl.querySelectorAll('.card').length;
+        countEl.textContent=left?`${left} shown`:'';
+        if(!left) listEl.innerHTML='<div class="empty">No jobs match these filters.</div>';
+      },280);
+    } else {
+      loadJobs();
+    }
+  } catch(e){
+    if(el){ el.style.maxHeight=''; el.classList.remove('dismiss-pending','dismiss-away'); }
+    toast('Failed: '+e.message,true);
+  }
+}
+
+async function toggleDetail(id){
+  const el=document.getElementById('d'+id);
+  if(!el.hidden){ el.hidden=true; return; }
+  el.hidden=false; el.innerHTML='<div style="color:var(--muted);font-size:12px;padding:8px">Loading…</div>';
+  try { const { job } = await (await fetch('/api/career-hunter/jobs/'+id)).json(); el.innerHTML=detailHtml(job); }
+  catch(e){ el.innerHTML='<div style="color:var(--danger);font-size:12px">'+esc(e.message)+'</div>'; }
+}
+function detailHtml(j){
+  const matched=(j.matched||[]).map(m=>`<li>✓ ${esc(m)}</li>`).join('');
+  const gaps=(j.gaps||[]).map(g=>`<li>△ ${esc(g)}</li>`).join('');
+  const ref=Number(j.referral||0);
+  return `<div class="detbox">
+    ${j.ai_fit_rationale?`<p class="rat">${esc(j.ai_fit_rationale)}</p>`:''}
+    ${(matched||gaps)?`<div class="cols">${matched?`<div><b>Matched</b><ul>${matched}</ul></div>`:''}${gaps?`<div><b>Gaps</b><ul>${gaps}</ul></div>`:''}</div>`:''}
+    ${j.description?`<details><summary>Full description</summary><div class="desc">${esc(String(j.description).slice(0,4000))}</div></details>`:''}
+    <input id="g-${j.id}" class="note" style="width:100%;margin-bottom:8px" placeholder="optional: tailor it — e.g. lean into my early career / emphasize the AI work"/>
+    <div class="detacts">
+      <button class="btn go" onclick="doGenerate(${j.id},false)">Generate resume + cover</button>
+      <button class="btn" onclick="doGenerate(${j.id},true)">+ with OSHAL</button>
+      <label style="font-size:12px;color:var(--muted)">Referral
+        <select onchange="setReferral(${j.company_id},this.value)">
+          ${[['0','none'],['1','weak'],['2','solid'],['3','strong']].map(([v,l])=>`<option value="${v}"${ref==v?' selected':''}>${l}</option>`).join('')}
+        </select>
+      </label>
+    </div>
+    <div class="genwrap" id="gen-${j.id}">${genLinksHtml(j)}</div>
+    <div class="jobtalk" style="margin-top:12px;border-top:1px solid var(--line,#2a2f3a);padding-top:10px">
+      <b style="font-size:12px">Talk to this job</b>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <input id="jt-${j.id}" class="note" style="flex:1;margin:0" placeholder="ask about fit, tailor a résumé, or say 'defer this one'" onkeydown="if(event.key==='Enter')jobTalk(${j.id})"/>
+        <button class="btn go" onclick="jobTalk(${j.id})">Send</button>
+      </div>
+      <div id="jtout-${j.id}" class="hint" style="white-space:pre-wrap;margin-top:6px"></div>
+    </div>
+  </div>`;
+}
+/** Talk to your career agent about ONE job; it replies + may generate, augment your profile, or set status. */
+async function jobTalk(id){
+  const inp=document.getElementById('jt-'+id); const msg=(inp&&inp.value||'').trim(); if(!msg) return;
+  const o=document.getElementById('jtout-'+id); o.innerHTML='<span class="spin"></span> Thinking…';
+  try{
+    const r=await fetch('/api/career-hunter/jobs/'+id+'/guide',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok){ o.textContent='Error: '+(j.error||('HTTP '+r.status)); return; }
+    inp.value='';
+    o.textContent=(j.reply||'')+((j.applied&&j.applied.length)?('\n\n✓ '+j.applied.join('\n✓ ')):'');
+    if(j.applied&&j.applied.length){ setTimeout(loadStats,1500); }
+  }catch(e){ o.textContent='Error: '+e.message; }
+}
+// View-links for an already-generated packet (shown in the detail panel as soon as a resume exists).
+function genLinksHtml(j){
+  if(!(j.has_resume||j.has_cover)) return '';
+  const r=j.has_resume?`<a class="btn go" href="/api/career-hunter/resume?id=${j.id}&kind=resume" target="_blank" rel="noopener">View resume ↓</a>`:'';
+  const c=j.has_cover?`<a class="btn" href="/api/career-hunter/resume?id=${j.id}&kind=cover" target="_blank" rel="noopener">View cover ↓</a>`:'';
+  const when=j.generated_at?` · generated ${esc(String(j.generated_at).slice(0,10))}`:'';
+  // Inline pre-submission preview: the exact PDF that would be submitted, right here on the board.
+  const prev = j.has_resume ? `
+    <div class="rzprev" style="margin-top:10px">
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+        <b style="font-size:12px">Preview before you submit</b>
+        <button class="btn sm" data-k="resume" onclick="rzPreview(${j.id},'resume',this)">Résumé</button>
+        ${j.has_cover?`<button class="btn sm" data-k="cover" onclick="rzPreview(${j.id},'cover',this)">Cover</button>`:''}
+      </div>
+      <iframe id="rzframe-${j.id}" src="/api/career-hunter/resume?id=${j.id}&kind=resume" title="Résumé preview"
+              style="width:100%;height:640px;border:1px solid var(--line,#2a2f3a);border-radius:8px;background:#fff"></iframe>
+    </div>` : '';
+  // The submit action belongs directly under the thing you just reviewed — reading the résumé and
+  // then hunting for the button elsewhere is what made this surface look like it had no submit at all.
+  const send = (j.has_resume && j.status!=='applied') ? `
+    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn submit" id="subd${j.id}" onclick='submitJob(${JSON.stringify(subArg(j))},"subd${j.id}")'>Submit this application on my desktop ▶</button>
+      <span style="font-size:11px;color:var(--muted)">Queues one ticket · your desktop worker drives your real logged-in Chrome · watch it in Submissions</span>
+    </div>` : '';
+  return `<div class="genlinks" style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">${r}${c}<span style="color:var(--accent2);font-size:11px;font-weight:600">resume ready${when}</span></div>${prev}${send}`;
+}
+/** Swap the inline preview iframe between the résumé and cover PDF for a job. */
+function rzPreview(id, kind, btn){
+  const f=document.getElementById('rzframe-'+id); if(f) f.src='/api/career-hunter/resume?id='+id+'&kind='+kind;
+  if(btn&&btn.parentElement) btn.parentElement.querySelectorAll('.btn.sm').forEach(b=>b.classList.toggle('active', b===btn));
+}
+async function doGenerate(id,oshal){
+  const gi=document.getElementById('g-'+id); const guidance=(gi&&gi.value||'').trim();
+  try { const r=await fetch('/api/career-hunter/jobs/'+id+'/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({oshal,guidance})});
+    if(r.status!==202&&!r.ok) throw new Error('HTTP '+r.status);
+    toast(guidance?'Tailoring with your guidance — about a minute':'Generating resume + cover — about a minute');
+    startGenPoll(id);
+  } catch(e){ toast('Generate failed: '+e.message,true); }
+}
+// After Generate, poll the job until the PDF exists, then drop View-links in place + flag the card —
+// so the user never has to guess whether it worked or manually reload the board.
+const _genPolls={};
+function stopGenPoll(id){ if(_genPolls[id]){ clearInterval(_genPolls[id]); delete _genPolls[id]; } }
+function startGenPoll(id){
+  const wrap=document.getElementById('gen-'+id);
+  if(wrap) wrap.innerHTML='<div class="genlinks" style="margin-top:10px;color:var(--muted);font-size:12px">⏳ Generating your resume + cover… (about a minute — this updates on its own)</div>';
+  stopGenPoll(id);
+  let tries=0;
+  const tick=async()=>{
+    tries++;
+    let job=null;
+    try { job=(await (await fetch('/api/career-hunter/jobs/'+id)).json()).job; } catch(e){ /* keep polling */ }
+    if(job && (job.has_resume || job.status==='generated')){
+      stopGenPoll(id);
+      const w=document.getElementById('gen-'+id); if(w) w.innerHTML=genLinksHtml(job);
+      markGenerated(id, job);
+      toast('Resume ready — click “View resume”');
+    } else if(tries>=20){ // ~2.5 min ceiling
+      stopGenPoll(id);
+      const w=document.getElementById('gen-'+id);
+      if(w) w.innerHTML='<div class="genlinks" style="margin-top:10px;color:var(--warn);font-size:12px">Still working — give it another moment, then reopen this job. If it never appears, the generator may have errored.</div>';
+    }
+  };
+  _genPolls[id]=setInterval(tick,8000);
+  setTimeout(tick,5000); // first check sooner than the interval
+}
+// Update the collapsed card in place (pill + Resume/Cover buttons) without a full board reload.
+function markGenerated(id, job){
+  const det=document.getElementById('d'+id); if(!det) return;
+  const card=det.closest('.card'); if(!card) return;
+  const meta=card.querySelector('.meta');
+  if(meta && !meta.querySelector('.st-generated')){
+    const pill=document.createElement('span'); pill.className='pill st-generated'; pill.textContent='generated';
+    meta.insertBefore(pill, meta.firstChild);
+  }
+  const acts=card.querySelector('.acts');
+  if(acts && !acts.querySelector('.cardResume')){
+    const a=document.createElement('a'); a.className='btn cardResume'; a.target='_blank'; a.rel='noopener';
+    a.href='/api/career-hunter/resume?id='+id+'&kind=resume'; a.textContent='Resume'; acts.appendChild(a);
+    if(job.has_cover){ const c=document.createElement('a'); c.className='btn cardCover'; c.target='_blank'; c.rel='noopener';
+      c.href='/api/career-hunter/resume?id='+id+'&kind=cover'; c.textContent='Cover'; acts.appendChild(c); }
+  }
+}
+async function setReferral(cid,level){
+  try { const r=await fetch('/api/career-hunter/company/'+cid+'/referral',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({level:Number(level)})});
+    if(!r.ok) throw new Error('HTTP '+r.status); toast('Referral set — P(land) updated');
+  } catch(e){ toast('Failed: '+e.message,true); }
+}
+let qt; $('q').addEventListener('input',()=>{ clearTimeout(qt); qt=setTimeout(loadJobs,300); });
+['sort','min_score','min_pay','days'].forEach(k=>$(k).addEventListener('change',loadJobs));
+$('remote').addEventListener('change',loadJobs);
+
+// ── Getting started: a new user has no indexed resume, so the board can't score anything.
+// Gate the board behind a one-time resume upload + index. ───────────────────────────────
+function boardControls(show){ ['tabs','count','list'].forEach(id=>{const e=$(id); if(e) e.style.display=show?'':'none';}); const bar=document.querySelector('.bar'); if(bar) bar.style.display=show?'':'none'; }
+function renderGetStarted(){
+  $('onboard').innerHTML = `
+  <div style="border:1px solid var(--line);border-radius:14px;padding:28px;max-width:680px;margin:18px auto;background:rgba(255,255,255,.02);">
+    <h2 style="margin:0 0 6px;font-size:18px;">Get started — index your resume</h2>
+    <p class="sub" style="margin:0 0 16px;">The board scores every opening against <b>your</b> background, so it needs your resume first.</p>
+    <ol style="color:var(--muted);font-size:13px;line-height:1.7;padding-left:18px;margin:0 0 18px;">
+      <li>Upload your resume (<b>PDF</b> or <b>DOCX</b>) — it's stored privately to your account.</li>
+      <li>We index it into your profile: experience, skills, and metrics. This takes about <b>2–3 minutes</b> and starts the moment you upload.</li>
+      <li>Then pull fresh jobs and every posting gets a fit score against your background.</li>
+      <li>Fine-tune anytime from <b>Resume Strengthen</b> — answer a few gap questions and your future resumes pull the new facts automatically.</li>
+    </ol>
+    <input type="file" id="obFile" accept=".pdf,.docx,.txt,.md" style="display:none" onchange="uploadResume(this)"/>
+    <button class="btn go" id="obBtn" onclick="document.getElementById('obFile').click()" style="font-size:14px;padding:10px 18px;">Upload &amp; index my resume</button>
+    <p class="sub" style="margin:12px 0 0;font-size:11px;">PDF or DOCX, up to 8&nbsp;MB. Stored to your account only.</p>
+  </div>`;
+}
+function renderIndexing(){
+  $('onboard').innerHTML = `
+  <div style="border:1px solid var(--line);border-radius:14px;padding:28px;max-width:680px;margin:18px auto;text-align:center;background:rgba(255,255,255,.02);">
+    <div style="font-size:30px;margin-bottom:8px;">⏳</div>
+    <h2 style="margin:0 0 6px;font-size:18px;">Indexing your resume…</h2>
+    <p class="sub" style="margin:0;">Parsing your experience, skills, and metrics into your private profile. This usually takes <b>2–3 minutes</b> — you can leave this open, it refreshes automatically.</p>
+  </div>`;
+}
+async function uploadResume(input){
+  const f=input.files&&input.files[0]; if(!f) return;
+  const btn=$('obBtn'); if(btn){ btn.disabled=true; btn.textContent='Uploading…'; }
+  try {
+    const fd=new FormData(); fd.append('resume',f);
+    const r=await fetch('/api/career-hunter/resume/upload',{method:'POST',body:fd});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok||d.error) throw new Error(d.error||('HTTP '+r.status));
+    renderIndexing(); setTimeout(checkOnboarding,6000);
+  } catch(e){ toast('Upload failed: '+e.message,true); if(btn){ btn.disabled=false; btn.textContent='Upload & index my resume'; } }
+}
+function renderBuildBoard(){
+  $('onboard').innerHTML = `
+  <div style="border:1px solid var(--line);border-radius:14px;padding:28px;max-width:680px;margin:18px auto;background:rgba(255,255,255,.02);">
+    <div style="font-size:26px;margin-bottom:6px;">✓ Resume indexed</div>
+    <h2 style="margin:0 0 6px;font-size:18px;">One more step — match &amp; score jobs to your background</h2>
+    <p class="sub" style="margin:0 0 16px;">This ranks the jobs we've already collected against your resume and AI-scores your best fits — no waiting on a scrape. Takes about <b>2–3 minutes</b>. After this you'll also see resume-gap suggestions.</p>
+    <button class="btn go" id="obBuild" onclick="buildBoard()" style="font-size:14px;padding:10px 18px;">Find &amp; score jobs for me</button>
+  </div>`;
+}
+async function buildBoard(){
+  const ob=$('onboard');
+  const step=(m)=>{ ob.innerHTML=`<div style="border:1px solid var(--line);border-radius:14px;padding:28px;max-width:680px;margin:18px auto;text-align:center;background:rgba(255,255,255,.02);"><div style="font-size:30px;margin-bottom:8px;">⏳</div><h2 style="margin:0 0 6px;font-size:18px;">${m}</h2><p class="sub" style="margin:0;">A couple minutes — it finishes on its own.</p></div>`; };
+  try {
+    step('Matching jobs to your resume…');
+    let r=await (await fetch('/api/career-hunter/run/match',{method:'POST'})).json();
+    if(r && r.ok===false) throw new Error(r.err||'match failed');
+    step('Scoring your best matches…');
+    r=await (await fetch('/api/career-hunter/run/score',{method:'POST'})).json();
+    if(r && r.ok===false) throw new Error(r.err||'score failed');
+    checkOnboarding();
+  } catch(e){ toast('Build failed: '+e.message,true); renderBuildBoard(); }
+}
+async function checkOnboarding(){
+  let st; try { st=await (await fetch('/api/career-hunter/resume/state')).json(); }
+  catch(e){ st={hasResume:true,scored:1}; } // never block the board on a status hiccup
+  const ob=$('onboard');
+  if(st && st.hasResume && st.scored>0){ ob.hidden=true; boardControls(true); loadStats(); loadJobs(); return; }
+  boardControls(false); ob.hidden=false;
+  if(st && st.indexing){ renderIndexing(); setTimeout(checkOnboarding,6000); return; }
+  if(st && st.hasResume){ renderBuildBoard(); return; }   // resume done, no scored jobs yet
+  renderGetStarted();
+}
+
+// The chosen target computer — '' means let the dispatcher auto-pick. Threaded into every submit.
+function selectedNode(){ const s=$('nodeSel'); return s ? s.value : ''; }
+
+// Populate the target-computer dropdown from the live leaf-node list AND tell the operator whether
+// the chosen box can actually take work. A wedged/disconnected node is the one real failure here, so
+// naming it BEFORE the click is what prevents "I pressed submit and nothing happened".
+async function loadWorkers(){
+  const sel=$('nodeSel'), el=$('workerHint');
+  try {
+    const { workers=[], defaultClientId } = await (await fetch('/api/apply-operator/workers')).json();
+    if(sel){
+      const keep=sel.value;
+      const label=w=>`${w.hostname||w.clientId.slice(0,12)}${w.isDefault?' (default)':''}${w.available?'':' — '+w.state}`;
+      sel.innerHTML='<option value="">auto-pick'+(defaultClientId?'':' — no node connected')+'</option>'
+        + workers.map(w=>`<option value="${esc(w.clientId)}">${esc(label(w))}</option>`).join('');
+      // Keep the operator's choice across refreshes if that node is still listed.
+      sel.value = workers.some(w=>w.clientId===keep) ? keep : '';
+    }
+    if(el){
+      const chosen = selectedNode() ? workers.find(w=>w.clientId===selectedNode())
+                                    : workers.find(w=>w.clientId===defaultClientId);
+      if(!workers.length){ el.className='hint warn'; el.textContent='No leaf node connected — set one up (see below).'; }
+      else if(!chosen){ el.className='hint'; el.textContent=''; }
+      else { el.className='hint'+(chosen.available?'':' warn'); el.textContent = chosen.available ? 'ready' : chosen.state; }
+    }
+  } catch(e){ if(el){ el.textContent=''; } }
+}
+
+checkOnboarding();
+loadWorkers();
+const nsel=$('nodeSel'); if(nsel) nsel.addEventListener('change', loadWorkers);
+setInterval(loadWorkers, 30000);
+</script>
+</body></html>

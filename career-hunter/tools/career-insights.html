@@ -1,0 +1,69 @@
+<!doctype html>
+<!--
+  Career Hunter — native Insights/Analytics surface (Phase 5). Reads /api/career-hunter/analytics
+  (headline + funnel + top companies + states + salary bands). Consolidates the engine's
+  insights/report/ready/progress/map metrics. Author: roger.murphy@emeraldcoastsystemsgroup.com
+-->
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Insights</title>
+<style>
+  :root { --bg:#0e0e16; --panel:#15151f; --panel2:#1b1b27; --line:#272735; --text:#e6e6f0; --muted:#8b8ba3; --accent:#7c6cff; --accent2:#00d3a7; --warn:#ffb454; --scrollbar-thumb:rgba(255,255,255,.14); }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  .wrap { max-width:1000px; margin:0 auto; padding:22px 22px 60px; }
+  h1 { font-size:20px; margin:0 0 14px; } h2 { font-size:13px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin:24px 0 10px; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:11px; }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+  .stat .v { font-size:24px; font-weight:700; } .stat .l { font-size:11.5px; color:var(--muted); margin-top:2px; }
+  .funnel { display:flex; flex-direction:column; gap:6px; }
+  .frow { display:flex; align-items:center; gap:11px; } .frow .lbl { width:96px; font-size:12.5px; color:var(--muted); flex:none; text-align:right; }
+  .bar { height:26px; border-radius:6px; background:linear-gradient(90deg,var(--accent),var(--accent2)); min-width:2px; display:flex; align-items:center; padding:0 9px; color:#fff; font-size:12px; font-weight:600; }
+  .twocol { display:grid; grid-template-columns:1fr 1fr; gap:22px; } @media(max-width:680px){ .twocol{grid-template-columns:1fr;} }
+  .list { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:8px 4px; }
+  .li { display:flex; align-items:center; gap:10px; padding:7px 12px; font-size:13px; border-bottom:1px solid var(--line); } .li:last-child{border-bottom:none;}
+  .li .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .li .n { color:var(--muted); font-size:12px; } .li .fit { color:var(--accent2); font-size:11.5px; }
+  .empty { color:var(--muted); font-size:13px; padding:40px; text-align:center; border:1px dashed var(--line); border-radius:12px; }
+  ::-webkit-scrollbar{width:11px;height:11px} ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px} ::-webkit-scrollbar-track{background:transparent}
+  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
+</style>
+<script>(function(){const M={'--bg':'--bg-primary','--panel':'--bg-secondary','--panel2':'--bg-tertiary','--line':'--border-color','--text':'--text-primary','--muted':'--text-secondary','--accent':'--accent-primary','--accent2':'--status-success','--scrollbar-thumb':'--scrollbar-thumb'};function m(){try{const p=(window.parent&&window.parent!==window)?window.parent:null;if(!p)return;const cs=p.getComputedStyle(p.document.documentElement);for(const k in M){const v=cs.getPropertyValue(M[k]).trim();if(v)document.documentElement.style.setProperty(k,v);}}catch(e){}}m();window.addEventListener('storage',e=>{if(e.key==='cockpit-theme')setTimeout(m,30);});try{const p=window.parent;if(p&&p!==window)new MutationObserver(m).observe(p.document.documentElement,{attributes:true,attributeFilter:['data-theme']});}catch(e){}document.addEventListener('DOMContentLoaded',m);})();</script>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<div class="wrap">
+  <h1>Insights</h1>
+  <div id="body"><div class="empty">Loading…</div></div>
+</div>
+<script>
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const k=n=>n>=1000?'$'+Math.round(n/1000)+'k':'$'+n;
+function statCard(v,l){ return `<div class="stat"><div class="v">${v}</div><div class="l">${l}</div></div>`; }
+function funnelRow(lbl,n,max){ const w=max>0?Math.max(2,Math.round(n/max*100)):2; return `<div class="frow"><div class="lbl">${lbl}</div><div class="bar" style="width:${w}%">${n.toLocaleString()}</div></div>`; }
+
+async function load(){
+  const el=document.getElementById('body');
+  try {
+    const a = await (await fetch('/api/career-hunter/analytics')).json();
+    if(a.empty){ el.innerHTML='<div class="empty">No job data yet.</div>'; return; }
+    const h=a.headline||{}, f=a.funnel||{};
+    const stats=[[ (h.inlane||0).toLocaleString(),'In-lane roles'],[(h.fit70||0).toLocaleString(),'Fit ≥ 70'],[h.fit80||0,'Fit ≥ 80'],
+      [(h.fresh7d||0).toLocaleString(),'Posted ≤ 7d'],[h.avg_pay_fit70?k(h.avg_pay_fit70):'—','Avg pay (fit70)'],[h.companies||0,'Companies']];
+    const fsteps=[['Sourced',f.sourced||0],['Qualified',f.qualified||0],['Résumé',f.generated||0],['Applied',f.applied||0],['Interview',f.interview||0],['Offer',f.offer||0],['Promoted',f.promoted||0]];
+    const fmax=Math.max(...fsteps.map(s=>s[1]),1);
+    const co=(a.topCompanies||[]).map(c=>`<div class="li"><span class="nm">${esc(c.company||'')}${c.referral?' ⭐':''}</span><span class="fit">fit ${c.avg_fit}</span><span class="n">${c.roles} roles</span></div>`).join('');
+    const st=(a.states||[]).map(s=>`<div class="li"><span class="nm">${esc(s.state)}</span><span class="n">${s.n.toLocaleString()}</span></div>`).join('');
+    const sb=(a.salaryBands||[]).map(b=>`<div class="li"><span class="nm">${esc(b.band)}</span><span class="n">${b.n.toLocaleString()}</span></div>`).join('');
+    el.innerHTML=`
+      <div class="stats">${stats.map(s=>statCard(s[0],s[1])).join('')}</div>
+      <h2>Pipeline funnel</h2><div class="funnel">${fsteps.map(s=>funnelRow(s[0],s[1],fmax)).join('')}</div>
+      <div class="twocol">
+        <div><h2>Top companies (open roles)</h2><div class="list">${co||'<div class="li">—</div>'}</div></div>
+        <div><h2>By state</h2><div class="list">${st||'<div class="li">—</div>'}</div>
+             <h2>Salary bands (fit ≥ 70)</h2><div class="list">${sb||'<div class="li">—</div>'}</div></div>
+      </div>`;
+  } catch(e){ el.innerHTML='<div class="empty">Could not load: '+esc(e.message)+'</div>'; }
+}
+load();
+</script>
+</body></html>

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Assessment · {{ a.company or 'Interview' }}{% endblock %}
+{% block body %}
+<style>
+  .a h1 { margin:0 0 2px; font-size:19px; }
+  .a .sub { color:var(--mut); font-size:13px; margin-bottom:12px; }
+  .panel { border:1px solid #e2e7ee; border-radius:8px; padding:13px 16px; margin:12px 0; }
+  .panel h3 { margin:0 0 8px; font-family:"Georgia",serif; font-size:14px; color:#16304F; text-transform:uppercase; letter-spacing:.4px; }
+  .summary { font-size:14px; color:#2b3946; }
+  ul.clean { margin:4px 0 0; padding-left:18px; } ul.clean li { margin:3px 0; font-size:13px; }
+  .dem { font-size:13px; margin:5px 0; }
+  .dep { font-size:10px; font-weight:700; padding:1px 6px; border-radius:9px; margin-right:6px; }
+  .dep-strong { background:#1f7a3d; color:#fff; } .dep-moderate { background:#e0a44b; color:#fff; } .dep-mentioned { background:#b4bcc8; color:#fff; }
+  .ev { color:var(--mut); }
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .over h3 { color:#9a5a12; } .under h3 { color:#1f7a3d; }
+  textarea.tx { width:100%; box-sizing:border-box; min-height:120px; font:13px/1.45 inherit; padding:9px; border:1px solid #cfd6e0; border-radius:6px; }
+  .q { font-size:13px; margin:4px 0; }
+</style>
+
+<div class="a">
+  <a class="sub" href="{{ url_for('skills') }}">← all assessments</a>
+  <h1>{{ a.role or 'Interview' }}{% if a.company %} — {{ a.company }}{% endif %}</h1>
+  <div class="sub">{{ (a.at or '')[:16] }} · {{ 'finalized' if a.finalized else 'draft (answer the questions to finalize)' }}</div>
+
+  {% if r.summary %}<div class="panel"><h3>Realistic read</h3><div class="summary">{{ r.summary }}</div></div>{% endif %}
+
+  {% if r.demonstrated %}
+  <div class="panel"><h3>Demonstrated</h3>
+    {% for d in r.demonstrated %}
+    <div class="dem"><span class="dep dep-{{ d.depth or 'mentioned' }}">{{ d.depth or 'mentioned' }}</span>
+      <b>{{ d.skill }}</b>{% if d.evidence %} — <span class="ev">{{ d.evidence }}</span>{% endif %}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="cols">
+    {% if r.overclaimed %}<div class="panel over"><h3>Over-claimed — shore up</h3><ul class="clean">{% for s in r.overclaimed %}<li>{{ s }}</li>{% endfor %}</ul></div>{% endif %}
+    {% if r.underclaimed %}<div class="panel under"><h3>Under-claimed — add to résumé</h3><ul class="clean">{% for s in r.underclaimed %}<li>{{ s }}</li>{% endfor %}</ul></div>{% endif %}
+  </div>
+
+  {% if r.assessed_skills %}
+  <div class="panel"><h3>Assessed skills (defensible)</h3><ul class="clean">{% for s in r.assessed_skills %}<li>{{ s }}</li>{% endfor %}</ul></div>
+  {% endif %}
+
+  {% if r.coaching %}<div class="panel"><h3>Coaching for next time</h3><ul class="clean">{% for s in r.coaching %}<li>{{ s }}</li>{% endfor %}</ul></div>{% endif %}
+
+  {% if not a.finalized and r.calibration_questions %}
+  <div class="panel">
+    <h3>Calibration questions — answer to finalize</h3>
+    <ul class="clean">{% for q in r.calibration_questions %}<li class="q">{{ q }}</li>{% endfor %}</ul>
+    <form method="post" action="{{ url_for('skills_finalize', aid=a.id) }}" style="margin-top:10px">
+      <textarea class="tx" name="answers" placeholder="Record or type your answers to the questions above (the mic works here too)…">{{ a.answers or '' }}</textarea>
+      <div style="margin-top:9px"><button class="btn go">Finalize realistic assessment</button></div>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

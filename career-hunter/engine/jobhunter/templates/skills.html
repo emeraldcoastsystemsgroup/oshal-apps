@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Interview → Skills · Job Hunter{% endblock %}
+{% block body %}
+<style>
+  .sk h1 { margin:0 0 4px; font-size:20px; }
+  .sk .sub { color:var(--mut); font-size:13px; }
+  .panel { border:1px solid #e2e7ee; border-radius:8px; padding:14px 16px; margin:14px 0; }
+  .panel h3 { margin:0 0 8px; font-family:"Georgia",serif; font-size:15px; color:#16304F; }
+  .row2 { display:flex; gap:10px; margin-bottom:8px; }
+  .row2 input { flex:1; }
+  textarea.tx { width:100%; box-sizing:border-box; min-height:150px; font:13px/1.45 inherit; padding:9px;
+                border:1px solid #cfd6e0; border-radius:6px; }
+  .hint { color:var(--mut); font-size:12px; margin-top:6px; }
+  table.h { width:100%; border-collapse:collapse; }
+  table.h td, table.h th { padding:6px 8px; border-bottom:1px solid #f0f2f6; font-size:13px; text-align:left; }
+  .pill { font-size:11px; padding:1px 7px; border-radius:9px; background:#e6f4ea; color:#1f7a3d; }
+  .pill.draft { background:#fde8d5; color:#9a5a12; }
+</style>
+
+<div class="sk">
+  <h1>Interview → Skill Reassessment</h1>
+  <div class="sub">Record (or paste) an interview, and it calibrates what you actually demonstrated against your résumé skills —
+  flags over-claims to shore up, under-claims to add, and a realistic, defensible skill read.</div>
+
+  <div class="panel">
+    <h3>New assessment</h3>
+    <form method="post" action="{{ url_for('skills_assess') }}">
+      <div class="row2">
+        <input type="text" name="company" placeholder="Company (optional)">
+        <input type="text" name="role" placeholder="Role (optional)">
+      </div>
+      <textarea class="tx" name="transcript" placeholder="Click the mic to record the interview (live transcription), or paste the transcript / your notes here…"></textarea>
+      <div class="hint">🎤 The mic button (bottom-right of the box) records & transcribes in your browser — no upload, no cost. Phone-call capture (Twilio) comes later.</div>
+      <div style="margin-top:9px"><button class="btn go">Assess this interview</button></div>
+    </form>
+  </div>
+
+  <div class="panel">
+    <h3>Past assessments</h3>
+    {% if rows %}
+    <table class="h">
+      <thead><tr><th>When</th><th>Company</th><th>Role</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><a href="{{ url_for('skills_one', aid=r.id) }}">{{ (r.at or '')[:16] }}</a></td>
+        <td>{{ r.company or '—' }}</td><td>{{ r.role or '—' }}</td>
+        <td><span class="pill {{ '' if r.finalized else 'draft' }}">{{ 'finalized' if r.finalized else 'needs answers' }}</span></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="sub">No assessments yet — record your next interview above.</p>{% endif %}
+  </div>
+</div>
+{% endblock %}

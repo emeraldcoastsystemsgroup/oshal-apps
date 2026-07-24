@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Flashcard Blitz</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;min-height:100vh;background:#120a26;color:#fdeaf6;font-family:system-ui,'Inter',sans-serif;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:14px;}
+  h1{margin:0;font-size:20px;font-weight:800;}
+  .hud{display:flex;gap:16px;font-weight:800;font-size:15px;}
+  .blue{color:#5b8def;} .lives{color:#ff6b8b;}
+  .bar{width:min(92vw,460px);height:8px;border-radius:6px;background:#241640;overflow:hidden;}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,#ec4faa,#5b8def);width:100%;transition:width .1s linear;}
+  .q{width:min(92vw,460px);min-height:90px;background:#241640;border:1px solid rgba(236,79,170,.25);border-radius:16px;
+    display:flex;align-items:center;justify-content:center;text-align:center;padding:18px;font-size:18px;font-weight:700;}
+  .opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:min(92vw,460px);}
+  .opt{padding:14px;border-radius:12px;border:1px solid var(--border,#3a2566);background:#1c1338;color:#fff;font-size:14px;font-weight:600;cursor:pointer;}
+  .opt:hover{border-color:#ec4faa;} .opt.right{background:#46d39a;color:#08210f;} .opt.wrong{background:#ff6b8b;color:#2a0a12;}
+  .over{position:fixed;inset:0;background:rgba(10,6,24,.86);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;}
+  .over.on{display:flex;}.over h2{font-size:26px;margin:0;}
+  .btn{background:#ec4faa;color:#fff;border:none;border-radius:12px;padding:12px 24px;font-weight:800;font-size:16px;cursor:pointer;}
+  .small{font-size:12px;color:#b98cc8;}
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+  <h1>🃏 Flashcard Blitz</h1>
+  <div class="hud"><span>Score <span id="score">0</span></span><span class="blue">Streak <span id="streak">0</span></span><span class="lives" id="lives">❤️❤️❤️</span></div>
+  <div class="bar"><i id="timebar"></i></div>
+  <div class="q" id="q">Loading your cards…</div>
+  <div class="opts" id="opts"></div>
+  <div class="small" id="src"></div>
+  <div class="over" id="over"><h2 id="overTitle">Time!</h2><div id="overScore"></div><button class="btn" onclick="start()">Play again</button>
+    <button class="btn" style="background:transparent;border:1px solid #5b8def;color:#cfe0ff;margin-left:8px;" onclick="if(window.parent!==window)window.parent.postMessage({type:'lm-exit'},'*')">I'm done</button></div>
+<script>
+var pool=[], score=0, streak=0, lives=3, cur=null, timer=null, timeLeft=0, busy=false;
+var FALLBACK=[
+  {q:'7 × 8 = ?',a:'56'},{q:'Capital of France?',a:'Paris'},{q:'H₂O is…',a:'Water'},{q:'12 + 19 = ?',a:'31'},
+  {q:'A noun is a person, place or…',a:'Thing'},{q:'Powerhouse of the cell?',a:'Mitochondria'},{q:'Red planet?',a:'Mars'},
+  {q:'9 × 6 = ?',a:'54'},{q:'Past tense of "run"?',a:'Ran'},{q:'Largest ocean?',a:'Pacific'}
+];
+async function loadPool(){
+  try{
+    var sr=await fetch('/api/education/flashcards/sets'); if(sr.ok){ var sets=(await sr.json()).sets||[];
+      for(var i=0;i<Math.min(sets.length,5);i++){ var cr=await fetch('/api/education/flashcards/sets/'+sets[i].set_id+'/cards');
+        if(cr.ok)(((await cr.json()).cards)||[]).forEach(function(c){ if(c.front&&c.back)pool.push({q:String(c.front),a:String(c.back)}); }); } }
+  }catch(e){}
+  if(pool.length<4){ pool=FALLBACK.slice(); document.getElementById('src').textContent='Practice set (make your own in Card Maker!)'; }
+  else document.getElementById('src').textContent='From your flashcards 🎯';
+  start();
+}
+function start(){ score=0; streak=0; lives=3; busy=false; updateHud(); document.getElementById('over').classList.remove('on'); next(); }
+function updateHud(){ document.getElementById('score').textContent=score; document.getElementById('streak').textContent=streak;
+  document.getElementById('lives').textContent='❤️'.repeat(lives)+'🖤'.repeat(3-lives); }
+function next(){
+  busy=false; cur=pool[Math.random()*pool.length|0];
+  document.getElementById('q').textContent=cur.q;
+  var others=pool.filter(function(c){return c.a!==cur.a;}); var opts=[cur.a];
+  for(var k=0;k<3&&others.length;k++){ var j=Math.random()*others.length|0; opts.push(others[j].a); others.splice(j,1); }
+  for(var s=opts.length-1;s>0;s--){ var t=Math.random()*(s+1)|0; var tmp=opts[s];opts[s]=opts[t];opts[t]=tmp; }
+  var box=document.getElementById('opts'); box.innerHTML='';
+  opts.forEach(function(o){ var b=document.createElement('button'); b.className='opt'; b.textContent=o; b.onclick=function(){answer(b,o);}; box.appendChild(b); });
+  timeLeft=100; if(timer)clearInterval(timer); timer=setInterval(tickTime,80);
+}
+function tickTime(){ timeLeft-=1.4; document.getElementById('timebar').style.width=Math.max(0,timeLeft)+'%';
+  if(timeLeft<=0){ clearInterval(timer); answer(null,null); } }
+function answer(btn,val){
+  if(busy)return; busy=true; clearInterval(timer);
+  var correct = val===cur.a;
+  document.querySelectorAll('.opt').forEach(function(b){ if(b.textContent===cur.a)b.classList.add('right'); });
+  if(correct){ var gain=10+Math.floor(timeLeft/10)+streak*2; score+=gain; streak++; }
+  else { if(btn)btn.classList.add('wrong'); streak=0; lives--; }
+  updateHud();
+  setTimeout(function(){ if(lives<=0) end(); else next(); }, correct?550:900);
+}
+function end(){ clearInterval(timer);
+  document.getElementById('overScore').textContent='You scored '+score+'!';
+  document.getElementById('over').classList.add('on');
+  try{ if(window.parent!==window) window.parent.postMessage({type:'lm-game',game:'flashcards',score:score},'*'); }catch(e){}
+}
+loadPool();
+</script>
+</body>
+</html>

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Job map{% endblock %}
+{% block body %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+{% set sb = [] %}{% for k,v in args.items() if k not in ('remote','state','city') and v %}{% set _ = sb.append(k ~ '=' ~ v) %}{% endfor %}
+{% set sq = sb|join('&') %}
+{# query string minus the time window, for the days toggle #}
+{% set db_ = [] %}{% for k,v in args.items() if k not in ('days','state','city') and v %}{% set _ = db_.append(k ~ '=' ~ v) %}{% endfor %}
+{% set dq = db_|join('&') %}
+
+<div class="maptop">
+  <a class="back" href="{{ url_for('index') }}{{ '?' ~ sq if sq }}">← list view</a>
+  <div class="mapcount"><b>{{ "{:,}".format(total) }}</b> jobs mapped across {{ "{:,}".format(n_cities) }} cities · <b>{{ "{:,}".format(remote_n) }}</b> remote{% if island_n %} · <b>{{ "{:,}".format(island_n) }}</b> off-map (see islands ↘){% endif %}</div>
+  <div class="rtoggle">
+    <a href="?{{ dq }}{{ '&' if dq }}days=30" class="{{ 'on' if days not in ('0','all') }}">Last 30 days</a>
+    <a href="?{{ dq }}{{ '&' if dq }}days=0" class="{{ 'on' if days in ('0','all') }}">All time</a>
+  </div>
+  <div class="rtoggle">
+    <a href="?{{ sq }}" class="{{ 'on' if not args.get('remote') }}">All</a>
+    <a href="?{{ sq }}{{ '&' if sq }}remote=0" class="{{ 'on' if args.get('remote')=='0' }}">Onsite only</a>
+    <a href="?{{ sq }}{{ '&' if sq }}remote=1" class="{{ 'on' if args.get('remote')=='1' }}">Remote only</a>
+  </div>
+</div>
+
+<div id="map" style="height:72vh; border:1px solid var(--line); border-radius:8px;"></div>
+
+<script>
+  const POINTS = {{ points|tojson }};
+  const ISLANDS = {{ islands|tojson }};
+  const LISTBASE = "{{ url_for('index') }}?{{ sq }}{{ '&' if sq }}";
+  const map = L.map('map', {scrollWheelZoom:true}).setView([39.5, -98.4], 4);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {maxZoom:14, attribution:'&copy; OpenStreetMap'}).addTo(map);
+  // Size geographic dots by their share of the biggest city; islands are sized on their own
+  // scale so a big "remote" bucket doesn't shrink every real city to a speck.
+  const max = Math.max(1, ...POINTS.map(p=>p.n));
+  // Smaller dots when there are many city points; state-fallback dots are amber.
+  for (const p of POINTS) {
+    const r = 5 + 26 * Math.sqrt(p.n/max);
+    const isState = p.kind === 'state';
+    const m = L.circleMarker([p.lat, p.lon], {
+      radius: r, color:'#0e2649', weight:1,
+      fillColor: isState ? '#c9821a' : '#1f7a3d', fillOpacity:0.55
+    }).addTo(map);
+    const link = isState
+      ? `${LISTBASE}state=${p.st}`
+      : `${LISTBASE}state=${p.st}&city=${encodeURIComponent(p.city)}`;
+    m.bindPopup(`<b>${p.name}</b><br>${p.n.toLocaleString()} jobs<br>`
+      + `<a href="${link}" target="_blank">View these jobs →</a>`);
+    m.bindTooltip(`${p.name}: ${p.n.toLocaleString()}`);
+  }
+  // Off-map "islands": jobs with no pinnable location (remote / location-not-listed),
+  // dropped in open Atlantic water so they don't silently disappear. Square-ish blue
+  // markers with a permanent label distinguish them from real geography.
+  const islandMax = Math.max(1, ...ISLANDS.map(p=>p.n));
+  for (const p of ISLANDS) {
+    const r = 14 + 16 * Math.sqrt(p.n/islandMax);
+    const m = L.circleMarker([p.lat, p.lon], {
+      radius: r, color:'#0e2649', weight:2, dashArray:'3',
+      fillColor: p.loc === 'remote' ? '#2563eb' : '#6b7280', fillOpacity:0.6
+    }).addTo(map);
+    const link = p.loc === 'remote' ? `${LISTBASE}remote=1` : `${LISTBASE}loc=none`;
+    m.bindPopup(`<b>${p.name}</b><br>${p.n.toLocaleString()} jobs (no map pin)<br>`
+      + `<a href="${link}" target="_blank">View these jobs →</a>`);
+    m.bindTooltip(`${p.name}: ${p.n.toLocaleString()}`, {permanent:true, direction:'right', className:'island-lbl'});
+  }
+</script>
+{% endblock %}

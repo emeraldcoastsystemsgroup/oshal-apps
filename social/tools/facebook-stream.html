@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Facebook Pages — OSHAL Social</title>
+<!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
+     Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
+     matters — without it the surface would have no colors at all. -->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  /* This surface keeps its own short alias names, but DERIVES them from the framework theme rather
+     than hardcoding hex — so all eleven themes work, not just the dark ones. Semantic status colors
+     come from the theme too; the fallbacks after the comma keep the surface legible if a theme
+     omits one. --fb stays literal: it is the Facebook brand blue, the same in every theme. */
+  :root { --bg:var(--bg-primary); --panel:var(--bg-card); --panel2:var(--bg-tertiary); --line:var(--border-color); --text:var(--text-primary); --muted:var(--text-secondary); --accent:var(--accent-primary); --accent2:var(--status-success,#00d3a7); --fb:#1877f2; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family: system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  .page { max-width:720px; margin:0 auto; padding:30px 26px 60px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:20px; }
+  .pagesel { display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap; align-items:center; }
+  .pg { background:var(--panel); border:1px solid var(--line); color:var(--muted); border-radius:9px; padding:9px 15px; cursor:pointer; font-size:13px; font-weight:600; }
+  .pg.sel { color:#fff; background:var(--fb); border-color:var(--fb); }
+  .pg .cat { font-weight:400; opacity:.7; font-size:11px; margin-left:5px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px; margin-bottom:16px; }
+  .compose textarea { width:100%; min-height:90px; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:9px; padding:13px; font-family:inherit; font-size:14px; line-height:1.5; resize:vertical; }
+  .bar { display:flex; gap:10px; align-items:center; margin-top:12px; }
+  .btn { border:none; border-radius:8px; padding:10px 16px; cursor:pointer; font-size:13px; font-weight:600; }
+  .btn.pub { background:var(--fb); color:#fff; } .btn.ghost { background:var(--panel2); border:1px solid var(--line); color:var(--text); }
+  .btn:disabled { opacity:.5; cursor:default; }
+  .count { color:var(--muted); font-size:12px; margin-left:auto; }
+  .result { margin-top:12px; padding:11px 13px; border-radius:9px; font-size:13px; display:none; }
+  .result.ok { background:rgba(0,211,167,.1); border:1px solid var(--accent2); color:var(--accent2); display:block; }
+  .result.err { background:rgba(255,90,90,.1); border:1px solid var(--status-error,#ff5a5a); color:#ff9a9a; display:block; }
+  .feedhdr { display:flex; align-items:center; margin:24px 0 12px; }
+  .feedhdr h2 { font-size:15px; margin:0; } .feedhdr .ref { margin-left:auto; }
+  .post { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:15px 16px; margin-bottom:12px; }
+  .post .msg { font-size:14px; line-height:1.55; white-space:pre-wrap; }
+  .post img.thumb { max-width:100%; border-radius:8px; margin-top:10px; }
+  .post .meta { display:flex; gap:14px; color:var(--muted); font-size:12px; margin-top:10px; flex-wrap:wrap; }
+  .post .meta a { color:var(--accent); text-decoration:none; }
+  .empty { background:var(--panel); border:1px dashed var(--line); border-radius:14px; padding:26px; text-align:center; color:var(--muted); }
+  .empty a { color:var(--accent); } .empty .big { font-size:15px; color:var(--text); margin-bottom:8px; }
+  .spin { color:var(--muted); font-size:13px; }
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--muted,rgba(255,255,255,.28))}
+  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
+  @media (max-width: 640px) {
+    .page { padding: 16px 14px 40px; }
+    .compose textarea { font-size: 16px; }
+    .btn { padding: 12px 14px; font-size: 14px; }
+    .pg { padding: 10px 12px; }
+  }
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+  <div class="page">
+    <h1>📘 Facebook Pages</h1>
+    <div class="sub">Read your Page's stream and publish to it. Nothing posts until you click <b>Publish</b>.</div>
+
+    <div id="pagesel" class="pagesel"><span class="spin">Loading your Pages…</span></div>
+    <div id="surface"></div>
+  </div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let PAGES = [], current = null;
+
+/** Escape user/text content for safe HTML insertion. */
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function when(iso){ if(!iso) return ''; try { return new Date(iso).toLocaleString(); } catch(e){ return iso; } }
+
+async function api(method, url, body){
+  const r = await fetch(url, { method, headers: body?{'Content-Type':'application/json'}:undefined, body: body?JSON.stringify(body):undefined });
+  const j = await r.json().catch(()=>({}));
+  return { ok:r.ok, status:r.status, j };
+}
+
+async function loadPages(){
+  const { ok, status, j } = await api('GET','/api/social/facebook/pages');
+  if (!ok){
+    $('pagesel').innerHTML = '';
+    if (status === 409){
+      $('surface').innerHTML = emptyState(j && j.message);
+    } else {
+      $('surface').innerHTML = '<div class="empty"><div class="big">Couldn’t load Pages</div>'+esc((j&&j.error)||('HTTP '+status))+'</div>';
+    }
+    return;
+  }
+  PAGES = j.pages || [];
+  if (!PAGES.length){ $('pagesel').innerHTML=''; $('surface').innerHTML = emptyState(); return; }
+  $('pagesel').innerHTML = PAGES.map((p,i)=>
+    `<button class="pg${i===0?' sel':''}" data-id="${esc(p.id)}">${esc(p.name)}${p.category?`<span class="cat">${esc(p.category)}</span>`:''}</button>`
+  ).join('');
+  Array.from($('pagesel').children).forEach(b => b.addEventListener('click', ()=> selectPage(b.dataset.id)));
+  selectPage(PAGES[0].id);
+}
+
+function emptyState(msg){
+  return '<div class="empty"><div class="big">No Facebook Pages found</div>'
+    + esc(msg || 'Facebook only lets apps post to a Page, not a personal timeline.')
+    + '<br><br>Create a free Page at <a href="https://www.facebook.com/pages/create" target="_blank" rel="noopener">facebook.com/pages/create</a>, then re-connect <b>Facebook Pages (Business)</b> in the connectors hub and reload.</div>';
+}
+
+function selectPage(id){
+  current = PAGES.find(p => String(p.id)===String(id));
+  Array.from($('pagesel').children).forEach(b => b.classList.toggle('sel', b.dataset.id===String(id)));
+  renderSurface();
+  loadFeed();
+}
+
+function renderSurface(){
+  const canPost = current && current.canPost !== false;
+  $('surface').innerHTML =
+    `<div class="card compose">
+       <textarea id="text" placeholder="Write a post for ${esc(current?current.name:'this Page')}…"${canPost?'':' disabled'}></textarea>
+       <div class="bar">
+         <button class="btn pub" id="pubBtn"${canPost?'':' disabled'}>Publish to Page</button>
+         <span class="count" id="count">${canPost?'':'You lack CREATE_CONTENT on this Page'}</span>
+       </div>
+       <div class="result" id="result"></div>
+     </div>
+     <div class="feedhdr"><h2>Stream</h2><button class="btn ghost ref" id="refreshBtn">↻ Refresh</button></div>
+     <div id="feed"><span class="spin">Loading stream…</span></div>`;
+  if (canPost){
+    $('pubBtn').addEventListener('click', publish);
+    $('text').addEventListener('input', ()=> $('count').textContent = $('text').value.length+' chars');
+  }
+  $('refreshBtn').addEventListener('click', loadFeed);
+}
+
+async function loadFeed(){
+  if (!current) return;
+  $('feed').innerHTML = '<span class="spin">Loading stream…</span>';
+  const { ok, status, j } = await api('GET', `/api/social/facebook/pages/${encodeURIComponent(current.id)}/feed`);
+  if (!ok){ $('feed').innerHTML = '<div class="empty">Couldn’t load stream: '+esc((j&&j.error)||('HTTP '+status))+'</div>'; return; }
+  const feed = j.feed || [];
+  if (!feed.length){ $('feed').innerHTML = '<div class="empty">No posts yet — publish above to start the stream.</div>'; return; }
+  $('feed').innerHTML = feed.map(p =>
+    `<div class="post">
+       <div class="msg">${esc(p.message)||'<i>(no text)</i>'}</div>
+       ${p.image?`<img class="thumb" src="${esc(p.image)}" alt="" />`:''}
+       <div class="meta">
+         <span>${esc(when(p.createdTime))}</span>
+         <span>❤ ${p.reactions||0}</span>
+         <span>💬 ${p.comments||0}</span>
+         <span>↺ ${p.shares||0}</span>
+         ${p.permalink?`<a href="${esc(p.permalink)}" target="_blank" rel="noopener">View ↗</a>`:''}
+       </div>
+     </div>`
+  ).join('');
+}
+
+async function publish(){
+  const text = ($('text').value||'').trim();
+  const res = $('result');
+  if (!text){ res.className='result err'; res.textContent='Write something first.'; return; }
+  $('pubBtn').disabled = true; res.className=''; res.textContent='';
+  const { ok, j } = await api('POST', `/api/social/facebook/pages/${encodeURIComponent(current.id)}/post`, { text, confirm: true });
+  $('pubBtn').disabled = false;
+  if (ok && j.ok){
+    res.className='result ok'; res.textContent='Published to '+current.name+'. ✓';
+    $('text').value=''; $('count').textContent='0 chars';
+    setTimeout(loadFeed, 900);
+  } else {
+    res.className='result err'; res.textContent='Publish failed: '+esc((j&&j.error)||'unknown error');
+  }
+}
+
+loadPages();
+</script>
+</body>
+</html>

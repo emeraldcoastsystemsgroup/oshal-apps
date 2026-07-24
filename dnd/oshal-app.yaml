@@ -1,0 +1,154 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# DATE/TIME           | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 2026-07-21 20:05:19 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.13 with explicit multiplayer turn guidance, durable automation phases, reusable character libraries, timeline rewinds, and natural server-provider narration.
+# 2026-07-21 20:13:59 | roger.murphy@emeraldcoastsystemsgroup.com   | Remove unconsumed read-aloud, grid-unit, and variant-human settings so the launch manifest exposes no dead controls.
+# 2026-07-21 20:19:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.13.1 with the configured key-backed Gemini natural narrator instead of the unavailable OAuth-only Cloud voice.
+# 2026-07-21 20:38:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.13.2 with OpenAI Marin narration, shared synthesis caching, and browser-global boot collision protection.
+# 2026-07-21 21:58:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Install durable structured roll events for synchronized dice presentation and replay-safe retries.
+# 2026-07-21 23:14:22 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.13.3 with explicit phased turns, exact shared dice, natural-only narration, rewind-safe history, atomic multiplayer seats, and host AI takeover.
+# 2026-07-21 23:31:42 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.13.4 with non-blocking resume recaps, fast abandoned-turn recovery, truthful automation controls, and audible-only Web Audio status.
+# 2026-07-22 00:50:36 | roger.murphy@emeraldcoastsystemsgroup.com   | Route the accountable Dungeon Master through the OpenAI Codex harness instead of the package registrar's legacy Claude default.
+# 2026-07-22 01:35:14 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.14.0 with deterministic staged turns, natural-audio autoplay recovery for every player, guarded OpenAI story beats, and read-only campaign playback with confirmed rewind branching.
+# 2026-07-22 01:59:22 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.14.1 with terrain-costed monster movement that remains accepted by the authoritative turn guard.
+# 2026-07-22 10:10:58 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.14.2 with serialized text-aware automated-turn pacing that cannot outrun natural narration.
+# 2026-07-22 21:59:59 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.14.3 with defeated-target turn recovery and one natural narration path for synchronized Story and combat beats.
+# 2026-07-22 22:19:02 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.14.4 with an active cinematic combat storyteller, silent exact rules ledger, and concise question-free turn handoffs.
+# 2026-07-22 22:50:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.14.5 with responsive live DM conversation isolated from optional combat narration and aligned client/server deadlines.
+# 2026-07-22 23:04:49 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.14.6 with persistent quest continuity, varied cinematic turns, round highlights, periodic cutaways, and table-only full screen.
+# 2026-07-22 23:23:32 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.14.7 with a visually verified single-scroll My Games campaign library.
+# 2026-07-22 23:30:56 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.14.8 with honest spell-resource locks and a full-surface current-versus-potential character view.
+# 2026-07-23 00:10:04 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.14.9 with durable story continuity, contextual loop-breaking DM help, an immersive gameplay rail, and deduplicated round and kill illustrations.
+# 2026-07-23 00:49:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.15.0 with simultaneous turn budgets, move-action-move validation, persistent named NPCs, and restrained Cedar narration.
+# 2026-07-23 02:35:01 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.15.1 with configured gravelly Algenib narration and no Kore fallback.
+# 2026-07-23 09:30:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.15.2 with recovered split turns and configurable spoken actions, dice math, and NPC pace.
+# 2026-07-23 11:10:07 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.15.3 with an always-visible Return to Game control in Timeline Playback.
+# 2026-07-23 11:21:50 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.15.4 with uninterrupted natural narration, visible speaking feedback, and post-action movement during speech.
+# 2026-07-23 13:15:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.16.0 with four story-first campaigns, shared evidence-driven investigations, campaign selection, and themed illustrated maps.
+# 2026-07-23 13:30:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.16.1 with a visually verified unclipped campaign shelf at desktop and phone sizes.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL App Package — Dungeon Master (AI D&D at the table)
+# Format: ADR-085 (remote app packages). Every path below is RELATIVE TO THIS
+# PACKAGE. Installing this package clones it into the swarm's deployed-apps/ and
+# hot-loads it — nothing is compiled into the core image.
+#
+# What this is: a tablet-first, lay-it-flat-on-the-table Dungeons & Dragons
+# surface with an AI Dungeon Master. The DM narrates, free-talks, and adjudicates;
+# the surface is a grid battle map with a full turn loop (highlight the active
+# character → tap → movement radius lights up → move → pick a weapon/spell from
+# their sheet → resolve → the DM narrates the outcome and archives the story).
+#
+# RULES CONTENT IS OPEN: everything the DM reasons over — monsters, spells,
+# weapons, actions — comes from the D&D System Reference Document (SRD 5.1),
+# released by Wizards of the Coast under CC-BY-4.0. This package ships no
+# proprietary Wizards content. See data/LICENSE-SRD.md.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: dnd
+suite: ai-creative   # ADR-097: primary catalog shelf (games/entertainment live under creative)
+displayName: Dungeon Master
+description: >-
+  Play Dungeons & Dragons at the table with an AI Dungeon Master. Lay the tablet
+  flat, share a join code, and let each signed-in player claim a hero. The DM
+  narrates the story and runs the battle map while a persistent turn row names
+  who acts next, blue tiles show legal movement, and character sheets expose
+  inventory, abilities, and spells. You control only your claimed hero; clearly
+  labeled AI companions run empty seats. Choose a bundled SRD hero or import
+  your own PDF/JSON character sheet. Rules run on the open CC-BY D&D SRD 5.1.
+version: 0.16.1
+status: active
+
+# The app TILE is public so every signed-in player sees it in the ribbon (a
+# person-scoped app auto-loaded at boot has no owner stamped, so RLS hides it
+# from every session — the little-monsters lesson). Per-PLAYER data isolation is
+# NOT this flag: it is enforced in the app's own dnd_* tables, which carry
+# user_sub and are filtered on it in every query.
+scope: public
+
+# Where this package came from — the installer pins ref+sha at install time.
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: dnd
+  ref: main
+
+# ── ADR-090 D8: kernel SKILLS this app calls ────────────────────────────────
+# The DM bot uses the shared LLM/harness access (tool-registry) for reasoning and
+# the pluggable voice layer to read the story aloud at the table.
+uses:
+  - tool-registry
+  - voice
+  - media-generation   # AI cutaway illustrations at story milestones (fail-soft when unconfigured)
+
+# ── ADR-085: dependencies ───────────────────────────────────────────────────
+# Self-contained: the open SRD rules pack and the starter adventure are bundled.
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — one accountable Dungeon Master. agentId is this app's OWN (dd0000…) and
+# must not collide with another installed app (ADR-085 exclusive-ownership rule).
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: dd000000-0000-0000-0000-000000000001
+    name: dungeon-master
+    harnessType: codex-cli
+    apiType: openai-codex
+    persona: personas/dungeon-master.yaml
+    role: games/dungeon-master
+    capabilities: [narration, encounter-adjudication, npc-roleplay, rules-lookup, story-archival, text-to-speech]
+
+# Shared persona layered underneath the DM.
+foundation:
+  persona: personas/dnd-foundation.yaml
+
+# ─────────────────────────────────────────────────────────────────────────────
+# UI SURFACES — the tabletop is the app. It is a VIEW over the DM's per-user
+# encounter store (ADR-036): the surface renders board state and posts player
+# actions; all reasoning/narration runs on the DM bot.
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - { toolName: dnd-table,  label: The Table, icon: codicon codicon-game,      iframeUrl: /api/dnd/table,          section: top }
+    - { toolName: dnd-party,  label: Party,     icon: codicon codicon-organization, iframeUrl: /api/dnd/table?panel=party, section: top }
+    - { toolName: dnd-tv,     label: TV Mode,   icon: codicon codicon-device-desktop, iframeUrl: /api/dnd/table?mode=tv, section: top }
+    - { toolName: dnd-help,   label: How to Play, icon: codicon codicon-book,     iframeUrl: /api/dnd/table?panel=help, section: bottom }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — compiled JS bundled in this package, mounted in-process at activation
+# (ADR-085 P1, flag APP_PACKAGE_DYNAMIC_ROUTES). This module is self-contained
+# except for the framework AppContext it receives (pool, botNodeClient).
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - { module: routes/dnd-routes.js, factory: createDndRoutes, mountPath: /api/dnd, requiresAuth: true, requiresContext: true }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MIGRATIONS — this app's OWN schema, applied idempotently on install and scoped
+# per user (every row carries user_sub; every query filters on it).
+# ─────────────────────────────────────────────────────────────────────────────
+migrations:
+  - migrations/001-dnd.sql
+  - migrations/002-multiplayer.sql
+  - migrations/003-snapshots.sql
+  - migrations/004-character-library.sql
+  - migrations/005-roll-events.sql
+
+# Read-the-story-aloud requires the configured natural server provider; the game
+# reports narration unavailable instead of falling back to a robotic browser voice.
+voice:
+  tts: { provider: google-cloud-tts }
+
+# Shared CSS loaded into the app's surfaces (the surface also styles itself).
+sharedCss: ui/dnd.css
+
+# Ribbon shape when /cockpit?app=dnd is focused — clear the office chrome, this is
+# a game table.
+ribbon:
+  hideFrameworkItems: [tickets, chat, calendar, addressbook, dashboard, echo, logs, operations]
+  hideChatPanel: true
+  hideAssistant: true
+  defaultView: dnd-table

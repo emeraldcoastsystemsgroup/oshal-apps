@@ -1,0 +1,519 @@
+{
+  "_license": "Character numbers derived from SRD 5.1, CC-BY-4.0. See LICENSE-SRD.md. Names/personalities are original.",
+  "_note": "Alternate quick-build heroes. Any four heroes (from party.json + this roster) form a party; joining players claim one each.",
+  "roster": [
+    {
+      "id": "thorin",
+      "name": "Thorin Emberbeard",
+      "race": "Mountain Dwarf",
+      "class": "Barbarian",
+      "level": 1,
+      "prof": 2,
+      "ac": 14,
+      "maxHp": 14,
+      "speed": 25,
+      "abilities": {
+        "str": 16,
+        "dex": 14,
+        "con": 15,
+        "int": 8,
+        "wis": 12,
+        "cha": 10
+      },
+      "mods": {
+        "str": 3,
+        "dex": 2,
+        "con": 2,
+        "int": -1,
+        "wis": 1,
+        "cha": 0
+      },
+      "initiative": 2,
+      "token": {
+        "color": "#dc6b2f",
+        "glyph": "🪓"
+      },
+      "features": [
+        "Rage: 2/day — the DM narrates your fury; you shrug off blows and hit like an avalanche.",
+        "Unarmored Defense (included)."
+      ],
+      "actions": [
+        {
+          "id": "greataxe",
+          "name": "Greataxe",
+          "type": "weapon",
+          "mode": "attack",
+          "delivery": "melee",
+          "reach": 5,
+          "toHit": 5,
+          "damage": {
+            "dice": "1d12",
+            "bonus": 3,
+            "type": "slashing"
+          },
+          "text": "One enormous swing."
+        },
+        {
+          "id": "handaxe",
+          "name": "Handaxe (thrown)",
+          "type": "weapon",
+          "mode": "attack",
+          "delivery": "ranged",
+          "range": 20,
+          "toHit": 5,
+          "damage": {
+            "dice": "1d6",
+            "bonus": 3,
+            "type": "slashing"
+          },
+          "text": "Spinning steel for the one who runs."
+        }
+      ],
+      "inventory": {
+        "items": [
+          {
+            "id": "greataxe",
+            "name": "Greataxe",
+            "category": "weapon",
+            "quantity": 1,
+            "equipped": true,
+            "actionId": "greataxe"
+          },
+          {
+            "id": "handaxes",
+            "name": "Handaxe",
+            "category": "weapon",
+            "quantity": 2,
+            "equipped": true,
+            "actionId": "handaxe"
+          },
+          {
+            "id": "explorers-pack",
+            "name": "Explorer's Pack",
+            "category": "adventuring-gear",
+            "quantity": 1,
+            "equipped": false
+          },
+          {
+            "id": "bedroll",
+            "name": "Bedroll",
+            "category": "adventuring-gear",
+            "quantity": 1,
+            "equipped": false
+          }
+        ],
+        "coins": {
+          "cp": 0,
+          "sp": 0,
+          "ep": 0,
+          "gp": 5,
+          "pp": 0
+        }
+      },
+      "epithet": "Anger, professionally applied."
+    },
+    {
+      "id": "kara",
+      "name": "Kara Swiftarrow",
+      "race": "Wood Elf",
+      "class": "Ranger",
+      "level": 1,
+      "prof": 2,
+      "ac": 14,
+      "maxHp": 12,
+      "speed": 35,
+      "abilities": {
+        "str": 12,
+        "dex": 16,
+        "con": 14,
+        "int": 10,
+        "wis": 15,
+        "cha": 8
+      },
+      "mods": {
+        "str": 1,
+        "dex": 3,
+        "con": 2,
+        "int": 0,
+        "wis": 2,
+        "cha": -1
+      },
+      "initiative": 3,
+      "token": {
+        "color": "#2f9e6b",
+        "glyph": "🏹"
+      },
+      "features": [
+        "Favored Enemy: goblinoids — you know how they think.",
+        "Fleet: 35 ft speed."
+      ],
+      "actions": [
+        {
+          "id": "longbow",
+          "name": "Longbow",
+          "type": "weapon",
+          "mode": "attack",
+          "delivery": "ranged",
+          "range": 150,
+          "toHit": 5,
+          "damage": {
+            "dice": "1d8",
+            "bonus": 3,
+            "type": "piercing"
+          },
+          "text": "Death at a distance."
+        },
+        {
+          "id": "shortsword",
+          "name": "Shortsword",
+          "type": "weapon",
+          "mode": "attack",
+          "delivery": "melee",
+          "reach": 5,
+          "toHit": 5,
+          "damage": {
+            "dice": "1d6",
+            "bonus": 3,
+            "type": "piercing"
+          },
+          "text": "For when they get close."
+        }
+      ],
+      "inventory": {
+        "items": [
+          {
+            "id": "longbow",
+            "name": "Longbow",
+            "category": "weapon",
+            "quantity": 1,
+            "equipped": true,
+            "actionId": "longbow"
+          },
+          {
+            "id": "shortsword",
+            "name": "Shortsword",
+            "category": "weapon",
+            "quantity": 1,
+            "equipped": true,
+            "actionId": "shortsword"
+          },
+          {
+            "id": "arrows",
+            "name": "Arrows",
+            "category": "ammunition",
+            "quantity": 20,
+            "equipped": false
+          },
+          {
+            "id": "leather-armor",
+            "name": "Leather Armor",
+            "category": "armor",
+            "quantity": 1,
+            "equipped": true
+          },
+          {
+            "id": "quiver",
+            "name": "Quiver",
+            "category": "adventuring-gear",
+            "quantity": 1,
+            "equipped": true
+          },
+          {
+            "id": "explorers-pack",
+            "name": "Explorer's Pack",
+            "category": "adventuring-gear",
+            "quantity": 1,
+            "equipped": false
+          }
+        ],
+        "coins": {
+          "cp": 0,
+          "sp": 0,
+          "ep": 0,
+          "gp": 10,
+          "pp": 0
+        }
+      },
+      "epithet": "Death at a hundred and fifty feet."
+    },
+    {
+      "id": "sera",
+      "name": "Sera Dawnlight",
+      "race": "Human",
+      "class": "Paladin",
+      "level": 1,
+      "prof": 2,
+      "ac": 18,
+      "maxHp": 12,
+      "speed": 30,
+      "abilities": {
+        "str": 16,
+        "dex": 10,
+        "con": 14,
+        "int": 8,
+        "wis": 12,
+        "cha": 14
+      },
+      "mods": {
+        "str": 3,
+        "dex": 0,
+        "con": 2,
+        "int": -1,
+        "wis": 1,
+        "cha": 2
+      },
+      "initiative": 0,
+      "token": {
+        "color": "#eab308",
+        "glyph": "🛡"
+      },
+      "features": [
+        "Divine Sense.",
+        "Lay on Hands: a pool of healing light (5 HP)."
+      ],
+      "actions": [
+        {
+          "id": "longsword",
+          "name": "Longsword",
+          "type": "weapon",
+          "mode": "attack",
+          "delivery": "melee",
+          "reach": 5,
+          "toHit": 5,
+          "damage": {
+            "dice": "1d8",
+            "bonus": 3,
+            "type": "slashing"
+          },
+          "text": "An oath given an edge."
+        },
+        {
+          "id": "javelin",
+          "name": "Javelin",
+          "type": "weapon",
+          "mode": "attack",
+          "delivery": "ranged",
+          "range": 30,
+          "toHit": 5,
+          "damage": {
+            "dice": "1d6",
+            "bonus": 3,
+            "type": "piercing"
+          },
+          "text": "Hurled with conviction."
+        },
+        {
+          "id": "lay-on-hands",
+          "name": "Lay on Hands",
+          "type": "feature",
+          "mode": "heal",
+          "delivery": "melee",
+          "reach": 5,
+          "heal": {
+            "dice": "0d0",
+            "bonus": 5
+          },
+          "uses": 1,
+          "text": "Touch an ally: restore 5 HP. Once per rest."
+        }
+      ],
+      "inventory": {
+        "items": [
+          {
+            "id": "longsword",
+            "name": "Longsword",
+            "category": "weapon",
+            "quantity": 1,
+            "equipped": true,
+            "actionId": "longsword"
+          },
+          {
+            "id": "javelins",
+            "name": "Javelin",
+            "category": "weapon",
+            "quantity": 5,
+            "equipped": true,
+            "actionId": "javelin"
+          },
+          {
+            "id": "chain-mail",
+            "name": "Chain Mail",
+            "category": "armor",
+            "quantity": 1,
+            "equipped": true
+          },
+          {
+            "id": "shield",
+            "name": "Shield",
+            "category": "armor",
+            "quantity": 1,
+            "equipped": true
+          },
+          {
+            "id": "holy-symbol",
+            "name": "Holy Symbol",
+            "category": "focus",
+            "quantity": 1,
+            "equipped": true
+          },
+          {
+            "id": "priests-pack",
+            "name": "Priest's Pack",
+            "category": "adventuring-gear",
+            "quantity": 1,
+            "equipped": false
+          }
+        ],
+        "coins": {
+          "cp": 0,
+          "sp": 0,
+          "ep": 0,
+          "gp": 10,
+          "pp": 0
+        }
+      },
+      "epithet": "An oath given an edge."
+    },
+    {
+      "id": "zin",
+      "name": "Zin Nightpetal",
+      "race": "Lightfoot Halfling",
+      "class": "Bard",
+      "level": 1,
+      "prof": 2,
+      "ac": 13,
+      "maxHp": 10,
+      "speed": 25,
+      "abilities": {
+        "str": 8,
+        "dex": 15,
+        "con": 14,
+        "int": 10,
+        "wis": 12,
+        "cha": 16
+      },
+      "mods": {
+        "str": -1,
+        "dex": 2,
+        "con": 2,
+        "int": 0,
+        "wis": 1,
+        "cha": 3
+      },
+      "initiative": 2,
+      "spellSaveDc": 13,
+      "spellAttack": 5,
+      "slots": {
+        "1": 2
+      },
+      "token": {
+        "color": "#d946ef",
+        "glyph": "🎻"
+      },
+      "features": [
+        "Bardic Inspiration (d6): the DM weaves your encouragement into allies' feats.",
+        "Halfling Lucky."
+      ],
+      "actions": [
+        {
+          "id": "vicious-mockery",
+          "name": "Vicious Mockery",
+          "type": "spell",
+          "level": 0,
+          "mode": "save",
+          "delivery": "ranged",
+          "range": 60,
+          "save": {
+            "ability": "WIS",
+            "dc": 13,
+            "half": false
+          },
+          "damage": {
+            "dice": "1d4",
+            "bonus": 0,
+            "type": "psychic"
+          },
+          "text": "Cantrip. An insult so sharp it draws blood."
+        },
+        {
+          "id": "cure-wounds",
+          "name": "Cure Wounds",
+          "type": "spell",
+          "level": 1,
+          "slot": 1,
+          "mode": "heal",
+          "delivery": "melee",
+          "reach": 5,
+          "heal": {
+            "dice": "1d8",
+            "bonus": 3
+          },
+          "text": "A healing chord."
+        },
+        {
+          "id": "rapier",
+          "name": "Rapier",
+          "type": "weapon",
+          "mode": "attack",
+          "delivery": "melee",
+          "reach": 5,
+          "toHit": 4,
+          "damage": {
+            "dice": "1d8",
+            "bonus": 2,
+            "type": "piercing"
+          },
+          "text": "Elegant, like everything Zin does."
+        }
+      ],
+      "inventory": {
+        "items": [
+          {
+            "id": "rapier",
+            "name": "Rapier",
+            "category": "weapon",
+            "quantity": 1,
+            "equipped": true,
+            "actionId": "rapier"
+          },
+          {
+            "id": "lute",
+            "name": "Lute",
+            "category": "tool",
+            "quantity": 1,
+            "equipped": true
+          },
+          {
+            "id": "leather-armor",
+            "name": "Leather Armor",
+            "category": "armor",
+            "quantity": 1,
+            "equipped": true
+          },
+          {
+            "id": "diplomats-pack",
+            "name": "Diplomat's Pack",
+            "category": "adventuring-gear",
+            "quantity": 1,
+            "equipped": false
+          },
+          {
+            "id": "costume",
+            "name": "Costume",
+            "category": "clothing",
+            "quantity": 1,
+            "equipped": false
+          }
+        ],
+        "coins": {
+          "cp": 0,
+          "sp": 0,
+          "ep": 0,
+          "gp": 10,
+          "pp": 0
+        }
+      },
+      "epithet": "The song that starts the fight."
+    }
+  ]
+}

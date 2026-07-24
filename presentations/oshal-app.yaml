@@ -1,0 +1,110 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — presentations (AI Office: deck / document / workbook studio)
+# Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 2). "Skills with a surface":
+# ONLY the surface carves — the deck-generation ENGINE (@/features/
+# presentation-generation: pptx/docx/xlsx renderers, themes, layouts, office
+# import) is a contracted Tier-0b KERNEL SKILL (Little Monsters calls it too)
+# and STAYS core, as do the legacy Presentron proxy at /api/presentations
+# (framework Settings service-runtime tile), the storage-target save layer, and
+# the email senders this app calls through @/ aliases. The deck-builder REAL
+# bot node (deck-builder-bot container, LOCAL-registry block a0…042, core
+# persona) stays in the framework repo per ADR-093 interim — this manifest
+# re-declares the bot with a package persona COPY (career-hunter/storage
+# precedent) so the app keeps its right-rail agent + agent_ids wiring.
+# Framework: OSHAL (see docs/build-your-own-swarm-app.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: presentations
+suite: ai-productivity   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: AI Office
+description: >-
+  One outline, three artifacts: a themed PowerPoint deck, Word document, or live Excel
+  workbook — ten shared looks, fully editable in Microsoft Office, Google Workspace or
+  LibreOffice. AI drafts the outline from a topic, or write your own. Saves to Dropbox,
+  Google Drive, OneDrive, or OSHAL local.
+version: 2.1.0
+status: active
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: presentations
+  ref: main
+
+# Kernel skills this app CALLS (D8 contract — resolved from the framework dist):
+# deck-generation = the whole render/import engine; storage = the ADR-041 target layer
+# the artifacts save through.
+uses:
+  - deck-generation
+  - storage
+
+# Runtime connector allow-list — where artifacts save (ADR-108 delivery adapters) and
+# the mailboxes the approval-gated email leg sends over.
+dependencies:
+  apps: []
+  tools: []
+  connectors: [dropbox, github, google-drive, google, microsoft]
+
+# Guest tier REQUEST (ADR-085 D4): core listed 'presentations' Tier-A (interactive demo
+# app — guests could build a deck). Unapproved default = guests read-only until the
+# operator approves via PATCH /api/swarm/apps/presentations/guest-tier.
+guestTier: full
+
+# Per-app skin (approved palette) — midnight so decks-work reads distinct.
+theme: midnight
+
+# The app's right-rail chat agent is deck-builder — it walks you from a blank topic
+# to a finished outline you can generate. The deck-builder NODE (deck-builder-bot
+# container + static registry block) is framework-resident (ADR-093); the persona here
+# is a package COPY for the registrar — the container keeps using /app/ai-lab. The
+# Generate endpoint's outline drafting still runs on the comms bot via BotNodeClient.
+bots:
+  - agentId: a0000000-0000-0000-0000-000000000042
+    name: deck-builder
+    persona: personas/deck-builder.yaml
+    role: presentations/guide
+    capabilities:
+      - presentation-outline
+      - slide-structure
+      - deck-template-recommendation
+      - pitch-deck-drafting
+      - deck-guidance
+
+ui:
+  static:
+    - toolName: presentations-studio
+      label: AI Office
+      icon: codicon codicon-files
+      iframeUrl: /api/presentations/sections/ui
+      section: top
+
+# Surface-bridge op allow-list (framework `surface.ops`, validated fail-closed at load —
+# an UNDECLARED block means the cockpit relay carries NOTHING for this app). The Guide's
+# applyActions vocabulary rides the generic contract now: set_field (title / theme),
+# set_content (outline), and the slide-structure ops (add_slide / update_slide / set_theme)
+# ride the contract's namespaced `custom` op — the closed vocabulary never grows per app.
+surface:
+  ops: [set_field, set_content, custom]
+
+routes:
+  - module: routes/bot-presentation-routes.js
+    factory: createBotPresentationRoutes
+    mountPath: /api/presentations/sections
+    auth: oidc   # what core server.ts mounted (requiresAuth — ADR-085 D2)
+    requiresAuth: true
+    requiresContext: true
+
+# No migrations: oshal_presentations is lazy DDL — the packaged ensurePresentationsSchema
+# carries CREATE + owner-RLS at the chokepoint (table stays in place across the carve).
+
+# Trim the ribbon to: the Presentations surface, the ticket queue (your decks),
+# settings, and logs. Hide everything else.
+ribbon:
+  hideFrameworkItems:
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - operations
+  defaultView: presentations-studio

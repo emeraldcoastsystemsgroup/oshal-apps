@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<!--
+  Kalshi Prediction Markets — the poker-hand scan surface (?app=kalshi).
+  Tabbed layout (2026-07-14): Scan (ranked +EV hands), Account (portfolio + orders),
+  Scorecard (forward-test evidence gate). One long scroll was split into three tabs so each
+  view is self-contained; all three data sources still load eagerly on open, tabs only gate
+  visibility. Self-contained: no external assets.
+-->
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kalshi — Prediction Markets</title>
+<!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
+     Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
+     matters — without it the surface would have no colors at all. -->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Shared framework glass sheet: every standalone surface loads it so cards/rails read as one
+     system across apps (asserted by tests/unit/surface-glass-assets.spec.ts). Consumed read-only. -->
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<style>
+  /* This surface keeps its own short alias names, but DERIVES them from the framework theme rather
+     than hardcoding hex — so all eleven themes work, not just the dark ones. The palette used to be
+     literal (#0d1117 …), which is why it only ever looked right in midnight. Semantic status colors
+     come from the theme too; the fallbacks after the comma keep the surface legible if a theme
+     omits one. */
+  :root {
+    --bg: var(--bg-primary);
+    --panel: var(--bg-card);
+    --border: var(--border-color);
+    --text: var(--text-primary);
+    --dim: var(--text-muted);
+    --green: var(--status-success, #3fb950);
+    --red: var(--status-error, #f85149);
+    --amber: var(--status-warning, #d29922);
+    --blue: var(--accent-primary, #58a6ff);
+    --purple: var(--accent-primary-hover, #bc8cff);
+    /* Sticky offsets so the table header parks under the topbar + tab strip. */
+    --hdr-h: 44px;
+    --tab-h: 41px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.45 -apple-system, 'Segoe UI', Roboto, sans-serif; }
+  /* The topbar (identity + live status) and the tab strip are ONE sticky unit so the sticky math
+     for the table header below stays coherent. */
+  .topbar { position: sticky; top: 0; z-index: 7; background: var(--panel); border-bottom: 1px solid var(--border); }
+  header { display: flex; align-items: center; gap: 14px; padding: 10px 16px; flex-wrap: wrap; min-height: var(--hdr-h); }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+  .meta { color: var(--dim); font-size: 12px; }
+  .spacer { flex: 1; }
+  select, input[type=search], input[type=number], button { background: var(--bg-tertiary, #21262d); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 5px 9px; font-size: 12px; }
+  button { cursor: pointer; } button:hover { border-color: var(--blue); }
+  /* ── Tab strip ── */
+  .tabnav { display: flex; gap: 4px; padding: 0 12px; align-items: stretch; min-height: var(--tab-h); }
+  .tab { background: transparent; border: none; border-bottom: 2px solid transparent; border-radius: 0; color: var(--dim); font-size: 13px; font-weight: 600; padding: 10px 16px 8px; display: inline-flex; align-items: center; gap: 7px; }
+  .tab:hover { color: var(--text); border-bottom-color: var(--border); }
+  .tab.active { color: var(--text); border-bottom-color: var(--blue); }
+  .tab-badge { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--bg-tertiary, #21262d); color: var(--dim); font-size: 11px; font-weight: 700; display: none; align-items: center; justify-content: center; }
+  .tab-badge.show { display: inline-flex; }
+  .tab-badge.alert { background: #9e6a03aa; color: #ffe8b3; }
+  .tab-badge.good { background: #1a7f37; color: #fff; }
+  .tab-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); display: none; }
+  .tab-dot.show { display: inline-block; }
+  main { padding: 12px 16px 60px; }
+  .tab-panel[hidden] { display: none; }
+  /* Scan toolbar (filters live with the scan, not in the global header). */
+  .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; color: var(--dim); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; padding: 6px 8px; border-bottom: 1px solid var(--border); position: sticky; top: calc(var(--hdr-h) + var(--tab-h)); background: var(--bg); z-index: 1; }
+  td { padding: 7px 8px; border-bottom: 1px solid var(--border-color, #21262d); vertical-align: top; }
+  tr:hover td { background: var(--bg-card-hover, #161b2280); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .b-monster { background: #1a7f37; color: #fff; } .b-strong { background: #238636aa; color: #d2ffd8; }
+  .b-playable { background: #9e6a03aa; color: #ffe8b3; }
+  .side-yes { color: var(--green); font-weight: 700; } .side-no { color: var(--red); font-weight: 700; }
+  .edge-pos { color: var(--green); font-weight: 600; }
+  .title { color: var(--text); } .ticker { color: var(--dim); font-size: 11px; font-family: Consolas, monospace; }
+  .flag { display: inline-block; background: var(--bg-tertiary, #21262d); color: var(--amber); border-radius: 4px; padding: 0 5px; font-size: 10px; margin-right: 3px; }
+  .cat { color: var(--purple); font-size: 11px; }
+  #empty, #error { margin: 40px auto; text-align: center; color: var(--dim); max-width: 620px; }
+  #error { color: var(--red); }
+  footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--panel); border-top: 1px solid var(--border); color: var(--dim); font-size: 11px; padding: 6px 16px; }
+  .conf-bar { display: inline-block; width: 46px; height: 6px; background: var(--bg-tertiary, #21262d); border-radius: 3px; overflow: hidden; vertical-align: middle; }
+  .conf-fill { height: 100%; background: var(--blue); }
+  /* ── Phase 2: portfolio strip, bet dialog, positions ── */
+  .env-pill { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+  .env-demo { background: #1f6feb44; color: #79c0ff; border: 1px solid #1f6feb; }
+  .env-live { background: #f8514922; color: #ff7b72; border: 1px solid var(--red); }
+  .bet-btn { background: #238636; border: 1px solid #2ea043; color: #fff; border-radius: 5px; padding: 3px 10px; font-size: 11px; font-weight: 600; cursor: pointer; }
+  .bet-btn:hover { background: #2ea043; }
+  .bet-btn:disabled { background: var(--bg-secondary, #30363d); border-color: var(--border); color: var(--dim); cursor: not-allowed; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; }
+  .panel h2 { font-size: 12px; margin: 0 0 8px; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+  .pf-row { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
+  .pf-stat { font-size: 12px; } .pf-stat b { font-size: 15px; color: var(--text); display: block; font-variant-numeric: tabular-nums; }
+  .cancel-btn { background: transparent; border: 1px solid var(--border); color: var(--dim); border-radius: 4px; padding: 1px 7px; font-size: 10px; cursor: pointer; }
+  .cancel-btn:hover { border-color: var(--red); color: var(--red); }
+  .explain { color: var(--dim); font-size: 12px; line-height: 1.6; max-width: 760px; margin: 4px 2px; }
+  dialog { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0; width: 420px; max-width: 92vw; }
+  dialog::backdrop { background: #0008; }
+  .dlg-head { padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 600; }
+  .dlg-body { padding: 14px 16px; } .dlg-foot { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+  .dlg-body label { display: block; font-size: 11px; color: var(--dim); margin: 10px 0 3px; }
+  .dlg-body input { width: 100%; background: var(--bg-primary, #0d1117); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 7px 9px; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .dlg-sum { background: var(--bg-primary, #0d1117); border: 1px solid var(--border); border-radius: 6px; padding: 9px 11px; font-size: 12px; line-height: 1.7; margin-top: 12px; }
+  .dlg-sum .k { color: var(--dim); } .dlg-sum .v { float: right; font-variant-numeric: tabular-nums; }
+  .warn { background: #f8514918; border: 1px solid var(--red); color: #ff7b72; border-radius: 6px; padding: 8px 10px; font-size: 11px; }
+  #dlg-err { color: var(--red); font-size: 11px; margin-top: 10px; display: none; }
+  .btn-primary { background: #238636; border: 1px solid #2ea043; color: #fff; border-radius: 6px; padding: 7px 16px; font-weight: 600; cursor: pointer; }
+  .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <header>
+    <h1>Kalshi <span class="meta">— predictive edge scan</span></h1>
+    <span class="meta"><span class="dot" id="exch-dot" style="background:var(--dim)"></span><span id="exch-label">exchange…</span></span>
+    <span class="meta" id="calib-label"></span>
+    <span class="spacer"></span>
+    <span id="hdr-env"></span>
+  </header>
+  <nav class="tabnav" role="tablist" aria-label="Kalshi views">
+    <button class="tab active" data-tab="scan" role="tab" aria-selected="true">Scan <span class="tab-badge" id="badge-scan"></span></button>
+    <button class="tab" data-tab="account" role="tab" aria-selected="false">Account <span class="tab-badge" id="badge-account"></span></button>
+    <button class="tab" data-tab="scorecard" role="tab" aria-selected="false">Scorecard <span class="tab-dot" id="dot-scorecard" title="strategy status"></span></button>
+  </nav>
+</div>
+<main>
+  <!-- Persistent state warning: shown on every tab when the default connection is the live account,
+       because it explains why Bet is disabled on the Scan tab AND why orders are refused. -->
+  <div style="margin-bottom:14px">
+    <div class="warn" id="live-block-banner" style="display:none;font-size:12px;padding:10px 12px">
+      <b>⛔ Orders are blocked — you're connected to your LIVE account.</b><br>
+      Real-money orders are disabled by default (<code>KALSHI_LIVE_ENABLED</code> is off), so the Bet button will be refused.
+      To paper-trade: open <a href="/utilities" target="_top" style="color:var(--blue)">/utilities</a>, paste your <b>demo</b> Key ID + private key into the Kalshi card, then click <b>make default</b> on the demo connection.
+    </div>
+  </div>
+
+  <!-- ── TAB: Scan ── -->
+  <section class="tab-panel" data-panel="scan" role="tabpanel">
+    <div class="toolbar">
+      <input type="search" id="q" placeholder="search markets…">
+      <select id="f-cat"><option value="">all categories</option></select>
+      <select id="f-strength">
+        <option value="">all strengths</option>
+        <option value="monster">monster</option>
+        <option value="strong">strong+</option>
+        <option value="playable">playable+</option>
+      </select>
+      <button id="refresh">Refresh</button>
+      <span class="meta" id="counts"></span>
+    </div>
+    <table id="tbl" style="display:none">
+      <thead><tr>
+        <th>Hand</th><th>Side</th><th>Market</th><th>Category</th>
+        <th class="num">Price</th><th class="num">True&nbsp;P</th><th class="num">Edge&nbsp;(net)</th>
+        <th class="num">Stake</th><th>Conf&nbsp;(n)</th><th>Risk</th><th class="num">Closes</th><th></th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div id="empty" style="display:none">No playable hands right now. The evaluator folds every market whose price history doesn't support an edge net of fees — an empty table is the system working, not broken.</div>
+    <div id="error" style="display:none"></div>
+  </section>
+
+  <!-- ── TAB: Account ── -->
+  <section class="tab-panel" data-panel="account" role="tabpanel" hidden>
+    <div class="panel" id="pf-panel" style="display:none">
+      <h2>Your account <span id="pf-env"></span></h2>
+      <div class="pf-row">
+        <div class="pf-stat"><b id="pf-balance">—</b>balance</div>
+        <div class="pf-stat"><b id="pf-positions">—</b>open positions</div>
+        <div class="pf-stat"><b id="pf-resting">—</b>resting orders</div>
+        <div class="spacer" style="flex:1"></div>
+        <button id="pf-refresh">Refresh account</button>
+      </div>
+      <table id="pf-tbl" style="display:none;margin-top:10px">
+        <thead><tr><th>Market</th><th class="num">Position</th><th class="num">Exposure</th><th class="num">Realized P&amp;L</th><th class="num">Fees</th></tr></thead>
+        <tbody id="pf-rows"></tbody>
+      </table>
+      <table id="ro-tbl" style="display:none;margin-top:10px">
+        <thead><tr><th>Resting order</th><th>Side</th><th class="num">Count</th><th class="num">Limit</th><th></th></tr></thead>
+        <tbody id="ro-rows"></tbody>
+      </table>
+    </div>
+    <div class="panel" id="pf-missing" style="display:none">
+      <h2>Your account</h2>
+      <div class="meta">No Kalshi connection yet. Paste your API Key ID + private key on <a href="/utilities" target="_top" style="color:var(--blue)">/utilities</a> to see your balance and place orders.</div>
+    </div>
+  </section>
+
+  <!-- ── TAB: Scorecard ── -->
+  <section class="tab-panel" data-panel="scorecard" role="tabpanel" hidden>
+    <div class="panel" id="score-panel" style="display:none">
+      <h2>Forward-test scorecard <span class="meta" style="text-transform:none;font-weight:400">— a strategy may only stake real money once it has BEATEN the market's Brier score on settled predictions</span></h2>
+      <table style="width:100%">
+        <thead><tr><th>Strategy</th><th>Status</th><th class="num">Graded</th><th class="num">Pending</th><th class="num">Our Brier</th><th class="num">Market Brier</th><th class="num">Hit rate</th><th class="num">P&amp;L/contract</th></tr></thead>
+        <tbody id="score-rows"></tbody>
+      </table>
+      <div class="meta" id="gate-reason" style="margin-top:8px"></div>
+    </div>
+    <div id="score-empty" class="explain">No strategy has made a prediction yet. Once the scan or the weather model records one, it appears here and is graded at settlement.</div>
+    <p class="explain">
+      <b>How the gate works.</b> Every hand shown on the Scan tab is recorded as a prediction and graded when the market settles.
+      A strategy is <b>UNPROVEN</b> until it has enough settled predictions, then <b>FAILING</b> if its Brier score is no better than the market's — either way its suggested stake is forced to 0%.
+      Only a <b>PROVEN</b> strategy (one that beats the market's Brier) is allowed to size a real bet. Optimism has to be earned, not assumed.
+    </p>
+  </section>
+</main>
+
+<dialog id="bet-dlg">
+  <form method="dialog">
+    <div class="dlg-head">Place order <span id="dlg-env"></span></div>
+    <div class="dlg-body">
+      <div id="dlg-market" style="font-size:12px;line-height:1.5"></div>
+      <label for="dlg-count">Contracts</label>
+      <input type="number" id="dlg-count" min="1" step="1" value="1">
+      <label for="dlg-price">Limit price (¢ — the most you'll pay per contract)</label>
+      <input type="number" id="dlg-price" min="1" max="99" step="1">
+      <div class="dlg-sum">
+        <div><span class="k">Cost if filled</span><span class="v" id="dlg-cost">—</span></div>
+        <div><span class="k">Est. taker fee</span><span class="v" id="dlg-fee">—</span></div>
+        <div><span class="k">Payout if it settles your way</span><span class="v" id="dlg-payout">—</span></div>
+        <div><span class="k">Max loss</span><span class="v" id="dlg-loss">—</span></div>
+      </div>
+      <div class="warn" id="dlg-live-warn" style="display:none;margin-top:12px">⚠ This is your <b>LIVE</b> account — real money. Live orders are disabled by default; the server will refuse unless explicitly enabled.</div>
+      <div id="dlg-err"></div>
+    </div>
+    <div class="dlg-foot">
+      <button value="cancel">Cancel</button>
+      <button type="button" class="btn-primary" id="dlg-confirm">Confirm order</button>
+    </div>
+  </form>
+</dialog>
+
+<footer>
+  How to read this: <b>True P</b> = calibrated probability from Kalshi's own settled history (beta-shrunk toward price; n = observations behind it).
+  <b>Edge (net)</b> = True P − (ask + taker fee). <b>Stake</b> = quarter-Kelly, halved per risk flag, capped at 5% of bankroll.
+  Orders are limit-only and confirm-gated; the LIVE exchange is refused unless explicitly enabled.
+  <b>Stake is forced to 0% until a strategy out-scores the market on settled predictions</b> — the hand is still shown, it just hasn't earned a slice of the bankroll. Every hand here is recorded as a prediction and graded at settlement.
+</footer>
+<script>
+(function () {
+  'use strict';
+  var state = { hands: [], payload: null, portfolio: null, betHand: null };
+  function $(id) { return document.getElementById(id); }
+  function money(x) { return '$' + Number(x || 0).toFixed(2); }
+  // Kalshi's quadratic taker fee, mirrored from kalshi-fees.ts (10-lot basis, ceil to the cent).
+  function feeDollars(priceDollars, count) {
+    return Math.ceil(0.07 * count * priceDollars * (1 - priceDollars) * 100 - 1e-9) / 100;
+  }
+  function cents(x) { return (x * 100).toFixed(1) + '¢'; }
+  function pct(x, d) { return (x * 100).toFixed(d === undefined ? 1 : d) + '%'; }
+  function closesIn(iso) {
+    if (!iso) return '—';
+    var ms = new Date(iso).getTime() - Date.now();
+    if (ms <= 0) return 'closed';
+    var h = ms / 3600000;
+    if (h < 1) return Math.round(h * 60) + 'm';
+    if (h < 48) return h.toFixed(1) + 'h';
+    return (h / 24).toFixed(1) + 'd';
+  }
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+  /* ── Tabs: eager-load everything, gate only visibility. ─────────────────────── */
+  function activateTab(name) {
+    var tabs = document.querySelectorAll('.tab');
+    for (var i = 0; i < tabs.length; i++) {
+      var on = tabs[i].getAttribute('data-tab') === name;
+      tabs[i].classList.toggle('active', on);
+      tabs[i].setAttribute('aria-selected', on ? 'true' : 'false');
+    }
+    var panels = document.querySelectorAll('.tab-panel');
+    for (var j = 0; j < panels.length; j++) {
+      panels[j].hidden = panels[j].getAttribute('data-panel') !== name;
+    }
+  }
+  function setBadge(id, text, cls) {
+    var el = $(id); if (!el) return;
+    if (text === null || text === undefined || text === '') { el.className = 'tab-badge'; el.textContent = ''; return; }
+    el.textContent = text; el.className = 'tab-badge show' + (cls ? ' ' + cls : '');
+  }
+
+  function render() {
+    var q = $('q').value.toLowerCase(), cat = $('f-cat').value, str = $('f-strength').value;
+    var order = { monster: 0, strong: 1, playable: 2 };
+    var maxOrder = str === 'monster' ? 0 : str === 'strong' ? 1 : str === 'playable' ? 2 : 2;
+    var rows = state.hands.filter(function (h) {
+      if (cat && h.category !== cat) return false;
+      if (order[h.strength] > maxOrder) return false;
+      if (q && (h.title + ' ' + h.ticker).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+    $('counts').textContent = rows.length + ' hands / ' + (state.payload ? state.payload.evaluable : 0) + ' markets';
+    setBadge('badge-scan', state.hands.length ? String(state.hands.length) : '', state.hands.length ? 'good' : '');
+    var tb = $('rows'); tb.innerHTML = '';
+    rows.forEach(function (h) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><span class="badge b-' + h.strength + '">' + h.strength + '</span></td>' +
+        '<td class="side-' + h.side + '">' + h.side.toUpperCase() + '</td>' +
+        '<td><div class="title">' + esc(h.title) + '</div><div class="ticker">' + esc(h.ticker) + '</div></td>' +
+        '<td class="cat">' + esc(h.category) + '</td>' +
+        '<td class="num">' + cents(h.price) + '</td>' +
+        '<td class="num">' + pct(h.trueProb) + '</td>' +
+        '<td class="num edge-pos">+' + cents(h.edgeNet) + '</td>' +
+        '<td class="num">' + pct(h.stakeFraction, 2) + '</td>' +
+        '<td><span class="conf-bar"><span class="conf-fill" style="width:' + Math.round(h.confidence * 100) + '%"></span></span> <span class="meta">' + h.calibrationN + '</span></td>' +
+        '<td>' + h.riskFlags.map(function (f) { return '<span class="flag">' + esc(f) + '</span>'; }).join('') + '</td>' +
+        '<td class="num">' + closesIn(h.closeTime) + '</td>' +
+        '<td class="num">' + (state.portfolio
+          ? '<button class="bet-btn"' + (state.ordersBlocked ? ' disabled title="Blocked: connected to your LIVE account — see the banner above"' : '') + '>Bet</button>'
+          : '') + '</td>';
+      var btn = tr.querySelector('.bet-btn');
+      if (btn && !state.ordersBlocked) btn.addEventListener('click', function () { openBet(h); });
+      tb.appendChild(tr);
+    });
+    $('tbl').style.display = rows.length ? '' : 'none';
+    $('empty').style.display = rows.length ? 'none' : '';
+  }
+  function renderScorecard(p) {
+    var sc = (p && p.scorecard) || [];
+    var tb = $('score-rows'); tb.innerHTML = '';
+    var pill = { proven: 'b-monster', failing: 'b-playable', unproven: 'b-strong' };
+    var anyProven = false, anyFailing = false;
+    sc.forEach(function (s) {
+      if (s.status === 'proven') anyProven = true;
+      if (s.status === 'failing') anyFailing = true;
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + esc(s.strategy) + '</td>' +
+        '<td><span class="badge ' + (pill[s.status] || '') + '">' + s.status + '</span></td>' +
+        '<td class="num">' + s.graded + '</td>' +
+        '<td class="num">' + s.pending + '</td>' +
+        '<td class="num">' + (s.brier === null ? '—' : s.brier.toFixed(4)) + '</td>' +
+        '<td class="num">' + (s.marketBrier === null ? '—' : s.marketBrier.toFixed(4)) + '</td>' +
+        '<td class="num">' + (s.hitRate === null ? '—' : (s.hitRate * 100).toFixed(0) + '%') + '</td>' +
+        '<td class="num">' + (s.pnlPerContract === null ? '—' : '$' + s.pnlPerContract.toFixed(3)) + '</td>';
+      tb.appendChild(tr);
+    });
+    $('score-panel').style.display = sc.length ? '' : 'none';
+    $('score-empty').style.display = sc.length ? 'none' : '';
+    $('gate-reason').textContent = (p && p.gateReason) ? p.gateReason : '';
+    // Scorecard tab dot: green if a strategy is proven, amber if any is actively failing.
+    var dot = $('dot-scorecard');
+    if (anyProven) { dot.className = 'tab-dot show'; dot.style.background = 'var(--green)'; }
+    else if (anyFailing) { dot.className = 'tab-dot show'; dot.style.background = 'var(--amber)'; }
+    else { dot.className = 'tab-dot'; }
+  }
+  function load() {
+    $('error').style.display = 'none';
+    $('refresh').disabled = true; $('refresh').textContent = 'Scanning…';
+    fetch('/api/kalshi/scan', { credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok) return r.json().then(function (b) { throw new Error(b.error || ('HTTP ' + r.status)); }); return r.json(); })
+      .then(function (p) {
+        state.payload = p; state.hands = p.hands || [];
+        renderScorecard(p);
+        $('exch-dot').style.background = p.exchangeActive ? 'var(--green)' : 'var(--red)';
+        $('exch-label').textContent = p.exchangeActive ? 'trading active' : 'trading halted';
+        $('calib-label').textContent = 'calibration: ' + (p.calibrationGeneratedAt ? new Date(p.calibrationGeneratedAt).toLocaleString() : 'missing');
+        var cats = {}; state.hands.forEach(function (h) { cats[h.category] = 1; });
+        var sel = $('f-cat'), cur = sel.value; sel.innerHTML = '<option value="">all categories</option>';
+        Object.keys(cats).sort().forEach(function (c) { var o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o); });
+        sel.value = cur;
+        render();
+      })
+      .catch(function (e) { $('error').textContent = 'Scan failed: ' + e.message; $('error').style.display = ''; $('tbl').style.display = 'none'; $('empty').style.display = 'none'; })
+      .then(function () { $('refresh').disabled = false; $('refresh').textContent = 'Refresh'; });
+  }
+
+  /* ── Phase 2: portfolio ───────────────────────────────────────────────────── */
+  function renderPortfolio() {
+    var p = state.portfolio;
+    if (!p) {
+      $('pf-panel').style.display = 'none'; $('pf-missing').style.display = '';
+      $('hdr-env').innerHTML = ''; setBadge('badge-account', '', '');
+      return;
+    }
+    $('pf-missing').style.display = 'none';
+    $('pf-panel').style.display = '';
+    var envPill = '<span class="env-pill env-' + p.env + '">' + p.env.toUpperCase() + '</span>';
+    $('pf-env').innerHTML = envPill;
+    $('hdr-env').innerHTML = envPill;
+    // Tell the user BEFORE they click that a live account cannot place orders. Discovering this
+    // only via a small red line inside the confirm dialog made the app look broken (2026-07-14).
+    var blocked = p.env === 'live' && !(state.status && state.status.liveOrdersEnabled);
+    state.ordersBlocked = blocked;
+    $('live-block-banner').style.display = blocked ? '' : 'none';
+    $('pf-balance').textContent = money(p.balanceDollars);
+    $('pf-positions').textContent = p.positions.length;
+    $('pf-resting').textContent = p.restingOrders.length;
+    // Account tab badge = open positions + resting orders, so activity is visible from any tab.
+    var active = p.positions.length + p.restingOrders.length;
+    setBadge('badge-account', active ? String(active) : '', active ? 'alert' : '');
+    var pb = $('pf-rows'); pb.innerHTML = '';
+    p.positions.forEach(function (pos) {
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td class="ticker">' + esc(pos.ticker) + '</td>' +
+        '<td class="num ' + (pos.position >= 0 ? 'side-yes' : 'side-no') + '">' + (pos.position > 0 ? '+' : '') + pos.position + '</td>' +
+        '<td class="num">' + money(pos.marketExposure) + '</td>' +
+        '<td class="num" style="color:' + (pos.realizedPnl >= 0 ? 'var(--green)' : 'var(--red)') + '">' + money(pos.realizedPnl) + '</td>' +
+        '<td class="num">' + money(pos.feesPaid) + '</td>';
+      pb.appendChild(tr);
+    });
+    $('pf-tbl').style.display = p.positions.length ? '' : 'none';
+    var rb = $('ro-rows'); rb.innerHTML = '';
+    p.restingOrders.forEach(function (o) {
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td class="ticker">' + esc(o.ticker) + '</td>' +
+        '<td class="side-' + o.side + '">' + o.side.toUpperCase() + ' ' + esc(o.action) + '</td>' +
+        '<td class="num">' + o.remainingCount + ' / ' + o.count + '</td>' +
+        '<td class="num">' + (o.priceDollars * 100).toFixed(0) + '¢</td>' +
+        '<td class="num"><button class="cancel-btn">Cancel</button></td>';
+      tr.querySelector('.cancel-btn').addEventListener('click', function () { cancelOrder(o.orderId, this); });
+      rb.appendChild(tr);
+    });
+    $('ro-tbl').style.display = p.restingOrders.length ? '' : 'none';
+  }
+  function loadStatus() {
+    return fetch('/api/kalshi/status', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (s) { state.status = s; })
+      .catch(function () { state.status = null; });
+  }
+  function loadPortfolio() {
+    $('pf-refresh').disabled = true;
+    return fetch('/api/kalshi/portfolio', { credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok) return r.json().then(function (b) { throw new Error(b.error || ('HTTP ' + r.status)); }); return r.json(); })
+      .then(function (p) { state.portfolio = p; renderPortfolio(); render(); })
+      .catch(function () { state.portfolio = null; renderPortfolio(); render(); })
+      .then(function () { $('pf-refresh').disabled = false; });
+  }
+  function cancelOrder(orderId, btn) {
+    btn.disabled = true; btn.textContent = '…';
+    fetch('/api/kalshi/orders/' + encodeURIComponent(orderId), { method: 'DELETE', credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok) return r.json().then(function (b) { throw new Error(b.error || ('HTTP ' + r.status)); }); return r.json(); })
+      .then(function () { loadPortfolio(); })
+      .catch(function (e) { alert('Cancel failed: ' + e.message); btn.disabled = false; btn.textContent = 'Cancel'; });
+  }
+
+  /* ── Phase 2: bet dialog ──────────────────────────────────────────────────── */
+  function dlgSummary() {
+    var h = state.betHand; if (!h) return;
+    var count = Math.max(1, parseInt($('dlg-count').value, 10) || 1);
+    var priceC = Math.min(99, Math.max(1, parseInt($('dlg-price').value, 10) || 1));
+    var cost = (count * priceC) / 100;
+    var fee = feeDollars(priceC / 100, count);
+    $('dlg-cost').textContent = money(cost);
+    $('dlg-fee').textContent = money(fee);
+    $('dlg-payout').textContent = money(count * 1) + ' (' + money(count - cost - fee) + ' profit)';
+    $('dlg-loss').textContent = money(cost + fee);
+  }
+  function openBet(h) {
+    state.betHand = h;
+    var priceC = Math.round(h.price * 100);
+    $('dlg-market').innerHTML = '<b class="side-' + h.side + '">BUY ' + h.side.toUpperCase() + '</b> · ' + esc(h.title) +
+      '<div class="ticker">' + esc(h.ticker) + '</div>' +
+      '<div class="meta" style="margin-top:6px">Engine: true P ' + pct(h.trueProb) + ' vs ask ' + cents(h.price) +
+      ' → edge +' + cents(h.edgeNet) + ' · suggested stake ' + pct(h.stakeFraction, 2) + ' of bankroll' +
+      (h.riskFlags.length ? ' · <span style="color:var(--amber)">' + h.riskFlags.join(', ') + '</span>' : '') + '</div>';
+    $('dlg-price').value = priceC;
+    // Suggested size = the engine's Kelly stake against the real balance, floor 1 contract.
+    var bal = state.portfolio ? state.portfolio.balanceDollars : 0;
+    var suggested = Math.floor((bal * h.stakeFraction) / Math.max(0.01, h.price));
+    $('dlg-count').value = Math.max(1, suggested);
+    var env = state.portfolio ? state.portfolio.env : 'live';
+    $('dlg-env').innerHTML = '<span class="env-pill env-' + env + '">' + env.toUpperCase() + '</span>';
+    $('dlg-live-warn').style.display = env === 'live' ? '' : 'none';
+    $('dlg-err').style.display = 'none';
+    $('dlg-confirm').disabled = false; $('dlg-confirm').textContent = 'Confirm order';
+    dlgSummary();
+    $('bet-dlg').showModal();
+  }
+  function submitBet() {
+    var h = state.betHand; if (!h) return;
+    var btn = $('dlg-confirm');
+    btn.disabled = true; btn.textContent = 'Placing…';
+    $('dlg-err').style.display = 'none';
+    fetch('/api/kalshi/orders', {
+      method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ticker: h.ticker, side: h.side, action: 'buy',
+        count: parseInt($('dlg-count').value, 10),
+        priceCents: parseInt($('dlg-price').value, 10),
+        confirm: true, handSnapshot: h,
+      }),
+    })
+      .then(function (r) { return r.json().then(function (b) { if (!r.ok) throw new Error(b.error || ('HTTP ' + r.status)); return b; }); })
+      .then(function () { $('bet-dlg').close(); loadPortfolio(); })
+      .catch(function (e) {
+        $('dlg-err').textContent = e.message; $('dlg-err').style.display = '';
+        btn.disabled = false; btn.textContent = 'Confirm order';
+      });
+  }
+
+  // Tab clicks.
+  var tabEls = document.querySelectorAll('.tab');
+  for (var t = 0; t < tabEls.length; t++) {
+    tabEls[t].addEventListener('click', function () { activateTab(this.getAttribute('data-tab')); });
+  }
+  $('refresh').addEventListener('click', load);
+  $('pf-refresh').addEventListener('click', loadPortfolio);
+  $('dlg-confirm').addEventListener('click', submitBet);
+  $('dlg-count').addEventListener('input', dlgSummary);
+  $('dlg-price').addEventListener('input', dlgSummary);
+  $('q').addEventListener('input', render);
+  $('f-cat').addEventListener('change', render);
+  $('f-strength').addEventListener('change', render);
+  loadStatus().then(loadPortfolio);
+  load();
+  setInterval(load, 180000);
+  setInterval(loadPortfolio, 60000);
+})();
+</script>
+</body>
+</html>

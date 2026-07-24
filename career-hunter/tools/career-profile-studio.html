@@ -1,0 +1,257 @@
+<!doctype html>
+<!--
+  Career Hunter — Profile Studio surface: turn the operator's LinkedIn profile into a
+  professional site. Build a plan (headline / about / skills / custom URL / background
+  image / featured resume), AI-draft the copy with your career agent, APPROVE it, then send
+  it to the desktop worker where linkedin-profile-operator drives the real logged-in
+  Chrome (LinkedIn has no profile-edit API). Nothing touches LinkedIn without the
+  explicit Approve + Send steps on this page.
+  Author: roger.murphy@emeraldcoastsystemsgroup.com
+-->
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Profile Studio</title>
+<style>
+  :root { --bg:#0e0e16; --panel:#15151f; --panel2:#1b1b27; --line:#272735; --text:#e6e6f0; --muted:#8b8ba3; --accent:#7c6cff; --accent2:#00d3a7; --warn:#ffb454; --bad:#ff6b7a; --scrollbar-thumb:rgba(255,255,255,.14); }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  .wrap { max-width:860px; margin:0 auto; padding:22px 22px 60px; }
+  h1 { font-size:20px; margin:0 0 4px; } .sub { color:var(--muted); font-size:12.5px; margin:0 0 16px; line-height:1.5; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:13px; padding:16px 18px; margin-bottom:12px; }
+  .lbl { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:0 0 6px; display:flex; justify-content:space-between; }
+  .count { color:var(--muted); text-transform:none; letter-spacing:0; }
+  input[type=text], textarea { width:100%; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:9px; padding:10px 12px; font-size:13px; font-family:inherit; }
+  textarea { min-height:150px; resize:vertical; line-height:1.5; }
+  .btn { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:8px 14px; font-size:12.5px; cursor:pointer; } .btn:hover { border-color:var(--accent); }
+  .btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .btn.good { background:var(--accent2); color:#04130f; border-color:var(--accent2); font-weight:600; }
+  .btn.danger { color:var(--bad); }
+  .btn[disabled] { opacity:.45; cursor:not-allowed; }
+  .bar { display:flex; gap:9px; flex-wrap:wrap; align-items:center; }
+  .state { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; padding:3px 10px; border-radius:10px; background:var(--panel2); color:var(--muted); }
+  .state.approved { color:var(--warn); border:1px solid var(--warn); }
+  .state.dispatched { color:var(--accent); border:1px solid var(--accent); }
+  .state.applied { color:var(--accent2); border:1px solid var(--accent2); }
+  .state.failed { color:var(--bad); border:1px solid var(--bad); }
+  .note { font-size:12.5px; color:var(--muted); white-space:pre-wrap; margin:8px 0 0; line-height:1.5; }
+  .chips { display:flex; flex-wrap:wrap; gap:7px; margin-top:8px; }
+  .chip { background:var(--panel2); border:1px solid var(--line); border-radius:14px; padding:4px 11px; font-size:12.5px; display:flex; gap:7px; align-items:center; }
+  .chip b { color:var(--bad); cursor:pointer; font-weight:600; }
+  .bgprev { width:100%; aspect-ratio:4/1; object-fit:cover; border-radius:9px; border:1px solid var(--line); background:var(--bg); display:none; }
+  .hint { font-size:11.5px; color:var(--muted); margin-top:6px; }
+  .prefix { display:flex; align-items:center; gap:0; } .prefix span { color:var(--muted); font-size:13px; background:var(--panel2); border:1px solid var(--line); border-right:0; border-radius:9px 0 0 9px; padding:10px 8px 10px 12px; }
+  .prefix input { border-radius:0 9px 9px 0; }
+  .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:9px 15px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:9; } .toast.show { opacity:1; }
+  ::-webkit-scrollbar{width:11px;height:11px} ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb);border-radius:6px} ::-webkit-scrollbar-track{background:transparent}
+  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb) transparent}
+  @media (max-width:640px){ .wrap{padding:14px 14px 48px;} input[type=text],textarea{font-size:16px;} .bar .btn{flex:1 1 auto; min-height:40px;} }
+</style>
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css"/>
+</head><body>
+<div class="wrap">
+  <h1>Profile Studio</h1>
+  <p class="sub">Make your LinkedIn read like a professional site: headline, about, skills, custom URL, a real background banner, and your resume in Featured. Build the plan here, approve it, then send it to your desktop — the operator bot applies it in your own logged-in Chrome (LinkedIn has no edit API). It never posts to your feed and never notifies your network.</p>
+
+  <div class="card">
+    <div class="bar">
+      <span class="state" id="state">loading</span>
+      <span style="flex:1"></span>
+      <button class="btn" id="btnDraftAi" title="your career agent drafts headline + about + skills from your real career data">✨ AI draft</button>
+      <button class="btn primary" id="btnSave">Save plan</button>
+      <button class="btn good" id="btnApprove">Approve</button>
+      <button class="btn good" id="btnSend" style="display:none">Send to my desktop</button>
+      <button class="btn" id="btnReset" style="display:none">Back to draft</button>
+      <button class="btn danger" id="btnAbandon" style="display:none">Abandon</button>
+    </div>
+    <p class="note" id="note" style="display:none"></p>
+    <div class="hint" id="aiHintRow" style="margin-top:10px">
+      <input type="text" id="aiHint" placeholder="Optional direction for the AI draft, e.g. 'aim at platform engineering leadership roles'"/>
+    </div>
+  </div>
+
+  <div class="card">
+    <p class="lbl"><span>Headline</span><span class="count" id="cHeadline">0 / 220</span></p>
+    <input type="text" id="headline" maxlength="220" placeholder="What you lead and the outcomes you deliver — not just a job title"/>
+  </div>
+
+  <div class="card">
+    <p class="lbl"><span>About</span><span class="count" id="cAbout">0 / 2600</span></p>
+    <textarea id="about" maxlength="2600" placeholder="3-5 short paragraphs: who you are, what you have led and built (real outcomes), what you want next."></textarea>
+  </div>
+
+  <div class="card">
+    <p class="lbl"><span>Skills (max 15 — added to your profile, existing ones kept)</span></p>
+    <input type="text" id="skillIn" placeholder="Type a skill and press Enter"/>
+    <div class="chips" id="skills"></div>
+  </div>
+
+  <div class="card">
+    <p class="lbl"><span>Custom public URL (optional)</span></p>
+    <div class="prefix"><span>linkedin.com/in/</span><input type="text" id="customUrl" maxlength="100" placeholder="your-name"/></div>
+  </div>
+
+  <div class="card">
+    <p class="lbl"><span>Profile photo</span><span class="count">400 × 400+ recommended</span></p>
+    <div class="bar" style="align-items:flex-start">
+      <img id="photoPrev" alt="profile photo preview" style="width:96px;height:96px;border-radius:50%;object-fit:cover;border:1px solid var(--line);background:var(--bg);display:none"/>
+      <div style="flex:1;min-width:220px">
+        <div class="bar">
+          <input type="file" id="photoFile" accept="image/png,image/jpeg,image/webp" style="display:none"/>
+          <button class="btn" id="btnPhoto">Upload photo</button>
+          <button class="btn" id="btnFromPortraits" style="display:none">Choose from Portrait Studio</button>
+          <span class="hint" id="photoState">none uploaded</span>
+        </div>
+        <div class="chips" id="portraitGrid" style="margin-top:10px"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <p class="lbl"><span>Background banner</span><span class="count">1584 × 396 recommended</span></p>
+    <img class="bgprev" id="bgPrev" alt="background preview"/>
+    <div class="bar" style="margin-top:9px">
+      <input type="file" id="bgFile" accept="image/png,image/jpeg,image/webp" style="display:none"/>
+      <button class="btn" id="btnBg">Upload background image</button>
+      <span class="hint" id="bgState">none uploaded</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <p class="lbl"><span>Featured resume (PDF — added to your Featured section)</span></p>
+    <div class="bar">
+      <input type="file" id="pdfFile" accept="application/pdf" style="display:none"/>
+      <button class="btn" id="btnPdf">Upload resume PDF</button>
+      <span class="hint" id="pdfState">none uploaded</span>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+(function(){
+  'use strict';
+  var API = '/api/career-hunter/profile-studio';
+  var plan = null; var skills = []; var pollTimer = null;
+  var $ = function(id){ return document.getElementById(id); };
+  function toast(m){ var t=$('toast'); t.textContent=m; t.classList.add('show'); setTimeout(function(){t.classList.remove('show');},2600); }
+  function counts(){ $('cHeadline').textContent = $('headline').value.length + ' / 220'; $('cAbout').textContent = $('about').value.length + ' / 2600'; }
+  function renderSkills(){
+    var box=$('skills'); box.innerHTML='';
+    skills.forEach(function(s,i){
+      var c=document.createElement('span'); c.className='chip'; c.textContent=s+' ';
+      var x=document.createElement('b'); x.textContent='×'; x.onclick=function(){ if(editable()){ skills.splice(i,1); renderSkills(); } };
+      c.appendChild(x); box.appendChild(c);
+    });
+  }
+  function editable(){ return !plan || plan.state === 'draft'; }
+  function render(){
+    var st = plan ? plan.state : 'draft';
+    var el=$('state'); el.textContent=st; el.className='state '+st;
+    $('note').style.display = (plan && plan.resultNote) ? '' : 'none';
+    $('note').textContent = plan && plan.resultNote ? plan.resultNote : '';
+    var ed = editable();
+    ['headline','about','skillIn','customUrl','aiHint'].forEach(function(id){ $(id).disabled = !ed; });
+    $('btnSave').disabled = !ed; $('btnDraftAi').disabled = !ed; $('btnBg').disabled = !ed; $('btnPdf').disabled = !ed;
+    $('btnApprove').style.display = ed ? '' : 'none';
+    $('btnSend').style.display = st==='approved' ? '' : 'none';
+    $('btnReset').style.display = (st==='approved'||st==='applied'||st==='failed') ? '' : 'none';
+    $('btnReset').textContent = st==='applied' ? 'Start a new update' : 'Back to draft';
+    $('btnAbandon').style.display = st==='dispatched' ? '' : 'none';
+    $('btnPhoto').disabled = !ed; $('btnFromPortraits').disabled = !ed;
+    $('bgState').textContent = plan && plan.backgroundImagePath ? 'uploaded ✓' : 'none uploaded';
+    $('photoState').textContent = plan && plan.photoPath ? 'set ✓' : 'none uploaded';
+    $('pdfState').textContent = plan && plan.resumePath ? 'uploaded ✓' : 'none uploaded';
+    if (plan && plan.backgroundImagePath) { $('bgPrev').style.display=''; $('bgPrev').src = API+'/background?t='+Date.now(); } else { $('bgPrev').style.display='none'; }
+    if (plan && plan.photoPath) { $('photoPrev').style.display=''; $('photoPrev').src = API+'/photo?t='+Date.now(); } else { $('photoPrev').style.display='none'; }
+    if (st==='dispatched' && !pollTimer) pollTimer = setInterval(load, 10000);
+    if (st!=='dispatched' && pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  }
+  function fill(){
+    if(!plan) return;
+    $('headline').value = plan.headline||''; $('about').value = plan.about||'';
+    $('customUrl').value = plan.customUrl||''; skills = (plan.skills||[]).slice(); renderSkills(); counts();
+  }
+  function load(){ return fetch(API+'/plan').then(function(r){return r.json();}).then(function(d){ plan=d.plan; fill(); render(); }).catch(function(){ toast('load failed'); }); }
+  function post(pathname, body){
+    return fetch(API+pathname, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) })
+      .then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error(d.error||('HTTP '+r.status)); return d; }); });
+  }
+  function save(){
+    return post('/plan', { headline:$('headline').value, about:$('about').value, skills:skills, customUrl:$('customUrl').value })
+      .then(function(d){ plan=d.plan; render(); });
+  }
+  $('headline').addEventListener('input', counts); $('about').addEventListener('input', counts);
+  $('skillIn').addEventListener('keydown', function(e){
+    if(e.key==='Enter'){ e.preventDefault(); var v=this.value.trim(); if(v && skills.length<15 && skills.indexOf(v)<0){ skills.push(v); renderSkills(); } this.value=''; }
+  });
+  $('btnSave').onclick = function(){ save().then(function(){ toast('Plan saved'); }).catch(function(e){ toast(e.message); }); };
+  $('btnDraftAi').onclick = function(){
+    var b=$('btnDraftAi'); b.disabled=true; b.textContent='Drafting…'; toast('your career agent is drafting from your real career data…');
+    post('/draft', { message: $('aiHint').value }).then(function(d){
+      if(d.headline) $('headline').value=d.headline;
+      if(d.about) $('about').value=d.about;
+      if(d.skills && d.skills.length){ skills=d.skills.slice(0,15); renderSkills(); }
+      counts(); toast(d.reply||'Drafted — review and Save');
+    }).catch(function(e){ toast(e.message); }).finally(function(){ b.disabled=false; b.textContent='✨ AI draft'; });
+  };
+  $('btnApprove').onclick = function(){
+    save().then(function(){ return post('/approve'); }).then(function(d){ plan=d.plan; render(); toast('Approved — now send it to your desktop'); }).catch(function(e){ toast(e.message); });
+  };
+  $('btnSend').onclick = function(){
+    if(!confirm('Send this plan to your desktop now? The operator bot will edit your live LinkedIn profile in your own Chrome.')) return;
+    post('/dispatch').then(function(d){ plan=d.plan; render(); toast('Sent — watch your desktop; status updates here'); }).catch(function(e){ toast(e.message); load(); });
+  };
+  $('btnReset').onclick = function(){ post('/reset').then(function(d){ plan=d.plan; fill(); render(); }).catch(function(e){ toast(e.message); }); };
+  $('btnAbandon').onclick = function(){
+    if(!confirm('Abandon the dispatched run? Only do this if the desktop worker died.')) return;
+    post('/abandon').then(function(d){ plan=d.plan; render(); }).catch(function(e){ toast(e.message); });
+  };
+  function upload(inputId, url){
+    var f = $(inputId).files[0]; if(!f) return;
+    fetch(API+url, { method:'PUT', headers:{'Content-Type': f.type}, body:f })
+      .then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error(d.error||('HTTP '+r.status)); return d; }); })
+      .then(function(d){ plan=d.plan; render(); toast('Uploaded'); })
+      .catch(function(e){ toast(e.message); });
+  }
+  $('btnBg').onclick = function(){ $('bgFile').click(); };
+  $('bgFile').addEventListener('change', function(){ upload('bgFile','/background'); });
+  $('btnPhoto').onclick = function(){ $('photoFile').click(); };
+  $('photoFile').addEventListener('change', function(){ upload('photoFile','/photo'); });
+  $('btnPdf').onclick = function(){ $('pdfFile').click(); };
+  $('pdfFile').addEventListener('change', function(){ upload('pdfFile','/resume'); });
+
+  // Portrait Studio integration (client-side only): list the user's own gallery via the
+  // portrait-studio app's API; pick one -> fetch the PNG -> PUT it as the plan's photo.
+  // If the app isn't installed (404) the button never appears and upload still works.
+  var PS = '/api/portrait-studio';
+  var portraitsLoaded = false;
+  fetch(PS+'/portraits').then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+    if (d && Array.isArray(d.portraits) && d.portraits.some(function(p){ return p.status==='done'; })) $('btnFromPortraits').style.display='';
+  }).catch(function(){});
+  $('btnFromPortraits').onclick = function(){
+    var grid = $('portraitGrid');
+    if (portraitsLoaded) { grid.style.display = grid.style.display==='none' ? 'flex' : 'none'; return; }
+    fetch(PS+'/portraits').then(function(r){ return r.json(); }).then(function(d){
+      portraitsLoaded = true; grid.innerHTML='';
+      (d.portraits||[]).filter(function(p){ return p.status==='done'; }).slice(0,24).forEach(function(p){
+        var img = document.createElement('img');
+        img.src = PS+'/portraits/'+p.portrait_id+'/image';
+        img.title = (p.style||'')+' ('+(p.mode||'')+')';
+        img.style.cssText = 'width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid var(--line);cursor:pointer';
+        img.onclick = function(){
+          if (!editable()) { toast('plan is not editable'); return; }
+          img.style.borderColor = 'var(--accent)';
+          fetch(PS+'/portraits/'+p.portrait_id+'/image').then(function(r){ if(!r.ok) throw new Error('portrait fetch failed'); return r.blob(); }).then(function(blob){
+            return fetch(API+'/photo', { method:'PUT', headers:{'Content-Type': blob.type||'image/png'}, body: blob })
+              .then(function(r){ return r.json().then(function(d2){ if(!r.ok) throw new Error(d2.error||('HTTP '+r.status)); return d2; }); });
+          }).then(function(d2){ plan=d2.plan; render(); toast('Portrait set as profile photo'); })
+            .catch(function(e){ toast(e.message); });
+        };
+        grid.appendChild(img);
+      });
+      if (!grid.children.length) grid.textContent = 'No finished portraits yet — generate one in Portrait Studio first.';
+    }).catch(function(){ toast('Portrait Studio not reachable'); });
+  };
+  load();
+})();
+</script>
+</body></html>

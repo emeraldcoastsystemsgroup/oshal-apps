@@ -1,0 +1,106 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — youtube-kids ("Kid Lens")
+# Carved out of OSHAL core 2026-07-17 (ADR-085 Wave 1 carve #2).
+#
+# Turns a parent's Google Takeout YouTube watch-history export into a brief on
+# what their kid is into: top interests, decoded channels, gift ideas, and
+# conversation openers. v1 = Takeout upload only (no live youtube.readonly API —
+# that scope needs Google app verification first).
+#
+# ADR-036 split: the packaged route parses + aggregates the (large) export
+# cheaply and stores it user_sub-keyed (raw export encrypted at rest); the
+# accountable Kid Lens bot reasons over the compact aggregate so cost lands in
+# chat_tasks. The bot is reason-only, so it runs INLINE on the api container
+# (registered from this manifest by the loader — no core registry entry).
+#
+# STATUS: inactive — parity with how it lived in core (retired from the default
+# catalog 2026-07-16 but fully functional). Toggle active via the swarm-apps API
+# or cockpit to use it.
+#
+# Schema note: the app creates its own table lazily at first use
+# (oshal_youtube_activity, owner-scoped RLS applied at the same chokepoint) —
+# no migration files to run at install, nothing to drop unless you choose to.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: youtube-kids
+suite: ai-home   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Kid Lens
+description: >-
+  Upload your YouTube Takeout watch history and get a parent-friendly brief on
+  what your kid is into — top interests, what the unfamiliar channels actually
+  are, gift ideas, and conversation openers. Read-only; nothing is posted or sent.
+version: 1.0.0
+status: inactive
+
+# Playful per-app skin so the kid workspace reads distinct from the work apps.
+theme: sakura
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: youtube-kids
+  ref: main
+
+# Self-contained: kernel skills only (agent-management BotNodeClient, shared
+# database bootstrap, logger) — no app, tool, or connector dependencies.
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+ticketType: youtube-kids-brief
+
+workflow:
+  name: Kid Lens Brief
+  # No `pipeline:` — single-bot worker dispatch. Interactive work (upload → brief)
+  # uses the direct BotNodeClient path in the packaged routes; a
+  # ticketType=youtube-kids-brief ticket (e.g. a future scheduled re-analysis)
+  # routes to the same bot over the mesh.
+  workerBot: kid-lens-bot
+
+# The Kid Lens analyzer — reason-only inline concierge, upserted + registered by
+# the loader from this manifest (ADR-085; zero core-registry edits).
+bots:
+  - agentId: a0000000-0000-0000-0000-000000000043
+    name: kid-lens-bot
+    persona: personas/kid-lens-analyzer.yaml
+    role: family/youtube-insights
+    capabilities:
+      - watch-history-analysis
+      - interest-clustering
+      - channel-decoding
+      - gift-suggestion
+      - conversation-prompts
+
+# Compiled-JS route (built from src-routes/ by `oshal-app build`). Serves the
+# upload/brief surface from this package's tools/ and the per-user store API.
+routes:
+  - module: routes/youtube-kids-routes.js
+    factory: createYoutubeKidsRoutes
+    mountPath: /api/youtube-kids
+    auth: oidc
+    requiresContext: true
+
+# One ribbon tile opens the Kid Lens page (upload step + rendered brief).
+ui:
+  static:
+    - toolName: youtube-kids
+      label: Kid Lens
+      icon: codicon codicon-device-camera-video
+      iframeUrl: /api/youtube-kids/
+      section: top
+
+# No migrations: schema is created lazily by the route at first use (see header).
+migrations: []
+
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  defaultView: kidlens-home

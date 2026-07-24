@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block title %}Opportunities by Company · Job Hunter{% endblock %}
+{% block body %}
+<style>
+  .rpt-head { display:flex; flex-wrap:wrap; align-items:baseline; gap:14px; margin-bottom:4px; }
+  .rpt-head h1 { margin:0; font-size:20px; }
+  .rpt-sub { color:var(--mut); font-size:13px; }
+  .rpt-ctl { margin:8px 0 4px; font-size:13px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .rpt-ctl input { width:64px; }
+  .azjump { font-size:12px; line-height:1.9; margin:6px 0 16px; color:var(--mut); }
+  .azjump a { text-decoration:none; padding:1px 5px; border-radius:4px; }
+  .azjump a:hover { background:#e8eef6; }
+  .azjump span.off { color:#c4ccd6; padding:1px 5px; }
+
+  .cocard { margin:0 0 16px; border:1px solid #e2e7ee; border-radius:8px; overflow:hidden; white-space:normal; }
+  .cocard > h2 { margin:0; font-size:15px; padding:8px 12px; background:#f4f7fb;
+             border-bottom:1px solid #e2e7ee; display:flex; justify-content:space-between; }
+  .cocard > h2 .cnt { color:var(--mut); font-weight:400; font-size:12px; }
+  .gaps, .meta { overflow-wrap:anywhere; }
+
+  .job { display:flex; gap:12px; padding:10px 12px; border-bottom:1px solid #f0f2f6; }
+  .job:last-child { border-bottom:none; }
+  .grades { display:grid; grid-template-columns:auto auto auto auto; gap:2px 6px; align-content:start;
+            text-align:center; flex:0 0 auto; }
+  .grades .glbl { font-size:9px; color:var(--mut); text-transform:uppercase; letter-spacing:.3px; }
+  .grades .score { min-width:30px; }
+  .main { flex:1 1 auto; min-width:0; }
+  .jt { font-weight:600; text-decoration:none; font-size:14px; }
+  .jt:hover { text-decoration:underline; }
+  .meta { color:var(--mut); font-size:12px; margin-top:3px; }
+  .meta b { color:#1f7a3d; font-weight:600; }
+  .gaps { color:#9a5a12; font-size:11px; margin-top:4px; }
+  .gaps b { color:#9a5a12; }
+  .acts { margin-top:7px; font-size:12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .acts a.dl { text-decoration:none; background:#eef3fb; padding:2px 8px; border-radius:5px; }
+  .acts a.dl:hover { background:#dfe9f8; }
+  .acts .gen { color:var(--mut); }
+  details.tailor { margin-top:6px; }
+  details.tailor > summary { cursor:pointer; font-size:12px; color:#1f5fa8; list-style:none; }
+  details.tailor > summary::-webkit-details-marker { display:none; }
+  details.tailor > summary:before { content:"✎ "; }
+  details.tailor[open] > summary { font-weight:600; }
+  .tailor textarea { width:100%; box-sizing:border-box; min-height:72px; margin-top:6px;
+                     font:13px/1.4 inherit; padding:7px; border:1px solid #cfd6e0; border-radius:6px; }
+  .tailor .row2 { margin-top:6px; display:flex; gap:10px; align-items:center; }
+  .tailor button { font-size:12px; padding:4px 12px; }
+  .tailor .hint { color:var(--mut); font-size:11px; }
+  .badge-status { font-size:10px; padding:1px 6px; border-radius:9px; background:#e6f4ea; color:#1f7a3d; }
+  .jt.openjob { cursor:pointer; }
+
+  /* in-page detail modal */
+  .modal[hidden] { display:none; }
+  .modal { position:fixed; inset:0; z-index:1000; }
+  .modal-back { position:absolute; inset:0; background:rgba(20,30,50,.55); }
+  .modal-panel { position:relative; background:#fff; max-width:880px; margin:3vh auto; max-height:94vh;
+                 overflow:auto; border-radius:10px; box-shadow:0 18px 60px rgba(0,0,0,.35); padding:18px 22px; }
+  .modal-x { position:absolute; top:6px; right:10px; border:none; background:transparent; font-size:26px;
+             line-height:1; cursor:pointer; color:#7a8499; }
+  .modal-x:hover { color:#1f2d4a; }
+  .modal-load { padding:10px; color:var(--mut); }
+  .modal-working { padding:8px 10px; margin-bottom:10px; background:#fff7e6; border:1px solid #f0d9a8;
+                   border-radius:6px; color:#8a5a12; }
+</style>
+
+<div class="rpt-head">
+  <h1>Opportunities by Company</h1>
+  <span class="rpt-sub">{{ n_companies }} companies · {{ total_jobs }} roles · in your lane, AI fit &gt; {{ min_score }}, top {{ per_co }} per company</span>
+</div>
+
+<form class="rpt-ctl" method="get">
+  <label>min fit <input type="number" name="min" value="{{ min_score }}"></label>
+  <label>per company <input type="number" name="n" value="{{ per_co }}"></label>
+  <button>Apply</button>
+  <span class="rpt-sub">Grades: <b>AI</b> = fit · <b>P(land)</b> = fit×recency×referral · <b>HiWin</b> = fit+clearance+AI/DevOps+gov · <b>Co</b> = company reputation.
+  Each row's amber line is what to <b>max</b> when you tailor. <a href="{{ url_for('index') }}">Full filterable list →</a></span>
+</form>
+
+{% set letters = groups | map(attribute='company') | map('first') | map('upper') | list %}
+<div class="azjump">
+  {% for L in '0ABCDEFGHIJKLMNOPQRSTUVWXYZ' %}
+    {% if (L == '0' and (letters | select('in', '0123456789') | list)) or L in letters %}
+      <a href="#co-{{ L }}">{{ L if L != '0' else '#' }}</a>
+    {% else %}<span class="off">{{ L if L != '0' else '#' }}</span>{% endif %}
+  {% endfor %}
+</div>
+
+{% macro grade(val, lbl, tip) %}
+  <span class="score s{{ [5, ((val or 0) // 20)] | min }}" title="{{ tip }}">{{ val if val is not none else '–' }}</span>
+  <span class="glbl">{{ lbl }}</span>
+{% endmacro %}
+
+{% set ns = namespace(last='') %}
+{% for g in groups %}
+  {% set first = (g.company[0] | upper) %}
+  {% set anchor = first if first in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' else '0' %}
+  {% if anchor != ns.last %}<a id="co-{{ anchor }}"></a>{% set ns.last = anchor %}{% endif %}
+  <div class="cocard">
+    <h2><span>{{ g.company }}</span><span class="cnt">{{ g.jobs | length }} role{{ '' if g.jobs|length == 1 else 's' }} · top fit {{ g.top }}</span></h2>
+    {% for j in g.jobs %}
+    {% set r = j.row %}
+    <div class="job">
+      <div class="grades">
+        {{ grade(r.score, 'AI', 'AI fit (the number to max)') }}
+        {{ grade(j.land_prob, 'P(land)', 'P(land) = fit × recency × referral') }}
+        {{ grade(j.high_win, 'HiWin', 'High-Win = fit + clearance + AI/DevOps + gov/defense') }}
+        {{ grade(r.company_score, 'Co', 'Company reputation score') }}
+      </div>
+      <div class="main">
+        <a class="jt openjob" data-pid="{{ r.id }}" href="{{ url_for('job', pid=r.id) }}">{{ r.title }}</a>
+        {% if r.remote %}<span class="pill">remote</span>{% endif %}
+        {% if r.job_type and r.job_type != 'fte' %}<span class="pill ptype">{{ r.job_type }}</span>{% endif %}
+        {% if r.status and r.status not in ('new',) %}<span class="badge-status">{{ r.status }}</span>{% endif %}
+        <div class="meta">
+          {{ r.location or ('Remote' if r.remote else 'Location not listed') }}
+          · {{ j.posted }}
+          · <b>{{ j.salary }}</b>
+          {% if r.url %} · <a href="{{ r.url }}" target="_blank" rel="noopener">apply ↗</a>{% endif %}
+        </div>
+        {% if j.gaps %}<div class="gaps"><b>To max:</b> {{ j.gaps | join('; ') }}</div>{% endif %}
+
+        <div class="acts">
+          {% if r.resume_path %}
+            <a class="dl" href="{{ url_for('file', path=r.resume_path) }}" target="_blank">Resume (ATS)</a>
+            <a class="dl" href="{{ url_for('file', path=r.resume_path.replace('Resume_ATS','Resume_Premium')) }}" target="_blank">★ Premium</a>
+            <a class="dl" href="{{ url_for('file', path=r.cover_path) }}" target="_blank">Cover</a>
+          {% else %}
+            <span class="gen">no resume yet</span>
+          {% endif %}
+          <a class="dl openjob" data-pid="{{ r.id }}" href="{{ url_for('job', pid=r.id) }}">{{ '✎ open &amp; tailor' if r.resume_path else '✎ open &amp; generate' }}</a>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+{% endfor %}
+
+{% if not groups %}<p>No qualifying roles (in-lane, AI fit &gt; {{ min_score }}). Try lowering min fit.</p>{% endif %}
+
+<div id="jobmodal" class="modal" hidden>
+  <div class="modal-back"></div>
+  <div class="modal-panel">
+    <button class="modal-x" title="Close (Esc)">×</button>
+    <div class="modal-body"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var modal = document.getElementById('jobmodal');
+  var body  = modal.querySelector('.modal-body');
+  function open(){ modal.hidden=false; document.body.style.overflow='hidden'; }
+  function close(){ modal.hidden=true; document.body.style.overflow=''; body.innerHTML=''; }
+  function esc(s){ var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+  function load(url, note){
+    body.innerHTML = '<div class="modal-load">Loading…</div>';
+    fetch(url, {credentials:'same-origin'})
+      .then(function(r){ return r.text(); })
+      .then(function(html){
+        body.innerHTML = (note ? '<div class="modal-working">'+esc(note)+'</div>' : '') + html;
+        body.parentNode.scrollTop = 0;
+      })
+      .catch(function(){ body.innerHTML = '<div class="modal-load">Failed to load. <a href="'+url+'">Open the full page →</a></div>'; });
+  }
+  function openJob(pid){ modal.dataset.pid = pid; open(); load('/job/'+pid+'?frag=1'); }
+
+  // open from any report row title
+  document.addEventListener('click', function(e){
+    var t = e.target.closest('.openjob');
+    if(t){ e.preventDefault(); openJob(t.dataset.pid); }
+  });
+  modal.querySelector('.modal-x').addEventListener('click', close);
+  modal.querySelector('.modal-back').addEventListener('click', close);
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape' && !modal.hidden) close(); });
+
+  // links inside the modal that should reload inside the modal (e.g. find recruiters)
+  body.addEventListener('click', function(e){
+    var a = e.target.closest('a.frag-link');
+    if(a){ e.preventDefault(); load(a.getAttribute('href')); }
+  });
+
+  // forms inside the modal (promote/apply/dismiss, contact strength, generate/tailor)
+  body.addEventListener('submit', function(e){
+    var form = e.target.closest('form');
+    if(!form) return;
+    e.preventDefault();
+    var pid = modal.dataset.pid;
+    var fd  = new FormData(form);
+    if(e.submitter && e.submitter.name){ fd.append(e.submitter.name, e.submitter.value); }
+    var isGen = /action=generate/.test(form.getAttribute('action')||'') || form.querySelector('[name=guidance]');
+    body.insertAdjacentHTML('afterbegin',
+      '<div class="modal-working">'+(isGen ? 'Updating your profile + writing résumé/cover… ~30–90s. Keep this window open.' : 'Working…')+'</div>');
+    fetch(form.getAttribute('action'), {method:'POST', body:fd, credentials:'same-origin'})
+      .then(function(resp){
+        var ct = resp.headers.get('content-type') || '';
+        return ct.indexOf('application/json') >= 0 ? resp.json() : null;
+      })
+      .then(function(j){
+        var note = null;
+        if(j && j.ok === false){ note = 'Generation failed: ' + (j.error || 'unknown error'); }
+        else if(j && j.changelog && j.changelog.length){ note = 'Added to your profile: ' + j.changelog.join('; '); }
+        else if(j && j.ok){ note = 'Resume + cover regenerated.'; }
+        load('/job/'+pid+'?frag=1', note);
+      })
+      .catch(function(){ load('/job/'+pid+'?frag=1'); });
+  });
+})();
+</script>
+{% endblock %}

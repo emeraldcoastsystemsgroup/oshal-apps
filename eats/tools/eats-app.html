@@ -1,0 +1,1032 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OSHAL Eats</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --surface: #171a21;
+    --surface-2: #20242d;
+    --line: rgba(255,255,255,.1);
+    --text: #f6f7fb;
+    --muted: #a8adba;
+    --dim: #747b8c;
+    --accent: #25c06d;
+    --accent-2: #18a95d;
+    --warn: #f4b64a;
+    --bad: #f06278;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    height: 100vh;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  button, input { font: inherit; }
+  button { cursor: pointer; }
+  .app {
+    height: 100vh;
+    display: grid;
+    grid-template-rows: auto 1fr;
+  }
+  .topbar {
+    min-height: 58px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(15,17,21,.96);
+  }
+  .brand-mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    background: var(--accent);
+    color: #05150d;
+    font-weight: 900;
+  }
+  .brand {
+    font-weight: 850;
+    line-height: 1.05;
+  }
+  .brand small {
+    display: block;
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 650;
+    text-transform: uppercase;
+  }
+  .connection {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--dim);
+  }
+  .dot.on { background: var(--accent); }
+  .layout {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+    gap: 10px;
+    padding: 10px;
+  }
+  .main,
+  .side {
+    min-height: 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .main {
+    display: grid;
+    grid-template-rows: auto auto 1fr;
+  }
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+    gap: 12px;
+    padding: 14px;
+    border-bottom: 1px solid var(--line);
+    background: #11151a;
+  }
+  .location-card {
+    display: grid;
+    gap: 8px;
+    align-content: start;
+  }
+  .location-title {
+    margin: 0;
+    font-size: 22px;
+    line-height: 1.1;
+  }
+  .location-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+  .field-label {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 850;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  .input,
+  .search-input {
+    width: 100%;
+    min-height: 42px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #080a0d;
+    color: var(--text);
+    padding: 0 12px;
+    outline: 0;
+    font-size: 16px;
+  }
+  .input:focus,
+  .search-input:focus { border-color: var(--accent); }
+  .btn {
+    min-height: 38px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface-2);
+    color: var(--text);
+    font-weight: 800;
+    padding: 0 12px;
+  }
+  .btn.primary {
+    border-color: transparent;
+    background: var(--accent);
+    color: #04130b;
+  }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .search-panel {
+    display: grid;
+    gap: 8px;
+  }
+  .search-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 88px;
+    gap: 8px;
+  }
+  .quick-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .chip {
+    min-height: 32px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(255,255,255,.04);
+    color: var(--text);
+    padding: 0 11px;
+    font-size: 12px;
+    font-weight: 750;
+  }
+  .chip.active { background: var(--accent); color: #04130b; border-color: transparent; }
+  .personal-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(255,255,255,.025);
+  }
+  .mini {
+    min-width: 0;
+    min-height: 54px;
+    padding: 9px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(255,255,255,.035);
+  }
+  .mini b {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+  }
+  .mini span {
+    display: block;
+    margin-top: 3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .results {
+    min-height: 0;
+    overflow: auto;
+    padding: 12px 14px 16px;
+  }
+  .section-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .section-head h2 {
+    margin: 0;
+    font-size: 18px;
+  }
+  .section-head .back {
+    display: none;
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 800;
+    background: transparent;
+    border: 0;
+    padding: 0;
+  }
+  .section-head .sub {
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .food-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+  }
+  .card {
+    min-width: 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(255,255,255,.04);
+    overflow: hidden;
+    cursor: pointer;
+  }
+  .card:hover { border-color: rgba(37,192,109,.55); }
+  .photo {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: linear-gradient(135deg, #2b313d, #171a21);
+  }
+  .photo img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .fallback {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: rgba(255,255,255,.8);
+    font-size: 34px;
+    font-weight: 900;
+  }
+  .badge {
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: rgba(0,0,0,.6);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+  }
+  .eta {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: rgba(0,0,0,.62);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 750;
+  }
+  .card-body {
+    padding: 10px;
+  }
+  .card-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
+    font-weight: 850;
+  }
+  .card-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .price { color: var(--accent); font-weight: 850; }
+  .add-btn {
+    width: 100%;
+    min-height: 34px;
+    margin-top: 9px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(37,192,109,.12);
+    color: var(--accent);
+    font-weight: 850;
+  }
+  .side {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) minmax(230px, 300px);
+  }
+  .cart {
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+  }
+  .side-head {
+    padding: 13px 14px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .side-head h2 {
+    margin: 0;
+    font-size: 18px;
+  }
+  .side-head p {
+    margin: 5px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .cart-items {
+    min-height: 0;
+    overflow: auto;
+    padding: 10px 12px;
+  }
+  .cart-row {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    gap: 9px;
+    align-items: center;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .cart-thumb {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--surface-2);
+    display: grid;
+    place-items: center;
+    font-weight: 900;
+  }
+  .cart-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .cart-row b {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+  }
+  .cart-row span {
+    display: block;
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .remove {
+    border: 0;
+    background: transparent;
+    color: var(--dim);
+    font-size: 20px;
+  }
+  .summary {
+    display: grid;
+    gap: 9px;
+    padding: 12px;
+    border-top: 1px solid var(--line);
+  }
+  .total {
+    display: flex;
+    justify-content: space-between;
+    font-size: 16px;
+    font-weight: 900;
+  }
+  .note {
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.35;
+  }
+  .assistant {
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    border-top: 1px solid var(--line);
+  }
+  .messages {
+    min-height: 0;
+    overflow: auto;
+    padding: 10px 12px;
+    display: grid;
+    align-content: start;
+    gap: 8px;
+  }
+  .msg {
+    max-width: 90%;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+  }
+  .msg.bot {
+    justify-self: start;
+    border: 1px solid var(--line);
+    background: rgba(255,255,255,.05);
+  }
+  .msg.me {
+    justify-self: end;
+    background: var(--accent);
+    color: #04130b;
+    font-weight: 850;
+  }
+  .chat-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 72px;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--line);
+  }
+  .empty {
+    color: var(--muted);
+    padding: 22px 10px;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 22px;
+    transform: translateX(-50%);
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #04130b;
+    font-weight: 900;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease;
+    z-index: 10;
+  }
+  .toast.show { opacity: 1; }
+  @media (max-width: 1120px) {
+    .layout { grid-template-columns: 1fr; }
+    .side { grid-template-columns: minmax(0, 1fr) minmax(320px, 380px); grid-template-rows: 360px; }
+    .assistant { border-top: 0; border-left: 1px solid var(--line); }
+  }
+  @media (max-width: 760px) {
+    body { height: auto; overflow: auto; }
+    .app { height: auto; min-height: 100vh; display: block; }
+    .layout { display: block; padding: 8px; }
+    .main, .side { margin-bottom: 8px; }
+    .main { display: block; }
+    .hero { grid-template-columns: 1fr; }
+    .personal-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .side { display: block; }
+    .cart-items { max-height: none; }
+    .assistant { border-left: 0; border-top: 1px solid var(--line); min-height: 300px; }
+    .connection { display: none; }
+  }
+
+  /* Theme-aware polish layer. Eats is embedded in Cockpit, so derive controls
+     from parent theme variables instead of preserving the original dark mockup. */
+  :root {
+    --eats-control: color-mix(in srgb, var(--surface-2) 70%, var(--bg));
+    --eats-control-strong: color-mix(in srgb, var(--surface-2) 88%, var(--text) 4%);
+    --eats-hero: color-mix(in srgb, var(--surface) 86%, transparent);
+    --eats-card: color-mix(in srgb, var(--surface) 92%, transparent);
+    --eats-shadow: 0 18px 48px rgba(15, 23, 42, .12);
+    --eats-shadow-strong: 0 22px 70px rgba(15, 23, 42, .18);
+  }
+
+  body {
+    background:
+      radial-gradient(circle at 12% 12%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 34rem),
+      linear-gradient(135deg, var(--bg), color-mix(in srgb, var(--bg) 68%, var(--surface)));
+  }
+
+  .topbar {
+    background: color-mix(in srgb, var(--surface) 86%, transparent);
+    box-shadow: var(--eats-shadow);
+    backdrop-filter: blur(18px) saturate(130%);
+    -webkit-backdrop-filter: blur(18px) saturate(130%);
+  }
+
+  .brand-mark {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+  }
+
+  .main,
+  .side,
+  .mini,
+  .card,
+  .cart-row,
+  .msg.bot {
+    background: var(--eats-card);
+    box-shadow: var(--eats-shadow);
+  }
+
+  .main,
+  .side {
+    border-radius: 14px;
+  }
+
+  .hero {
+    border-bottom-color: var(--line);
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, transparent), transparent 52%),
+      var(--eats-hero);
+  }
+
+  .location-title {
+    font-size: clamp(26px, 3vw, 40px);
+    letter-spacing: 0;
+  }
+
+  .input,
+  .search-input {
+    border-color: color-mix(in srgb, var(--line) 82%, transparent);
+    background: var(--eats-control);
+    color: var(--text);
+  }
+
+  .input::placeholder,
+  .search-input::placeholder {
+    color: color-mix(in srgb, var(--muted) 80%, transparent);
+  }
+
+  .btn,
+  .chip,
+  .add-btn {
+    border-color: color-mix(in srgb, var(--line) 86%, transparent);
+    background: var(--eats-control);
+    color: var(--text);
+    box-shadow: none;
+  }
+
+  .btn:hover,
+  .chip:hover,
+  .add-btn:hover {
+    border-color: color-mix(in srgb, var(--accent) 56%, var(--line));
+    background: var(--eats-control-strong);
+  }
+
+  .btn.primary,
+  .chip.active,
+  .msg.me,
+  .toast {
+    border-color: transparent;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+  }
+
+  .add-btn {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  }
+
+  .card {
+    border-radius: 14px;
+    transition: transform .14s ease, border-color .14s ease, box-shadow .14s ease;
+  }
+
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--eats-shadow-strong);
+  }
+
+  .photo {
+    background:
+      radial-gradient(circle at 28% 22%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 44%),
+      color-mix(in srgb, var(--surface-2) 75%, var(--bg));
+  }
+
+  .fallback {
+    color: color-mix(in srgb, var(--text) 88%, transparent);
+  }
+
+  .badge,
+  .eta {
+    background: color-mix(in srgb, var(--text) 82%, transparent);
+    color: var(--bg);
+  }
+
+  .side-head,
+  .summary,
+  .chat-row,
+  .personal-strip {
+    background: color-mix(in srgb, var(--surface) 70%, transparent);
+  }
+
+  .price {
+    color: var(--accent);
+  }
+</style>
+<script>
+(function(){
+  const map = {
+    '--bg':'--bg-primary',
+    '--surface':'--bg-card',
+    '--surface-2':'--bg-secondary',
+    '--line':'--border-color',
+    '--text':'--text-primary',
+    '--muted':'--text-secondary',
+    '--dim':'--text-muted',
+    '--accent':'--status-success',
+    '--accent-2':'--accent-primary',
+    '--warn':'--status-warning',
+    '--bad':'--status-error'
+  };
+  function sync(){
+    try {
+      const parentWindow = window.parent && window.parent !== window ? window.parent : null;
+      if (!parentWindow) return;
+      const computed = parentWindow.getComputedStyle(parentWindow.document.documentElement);
+      for (const localName in map) {
+        const value = computed.getPropertyValue(map[localName]).trim();
+        if (value) document.documentElement.style.setProperty(localName, value);
+      }
+    } catch {}
+  }
+  sync();
+  document.addEventListener('DOMContentLoaded', sync);
+})();
+</script>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand-mark">E</div>
+    <div class="brand">OSHAL Eats<small>Food delivery concierge</small></div>
+    <div class="connection"><span class="dot" id="connDot"></span><span id="connTxt">Checking catalog</span></div>
+  </header>
+
+  <div class="layout">
+    <main class="main">
+      <section class="hero">
+        <div class="location-card">
+          <h1 class="location-title">Food delivered where you are.</h1>
+          <label class="field-label" for="address">Delivery address</label>
+          <div class="location-row">
+            <input class="input" id="address" placeholder="Delivery address or current location" />
+            <button class="btn" id="locBtn" type="button">Use location</button>
+          </div>
+        </div>
+        <div class="search-panel">
+          <label class="field-label" for="query">Restaurants and cravings</label>
+          <div class="search-row">
+            <input class="search-input" id="query" placeholder="Search food, restaurants, cravings" />
+            <button class="btn primary" id="searchBtn" type="button">Search</button>
+          </div>
+          <div class="quick-row" id="chips"></div>
+        </div>
+      </section>
+
+      <section class="personal-strip">
+        <div class="mini"><b id="prefCuisine">Any craving</b><span>Learned favorite cuisines</span></div>
+        <div class="mini"><b id="prefDiet">No diet set</b><span>Dietary preferences</span></div>
+        <div class="mini"><b id="prefBudget">Budget open</b><span>Per-order budget</span></div>
+        <div class="mini"><b id="orderHistory">No orders yet</b><span>Previous handoffs</span></div>
+      </section>
+
+      <section class="results">
+        <div class="section-head">
+          <button class="back" id="backBtn" type="button">Restaurants</button>
+          <h2 id="sectionTitle">Popular near you</h2>
+          <span class="sub" id="sectionSub"></span>
+        </div>
+        <div class="food-grid" id="grid"></div>
+      </section>
+    </main>
+
+    <aside class="side">
+      <section class="cart">
+        <div class="side-head">
+          <h2>Your order</h2>
+          <p id="cartStore">Pick a restaurant or ask the concierge.</p>
+        </div>
+        <div class="cart-items" id="cartItems"></div>
+        <div class="summary">
+          <div class="total"><span>Total</span><span id="total">$0.00</span></div>
+          <button class="btn primary" id="orderBtn" type="button" disabled>Open Uber Eats</button>
+          <div class="note">OSHAL builds the order state. Uber Eats handles live availability, final price, address confirmation, and payment.</div>
+        </div>
+      </section>
+
+      <section class="assistant">
+        <div class="side-head">
+          <h2>Eats Concierge</h2>
+          <p>Ask for a meal and the order updates here.</p>
+        </div>
+        <div class="messages" id="messages">
+          <div class="msg bot">Tell me what sounds good. I can search, add items, remember preferences, and hand off checkout.</div>
+        </div>
+        <div class="chat-row">
+          <input class="input" id="chatInput" placeholder="I want spicy Italian for two..." />
+          <button class="btn primary" id="chatSend" type="button">Send</button>
+        </div>
+      </section>
+    </aside>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '/api/eats';
+const $ = (selector) => document.querySelector(selector);
+const state = {
+  conversationId: localStorage.getItem('oshalEatsConv') || '',
+  cart: { items: [], total: 0, storeName: '' },
+  profile: null,
+  history: [],
+  mode: 'restaurants'
+};
+const chips = ['Pizza', 'Burgers', 'Sushi', 'Tacos', 'Healthy', 'Italian', 'Ramen', 'Fast food'];
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function toast(message) {
+  const node = $('#toast');
+  node.textContent = message;
+  node.classList.add('show');
+  setTimeout(() => node.classList.remove('show'), 1800);
+}
+
+async function getJson(url) {
+  const response = await fetch(url, { credentials: 'same-origin' });
+  return response.json();
+}
+
+async function postJson(url, body) {
+  const response = await fetch(url, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {})
+  });
+  return response.json();
+}
+
+function renderChips(active = '') {
+  $('#chips').innerHTML = chips.map((chip) => {
+    const on = chip.toLowerCase() === active.toLowerCase() ? ' active' : '';
+    return `<button class="chip${on}" type="button" data-chip="${escapeHtml(chip)}">${escapeHtml(chip)}</button>`;
+  }).join('');
+  document.querySelectorAll('[data-chip]').forEach((button) => {
+    button.addEventListener('click', () => {
+      $('#query').value = button.dataset.chip || '';
+      search(button.dataset.chip || '');
+    });
+  });
+}
+
+function imageMarkup(item) {
+  const letter = String(item.title || item.brand || '?').trim().charAt(0).toUpperCase() || 'E';
+  const img = item.imageUrl ? `<img src="${escapeHtml(item.imageUrl)}" alt="" loading="lazy" onerror="this.remove()">` : '';
+  const rating = item.rating ? `<span class="badge">Rating ${escapeHtml(item.rating)}</span>` : '';
+  const eta = item.etaMinutes ? `<span class="eta">${escapeHtml(item.etaMinutes)} min</span>` : '';
+  return `<div class="photo"><span class="fallback">${escapeHtml(letter)}</span>${img}${rating}${eta}</div>`;
+}
+
+function renderRestaurantCard(item) {
+  const price = item.priceFrom != null ? `from $${Number(item.priceFrom).toFixed(2)}` : '';
+  return `<article class="card" data-store="${escapeHtml(item.productId)}" data-store-name="${escapeHtml(item.title)}">
+    ${imageMarkup(item)}
+    <div class="card-body">
+      <div class="card-title">${escapeHtml(item.title)}</div>
+      <div class="card-meta"><span>${escapeHtml(item.cuisine || 'Restaurant')}</span><span class="price">${escapeHtml(price)}</span></div>
+    </div>
+  </article>`;
+}
+
+function renderDishCard(item) {
+  return `<article class="card">
+    ${imageMarkup(item)}
+    <div class="card-body">
+      <div class="card-title">${escapeHtml(item.title)}</div>
+      <div class="card-meta"><span>${escapeHtml(item.brand || '')}</span><span class="price">$${Number(item.price || 0).toFixed(2)}</span></div>
+      <button class="add-btn" type="button"
+        data-add
+        data-store-id="${escapeHtml(item.storeId)}"
+        data-store-name="${escapeHtml(item.brand)}"
+        data-product-id="${escapeHtml(item.productId)}"
+        data-title="${escapeHtml(item.title)}"
+        data-price="${escapeHtml(item.price)}"
+        data-image-url="${escapeHtml(item.imageUrl || '')}">Add to order</button>
+    </div>
+  </article>`;
+}
+
+async function search(query = '') {
+  state.mode = 'restaurants';
+  renderChips(query);
+  $('#backBtn').style.display = 'none';
+  $('#sectionTitle').textContent = query ? `Results for "${query}"` : 'Popular near you';
+  $('#sectionSub').textContent = $('#address').value ? `Delivering to ${$('#address').value}` : 'Set a location for better results';
+  $('#grid').innerHTML = '<div class="empty">Finding restaurants...</div>';
+  const result = await getJson(`${API}/search?q=${encodeURIComponent(query)}&limit=16`);
+  const items = result.items || [];
+  $('#grid').innerHTML = items.length ? items.map(renderRestaurantCard).join('') : '<div class="empty">No restaurants matched that craving.</div>';
+  document.querySelectorAll('[data-store]').forEach((card) => {
+    card.addEventListener('click', () => openMenu(card.dataset.store || '', card.dataset.storeName || 'Restaurant'));
+  });
+}
+
+async function openMenu(storeId, storeName) {
+  state.mode = 'menu';
+  $('#backBtn').style.display = 'inline';
+  $('#sectionTitle').textContent = storeName;
+  $('#sectionSub').textContent = 'Menu';
+  $('#grid').innerHTML = '<div class="empty">Loading menu...</div>';
+  const result = await getJson(`${API}/menu?storeId=${encodeURIComponent(storeId)}`);
+  const items = result.items || [];
+  $('#grid').innerHTML = items.length ? items.map(renderDishCard).join('') : '<div class="empty">No menu items found.</div>';
+  document.querySelectorAll('[data-add]').forEach((button) => {
+    button.addEventListener('click', () => addItem({
+      storeId: button.dataset.storeId,
+      storeName: button.dataset.storeName,
+      productId: button.dataset.productId,
+      title: button.dataset.title,
+      price: Number(button.dataset.price || 0),
+      imageUrl: button.dataset.imageUrl
+    }));
+  });
+}
+
+async function addItem(item) {
+  const result = await postJson(`${API}/cart/items`, { ...item, quantity: 1 });
+  if (result.storeSwitched) toast(`Started a new order at ${item.storeName || 'this restaurant'}`);
+  else toast(`Added ${item.title}`);
+  renderCart(result);
+}
+
+function renderCart(data) {
+  const items = data.items || [];
+  state.cart = { items, total: Number(data.total || 0), storeName: data.storeName || data.cart?.store_name || '' };
+  $('#cartStore').textContent = data.storeName || state.cart.storeName || (items.length ? 'Restaurant order' : 'Pick a restaurant or ask the concierge.');
+  $('#total').textContent = `$${Number(data.total || 0).toFixed(2)}`;
+  $('#orderBtn').disabled = items.length === 0;
+  $('#cartItems').innerHTML = items.length ? items.map((item) => {
+    const image = item.image_url ? `<img src="${escapeHtml(item.image_url)}" alt="">` : escapeHtml(String(item.title || '?').charAt(0).toUpperCase());
+    return `<div class="cart-row">
+      <div class="cart-thumb">${image}</div>
+      <div><b>${escapeHtml(item.title)}</b><span>$${Number(item.price || 0).toFixed(2)} x ${escapeHtml(item.quantity || 1)}</span></div>
+      <button class="remove" type="button" data-remove="${escapeHtml(item.row_id)}">x</button>
+    </div>`;
+  }).join('') : '<div class="empty">Your order is empty. Add food or ask the concierge.</div>';
+  document.querySelectorAll('[data-remove]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const response = await fetch(`${API}/cart/items/${button.dataset.remove}`, { method: 'DELETE', credentials: 'same-origin' });
+      renderCart(await response.json());
+    });
+  });
+}
+
+async function loadCart() {
+  renderCart(await getJson(`${API}/cart`));
+}
+
+async function requestOrder() {
+  const button = $('#orderBtn');
+  button.disabled = true;
+  button.textContent = 'Opening Uber Eats';
+  const result = await postJson(`${API}/order`, {});
+  button.textContent = 'Open Uber Eats';
+  button.disabled = state.cart.items.length === 0;
+  if (result.checkoutUrl) {
+    toast('Opening Uber Eats');
+    window.open(result.checkoutUrl, '_blank');
+    loadHistory();
+  } else {
+    toast(result.error || 'Add items first');
+  }
+}
+
+function addMessage(role, text) {
+  const node = document.createElement('div');
+  node.className = `msg ${role === 'me' ? 'me' : 'bot'}`;
+  node.textContent = text;
+  $('#messages').appendChild(node);
+  $('#messages').scrollTop = $('#messages').scrollHeight;
+  return node;
+}
+
+async function sendChat() {
+  const input = $('#chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  addMessage('me', text);
+  const pending = addMessage('bot', 'Building that order...');
+  try {
+    const result = await postJson(`${API}/chat`, {
+      message: text,
+      conversationId: state.conversationId,
+      location: $('#address').value.trim()
+    });
+    state.conversationId = result.conversationId || state.conversationId;
+    if (state.conversationId) localStorage.setItem('oshalEatsConv', state.conversationId);
+    pending.textContent = result.reply || 'I could not build that order yet.';
+    if (Array.isArray(result.cards) && result.cards.length) {
+      $('#grid').innerHTML = result.cards.map(renderDishCard).join('');
+    }
+    if ((result.added || []).length || result.cart) await loadCart();
+    if (result.checkout?.checkoutUrl) {
+      toast('Opening Uber Eats');
+      window.open(result.checkout.checkoutUrl, '_blank');
+      loadHistory();
+    }
+  } catch {
+    pending.textContent = 'I hit an error building that order. Try searching directly.';
+  }
+}
+
+async function requestLocation() {
+  if (!navigator.geolocation) {
+    toast('Browser location is not available');
+    return;
+  }
+  $('#locBtn').disabled = true;
+  $('#locBtn').textContent = 'Locating';
+  navigator.geolocation.getCurrentPosition(async (position) => {
+    const value = `Current location (${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)})`;
+    $('#address').value = value;
+    $('#sectionSub').textContent = `Delivering to ${value}`;
+    $('#locBtn').disabled = false;
+    $('#locBtn').textContent = 'Use location';
+    await postJson(`${API}/profile`, { defaultAddress: value, onboarded: true });
+    loadProfile();
+    search($('#query').value.trim());
+  }, () => {
+    toast('Location permission was not granted');
+    $('#locBtn').disabled = false;
+    $('#locBtn').textContent = 'Use location';
+  }, { enableHighAccuracy: true, timeout: 9000, maximumAge: 60000 });
+}
+
+async function loadProfile() {
+  try {
+    const result = await getJson(`${API}/profile`);
+    state.profile = result.profile || {};
+    const profile = state.profile;
+    $('#address').value = $('#address').value || profile.default_address || '';
+    $('#prefCuisine').textContent = Array.isArray(profile.favorite_cuisines) && profile.favorite_cuisines.length ? profile.favorite_cuisines.join(', ') : 'Any craving';
+    $('#prefDiet').textContent = Array.isArray(profile.dietary) && profile.dietary.length ? profile.dietary.join(', ') : 'No diet set';
+    $('#prefBudget').textContent = profile.budget_per_order ? `$${Number(profile.budget_per_order).toFixed(0)}` : 'Budget open';
+  } catch {}
+}
+
+async function loadHistory() {
+  try {
+    const result = await getJson(`${API}/orders/history`);
+    state.history = result.orders || [];
+    $('#orderHistory').textContent = state.history.length ? `${state.history.length} handoffs` : 'No orders yet';
+  } catch {
+    $('#orderHistory').textContent = 'No orders yet';
+  }
+}
+
+async function boot() {
+  renderChips();
+  $('#searchBtn').addEventListener('click', () => search($('#query').value.trim()));
+  $('#query').addEventListener('keydown', (event) => { if (event.key === 'Enter') search($('#query').value.trim()); });
+  $('#backBtn').addEventListener('click', () => search($('#query').value.trim()));
+  $('#locBtn').addEventListener('click', requestLocation);
+  $('#orderBtn').addEventListener('click', requestOrder);
+  $('#chatSend').addEventListener('click', sendChat);
+  $('#chatInput').addEventListener('keydown', (event) => { if (event.key === 'Enter') sendChat(); });
+  await Promise.all([loadProfile(), loadHistory(), loadCart()]);
+  await search('');
+  try {
+    const config = await getJson(`${API}/config`);
+    $('#connDot').classList.toggle('on', Boolean(config.uberConnected));
+    $('#connTxt').textContent = config.uberConnected ? 'Uber Eats connected' : 'Demo catalog';
+  } catch {
+    $('#connTxt').textContent = 'Demo catalog';
+  }
+}
+
+boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OSHAL Spotify</title>
+<style>
+  /* Local var names are BRIDGED to the cockpit's themed design-system variables by the
+     script below, so this surface follows the operator's selected swarm theme (midnight,
+     daylight, ocean, …). Values here are only dark-midnight fallbacks before the bridge
+     resolves / when opened standalone. Do NOT hardcode brand colors over the theme. */
+  :root{
+    --bg:#181a20; --bg2:rgba(24,26,32,.92); --card:rgba(24,26,32,.92); --card-hover:rgba(36,38,48,.98);
+    --border:#23262f; --border2:#353945;
+    --text:#f4f4f6; --muted:#b1b5c3; --dim:#6e7380;
+    --accent:#5e8fff; --accent2:#3b6eea; --accent-glow:rgba(94,143,255,.25);
+    --warn:#ff9f0a; --blur:20px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow-x:hidden}
+  input{font-size:16px} /* >=16px stops iOS auto-zoom on focus */
+  body{
+    font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    color:var(--text); background:
+      radial-gradient(1200px 600px at 80% -10%, var(--accent-glow), transparent 60%),
+      var(--bg);
+    display:flex; flex-direction:column; min-height:100%;
+  }
+  a{color:inherit}
+  header{display:flex; align-items:center; gap:14px; padding:18px 22px 4px; max-width:1280px; margin:0 auto; width:100%}
+  .logo{width:34px;height:34px;flex:0 0 auto;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:50%;
+    box-shadow:0 6px 20px var(--accent-glow);font-size:18px;color:#fff}
+  .brand{font-weight:800;letter-spacing:.3px;font-size:19px}
+  .brand small{display:block;font-weight:500;color:var(--muted);font-size:11px;letter-spacing:.6px;text-transform:uppercase}
+  .pill{margin-left:auto;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:7px;
+    background:rgba(255,255,255,.04);border:1px solid var(--border);padding:7px 12px;border-radius:999px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--dim)}
+  .dot.on{background:var(--accent);box-shadow:0 0 10px var(--accent-glow)}
+
+  .col{max-width:1280px;width:100%;margin:0 auto;padding:14px 20px}
+
+  /* Connect gate */
+  .gate{margin:40px auto;max-width:520px;text-align:center;background:var(--bg2);border:1px solid var(--border);
+    border-radius:18px;padding:30px 26px;backdrop-filter:blur(var(--blur))}
+  .gate h2{margin:6px 0 8px;font-size:19px}
+  .gate p{color:var(--muted);font-size:14px;line-height:1.6;margin:0 0 18px}
+
+  /* Now playing */
+  .now{display:flex;align-items:center;gap:14px;background:var(--bg2);border:1px solid var(--border);
+    border-radius:16px;padding:12px 16px;backdrop-filter:blur(var(--blur));margin-bottom:6px}
+  .now .art{width:48px;height:48px;border-radius:10px;object-fit:cover;flex:0 0 auto;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;font-size:22px;color:#fff}
+  .now .ti{flex:1;min-width:0}
+  .now .ti .t{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .now .ti .a{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .now .eq{display:flex;gap:3px;align-items:flex-end;height:18px}
+  .now .eq i{width:3px;background:var(--accent);border-radius:2px;animation:eq 1s ease-in-out infinite}
+  .now .eq i:nth-child(2){animation-delay:.2s}.now .eq i:nth-child(3){animation-delay:.4s}.now .eq i:nth-child(4){animation-delay:.1s}
+  @keyframes eq{0%,100%{height:5px}50%{height:18px}}
+
+  .search{display:flex;gap:10px;margin:14px 0 8px}
+  .search input{flex:1;background:var(--bg2);border:1px solid var(--border);color:var(--text);
+    padding:14px 16px;border-radius:14px;font-size:16px;outline:none;backdrop-filter:blur(var(--blur))}
+  .search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+  .btn{cursor:pointer;border:none;border-radius:12px;font-weight:700;font-size:14px;padding:13px 18px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;transition:.15s;white-space:nowrap}
+  .btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
+  .btn.ghost{background:var(--card);color:var(--text);border:1px solid var(--border)}
+  .btn.ghost:hover{background:var(--card-hover)}
+  .btn:disabled{opacity:.5;cursor:default;transform:none;filter:none}
+
+  .secrow{display:flex;align-items:center;gap:10px;margin:8px 0 12px}
+  .secrow h2{font-size:15px;margin:0;font-weight:700;letter-spacing:.2px}
+  .secrow .sub{color:var(--muted);font-size:12px;margin-left:auto}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;
+    transition:.16s;backdrop-filter:blur(var(--blur))}
+  .card:hover{transform:translateY(-3px);background:var(--card-hover);border-color:var(--border2);
+    box-shadow:0 16px 40px rgba(0,0,0,.45)}
+  .card.sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-glow)}
+  .thumb{position:relative;aspect-ratio:1/1;display:block}
+  .thumb .emoji{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:54px;
+    filter:drop-shadow(0 4px 12px rgba(0,0,0,.4))}
+  .thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+  .thumb .tag{position:absolute;right:8px;top:8px;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);
+    border-radius:999px;font-size:10px;font-weight:700;padding:3px 7px;color:#fff}
+  .thumb .pick{position:absolute;left:8px;top:8px;width:26px;height:26px;border-radius:50%;border:none;cursor:pointer;
+    background:rgba(0,0,0,.5);color:#fff;font-size:15px;font-weight:800;display:grid;place-items:center;backdrop-filter:blur(6px)}
+  .thumb .pick.on{background:var(--accent);color:#fff}
+  .meta{padding:10px 12px 12px}
+  .meta .name{font-weight:700;font-size:13px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .meta .artist{color:var(--muted);font-size:12px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .meta .play{margin-top:9px;display:inline-flex;align-items:center;gap:6px;text-decoration:none;
+    color:var(--accent);font-weight:700;font-size:12px}
+  .meta .play:hover{color:var(--accent2)}
+
+  /* Playlist builder bar */
+  .builder{position:sticky;bottom:0;z-index:20;display:none;align-items:center;gap:10px;margin-top:14px;
+    background:var(--bg2);border:1px solid var(--accent);border-radius:16px;padding:12px 14px;
+    backdrop-filter:blur(var(--blur));box-shadow:0 -8px 30px rgba(0,0,0,.4)}
+  .builder.show{display:flex}
+  .builder .count{font-weight:800;font-size:14px;white-space:nowrap}
+  .builder input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:11px 13px;border-radius:11px;outline:none}
+  .builder input:focus{border-color:var(--accent)}
+
+  /* Playlists strip */
+  .plrow{display:flex;gap:12px;overflow-x:auto;padding-bottom:6px}
+  .pl{flex:0 0 150px;background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;text-decoration:none;transition:.16s}
+  .pl:hover{background:var(--card-hover);transform:translateY(-2px)}
+  .pl .pa{aspect-ratio:1/1;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;font-size:38px;color:#fff;position:relative}
+  .pl .pa img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .pl .pm{padding:9px 11px}
+  .pl .pm .pn{font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pl .pm .pc{color:var(--muted);font-size:11px;margin-top:2px}
+
+  /* Assistant */
+  .assist{margin:8px auto 24px;max-width:1280px;width:100%;padding:0 20px}
+  .chatbox{background:var(--bg2);border:1px solid var(--border);border-radius:18px;backdrop-filter:blur(var(--blur));overflow:hidden}
+  .chathead{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--border);font-weight:700;font-size:14px}
+  .chathead .logo{width:26px;height:26px;font-size:13px}
+  .msgs{max-height:260px;overflow:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+  .msg{max-width:82%;padding:10px 13px;border-radius:13px;font-size:14px;line-height:1.45}
+  .msg.bot{background:var(--card);border:1px solid var(--border);align-self:flex-start;border-bottom-left-radius:4px}
+  .msg.me{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;align-self:flex-end;border-bottom-right-radius:4px;font-weight:600}
+  .chatin{display:flex;gap:10px;padding:12px 14px;border-top:1px solid var(--border)}
+  .chatin input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:12px 14px;border-radius:12px;outline:none}
+  .chatin input:focus{border-color:var(--accent)}
+  .hint{color:var(--dim);font-size:12px;text-align:center;padding:8px}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.25);border-top-color:var(--accent);border-radius:50%;animation:s .7s linear infinite;vertical-align:-2px}
+  @keyframes s{to{transform:rotate(360deg)}}
+  /* Skeleton loaders — a calm shimmer instead of a bare "Loading…" string. */
+  .skel{position:relative;overflow:hidden;background:var(--card);border:1px solid var(--border);border-radius:16px}
+  .skel::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.07),transparent);animation:sh 1.2s infinite}
+  @keyframes sh{100%{transform:translateX(100%)}}
+  .skel.track{aspect-ratio:1/1;border-radius:16px}
+  .skel.pl{flex:0 0 150px;height:188px}
+  .empty{display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--muted);font-size:13px;text-align:center;padding:30px 12px}
+  .empty .ico{font-size:30px;opacity:.5}
+  @media (prefers-reduced-motion:reduce){.skel::after,.spin,.now .eq i{animation:none}}
+  @media (max-width:640px){
+    .col{padding:10px 12px}
+    .assist{padding:0 12px}
+    header{padding:14px 12px 4px;gap:10px}
+    .pill{font-size:11px;padding:6px 10px}
+    .search{flex-wrap:wrap}
+    .search input{width:100%;min-width:0}
+    .search .btn{width:100%}
+    .grid{grid-template-columns:1fr 1fr;gap:10px}
+    .builder{flex-wrap:wrap;gap:8px}
+    .builder .count{width:100%}
+    .builder input{width:100%;min-width:0;flex:1 1 100%}
+    .builder #buildBtn{flex:1}
+    .builder #clearSel{flex:1}
+    .chatin{flex-wrap:wrap;gap:8px}
+    .chatin input{width:100%;min-width:0}
+    .chatin .btn{width:100%}
+  }
+  .btn:focus-visible,.pick:focus-visible,.search input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--accent2);color:#fff;font-weight:700;
+    padding:11px 18px;border-radius:12px;box-shadow:0 10px 30px var(--accent-glow);opacity:0;transition:.25s;pointer-events:none;z-index:50}
+  .toast.show{opacity:1}
+</style>
+<!-- Theme bridge: inherit the cockpit's selected swarm theme (data-theme on the parent
+     shell) by copying its computed design-system variables into this surface, and re-sync
+     whenever the operator changes the theme. Same pattern as the other framework surfaces. -->
+<script>(function(){
+  const M={'--bg':'--bg-primary','--bg2':'--glass-bg-heavy','--card':'--bg-card','--card-hover':'--bg-card-hover',
+    '--border':'--border-color','--border2':'--border-color-hover','--text':'--text-primary','--muted':'--text-secondary',
+    '--dim':'--text-muted','--accent':'--accent-primary','--accent2':'--accent-primary-hover',
+    '--accent-glow':'--accent-glow','--warn':'--status-warning'};
+  function sync(){try{
+    const p=(window.parent&&window.parent!==window)?window.parent:null; if(!p)return;
+    const cs=p.getComputedStyle(p.document.documentElement);
+    for(const k in M){const v=cs.getPropertyValue(M[k]).trim(); if(v)document.documentElement.style.setProperty(k,v);}
+  }catch(e){}}
+  sync();
+  window.addEventListener('storage',e=>{if(e.key==='cockpit-theme')setTimeout(sync,30);});
+  try{const p=window.parent; if(p&&p!==window) new MutationObserver(sync).observe(p.document.documentElement,{attributes:true,attributeFilter:['data-theme']});}catch(e){}
+  document.addEventListener('DOMContentLoaded',sync);
+})();</script>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+  <header>
+    <div class="logo">♫</div>
+    <div class="brand">OSHAL Spotify<small>Music concierge</small></div>
+    <div class="pill"><span class="dot" id="connDot"></span><span id="connTxt">checking…</span></div>
+  </header>
+
+  <!-- Connect gate (shown until Spotify is connected) -->
+  <div class="col" id="gateWrap" style="display:none">
+    <div class="gate">
+      <div class="logo" style="margin:0 auto;width:48px;height:48px;font-size:24px">♫</div>
+      <h2>Connect your Spotify</h2>
+      <p>OSHAL searches your Spotify, shows what's playing, and builds playlists right on your account. Pressing play opens in your own Spotify app — OSHAL never touches your password or payment.</p>
+      <a class="btn" href="/api/connect/spotify/start" target="_top">Connect Spotify</a>
+      <p style="margin-top:14px;font-size:12px">Already connected? <span class="play" id="recheck" style="color:var(--accent);cursor:pointer;font-weight:700">Refresh</span></p>
+    </div>
+  </div>
+
+  <!-- Dev-mode allowlist gate (token valid but Spotify 403s every call until the account is registered) -->
+  <div class="col" id="allowWrap" style="display:none">
+    <div class="gate">
+      <div class="logo" style="margin:0 auto;width:48px;height:48px;font-size:24px">♫</div>
+      <h2>Almost there — add your account on Spotify</h2>
+      <p>You're connected, but your Spotify app is in <b>Development Mode</b>, so Spotify blocks every request (403) until the account you signed in with is on the app's allowlist.</p>
+      <p style="text-align:left">
+        1. Open <a class="play" style="color:var(--accent);font-weight:700" href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a> → your app<br>
+        2. Go to <b>User Management</b><br>
+        3. Add your name + the <b>email on your Spotify account</b>, then Save<br>
+        4. Come back and hit Refresh
+      </p>
+      <a class="btn" href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">Open Spotify dashboard</a>
+      <p style="margin-top:14px;font-size:12px"><span class="play" id="recheck2" style="color:var(--accent);cursor:pointer;font-weight:700">Refresh</span> · still stuck? disconnect &amp; reconnect on the <a class="play" style="color:var(--accent)" href="/utilities" target="_top">Connections</a> page</p>
+    </div>
+  </div>
+
+  <!-- Main app (shown when connected) -->
+  <div id="appWrap" style="display:none">
+    <div class="col">
+      <div class="now" id="now" style="display:none">
+        <div class="art" id="nowArt">♫</div>
+        <div class="ti"><div class="t" id="nowT">—</div><div class="a" id="nowA"></div></div>
+        <div class="eq"><i></i><i></i><i></i><i></i></div>
+      </div>
+
+      <div class="search">
+        <input id="q" placeholder="Search a song, artist, or vibe — “lo-fi focus”, “Daft Punk”…" />
+        <button class="btn" id="goBtn">Search</button>
+      </div>
+
+      <div class="secrow"><h2 id="secTitle">Your top tracks</h2><span class="sub" id="secSub"></span></div>
+      <div class="grid" id="grid"></div>
+
+      <div class="builder" id="builder">
+        <span class="count" id="selCount">0 selected</span>
+        <input id="plName" placeholder="Playlist name — “Deep Focus”…" />
+        <button class="btn" id="buildBtn">Create on Spotify →</button>
+        <button class="btn ghost" id="clearSel">Clear</button>
+      </div>
+
+      <div class="secrow" style="margin-top:22px"><h2>Your playlists</h2></div>
+      <div class="plrow" id="playlists"><div class="skel pl"></div><div class="skel pl"></div><div class="skel pl"></div></div>
+    </div>
+
+    <div class="assist">
+      <div class="chatbox">
+        <div class="chathead"><div class="logo">♫</div> Ask the Music Concierge</div>
+        <div class="msgs" id="msgs"><div class="hint">Try: “make me a 10-song rainy-day playlist” or “something like Tame Impala”.</div></div>
+        <div class="chatin">
+          <input id="chatq" placeholder="What are you in the mood for?" />
+          <button class="btn" id="sendBtn">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+const API='/api/spotify';
+const $=s=>document.querySelector(s);
+// Jarvis-style durable session: a stable conversation id kept client-side so the SAME thread
+// deterministically resumes after you navigate away and the iframe reloads (not "latest guess").
+let convId=localStorage.getItem('oshalSpotifyConv')||'';
+const selected=new Map(); // id -> track
+
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2100);}
+function esc(s){const d=document.createElement('div');d.textContent=String(s==null?'':s);return d.innerHTML;}
+function skeletons(n,cls){return Array.from({length:n},()=>`<div class="skel ${cls}"></div>`).join('');}
+function emptyState(glyph,msg){return `<div class="empty"><div class="ico">${glyph}</div><div>${esc(msg)}</div></div>`;}
+async function jget(u){const r=await fetch(u);return r.json();}
+async function jpost(u,b){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});return r.json();}
+
+// ── Track cards ────────────────────────────────────────────────────────────--
+function trackCard(o){
+  const el=document.createElement('div');el.className='card'+(selected.has(o.id)?' sel':'');
+  const img=o.imageUrl?`<img src="${o.imageUrl}" onerror="this.remove()" alt="${esc(o.title)} album art" loading="lazy">`:'';
+  const exp=o.explicit?`<span class="tag" title="Explicit">E</span>`:'';
+  const picked=selected.has(o.id);
+  el.innerHTML=`<div class="thumb">
+      <button class="pick${picked?' on':''}" aria-pressed="${picked}" aria-label="${picked?'Remove from':'Add to'} playlist selection">${picked?'✓':'+'}</button>
+      <span class="emoji" aria-hidden="true">🎵</span>${img}${exp}</div>
+    <div class="meta"><div class="name" title="${esc(o.title)}">${esc(o.title)}</div><div class="artist" title="${esc(o.artist)}">${esc(o.artist)}</div>
+      <a class="play" href="${o.url}" target="_blank" rel="noopener" aria-label="Open ${esc(o.title)} in Spotify">▶ Open in Spotify</a></div>`;
+  el.querySelector('.pick').onclick=(e)=>{e.stopPropagation();toggleSelect(o,el);};
+  return el;
+}
+function renderTracks(items,title,sub){
+  $('#secTitle').textContent=title;$('#secSub').textContent=sub||'';
+  const grid=$('#grid');grid.innerHTML='';
+  (items||[]).forEach(o=>grid.appendChild(trackCard(o)));
+  if(!(items||[]).length) grid.innerHTML=emptyState('🔍','Nothing found — try another song, artist, or vibe.');
+}
+
+// ── Playlist selection / build ───────────────────────────────────────────────
+function toggleSelect(o,el){
+  if(selected.has(o.id)){selected.delete(o.id);el.classList.remove('sel');el.querySelector('.pick').classList.remove('on');el.querySelector('.pick').textContent='+';}
+  else{selected.set(o.id,o);el.classList.add('sel');el.querySelector('.pick').classList.add('on');el.querySelector('.pick').textContent='✓';}
+  refreshBuilder();
+}
+function refreshBuilder(){
+  const n=selected.size;
+  $('#builder').classList.toggle('show',n>0);
+  $('#selCount').textContent=n+' selected';
+}
+$('#clearSel').onclick=()=>{selected.clear();document.querySelectorAll('.card.sel').forEach(c=>{c.classList.remove('sel');const p=c.querySelector('.pick');p.classList.remove('on');p.textContent='+';});refreshBuilder();};
+$('#buildBtn').onclick=async()=>{
+  const name=$('#plName').value.trim()||'OSHAL Mix';
+  const uris=[...selected.values()].map(t=>t.uri).filter(Boolean);
+  if(!uris.length){toast('Pick a few tracks first');return;}
+  const b=$('#buildBtn');b.disabled=true;b.innerHTML='Creating… <span class="spin"></span>';
+  const d=await jpost(`${API}/playlist`,{name,trackUris:uris});
+  b.disabled=false;b.textContent='Create on Spotify →';
+  if(d.playlist&&d.playlist.url){toast('Playlist created — opening Spotify');window.open(d.playlist.url,'_blank');$('#clearSel').click();$('#plName').value='';loadPlaylists();}
+  else toast(d.error||'Could not create playlist');
+};
+
+// ── Search ───────────────────────────────────────────────────────────────────
+async function search(q){
+  const grid=$('#grid');grid.innerHTML=skeletons(10,'track');
+  $('#secTitle').textContent=q?`Results for “${q}”`:'Your top tracks';$('#secSub').textContent='';
+  const go=$('#goBtn');go.disabled=true;
+  try{
+    const d=q?await jget(`${API}/search?q=${encodeURIComponent(q)}&limit=18`):await jget(`${API}/top-tracks`);
+    if(d&&d.error&&!(d.items||[]).length){grid.innerHTML=emptyState('⚠️',d.error);return;}
+    renderTracks(d.items,q?`Results for “${q}”`:'Your top tracks',(d.items||[]).length?'tap + to add to a playlist':'');
+  }catch(e){grid.innerHTML=emptyState('⚠️','Couldn’t reach Spotify — try again.');}
+  finally{go.disabled=false;}
+}
+$('#goBtn').onclick=()=>search($('#q').value.trim());
+$('#q').addEventListener('keydown',e=>{if(e.key==='Enter')search($('#q').value.trim());});
+
+// ── Now playing + playlists ───────────────────────────────────────────────────
+async function loadNow(){
+  try{const d=await jget(`${API}/now-playing`);
+    if(d.nowPlaying&&d.nowPlaying.track){const t=d.nowPlaying.track;
+      $('#now').style.display='flex';$('#nowT').textContent=t.title;$('#nowA').textContent=t.artist;
+      $('#nowArt').innerHTML=t.imageUrl?`<img src="${t.imageUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:10px">`:'♫';
+    } else $('#now').style.display='none';
+  }catch(e){$('#now').style.display='none';}
+}
+async function loadPlaylists(){
+  const box=$('#playlists');box.innerHTML=skeletons(5,'pl');
+  try{const d=await jget(`${API}/playlists`);const pls=d.playlists||[];
+    if(!pls.length){box.innerHTML=emptyState('🎧','No playlists yet — select a few tracks above to build one.');return;}
+    box.innerHTML='';pls.forEach(p=>{
+      const a=document.createElement('a');a.className='pl';a.href=p.url;a.target='_blank';a.rel='noopener';
+      const img=p.imageUrl?`<img src="${p.imageUrl}" onerror="this.remove()" alt="">`:'';
+      a.title=p.name;a.setAttribute('aria-label',`Open playlist ${p.name} (${p.trackCount} tracks) in Spotify`);
+      a.innerHTML=`<div class="pa">${img}🎧</div><div class="pm"><div class="pn">${esc(p.name)}</div><div class="pc">${p.trackCount} tracks</div></div>`;
+      box.appendChild(a);
+    });
+  }catch(e){box.innerHTML=emptyState('⚠️','Could not load your playlists.');}
+}
+
+// ── Assistant ────────────────────────────────────────────────────────────────
+function pushMsg(role,text){
+  const m=$('#msgs');const hint=m.querySelector('.hint');if(hint)hint.remove();
+  const d=document.createElement('div');d.className='msg '+(role==='me'?'me':'bot');d.textContent=text;
+  m.appendChild(d);m.scrollTop=m.scrollHeight;return d;
+}
+async function send(){
+  const inp=$('#chatq');const t=inp.value.trim();if(!t)return;inp.value='';
+  pushMsg('me',t);const thinking=pushMsg('bot','…');
+  try{
+    const d=await jpost(`${API}/chat`,{message:t,conversationId:convId});
+    convId=d.conversationId||convId;if(convId)localStorage.setItem('oshalSpotifyConv',convId);
+    thinking.textContent=d.reply||'…';
+    if((d.cards||[]).length) renderTracks(d.cards,'Picks for you','tap + to add to a playlist');
+    if(d.playlist&&d.playlist.url){toast('Playlist built — opening Spotify');window.open(d.playlist.url,'_blank');loadPlaylists();}
+  }catch(e){thinking.textContent='Sorry — something went wrong. Try again.';}
+}
+$('#sendBtn').onclick=send;
+$('#chatq').addEventListener('keydown',e=>{if(e.key==='Enter')send();});
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+$('#recheck').onclick=()=>boot();
+$('#recheck2').onclick=()=>boot();
+async function boot(){
+  let c={};try{c=await jget(`${API}/config`);}catch(e){}
+  const status=c.status||(c.connected?'ok':'not_connected');
+  const ready=status==='ok';
+  // Three states: not connected → connect gate; connected but Spotify 403s (dev-mode
+  // allowlist) → the allowlist gate with the fix; ok → the full app.
+  $('#connDot').classList.toggle('on',ready);
+  $('#connTxt').textContent=ready?(c.me&&c.me.displayName?c.me.displayName:'Spotify connected')
+    :status==='needs_allowlist'?'Add your account on Spotify'
+    :status==='error'?'Spotify error':'Not connected';
+  $('#gateWrap').style.display=(status==='not_connected'||status==='error')?'block':'none';
+  $('#allowWrap').style.display=status==='needs_allowlist'?'block':'none';
+  $('#appWrap').style.display=ready?'block':'none';
+  if(!ready)return;
+  search('');loadNow();loadPlaylists();
+  try{const cv=await jget(`${API}/conversation?id=${encodeURIComponent(convId||'')}`);if(cv.messages&&cv.messages.length){
+    convId=cv.conversationId;if(convId)localStorage.setItem('oshalSpotifyConv',convId);$('#msgs').innerHTML='';
+    cv.messages.forEach(m=>pushMsg(m.role==='user'?'me':'bot',m.content));}}catch(e){}
+}
+boot();
+</script>
+</body>
+</html>

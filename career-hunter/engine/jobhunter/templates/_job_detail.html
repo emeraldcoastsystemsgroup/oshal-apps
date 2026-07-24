@@ -1,0 +1,191 @@
+{# Shared job-detail body. Rendered full-page (job.html) and as a modal fragment
+   (job_frag.html). When `frag` is true, internal links load into the modal. #}
+{% set isfrag = frag|default(false) %}
+<div class="jobhead">
+  <div>
+    <h1>{{ j.title }}</h1>
+    <div class="sub">{{ j.company }}{% if j.industry %} · {{ j.industry }}{% endif %}
+      {% if j.location %} · {{ j.location }}{% endif %}{% if j.remote %} · <span class="pill">remote</span>{% endif %}</div>
+    <div class="sub">Salary: <b>{{ fmt_salary(j) }}</b>
+      {% if j.salary_source=='ai_estimated' %}<span class="est">AI estimate</span>{% elif j.salary_source=='listed' %}<span class="listed">listed</span>{% endif %}</div>
+  </div>
+  <div class="scorebox">
+    {% set f = j.ai_fit_score if j.ai_fit_score is not none else j.fit_score %}
+    <div class="big score s{{ ((f or 0)//20) }}">{{ f if f is not none else '–' }}</div>
+    <div class="scorelbl">{{ 'AI fit' if j.ai_fit_score is not none else 'keyword fit' }}</div>
+  </div>
+</div>
+
+<div class="actions">
+  <a class="btn primary" href="{{ j.url }}" target="_blank" rel="noopener"
+     data-copy-target="#fieldpack" data-copied-label="↗ opened · details copied">Open posting &amp; copy my details ↗</a>
+  <button class="btn" type="button" data-copy-target="#fieldpack" data-copied-label="✓ details copied">Copy my details</button>
+  <form method="post" action="{{ url_for('act', pid=j.id, action='promote') }}"><button class="btn">Promote</button></form>
+  <form method="post" action="{{ url_for('act', pid=j.id, action='apply') }}"><button class="btn">Mark applied</button></form>
+  <form method="post" action="{{ url_for('act', pid=j.id, action='dismiss') }}"><button class="btn ghost">Dismiss</button></form>
+  <form method="post" action="{{ url_for('set_referral', cid=j.company_id) }}" style="margin:0">
+    <input type="hidden" name="back" value="{{ url_for('job', pid=j.id) }}">
+    <label class="btn ghost" style="cursor:default">Contact here:</label>
+    {% for lvl,txt in [(0,'none'),(1,'weak'),(2,'solid'),(3,'strong')] %}
+      <button name="level" value="{{ lvl }}" class="btn{{ ' primary' if j.referral==lvl }}" style="padding:6px 9px">{{ txt }}</button>
+    {% endfor %}
+  </form>
+  {% if j.status and j.status not in ('new',) %}<span class="pill">status: {{ j.status }}</span>{% endif %}
+  {% if j.outreach_sent_at %}<span class="pill">intro sent {{ j.outreach_sent_at[:10] }}</span>{% endif %}
+</div>
+{# Constant contact fields, copied by the buttons above. Same for every role. #}
+<textarea id="fieldpack" hidden>{{ field_pack() }}</textarea>
+
+{% if j.resume_path %}
+<div class="generated">
+  <b>Generated application:</b>
+  <a href="{{ url_for('file', path=j.resume_path) }}" target="_blank">Resume (ATS).pdf</a> ·
+  <a href="{{ url_for('file', path=j.resume_path.replace('Resume_ATS','Resume_Premium')) }}" target="_blank">★ Premium.pdf</a> ·
+  <a href="{{ url_for('file', path=j.cover_path) }}" target="_blank">CoverLetter.pdf</a>
+</div>
+{% endif %}
+
+<div class="panel">
+  <h3>Add experience → generate resume + cover</h3>
+  <p class="note">Anything you type here is merged into your <b>career database</b> first (new skills,
+    stronger bullets, metrics — banked for every future application), then this résumé is tailored to
+    <b>this posting</b> and can draw on it. The posting drives the tailoring, so it won't hijack the headline.
+    Leave blank to just (re)generate from your current profile.</p>
+  <form method="post" action="{{ url_for('act', pid=j.id, action='generate') }}" class="genform">
+    <input type="hidden" name="back" value="{{ url_for('job', pid=j.id) }}">
+    {% if isfrag %}<input type="hidden" name="frag" value="1">{% endif %}
+    <textarea name="guidance" rows="3" style="width:100%; box-sizing:border-box; font:13px/1.4 inherit; padding:7px; border:1px solid #cfd6e0; border-radius:6px;"
+      placeholder="New TRUE experience/skills/metrics to bank. e.g. Primarily AWS GovCloud, plus GCP and Azure for smaller initiatives. Built an agentic automation platform into the DevOps event→action pipeline (self-healing agents: LLM, generative, RAG)."></textarea>
+    <label style="display:flex; gap:7px; align-items:flex-start; margin-top:9px; font-size:12.5px; color:#33414f; cursor:pointer;">
+      <input type="checkbox" name="oshal" value="1" style="margin-top:2px;">
+      <span><b>Include OSHAL / open-source work</b> (off by default). Adds an <b>Open Source &amp; Independent R&amp;D</b>
+        section (agenticfederal.us / multi-agent, MCP, RAG) to the résumé and lets the cover reference it.
+        Use it for agentic / AI / applied-research roles. Leave unchecked for a standard packet.</span>
+    </label>
+    <div style="margin-top:7px; display:flex; gap:10px; align-items:center;">
+      <button class="btn go" type="submit">★ {{ 'Add &amp; regenerate' if j.resume_path else 'Add &amp; generate' }}</button>
+      <span class="note">~30–90s — updates your profile, then writes the tailored résumé + cover.</span>
+    </div>
+  </form>
+</div>
+
+{% if j.ai_fit_rationale %}
+<div class="panel">
+  <h3>Why this fits you</h3>
+  <p>{{ j.ai_fit_rationale }}</p>
+  <div class="cols">
+    <div><h4>Matched qualifications</h4><ul>{% for m in matched %}<li>{{ m }}</li>{% endfor %}</ul></div>
+    <div><h4>Gaps / watch-outs (what to <b>max</b> when you tailor)</h4><ul>{% for g in gaps %}<li>{{ g }}</li>{% endfor %}</ul></div>
+  </div>
+</div>
+{% endif %}
+
+{% if j.about or positives or negatives %}
+<div class="panel">
+  <h3>About {{ j.company }} as an employer
+    {% if j.company_score is not none %}<span class="cscore">score {{ j.company_score }}</span>{% endif %}
+    {% if j.reputation_source=='ai' %}<span class="est">AI estimate</span>{% endif %}</h3>
+  {% if j.about %}<p>{{ j.about }}</p>{% endif %}
+  <div class="cols">
+    <div><h4>Positives</h4><ul>{% for p in positives %}<li>{{ p }}</li>{% endfor %}</ul></div>
+    <div><h4>Negatives</h4><ul>{% for n in negatives %}<li>{{ n }}</li>{% endfor %}</ul></div>
+  </div>
+</div>
+{% endif %}
+
+<div class="panel">
+  <h3>Reach a recruiter directly</h3>
+  {% if recruiters is none %}
+    <p class="note">Find the in-house recruiters at {{ j.company }} and a ready-to-send intro — you reach out yourself on LinkedIn.</p>
+    {% set fa = 1 if isfrag else none %}
+    <a class="btn primary{{ ' frag-link' if isfrag }}" href="{{ url_for('job', pid=j.id, recruiters=1, frag=fa) }}">🔍 Find recruiters at {{ j.company }}</a>
+  {% else %}
+    {% if recruiters %}
+    <table class="jobs" style="margin-bottom:12px">
+      <thead><tr><th>Recruiter</th><th>Title (vetted in-house)</th><th>Confidence</th><th>LinkedIn</th></tr></thead>
+      <tbody>
+      {% for r in recruiters %}
+        <tr>
+          <td class="co">{{ r.name }}</td>
+          <td>{{ r.title }}</td>
+          <td><span class="st st-{{ 'generated' if r.confidence=='high' else 'promoted' if r.confidence=='medium' else 'dismissed' }}">{{ r.confidence }}</span></td>
+          <td><a href="{{ r.linkedin }}" target="_blank" rel="noopener">open profile ↗</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="note">No profiles auto-found{% if rec_source != 'google' %} (add a free Google Search key for reliable auto-finding — see notes){% endif %}. Use the manual searches below — they open in your logged-in browser.</p>
+    {% endif %}
+
+    <h4>Search yourself (opens in your browser)</h4>
+    <div style="margin:4px 0 12px">
+      <a class="btn" href="{{ rec_links.linkedin_people_search }}" target="_blank" rel="noopener">LinkedIn people search ↗</a>
+      <a class="btn" href="{{ rec_links.google_xray }}" target="_blank" rel="noopener">Google X-ray search ↗</a>
+    </div>
+
+    {% if outreach %}
+    <h4>Ready-to-send intro (tailored to this role)</h4>
+    <div id="introtext" class="desc" style="max-height:none; white-space:pre-wrap; background:#f7faff; border:1px solid #d6e2f2; border-radius:6px; padding:10px 12px;">{{ outreach }}</div>
+    <div style="margin:8px 0; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      {% set topprof = recruiters[0].linkedin if recruiters else rec_links.linkedin_people_search %}
+      <a class="btn primary" href="{{ topprof }}" target="_blank" rel="noopener"
+         data-copy-target="#introtext" data-copied-label="✓ copied · profile opening">Copy intro &amp; open profile ↗</a>
+      <button class="btn" type="button" data-copy-target="#introtext" data-copied-label="✓ intro copied">Copy intro</button>
+      {% if j.outreach_sent_at %}
+        <span class="pill">intro sent {{ j.outreach_sent_at[:10] }}</span>
+        <form method="post" action="{{ url_for('act', pid=j.id, action='outreach_undo') }}" style="margin:0">
+          <input type="hidden" name="back" value="{{ request.full_path }}">
+          <button class="btn ghost" style="padding:4px 8px">undo</button>
+        </form>
+      {% else %}
+        <form method="post" action="{{ url_for('act', pid=j.id, action='outreach') }}" style="margin:0">
+          <input type="hidden" name="back" value="{{ request.full_path }}">
+          <button class="btn">Mark intro sent</button>
+        </form>
+      {% endif %}
+    </div>
+    <p class="note">Copy drops it on your clipboard; paste into LinkedIn's own connect/message box,
+      personalize the name, and send it yourself — no bot ever touches your account.</p>
+    {% endif %}
+  {% endif %}
+</div>
+
+{% if interview and interview.questions %}
+<style>
+  .ivq { list-style:none; padding:0; margin:6px 0 14px; }
+  .ivq li { margin:0 0 9px; padding:8px 10px; border-left:3px solid #1F3A5F; background:#f6f8fb; border-radius:3px; }
+  .ivq-q { font-weight:600; color:#16222e; }
+  .ivq-good { font-size:12px; color:#3a4a5a; margin-top:3px; }
+  .ivq-red  { font-size:12px; color:#9a2a2a; margin-top:2px; }
+  .ivsec h4 { margin:12px 0 4px; }
+  .ivtags { font-size:12px; color:#5a6675; }
+</style>
+<div class="panel ivsec">
+  <h3>Interview prep — what they'll likely ask</h3>
+  <p class="ivtags">Mapped from this role —
+     industry: <b>{{ interview.tags.industry|join(', ') or '—' }}</b> ·
+     tech: <b>{{ interview.tags.technology|join(', ') or '—' }}</b> ·
+     level: <b>{{ interview.tags.position|join(', ') or '—' }}</b></p>
+  {% for key, label in [('domain_mustknow','Domain must-knows (table-stakes — know these cold)'),('technical','Technical'),('system_design','System design'),('leadership','Leadership'),('behavioral','Behavioral'),('domain_knowledge','Domain knowledge')] %}
+    {% set items = interview.questions.get(key) %}
+    {% if items %}
+      <h4>{{ label }} ({{ items|length }})</h4>
+      <ul class="ivq">
+        {% for q in items %}
+          <li>
+            <div class="ivq-q">{{ q.question }}</div>
+            {% if q.good %}<div class="ivq-good"><b>Strong answer:</b> {{ q.good }}</div>{% endif %}
+            {% if q.red_flag %}<div class="ivq-red"><b>Red flag:</b> {{ q.red_flag }}</div>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="panel">
+  <h3>Job description</h3>
+  <div class="desc">{{ j.description or "No description captured. Run `score` (it lazily fetches SmartRecruiters/Workday descriptions)." }}</div>
+</div>

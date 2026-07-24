@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Little Monsters - My Citations</title>
+<script>
+(function(){function a(n){if(!n)return;document.documentElement.setAttribute('data-theme',n);var h='/cockpit/css/themes/'+n+'.css',l=document.querySelector('link[data-lm-theme-link]');if(l){if(l.getAttribute('href')!==h)l.setAttribute('href',h);return;}l=document.createElement('link');l.rel='stylesheet';l.href=h;l.setAttribute('data-lm-theme-link','1');document.head.appendChild(l);}function i(){try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(e){}try{var s=localStorage.getItem('cockpit-theme');if(s)return s;}catch(e){}return 'little-monsters';}a(i());try{if(window.parent&&window.parent!==window){var ph=window.parent.document.documentElement;new MutationObserver(function(m){for(var k=0;k<m.length;k++)if(m[k].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)a(t);}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});}}catch(e){}})();
+</script>
+<link rel="stylesheet" href="/api/education/education.css">
+<style>
+  body{margin:0;color:var(--text-primary,#fdeaf6);font-family:system-ui,'Inter',sans-serif;}
+  .wrap{padding:22px clamp(14px,4vw,40px) 60px;max-width:720px;}
+  .head{display:flex;align-items:center;gap:12px;}
+  .head img{width:48px;height:48px;border-radius:12px;border:3px solid var(--accent-primary,#ec4faa);background:var(--bg-card);}
+  h1{margin:0;font-size:clamp(20px,3vw,28px);}
+  .sub{color:var(--text-muted);font-size:13px;margin:4px 0 18px;}
+  .card{border:1px solid var(--border-color);border-radius:16px;background:var(--bg-card);padding:16px;margin-bottom:16px;}
+  label{display:block;font-size:12px;color:var(--text-muted);margin:8px 0 4px;}
+  input,select{width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid var(--border-color);
+    background:var(--bg-secondary);color:inherit;font-size:14px;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;} .row>div{flex:1 1 160px;}
+  .btn{margin-top:12px;background:var(--accent-primary,#ec4faa);color:#fff;border:none;border-radius:12px;
+    padding:11px 16px;font-weight:800;cursor:pointer;}
+  .out{font-family:Georgia,serif;font-size:14px;line-height:1.6;padding:12px;border-radius:10px;background:var(--bg-secondary);
+    border:1px solid var(--border-color);margin-top:10px;word-break:break-word;}
+  .saved li{font-family:Georgia,serif;font-size:13px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border-color);}
+  .small{font-size:12px;color:var(--text-muted);}
+  a.cm{color:var(--accent-primary,#ec4faa);}
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<div class="wrap">
+  <div class="head"><img src="/api/education/mascot.png" alt=""><div><h1>My Citations</h1></div></div>
+  <p class="sub">Build clean MLA/APA citations, keep your bibliography in one place, or jump to <a class="cm" href="https://www.citationmachine.net/" target="_blank" rel="noopener">Citation Machine</a> for tricky sources.</p>
+
+  <div class="card">
+    <label>📄 Your paper (optional — keeps these sources together)</label>
+    <input type="file" id="paper" accept=".doc,.docx,.pdf,.txt" onchange="setPaper(event)">
+    <div class="small" id="paperName" style="margin-top:6px;"></div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin:0 0 8px;font-size:15px;">➕ Add a source you used</h2>
+    <div class="row">
+      <div><label>Style</label><select id="style"><option>MLA</option><option>APA</option></select></div>
+      <div><label>Author (Last, First)</label><input id="author" placeholder="Smith, Jane"></div>
+    </div>
+    <label>Title</label><input id="title" placeholder="The Great Gatsby">
+    <div class="row">
+      <div><label>Source / Publisher</label><input id="source" placeholder="Scribner"></div>
+      <div><label>Year</label><input id="year" placeholder="2024"></div>
+    </div>
+    <label>URL (optional)</label><input id="url" placeholder="https://…">
+    <button class="btn" onclick="gen()">Generate &amp; save</button>
+    <div class="out" id="out" style="display:none"></div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin:0 0 8px;font-size:15px;">📚 Works Cited</h2>
+    <ul class="saved" id="saved"></ul>
+    <p class="small" id="empty">Nothing yet — add the sources you used above and they'll line up here, alphabetized.</p>
+    <button class="btn" id="copyAll" style="display:none;" onclick="copyAll()">Copy Works Cited</button>
+  </div>
+</div>
+<script>
+var KEY='lm-citations';
+function setPaper(e){ var f=e.target.files&&e.target.files[0]; document.getElementById('paperName').textContent = f ? ('Citing sources for: '+f.name) : ''; }
+function copyAll(){
+  var list=load().map(function(c){ return c.html.replace(/<[^>]+>/g,''); }).sort();
+  var text=list.join('\n');
+  try{ navigator.clipboard.writeText(text); }catch(e){}
+  var b=document.getElementById('copyAll'); var o=b.textContent; b.textContent='Copied!'; setTimeout(function(){ b.textContent=o; },1200);
+}
+function load(){ try{ return JSON.parse(localStorage.getItem(KEY)||'[]'); }catch(e){ return []; } }
+function save(list){ try{ localStorage.setItem(KEY, JSON.stringify(list)); }catch(e){} }
+function esc(s){ var d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+function build(style,a,t,s,y,u){
+  a=a.trim(); t=t.trim(); s=s.trim(); y=y.trim(); u=u.trim();
+  var out='';
+  if(style==='APA'){
+    // Author, A. (Year). Title. Source. URL
+    out = (a?esc(a)+' ':'') + (y?'('+esc(y)+'). ':'') + (t?'<i>'+esc(t)+'</i>. ':'') + (s?esc(s)+'. ':'') + (u?esc(u):'');
+  } else {
+    // MLA: Author. Title. Source, Year. URL.
+    out = (a?esc(a)+'. ':'') + (t?'<i>'+esc(t)+'</i>. ':'') + (s?esc(s)+', ':'') + (y?esc(y)+'. ':'') + (u?esc(u)+'.':'');
+  }
+  return out.trim();
+}
+function gen(){
+  var style=document.getElementById('style').value;
+  var c=build(style,
+    document.getElementById('author').value, document.getElementById('title').value,
+    document.getElementById('source').value, document.getElementById('year').value,
+    document.getElementById('url').value);
+  if(!c){ return; }
+  var o=document.getElementById('out'); o.style.display='block'; o.innerHTML=c+' <span class="small">('+style+')</span>';
+  var list=load(); list.unshift({html:c,style:style}); save(list); render();
+}
+function render(){
+  var list=load(), ul=document.getElementById('saved'); ul.innerHTML='';
+  document.getElementById('empty').style.display = list.length? 'none':'block';
+  var cab=document.getElementById('copyAll'); if(cab) cab.style.display = list.length? 'inline-block':'none';
+  list.forEach(function(c,idx){
+    var li=document.createElement('li'); li.innerHTML=c.html+' <span class="small">('+c.style+')</span> '+
+      '<a href="#" data-i="'+idx+'" class="small" style="color:var(--status-error,#ff6b8b)">remove</a>';
+    li.querySelector('a').onclick=function(e){ e.preventDefault(); var l=load(); l.splice(idx,1); save(l); render(); };
+    ul.appendChild(li);
+  });
+}
+render();
+</script>
+</body>
+</html>

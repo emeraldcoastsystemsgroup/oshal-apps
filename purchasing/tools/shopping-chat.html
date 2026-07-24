@@ -1,0 +1,983 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OSHAL Shopping</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #171a22;
+    --surface-2: #202430;
+    --line: rgba(255,255,255,.1);
+    --text: #f7f8fc;
+    --muted: #a8adba;
+    --dim: #747b8e;
+    --accent: #8b7cf6;
+    --accent-2: #6f5ce8;
+    --ok: #30c48d;
+    --warn: #f4b64a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    height: 100vh;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  button, input { font: inherit; }
+  button { cursor: pointer; }
+  .app {
+    height: 100vh;
+    display: grid;
+    grid-template-rows: auto 1fr;
+  }
+  .topbar {
+    min-height: 58px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(15,17,23,.96);
+  }
+  .mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+    font-weight: 900;
+  }
+  .brand { font-weight: 850; line-height: 1.05; }
+  .brand small {
+    display: block;
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 650;
+    text-transform: uppercase;
+  }
+  .conn {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--dim);
+  }
+  .dot.on { background: var(--ok); }
+  .layout {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 420px);
+    gap: 10px;
+    padding: 10px;
+  }
+  .shop,
+  .side {
+    min-height: 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .shop {
+    display: grid;
+    grid-template-rows: auto auto 1fr;
+  }
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+    gap: 12px;
+    padding: 14px;
+    border-bottom: 1px solid var(--line);
+    background: #11141b;
+  }
+  h1 { margin: 0; font-size: 23px; line-height: 1.1; }
+  .subcopy { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+  .ship-row,
+  .search-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+  .ship-row { margin-top: 10px; }
+  .input {
+    width: 100%;
+    min-height: 42px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #090b10;
+    color: var(--text);
+    padding: 0 12px;
+    outline: 0;
+    font-size: 16px;
+  }
+  .input:focus { border-color: var(--accent); }
+  .btn {
+    min-height: 38px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface-2);
+    color: var(--text);
+    font-weight: 800;
+    padding: 0 12px;
+  }
+  .btn.primary {
+    border-color: transparent;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+  }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .chip {
+    min-height: 32px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(255,255,255,.04);
+    color: var(--text);
+    padding: 0 11px;
+    font-size: 12px;
+    font-weight: 750;
+  }
+  .chip.active { background: var(--accent); color: #fff; border-color: transparent; }
+  .profile-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .mini {
+    min-width: 0;
+    min-height: 54px;
+    padding: 9px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(255,255,255,.035);
+  }
+  .mini b {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+  }
+  .mini span {
+    display: block;
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .results {
+    min-height: 0;
+    overflow: auto;
+    padding: 12px 14px 16px;
+  }
+  .section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .section-head h2 { margin: 0; font-size: 18px; }
+  .section-head span { color: var(--muted); font-size: 12px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+  }
+  .card {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(255,255,255,.04);
+    overflow: hidden;
+    cursor: pointer;
+  }
+  .card:hover { border-color: rgba(139,124,246,.6); }
+  .photo {
+    position: relative;
+    aspect-ratio: 16 / 10;
+    overflow: hidden;
+    background: linear-gradient(135deg, #29303b, #171a22);
+  }
+  .photo img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .fallback {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: rgba(255,255,255,.82);
+    font-size: 34px;
+    font-weight: 900;
+  }
+  .badge {
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: rgba(0,0,0,.62);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 850;
+  }
+  .card-body { padding: 10px; }
+  .card-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
+    font-weight: 850;
+  }
+  .card-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .price { color: var(--accent); font-weight: 900; }
+  .add {
+    width: 100%;
+    min-height: 34px;
+    margin-top: 9px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(139,124,246,.14);
+    color: #d8d3ff;
+    font-weight: 850;
+  }
+  .side {
+    display: grid;
+    grid-template-rows: minmax(310px, .9fr) minmax(250px, .75fr) minmax(230px, .65fr);
+  }
+  .panel {
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+  }
+  .panel + .panel { border-top: 1px solid var(--line); }
+  .panel-head {
+    padding: 12px 14px 9px;
+    border-bottom: 1px solid var(--line);
+  }
+  .panel-head h2 { margin: 0; font-size: 17px; }
+  .panel-head p { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.35; }
+  .compare-body,
+  .cart-body,
+  .messages {
+    min-height: 0;
+    overflow: auto;
+    padding: 10px 12px;
+  }
+  .hero-product {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .thumb {
+    width: 72px;
+    height: 72px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--surface-2);
+    display: grid;
+    place-items: center;
+    font-weight: 900;
+  }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .hero-product b {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
+  }
+  .hero-product span { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; }
+  .compare-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .compare-row,
+  .cart-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    padding: 9px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(255,255,255,.035);
+  }
+  .compare-row strong,
+  .cart-row strong {
+    display: block;
+    font-size: 13px;
+  }
+  .compare-row span,
+  .cart-row span {
+    display: block;
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .compare-row .vendor-price,
+  .cart-row .vendor-price {
+    color: var(--accent);
+    font-weight: 900;
+    white-space: nowrap;
+  }
+  .cart-footer,
+  .assistant-footer {
+    display: grid;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--line);
+  }
+  .total {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 900;
+  }
+  .note { color: var(--muted); font-size: 11px; line-height: 1.35; }
+  .messages {
+    display: grid;
+    align-content: start;
+    gap: 8px;
+  }
+  .msg {
+    max-width: 90%;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+  }
+  .msg.bot { justify-self: start; border: 1px solid var(--line); background: rgba(255,255,255,.05); }
+  .msg.me { justify-self: end; background: var(--accent); color: #fff; font-weight: 850; }
+  .chat-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 72px;
+    gap: 8px;
+  }
+  .empty {
+    color: var(--muted);
+    padding: 22px 10px;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 22px;
+    transform: translateX(-50%);
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 900;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease;
+    z-index: 10;
+  }
+  .toast.show { opacity: 1; }
+  @media (max-width: 1180px) {
+    .layout { grid-template-columns: 1fr; }
+    .side { grid-template-columns: minmax(0, 1fr) minmax(320px, 380px); grid-template-rows: 360px 340px; }
+    .assistant-panel { grid-column: 1 / -1; }
+  }
+  @media (max-width: 760px) {
+    body { height: auto; overflow: auto; }
+    .app { height: auto; display: block; }
+    .layout { display: block; padding: 8px; }
+    .shop, .side { margin-bottom: 8px; }
+    .shop { display: block; }
+    .hero { grid-template-columns: 1fr; }
+    .profile-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .side { display: block; }
+    .panel { min-height: 300px; }
+    .conn { display: none; }
+  }
+
+  /* Theme-aware polish layer. Keep this after the legacy rules so light/dark cockpit
+     tokens win over the original dark mockup colors. */
+  :root {
+    --shop-control: color-mix(in srgb, var(--surface-2) 70%, var(--bg));
+    --shop-control-strong: color-mix(in srgb, var(--surface-2) 88%, var(--text) 4%);
+    --shop-hero: color-mix(in srgb, var(--surface) 86%, transparent);
+    --shop-card: color-mix(in srgb, var(--surface) 92%, transparent);
+    --shop-shadow: 0 18px 48px rgba(15, 23, 42, .12);
+    --shop-shadow-strong: 0 22px 70px rgba(15, 23, 42, .18);
+  }
+
+  body {
+    background:
+      radial-gradient(circle at 10% 10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 34rem),
+      linear-gradient(135deg, var(--bg), color-mix(in srgb, var(--bg) 68%, var(--surface)));
+  }
+
+  .topbar {
+    background: color-mix(in srgb, var(--surface) 86%, transparent);
+    box-shadow: var(--shop-shadow);
+    backdrop-filter: blur(18px) saturate(130%);
+    -webkit-backdrop-filter: blur(18px) saturate(130%);
+  }
+
+  .shop,
+  .side,
+  .panel,
+  .mini,
+  .card,
+  .compare-row,
+  .cart-row {
+    background: var(--shop-card);
+    box-shadow: var(--shop-shadow);
+  }
+
+  .shop,
+  .side {
+    border-radius: 14px;
+  }
+
+  .hero {
+    border-bottom-color: var(--line);
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, transparent), transparent 52%),
+      var(--shop-hero);
+  }
+
+  h1 {
+    font-size: clamp(26px, 3vw, 40px);
+    letter-spacing: 0;
+  }
+
+  .input {
+    border-color: color-mix(in srgb, var(--line) 82%, transparent);
+    background: var(--shop-control);
+    color: var(--text);
+  }
+
+  .input::placeholder {
+    color: color-mix(in srgb, var(--muted) 80%, transparent);
+  }
+
+  .btn,
+  .chip,
+  .add {
+    border-color: color-mix(in srgb, var(--line) 86%, transparent);
+    background: var(--shop-control);
+    color: var(--text);
+    box-shadow: none;
+  }
+
+  .btn:hover,
+  .chip:hover,
+  .add:hover {
+    border-color: color-mix(in srgb, var(--accent) 56%, var(--line));
+    background: var(--shop-control-strong);
+  }
+
+  .btn.primary,
+  .chip.active,
+  .msg.me,
+  .toast {
+    border-color: transparent;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+  }
+
+  .add {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  }
+
+  .card {
+    border-radius: 14px;
+    transition: transform .14s ease, border-color .14s ease, box-shadow .14s ease;
+  }
+
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shop-shadow-strong);
+  }
+
+  .photo {
+    background:
+      radial-gradient(circle at 28% 22%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 44%),
+      color-mix(in srgb, var(--surface-2) 75%, var(--bg));
+  }
+
+  .fallback {
+    color: color-mix(in srgb, var(--text) 88%, transparent);
+  }
+
+  .badge {
+    background: color-mix(in srgb, var(--text) 82%, transparent);
+    color: var(--bg);
+  }
+
+  .panel-head,
+  .cart-footer,
+  .assistant-footer {
+    background: color-mix(in srgb, var(--surface) 70%, transparent);
+  }
+
+  .price,
+  .vendor-price {
+    color: var(--accent);
+  }
+</style>
+<script>
+(function(){
+  const map = {
+    '--bg':'--bg-primary',
+    '--surface':'--bg-card',
+    '--surface-2':'--bg-secondary',
+    '--line':'--border-color',
+    '--text':'--text-primary',
+    '--muted':'--text-secondary',
+    '--dim':'--text-muted',
+    '--accent':'--accent-primary',
+    '--accent-2':'--accent-primary-hover',
+    '--ok':'--status-success',
+    '--warn':'--status-warning'
+  };
+  function sync(){
+    try {
+      const parentWindow = window.parent && window.parent !== window ? window.parent : null;
+      if (!parentWindow) return;
+      const computed = parentWindow.getComputedStyle(parentWindow.document.documentElement);
+      for (const localName in map) {
+        const value = computed.getPropertyValue(map[localName]).trim();
+        if (value) document.documentElement.style.setProperty(localName, value);
+      }
+    } catch {}
+  }
+  sync();
+  document.addEventListener('DOMContentLoaded', sync);
+})();
+</script>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="mark">S</div>
+    <div class="brand">OSHAL Shopping<small>Marketplace concierge</small></div>
+    <div class="conn"><span class="dot" id="connDot"></span><span id="connTxt">Checking Walmart</span></div>
+  </header>
+
+  <div class="layout">
+    <main class="shop">
+      <section class="hero">
+        <div>
+          <h1>Shop the things you need.</h1>
+          <p class="subcopy">Browse products, compare retailer options, build a cart, and let the concierge help choose.</p>
+          <div class="ship-row">
+            <input class="input" id="shipAddress" placeholder="Ship to address or store pickup location" />
+            <button class="btn" id="locBtn" type="button">Use location</button>
+          </div>
+        </div>
+        <div>
+          <div class="search-row">
+            <input class="input" id="query" placeholder="Search Walmart, Amazon, products, deals" />
+            <button class="btn primary" id="searchBtn" type="button">Search</button>
+          </div>
+          <div class="chips" id="chips"></div>
+        </div>
+      </section>
+
+      <section class="profile-strip">
+        <div class="mini"><b id="prefRetailer">Walmart first</b><span>Retailer preference</span></div>
+        <div class="mini"><b id="prefDiet">No household notes</b><span>Household constraints</span></div>
+        <div class="mini"><b id="prefBudget">Budget open</b><span>Monthly budget</span></div>
+        <div class="mini"><b id="usualCount">No usuals yet</b><span>Learned items</span></div>
+      </section>
+
+      <section class="results">
+        <div class="section-head">
+          <div><h2 id="sectionTitle">Deals and staples</h2><span id="sectionSub">Search, scroll, or ask the concierge.</span></div>
+          <button class="btn" id="dealsBtn" type="button">Deals</button>
+        </div>
+        <div class="grid" id="grid"></div>
+      </section>
+    </main>
+
+    <aside class="side">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Product Compare</h2>
+          <p>Pick an item to compare vendor options and add the best one.</p>
+        </div>
+        <div class="compare-body" id="compareBody">
+          <div class="empty">Search or select a product to compare price, source, and handoff options.</div>
+        </div>
+        <div class="cart-footer">
+          <button class="btn primary" id="compareAdd" type="button" disabled>Add selected item</button>
+          <div class="note">Walmart can be live or demo. Amazon is shown as a comparison slot until its connector is enabled.</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Cart</h2>
+          <p id="cartMeta">One active shopping list.</p>
+        </div>
+        <div class="cart-body" id="cartItems"></div>
+        <div class="cart-footer">
+          <div class="total"><span>Total</span><span id="total">$0.00</span></div>
+          <button class="btn primary" id="checkoutBtn" type="button" disabled>Checkout handoff</button>
+          <div class="note">Checkout opens Walmart. OSHAL never charges you or claims the order was placed.</div>
+        </div>
+      </section>
+
+      <section class="panel assistant-panel">
+        <div class="panel-head">
+          <h2>Shopping Concierge</h2>
+          <p>Ask it to find, compare, add, remember, or checkout.</p>
+        </div>
+        <div class="messages" id="messages">
+          <div class="msg bot">Tell me what you need. I can search products, compare options, add to the cart, and remember preferences.</div>
+        </div>
+        <div class="assistant-footer">
+          <div class="chat-row">
+            <input class="input" id="chatInput" placeholder="Find cheaper dish soap and bananas..." />
+            <button class="btn primary" id="chatSend" type="button">Send</button>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '/api/purchasing';
+const $ = (selector) => document.querySelector(selector);
+const chips = ['Milk', 'Coffee', 'Dish soap', 'Bananas', 'Eggs', 'Deals', 'Cleaning', 'Electronics'];
+const state = {
+  listId: '',
+  selected: null,
+  conversationId: localStorage.getItem('oshalShopConv') || '',
+  source: 'walmart'
+};
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function money(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? `$${number.toFixed(2)}` : '--';
+}
+
+function toast(message) {
+  const node = $('#toast');
+  node.textContent = message;
+  node.classList.add('show');
+  setTimeout(() => node.classList.remove('show'), 1800);
+}
+
+async function getJson(url) {
+  const response = await fetch(url, { credentials: 'same-origin' });
+  return response.json();
+}
+
+async function postJson(url, body) {
+  const response = await fetch(url, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {})
+  });
+  return response.json();
+}
+
+function renderChips(active = '') {
+  $('#chips').innerHTML = chips.map((chip) => {
+    const on = chip.toLowerCase() === active.toLowerCase() ? ' active' : '';
+    return `<button class="chip${on}" type="button" data-chip="${escapeHtml(chip)}">${escapeHtml(chip)}</button>`;
+  }).join('');
+  document.querySelectorAll('[data-chip]').forEach((button) => {
+    button.addEventListener('click', () => {
+      $('#query').value = button.dataset.chip || '';
+      if ((button.dataset.chip || '').toLowerCase() === 'deals') loadDeals();
+      else search(button.dataset.chip || '');
+    });
+  });
+}
+
+function photo(product) {
+  const letter = String(product.title || '?').charAt(0).toUpperCase() || 'S';
+  const image = product.imageUrl ? `<img src="${escapeHtml(product.imageUrl)}" alt="" loading="lazy" onerror="this.remove()">` : '';
+  const badge = product.onSale ? '<span class="badge">Rollback</span>' : '';
+  return `<div class="photo"><span class="fallback">${escapeHtml(letter)}</span>${image}${badge}</div>`;
+}
+
+function renderProductCard(product) {
+  return `<article class="card" data-product="${escapeHtml(product.productId)}">
+    ${photo(product)}
+    <div class="card-body">
+      <div class="card-title">${escapeHtml(product.title)}</div>
+      <div class="card-meta"><span>${escapeHtml(product.brand || product.retailer || 'Product')}</span><span class="price">${money(product.price)}</span></div>
+      <button class="add" type="button" data-add="${escapeHtml(product.productId)}">Add to cart</button>
+    </div>
+  </article>`;
+}
+
+function hydrateProductEvents(products) {
+  const byId = new Map(products.map((product) => [String(product.productId), product]));
+  document.querySelectorAll('[data-product]').forEach((card) => {
+    card.addEventListener('click', (event) => {
+      if (event.target.closest('[data-add]')) return;
+      selectProduct(byId.get(card.dataset.product));
+    });
+  });
+  document.querySelectorAll('[data-add]').forEach((button) => {
+    button.addEventListener('click', () => addProduct(byId.get(button.dataset.add)));
+  });
+}
+
+async function search(query = '') {
+  if (!query.trim()) return loadDeals();
+  renderChips(query);
+  $('#sectionTitle').textContent = `Results for "${query}"`;
+  $('#sectionSub').textContent = $('#shipAddress').value ? `Ship to ${$('#shipAddress').value}` : 'Set a shipping address for better handoff context.';
+  $('#grid').innerHTML = '<div class="empty">Searching products...</div>';
+  const result = await getJson(`${API}/search?q=${encodeURIComponent(query)}&limit=16`);
+  state.source = result.source || 'walmart';
+  const products = result.items || [];
+  $('#grid').innerHTML = products.length ? products.map(renderProductCard).join('') : '<div class="empty">No products matched that search.</div>';
+  hydrateProductEvents(products);
+  if (products[0]) selectProduct(products[0]);
+}
+
+async function loadDeals() {
+  renderChips('Deals');
+  $('#sectionTitle').textContent = 'Deals and staples';
+  $('#sectionSub').textContent = 'Rollback and common household products.';
+  $('#grid').innerHTML = '<div class="empty">Loading deals...</div>';
+  const result = await getJson(`${API}/deals?feed=rollback`);
+  state.source = result.source || 'walmart';
+  const products = result.items || [];
+  $('#grid').innerHTML = products.length ? products.map(renderProductCard).join('') : '<div class="empty">No deals returned yet. Try searching directly.</div>';
+  hydrateProductEvents(products);
+  if (products[0]) selectProduct(products[0]);
+}
+
+function comparisonRows(product) {
+  const price = Number(product.price || 0);
+  const amazonEstimate = price ? price * 1.06 + 0.49 : null;
+  const targetEstimate = price ? Math.max(price * 0.98, price - 0.25) : null;
+  return [
+    { vendor: 'Walmart', price, status: state.source === 'demo' ? 'Demo catalog, live when connected' : 'Connected catalog', available: true },
+    { vendor: 'Amazon', price: amazonEstimate, status: 'Connector slot ready, needs Amazon provider', available: false },
+    { vendor: 'Target', price: targetEstimate, status: 'Future connector comparison slot', available: false }
+  ];
+}
+
+function selectProduct(product) {
+  if (!product) return;
+  state.selected = product;
+  const image = product.imageUrl ? `<img src="${escapeHtml(product.imageUrl)}" alt="">` : escapeHtml(String(product.title || '?').charAt(0).toUpperCase());
+  const compare = comparisonRows(product);
+  $('#compareBody').innerHTML = `<div class="hero-product">
+    <div class="thumb">${image}</div>
+    <div><b>${escapeHtml(product.title)}</b><span>${escapeHtml(product.brand || product.retailer || 'Product')} · ${money(product.price)}</span></div>
+  </div>
+  <div class="compare-list">
+    ${compare.map((row) => `<div class="compare-row">
+      <div><strong>${escapeHtml(row.vendor)}</strong><span>${escapeHtml(row.status)}</span></div>
+      <div class="vendor-price">${row.price ? money(row.price) : '--'}</div>
+    </div>`).join('')}
+  </div>`;
+  $('#compareAdd').disabled = false;
+}
+
+async function addProduct(product) {
+  if (!product || !state.listId) await loadCart();
+  if (!product || !state.listId) return;
+  await postJson(`${API}/lists/${encodeURIComponent(state.listId)}/items`, {
+    productId: product.productId,
+    title: product.title,
+    brand: product.brand,
+    retailer: product.retailer || 'walmart',
+    imageUrl: product.imageUrl,
+    productUrl: product.productUrl,
+    price: product.price,
+    quantity: 1,
+    itemKey: product.title,
+    reason: 'Added from marketplace surface.'
+  });
+  toast(`Added ${product.title}`);
+  loadCart();
+}
+
+function renderCart(data) {
+  state.listId = data.listId || state.listId;
+  const items = data.items || [];
+  $('#cartMeta').textContent = items.length ? `${items.length} cart line${items.length === 1 ? '' : 's'}` : 'One active shopping list.';
+  $('#total').textContent = money(data.total || 0);
+  $('#checkoutBtn').disabled = items.length === 0;
+  $('#cartItems').innerHTML = items.length ? items.map((item) => `<div class="cart-row">
+    <div><strong>${escapeHtml(item.title)}</strong><span>${money(item.unit_price)} x ${escapeHtml(item.quantity || 1)}</span></div>
+    <button class="btn" type="button" data-remove="${escapeHtml(item.item_id)}">Remove</button>
+  </div>`).join('') : '<div class="empty">Nothing in the cart yet. Add products or ask the concierge.</div>';
+  document.querySelectorAll('[data-remove]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      await fetch(`${API}/lists/${encodeURIComponent(state.listId)}/items/${encodeURIComponent(button.dataset.remove)}`, { method: 'DELETE', credentials: 'same-origin' });
+      loadCart();
+    });
+  });
+}
+
+async function loadCart() {
+  renderCart(await getJson(`${API}/cart`));
+}
+
+async function checkout() {
+  const result = await postJson(`${API}/checkout`, { listId: state.listId });
+  if (result.checkoutUrl) {
+    toast('Opening checkout');
+    window.open(result.checkoutUrl, '_blank');
+  } else {
+    toast(result.error || 'Add products first');
+  }
+}
+
+function addMessage(role, text) {
+  const node = document.createElement('div');
+  node.className = `msg ${role === 'me' ? 'me' : 'bot'}`;
+  node.textContent = text;
+  $('#messages').appendChild(node);
+  $('#messages').scrollTop = $('#messages').scrollHeight;
+  return node;
+}
+
+async function sendChat() {
+  const input = $('#chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  addMessage('me', text);
+  const pending = addMessage('bot', 'Shopping...');
+  try {
+    const result = await postJson(`${API}/chat`, {
+      message: text,
+      conversationId: state.conversationId,
+      shippingAddress: $('#shipAddress').value.trim()
+    });
+    state.conversationId = result.conversationId || state.conversationId;
+    if (state.conversationId) localStorage.setItem('oshalShopConv', state.conversationId);
+    pending.textContent = result.reply || 'I could not complete that shopping step yet.';
+    const products = [...(result.cards || []), ...(result.added || [])];
+    if (products.length) {
+      $('#grid').innerHTML = products.map(renderProductCard).join('');
+      hydrateProductEvents(products);
+      selectProduct(products[0]);
+    }
+    if ((result.added || []).length || result.checkout) await loadCart();
+    if (result.checkout?.checkoutUrl) window.open(result.checkout.checkoutUrl, '_blank');
+  } catch {
+    pending.textContent = 'I hit an error. Try searching directly.';
+  }
+}
+
+async function useLocation() {
+  if (!navigator.geolocation) {
+    toast('Browser location is not available');
+    return;
+  }
+  $('#locBtn').disabled = true;
+  $('#locBtn').textContent = 'Locating';
+  navigator.geolocation.getCurrentPosition(async (position) => {
+    const value = `Current location (${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)})`;
+    $('#shipAddress').value = value;
+    $('#locBtn').disabled = false;
+    $('#locBtn').textContent = 'Use location';
+    await postJson(`${API}/profile`, { preferredStore: value, onboarded: true });
+  }, () => {
+    toast('Location permission was not granted');
+    $('#locBtn').disabled = false;
+    $('#locBtn').textContent = 'Use location';
+  }, { enableHighAccuracy: true, timeout: 9000, maximumAge: 60000 });
+}
+
+async function loadProfile() {
+  try {
+    const [profileRes, prefRes] = await Promise.all([getJson(`${API}/profile`), getJson(`${API}/preferences`)]);
+    const profile = profileRes.profile || {};
+    $('#shipAddress').value = profile.preferred_store || '';
+    $('#prefRetailer').textContent = profile.preferred_retailer || 'Walmart first';
+    $('#prefDiet').textContent = Array.isArray(profile.dietary) && profile.dietary.length ? profile.dietary.join(', ') : 'No household notes';
+    $('#prefBudget').textContent = profile.budget_monthly ? `$${Number(profile.budget_monthly).toFixed(0)}` : 'Budget open';
+    $('#usualCount').textContent = `${(prefRes.preferences || []).length} usuals`;
+  } catch {}
+}
+
+async function boot() {
+  renderChips();
+  $('#searchBtn').addEventListener('click', () => search($('#query').value.trim()));
+  $('#query').addEventListener('keydown', (event) => { if (event.key === 'Enter') search($('#query').value.trim()); });
+  $('#dealsBtn').addEventListener('click', loadDeals);
+  $('#compareAdd').addEventListener('click', () => addProduct(state.selected));
+  $('#checkoutBtn').addEventListener('click', checkout);
+  $('#chatSend').addEventListener('click', sendChat);
+  $('#chatInput').addEventListener('keydown', (event) => { if (event.key === 'Enter') sendChat(); });
+  $('#locBtn').addEventListener('click', useLocation);
+  await Promise.all([loadProfile(), loadCart()]);
+  await loadDeals();
+  try {
+    const config = await getJson(`${API}/config`);
+    $('#connDot').classList.toggle('on', Boolean(config.walmartConnected));
+    $('#connTxt').textContent = config.walmartConnected ? 'Walmart connected' : 'Demo catalog';
+  } catch {
+    $('#connTxt').textContent = 'Demo catalog';
+  }
+}
+
+boot();
+</script>
+</body>
+</html>

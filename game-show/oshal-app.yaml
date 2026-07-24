@@ -1,0 +1,158 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# DATE/TIME           | AUTHOR                                     | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 2026-07-21 20:14:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Initial Game Show app package: modular AI game-show engine (buzzer, cutaway director, interview, multi-surface), Family Feud as the reference show.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL App Package — Game Show (AI game night, live at the table or across phones)
+# Format: ADR-085 (remote app packages). Every path below is RELATIVE TO THIS
+# PACKAGE. Installing this package clones it into the swarm's deployed-apps/ and
+# hot-loads it — nothing is compiled into the core image.
+#
+# WHAT THIS IS: a real TV-style game show run by an AI host. A host opens a room,
+# everyone joins from their phone and stands at a podium (their own camera still,
+# an avatar, or nothing — their call), and the show plays out like the broadcast:
+# a generated survey, a buzzer race to answer, strikes, steals, an interview beat
+# the player actually answers, and cutaway "shots" (team huddle, audience pan,
+# celebration dance) on the big screen.
+#
+# MODULAR BY DESIGN — the engine is show-agnostic. A "show" is a plug-in module in
+# lib/shows/*.js implementing one interface; the room, seats/podiums, presence,
+# the generalized BUZZER, the cutaway DIRECTOR, the INTERVIEW beat, sync, the host
+# bot, and TTS are shared. Family Feud is the reference show; Jeopardy, Wheel of
+# Fortune, and Whammy (Press Your Luck) drop into the same suite as new modules.
+#
+# MULTIPLE SURFACES, ONE SYNCED STATE — the same room renders as different layouts
+# selected by ?view= : tv (broadcast big-screen, no controls), stage (desktop or
+# solo phone — watch + play), clicker (phone companion: buzzer + mic while you
+# watch the TV), host (the MC control desk), audience (spectate + react).
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: game-show
+suite: ai-creative   # ADR-097: primary catalog shelf (games/entertainment live under creative)
+displayName: Game Show
+description: >-
+  AI game night that plays like the real TV show. A host opens a room, everyone
+  joins from their phone and takes a podium — shown as their own camera, an avatar,
+  or just a name, their call — and the AI host runs the whole broadcast: a survey
+  generated on the fly, a buzzer race to answer, strikes and steals, a contestant
+  interview you actually answer, and cutaway shots (team huddle, audience pan,
+  celebration) on the big screen. Watch on a TV and buzz on your phone, or play the
+  whole thing on one laptop. Family Feud ships first; the engine is modular so
+  Jeopardy, Wheel of Fortune, and Whammy plug in as more shows.
+version: 0.1.0
+status: active
+
+# The app TILE is public so every signed-in player sees it in the ribbon (a
+# person-scoped app auto-loaded at boot has no owner stamped, so RLS hides it from
+# every session — the little-monsters lesson). Per-PLAYER data isolation is NOT
+# this flag: it is enforced in the app's own gameshow_* tables, which carry
+# user_sub and are filtered on it in every query.
+scope: public
+
+# Where this package came from — the installer pins ref+sha at install time.
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: game-show
+  ref: main
+
+# ── ADR-090 D8: kernel SKILLS this app calls ────────────────────────────────
+# The host bot uses shared LLM/harness access (tool-registry) to generate surveys,
+# judge answers, and interview players; the pluggable voice layer reads the show
+# aloud; media-generation backs optional cutaway art (fail-soft when unconfigured).
+uses:
+  - tool-registry
+  - voice
+  - media-generation
+
+# ── ADR-085: dependencies ───────────────────────────────────────────────────
+# Self-contained: the host invents show content live, so no external data source.
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+# ── ADR-085: app-scoped settings (typed keys the app reads) ──────────────────
+settings:
+  schema:
+    readAloud:
+      type: boolean
+      default: true
+      label: Host reads the show aloud
+    cameraByDefault:
+      type: boolean
+      default: false
+      label: Turn on my podium camera when I join
+    audienceReactions:
+      type: boolean
+      default: true
+      label: Allow audience emoji reactions
+    familyFriendly:
+      type: boolean
+      default: true
+      label: Keep content family-friendly
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — one accountable host/MC. agentId is this app's OWN (6a5e…) and must not
+# collide with another installed app (ADR-085 exclusive-ownership rule).
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: 6a5e0000-0000-0000-0000-000000000001
+    name: game-show-host
+    persona: personas/host-mc.yaml
+    role: games/game-show-host
+    capabilities: [hosting, survey-generation, answer-judging, contestant-interview, banter, text-to-speech]
+
+# Shared persona layered underneath the host.
+foundation:
+  persona: personas/game-show-foundation.yaml
+
+# ─────────────────────────────────────────────────────────────────────────────
+# UI SURFACES — the show is the app. Every surface is a VIEW over the room's live
+# state (ADR-036): surfaces render state and post player actions; all reasoning
+# (survey generation, answer judging, interview, banter) runs on the host bot.
+# One document, many layouts by ?view= .
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - { toolName: game-show-stage,   label: Play,        icon: codicon codicon-game,           iframeUrl: /api/game-show/stage,               section: top }
+    - { toolName: game-show-tv,      label: Big Screen,  icon: codicon codicon-device-desktop,  iframeUrl: /api/game-show/stage?view=tv,       section: top }
+    - { toolName: game-show-clicker, label: Clicker,     icon: codicon codicon-radio-tower,     iframeUrl: /api/game-show/stage?view=clicker,  section: top }
+    - { toolName: game-show-host,    label: Host Desk,   icon: codicon codicon-mortar-board,    iframeUrl: /api/game-show/stage?view=host,     section: top }
+    - { toolName: game-show-help,    label: How to Play, icon: codicon codicon-book,            iframeUrl: /api/game-show/stage?view=help,     section: bottom }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — compiled JS bundled in this package, mounted in-process at activation
+# (ADR-085 P1, flag APP_PACKAGE_DYNAMIC_ROUTES). This module is self-contained
+# except for the framework AppContext it receives (pool, orchestrator, logger).
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - { module: routes/game-show-routes.js, factory: createGameShowRoutes, mountPath: /api/game-show, requiresAuth: true, requiresContext: true }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MIGRATIONS — this app's OWN schema, applied idempotently on install and scoped
+# per user (every row carries user_sub; every query filters on it).
+# ─────────────────────────────────────────────────────────────────────────────
+migrations:
+  - migrations/001-game-show.sql
+
+# Read-the-show-aloud requires a configured natural SERVER voice; the game reports
+# the voice unavailable instead of falling back to a robotic browser voice.
+# gemini-tts authenticates by API key; google-cloud-tts needs a Google Workspace
+# OAuth profile. The route resolves the first CONFIGURED provider in that order,
+# so this declares the one that actually works on a default swarm.
+voice:
+  tts: { provider: gemini-tts }
+
+# Shared CSS loaded into the app's surfaces (each surface also styles itself).
+sharedCss: ui/game-show.css
+
+# Ribbon shape when /cockpit?app=game-show is focused — clear the office chrome,
+# this is a game.
+ribbon:
+  hideFrameworkItems: [tickets, chat, calendar, addressbook, dashboard, echo, logs, operations]
+  hideChatPanel: true
+  hideAssistant: true
+  defaultView: game-show-stage

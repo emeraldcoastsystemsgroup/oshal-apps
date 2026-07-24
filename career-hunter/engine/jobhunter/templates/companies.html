@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Companies{% endblock %}
+{% block body %}
+<div class="maptop">
+  <div class="mapcount"><b>{{ "{:,}".format(n_total) }}</b> companies · <b>{{ "{:,}".format(n_data) }}</b> with scraped jobs · <b>{{ "{:,}".format(n_total - n_data) }}</b> click-through only</div>
+  <div class="rtoggle">
+    <a href="?show=all" class="{{ 'on' if show=='all' }}">All</a>
+    <a href="?show=data" class="{{ 'on' if show=='data' }}">Has data</a>
+    <a href="?show=nodata" class="{{ 'on' if show=='nodata' }}">No data (click-through)</a>
+  </div>
+</div>
+<form class="filters" method="get">
+  <input type="hidden" name="show" value="{{ show }}">
+  <input type="text" name="q" placeholder="search company" value="{{ q }}"><button>Find</button>
+</form>
+
+<table class="jobs">
+  <thead><tr><th>Company</th><th>Jobs</th><th>Platform</th><th>Careers / Jobs page — paste the real search URL &amp; press Resolve</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td class="co">{{ r.name }}</td>
+      <td>{% if r.jobs %}<a href="{{ url_for('index', company=r.name, sort='ai') }}">{{ "{:,}".format(r.jobs) }} →</a>{% else %}<span class="st">—</span>{% endif %}</td>
+      <td>{% if r.ats_type %}<span class="pill">{{ r.ats_type }}</span>{% else %}<span class="st st-{{ r.discover_status }}">{{ r.discover_status }}</span>{% endif %}</td>
+      <td>
+        <form class="urlform" method="post" action="{{ url_for('company_seturl', cid=r.id) }}">
+          <input type="hidden" name="back" value="{{ request.full_path }}">
+          <input type="url" name="url" class="urlinput" placeholder="paste careers / jobs search URL…"
+                 value="{{ r.careers_url or '' }}">
+          <button type="submit" class="mini" title="Auto-detect the ATS, save, and scrape now">Resolve &amp; scrape</button>
+          {% if r.careers_url %}<a href="{{ r.careers_url }}" target="_blank" rel="noopener" class="openlink" title="open in new tab">↗</a>{% endif %}
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p class="note"><b>0-job companies</b> run on a platform we haven't auto-detected yet. Open the link, copy the URL of the actual <i>job search</i> page (the "one click away" results page), paste it above, and press <b>Resolve &amp; scrape</b> — it auto-detects Workday / Oracle / iCIMS / SuccessFactors / Greenhouse / Lever / Avature / Pinpoint / Jibe and pulls the jobs on the spot.</p>
+{% endblock %}

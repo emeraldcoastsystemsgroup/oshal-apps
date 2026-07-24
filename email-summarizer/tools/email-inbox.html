@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Inbox — Intelligent Communication</title>
+<!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
+     Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
+     matters — without it the surface would have no colors at all. -->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  /* This surface keeps its own short alias names, but DERIVES them from the framework theme rather
+     than hardcoding hex — so all eleven themes work, not just the dark ones. The palette used to be
+     literal (#0e0e16 …), which is why it only looked right in a dark theme. The green success accent
+     comes from the theme too; the fallback after the comma keeps it legible if a theme omits it.
+     --scrollbar-thumb stays a translucent overlay (not a theme color). */
+  :root {
+    --bg: var(--bg-primary);
+    --panel: var(--bg-secondary);
+    --panel2: var(--bg-tertiary);
+    --line: var(--border-color);
+    --text: var(--text-primary);
+    --muted: var(--text-secondary);
+    --accent: var(--accent-primary);
+    --accent2: var(--status-success, #00d3a7);
+    --scrollbar-thumb: rgba(255,255,255,.14);
+  }
+  ::-webkit-scrollbar{width:11px;height:11px}
+  ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px}
+  ::-webkit-scrollbar-track{background:transparent}
+  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
+  * { box-sizing: border-box; }
+  html, body { height:100%; margin:0; }
+  body { font-family: system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  /* height:100% (not 100vh) so the surface fills its cockpit iframe exactly — 100vh
+     over-/under-shoots the iframe's flex area. Responsive so the 380px list column
+     stacks instead of crushing the reader in the narrow cockpit content area. */
+  .wrap { display:grid; grid-template-columns: minmax(280px,360px) 1fr; height:100%; }
+  @media (max-width:760px) { .wrap { grid-template-columns:1fr; grid-template-rows:minmax(0,42%) 1fr; } .list { border-right:none; border-bottom:1px solid var(--line); } }
+  .list { border-right:1px solid var(--line); overflow-y:auto; background:var(--panel); }
+  .list-head { position:sticky; top:0; background:var(--panel); padding:14px 16px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px; }
+  .list-head h2 { font-size:15px; margin:0; font-weight:600; }
+  .list-head .count { color:var(--muted); font-size:12px; }
+  .refresh { margin-left:auto; background:var(--panel2); border:1px solid var(--line); color:var(--muted); border-radius:6px; padding:4px 9px; cursor:pointer; font-size:12px; }
+  .refresh:hover { color:var(--text); }
+  .item { padding:12px 16px; border-bottom:1px solid var(--line); cursor:pointer; }
+  .item:hover { background:var(--panel2); }
+  .item.active { background:var(--panel2); border-left:3px solid var(--accent); padding-left:13px; }
+  .item .row1 { display:flex; align-items:center; gap:6px; }
+  .item .from { font-weight:600; font-size:13px; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .item.unread .from::before { content:""; display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--accent2); margin-right:6px; vertical-align:middle; }
+  .item .when { color:var(--muted); font-size:11px; white-space:nowrap; }
+  .item .subj { font-size:13px; margin:3px 0 2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .item .snip { color:var(--muted); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .reader { overflow-y:auto; padding:28px 34px; }
+  .reader .rsubj { font-size:20px; font-weight:600; margin:0 0 6px; }
+  .reader .rmeta { color:var(--muted); font-size:13px; margin-bottom:18px; padding-bottom:14px; border-bottom:1px solid var(--line); }
+  .reader .rbody { white-space:pre-wrap; line-height:1.6; font-size:14px; color:var(--text-primary, #d2d2e2); }
+  .empty, .notice { color:var(--muted); padding:40px; text-align:center; }
+  .notice a { color:var(--accent); }
+  .actions { margin:22px 0 10px; display:flex; gap:10px; align-items:center; }
+  .btn { background:var(--accent); color:#fff; border:none; border-radius:7px; padding:9px 16px; cursor:pointer; font-size:13px; font-weight:600; }
+  .btn:hover { filter:brightness(1.1); }
+  .btn.secondary { background:var(--panel2); border:1px solid var(--line); color:var(--text); }
+  .draft { margin-top:14px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .draft h4 { margin:0 0 8px; font-size:12px; color:var(--accent2); text-transform:uppercase; letter-spacing:.5px; }
+  .draft textarea { width:100%; min-height:160px; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:11px; font-family:inherit; font-size:13px; line-height:1.5; resize:vertical; }
+  .spin { color:var(--muted); font-size:13px; }
+  @media (max-width:640px) {
+    .wrap { grid-template-columns:1fr; grid-template-rows:minmax(0,40%) 1fr; }
+    .list { border-right:none; border-bottom:1px solid var(--line); }
+    .reader { padding:16px 14px; }
+    .reader .rsubj { font-size:17px; }
+    .actions { flex-wrap:wrap; }
+    .btn, select.btn { font-size:16px; padding:10px 14px; min-height:44px; }
+    .draft textarea { font-size:16px; }
+  }
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+  <div class="wrap">
+    <div class="list">
+      <div class="list-head"><h2>📥 Inbox</h2><span class="count" id="count"></span><button class="refresh" id="refresh">↻</button></div>
+      <div id="items"><div class="empty">Loading…</div></div>
+    </div>
+    <div class="reader" id="reader"><div class="empty">Select a message to read it.</div></div>
+  </div>
+
+<script>
+const items = document.getElementById('items');
+const reader = document.getElementById('reader');
+const countEl = document.getElementById('count');
+let active = null;
+
+function esc(s){ return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function shortFrom(f){ const m=(f||'').match(/^"?([^"<]+)"?\s*</); return (m?m[1]:f||'').trim(); }
+function when(d){ const t=Date.parse(d); if(!t) return ''; const dt=new Date(t), now=new Date();
+  return dt.toDateString()===now.toDateString() ? dt.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) : dt.toLocaleDateString([], {month:'short',day:'numeric'}); }
+
+async function load(){
+  items.innerHTML = '<div class="empty">Loading…</div>';
+  const r = await fetch('/api/email/messages?max=30&surface=1');
+  if (!r.ok) { items.innerHTML = '<div class="notice">Could not load inbox ('+r.status+').</div>'; return; }
+  const payload = await r.json();
+  if (payload.connected === false) { items.innerHTML = '<div class="notice">No Google account connected.<br><a href="/utilities" target="_top">Connect Google →</a></div>'; return; }
+  const messages = payload.messages || [];
+  countEl.textContent = messages.length + ' shown';
+  if (!messages.length) { items.innerHTML = '<div class="empty">Inbox is clear. 🎉</div>'; return; }
+  items.innerHTML = '';
+  for (const m of messages) {
+    const el = document.createElement('div');
+    el.className = 'item' + (m.unread ? ' unread' : '');
+    el.innerHTML = `<div class="row1"><span class="from">${esc(shortFrom(m.from))}</span><span class="when">${when(m.date)}</span></div>
+      <div class="subj">${esc(m.subject)}</div><div class="snip">${esc(m.snippet)}</div>`;
+    el.onclick = () => open(m, el);
+    items.appendChild(el);
+  }
+}
+
+async function open(m, el){
+  if (active) active.classList.remove('active');
+  el.classList.add('active'); active = el;
+  reader.innerHTML = '<div class="spin">Opening…</div>';
+  const r = await fetch('/api/email/message/' + encodeURIComponent(m.id));
+  if (!r.ok) { reader.innerHTML = '<div class="notice">Could not open this message.</div>'; return; }
+  const msg = await r.json();
+  reader.innerHTML = `<div class="rsubj">${esc(msg.subject)}</div>
+    <div class="rmeta"><b>${esc(shortFrom(msg.from))}</b> &lt;${esc(msg.from.replace(/^.*</,'').replace(/>.*/,''))}&gt;<br>${esc(msg.date)}</div>
+    <div class="actions"><button class="btn" id="draftBtn">✍️ Draft reply</button>
+      <select id="tone" class="btn secondary"><option value="professional and concise">Professional</option><option value="warm and friendly">Friendly</option><option value="brief and direct">Brief</option></select></div>
+    <div id="draftZone"></div>
+    <div class="rbody">${esc(msg.body)}</div>`;
+  document.getElementById('draftBtn').onclick = () => draft(msg.id);
+}
+
+async function draft(id){
+  const zone = document.getElementById('draftZone');
+  const tone = document.getElementById('tone').value;
+  zone.innerHTML = '<div class="draft"><div class="spin">Drafting a reply…</div></div>';
+  const r = await fetch('/api/email/draft', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ messageId:id, tone }) });
+  if (!r.ok) { zone.innerHTML = '<div class="draft notice">Draft failed ('+r.status+').</div>'; return; }
+  const { draft } = await r.json();
+  zone.innerHTML = `<div class="draft"><h4>Proposed reply (review before sending)</h4>
+    <textarea id="draftText">${esc(draft)}</textarea>
+    <div class="actions"><button class="btn secondary" id="copyBtn">Copy</button></div></div>`;
+  document.getElementById('copyBtn').onclick = () => { navigator.clipboard.writeText(document.getElementById('draftText').value); document.getElementById('copyBtn').textContent = 'Copied ✓'; };
+}
+
+document.getElementById('refresh').onclick = load;
+load();
+</script>
+</body>
+</html>

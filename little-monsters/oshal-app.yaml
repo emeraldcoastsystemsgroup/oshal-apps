@@ -1,0 +1,257 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL App Package — Little Monsters
+# Format: ADR-085 (remote app packages). This file is self-contained: every path
+# below is RELATIVE TO THIS PACKAGE, never the framework repo. Installing this
+# package clones it into the swarm's deployed-apps/ and hot-loads it — nothing is
+# compiled into the core image.
+#
+# Provenance is stamped by the installer from `source` (git-subdir). This is the
+# first app carved out of the OSHAL monolith to prove the format (ADR-085 P2).
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: little-monsters
+suite: ai-home   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Little Monsters
+description: >-
+  Voice-first ADHD study companion for K-12 students. Record lectures,
+  auto-generate flashcards and quizzes, and chat with a Socratic tutor
+  grounded in each class's textbook via RAG.
+version: 1.0.7
+status: active
+# ADR-085 §5: RAG collections this app OWNS. Reported by uninstall-impact; deleted
+# at uninstall ONLY under the operator's explicit ?dropData=true (toggle-off never
+# touches them). Covers per-class textbook/lecture and the newer shared/private sets.
+ragCollections:
+  - "lm-class-*"
+  - "lm-cls-*"
+  - "lm-global-*"
+# Deployment-wide visibility, matching the pre-carve-out behavior (the in-repo
+# manifest had no scope → defaulted public). 'person' made the installed row
+# RLS-visible ONLY to its owner — and the installer didn't even stamp one, so
+# every non-operator session (the students this app exists for) lost the app
+# and fell back to a stale disk profile. A classroom/family app is shared.
+scope: public
+
+# Where this package came from — the installer pins ref+sha at install time.
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: little-monsters
+  ref: main
+
+# ── ADR-090 D8: kernel SKILLS this app calls ────────────────────────────────
+# Derived from what this package's code ACTUALLY imports, not from its description:
+#   @/features/presentation-generation → deck-generation   (the Presentations tab)
+#   @/features/voice-providers         → voice             (lecture recording / TTS)
+#   @/features/rag                     → rag               (textbook-grounded tutor)
+#   @/features/llm-provider            → tool-registry     (harness + model access)
+#   @/app/routes/storage-target        → storage           (materials → Dropbox/GitHub/local)
+#
+# These are KERNEL SKILLS — shared capabilities the framework always provides. A skill is not an
+# app: it never installs, never ref-counts, and can never be uninstalled out from under this app.
+#
+# This supersedes the old `dependencies.apps: [presentations]`, which was a mis-declaration: what
+# LM needs is the always-present deck-generation ENGINE, not the presentations app's surface. When
+# presentations carves to the store, only its SURFACE carves — the engine stays kernel (migration
+# plan §2, "skills with a surface"). Declaring the skills here is also what keeps their modules in
+# the built image: scripts/check-kernel-skills.ts fails CI if a declared skill goes missing, so LM
+# can never again be broken at mount by a core-side prune (which is exactly how it lost
+# google-calendar, and how `notifications` was pruned).
+uses:
+  - deck-generation
+  - voice
+  - rag
+  - tool-registry
+  - storage
+
+# ── ADR-090 addendum (skill profiles) ───────────────────────────────────────
+# Teach the generic `summarize` capability the CLASS-NOTES domain, declaratively. `summarize`
+# is a profileable CAPABILITY (bot reasoning), NOT a kernel module — so it is NOT in `uses:`
+# above (that list is for importable modules and its validator would reject a non-module id).
+# The lecture-scribe persona STAYS and still runs the full audio→transcript→notes→flashcards
+# pipeline; this block makes the notes SHAPE a declared profile the dispatch path composes into
+# the worker prompt, so the same capability yields class-notes here and meeting-notes elsewhere.
+skillProfiles:
+  summarize:
+    pattern: class-notes
+    instructions: >-
+      Turn the lecture transcript into study notes a K-12 student can revise from. Use plain,
+      grade-appropriate language. Pull out the key concepts, define every new term, capture any
+      formulas with a worked example, and list the homework/assignments mentioned. Where the
+      class knowledge base supports a point, cite the source (e.g. "See textbook Chapter 5,
+      p.47"). Do not invent facts, dates, or assignments that are not in the transcript.
+    sections:
+      - key-concepts
+      - definitions
+      - formulas-and-examples
+      - homework-and-assignments
+    outputContract: markdown study notes, concept-first
+
+# ── ADR-085: dependencies ───────────────────────────────────────────────────
+# No app dependencies: everything LM leans on is a kernel skill (see `uses:` above).
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+# ── ADR-085: app-scoped settings (typed keys the app reads; per-app settings panel) ──
+settings:
+  schema:
+    dailyGoalMinutes:
+      type: integer
+      default: 30
+      label: Daily study goal (minutes)
+    gamesRequireStudy:
+      type: boolean
+      default: true
+      label: Require study time before the games arcade unlocks
+    readAloudVoice:
+      type: string
+      default: gemini-tts
+      label: Read-aloud voice provider
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — agentIds are this app's OWN (ed0000…). A package may NOT re-declare a
+# bot owned by another installed app (validator rule, ADR-085) — manifest upserts
+# clobber base_capabilities whole-array, so ownership must be exclusive.
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: ed000000-0000-0000-0000-000000000001
+    name: lecture-scribe
+    persona: personas/lecture-scribe.yaml
+    role: education/lecture-processing
+    capabilities: [audio-transcription, note-generation, assignment-extraction, flashcard-generation, knowledge-indexing]
+  - agentId: ed000000-0000-0000-0000-000000000002
+    name: class-tutor
+    persona: personas/class-tutor.yaml
+    role: education/tutor
+    capabilities: [tutoring, socratic-method, subject-expertise, rag-query, text-to-speech]
+  - agentId: ed000000-0000-0000-0000-000000000003
+    name: quiz-master
+    persona: personas/quiz-master.yaml
+    role: education/assessment
+    capabilities: [quiz-generation, assessment, bloom-taxonomy, performance-analysis]
+  - agentId: ed000000-0000-0000-0000-000000000004
+    name: textbook-librarian
+    persona: personas/textbook-librarian.yaml
+    role: education/knowledge-management
+    capabilities: [pdf-ingestion, knowledge-management, content-indexing, quality-verification]
+  - agentId: ed000000-0000-0000-0000-000000000005
+    name: study-coach
+    persona: personas/study-coach.yaml
+    role: education/planning
+    capabilities: [study-planning, performance-analysis, motivation, scheduling]
+  - agentId: ed000000-0000-0000-0000-000000000006
+    name: writing-coach
+    persona: personas/writing-coach.yaml
+    role: education/writing
+    capabilities: [writing-feedback, essay-structure, grammar-guidance, rubric-analysis]
+
+# Shared persona layered underneath every bot in this app.
+foundation:
+  persona: personas/education-foundation.yaml
+
+# NOTE: no toolsDir. The field is DECLARED-BUT-DEAD in the framework — nothing in core consumes it,
+# so bundled tool JS under tools/ is not callable (ADR-085 D12). The loader WARNs on it and the field
+# is removed in the next store release. The tools/ folder is kept for the execution path if it lands.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# UI SURFACES — toolbar/ribbon config (ADR-085 `toolbar`). Static entries are
+# ribbon icons; the dynamic block generates one icon per lm_classes row.
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  # ADR-085 D9 — the floating tutor bubble, DECLARED. The framework renders it; this package ships
+  # no shell JavaScript. The pre-carve-out cockpit loaded js/lm-concierge.js to do this, which meant
+  # package code executing in the cockpit's AUTHENTICATED origin — free to read any DOM content and
+  # call any API as the signed-in user. Operator decision 2026-07-13: packages never get that.
+  # Everything the script actually did is here: this bubble, plus ribbon.hideChatPanel below.
+  assistant:
+    label: Tutor
+    icon: codicon codicon-mortar-board
+    iframeUrl: /api/education/tutor
+    title: Little Monster Expert
+  static:
+    - { toolName: lm-dashboard,     label: Student Dashboard, icon: codicon codicon-mortar-board,        iframeUrl: /api/education/dashboard,        section: top }
+    - { toolName: lm-myday,         label: My Day,            icon: codicon codicon-calendar,            iframeUrl: /api/education/my-day,           section: top }
+    - { toolName: lm-tutor,         label: Tutor,             icon: codicon codicon-comment-discussion,  iframeUrl: /api/education/tutor,            section: top }
+    - { toolName: lm-flashcards,    label: Flashcards,        icon: codicon codicon-versions,            iframeUrl: /api/education/flashcards-hub,   section: top }
+    - { toolName: lm-recorder,      label: Record,            icon: codicon codicon-record,              iframeUrl: /api/education/recorder,         section: top }
+    - { toolName: lm-timelines,     label: Timelines,         icon: codicon codicon-history,             iframeUrl: /api/education/timelines,        section: top }
+    - { toolName: lm-formula-lab,   label: Formula Lab,       icon: codicon codicon-symbol-operator,     iframeUrl: /api/education/formula-lab,      section: top }
+    - { toolName: lm-stem,          label: STEM Helpers,      icon: codicon codicon-beaker,              iframeUrl: /api/education/stem-helpers,     section: top }
+    - { toolName: lm-citations,     label: Citations,         icon: codicon codicon-quote,               iframeUrl: /api/education/citations,        section: top }
+    - { toolName: lm-files,         label: My Files,          icon: codicon codicon-folder,              iframeUrl: /api/education/files,            section: top }
+    - { toolName: lm-arcade,        label: Games,             icon: codicon codicon-game,                iframeUrl: /api/education/arcade,           section: top }
+    - { toolName: lm-monsters,      label: My Monsters,       icon: codicon codicon-heart,               iframeUrl: /api/education/my-monsters,      section: top }
+    # Provided by the presentations dependency (see `dependencies.apps`).
+    - { toolName: lm-presentations, label: Presentations,     icon: codicon codicon-graph,               iframeUrl: /api/presentations/sections/ui, section: top }
+    - { toolName: lm-teacher,       label: Teacher,           icon: codicon codicon-mortar-board,        iframeUrl: /api/education/teacher,          section: bottom }
+    - { toolName: lm-voice-settings, label: Voice Settings,   icon: codicon codicon-unmute,              iframeUrl: /api/education/voice-settings,   section: bottom }
+  dynamic:
+    source: lm_classes
+    where: "status = 'active'"
+    toolNameTemplate: "lm-class-{class_id_prefix}"
+    labelField: name
+    icon: codicon codicon-book
+    iframeUrlTemplate: /api/education/class?classId={class_id}
+    section: top
+    # ADR-085 generic per-user visibility: the framework asks THIS endpoint (with the
+    # caller's session) which lm-class-* icons the caller may see. Fail-closed.
+    visibility:
+      endpoint: /api/education/class-tool-keys
+      pattern: "lm-class-*"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — compiled JS bundled in this package (routes/*.js), mounted in-process
+# by the loader at activation (ADR-085 P1, flag APP_PACKAGE_DYNAMIC_ROUTES).
+# The .js files are produced by the extraction build — see BUILD.md.
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - { module: routes/education-routes.js,          factory: createEducationRoutes,         mountPath: /api/education, requiresAuth: true,  requiresContext: true }
+  - { module: routes/education-calendar-routes.js,  factory: createEducationCalendarRoutes, mountPath: /api/education, requiresAuth: true,  requiresContext: true }
+  - { module: routes/education-voice-routes.js,     factory: createEducationVoiceRoutes,    mountPath: /api/education, requiresAuth: true,  requiresContext: false }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MIGRATIONS — this app's OWN schema, bundled and applied idempotently on install
+# (ADR-085 P2 migration runner). Tracked per-app so uninstall can optionally drop it.
+# ─────────────────────────────────────────────────────────────────────────────
+# Ordered: 019 creates the base lm_* schema; the rest ALTER/extend it.
+# (migrations/uninstall.sql is NOT listed — it is the explicit opt-in teardown, ADR-085 §5.)
+migrations:
+  - migrations/019-education-platform.sql
+  - migrations/020-seed-education-bots.sql
+  - migrations/021-calendar-and-notifications.sql
+  - migrations/024-lecture-slides.sql
+  - migrations/025-calendar-google-sync.sql
+  - migrations/026-education-identity.sql
+  - migrations/027-class-publishing.sql
+  - migrations/028-class-materials.sql
+  - migrations/029-material-sharing.sql
+  - migrations/030-multi-tenant.sql
+
+# Voice channels (provider ids from the swarm voice-providers registry; swarm-default defers).
+voice:
+  tts: { provider: gemini-tts }
+  stt: { provider: swarm-default }
+
+# ── Workflow + ticket type (rides the kernel queue; the app does not own it) ──
+ticketType: education
+workflow:
+  name: Education Processing Pipeline
+  pipeline: education
+  workerBot: lecture-scribe
+  phases: [intake, processing, delivery]
+
+# Theme = an existing COCKPIT_THEMES skin id (chosen, not shipped). sharedCss is bundled.
+theme: little-monsters
+sharedCss: ui/education.css
+
+# Ribbon visibility when /cockpit?app=little-monsters is focused.
+ribbon:
+  hideFrameworkItems: [tickets, chat, calendar, addressbook, dashboard, echo, logs, operations]
+  defaultView: lm-dashboard
+  # The kids' app has its OWN tutor (see ui.assistant); the generic swarm-bot chat rail alongside it
+  # is redundant and confusing. This is the field the pre-carve-out shell script used to fake by
+  # hiding the rail from JS — the framework has supported it declaratively all along, and the
+  # package simply never set it (ADR-085 D9).
+  hideChatPanel: true

@@ -1,0 +1,162 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — email-summarizer (Intelligent Communication, ADR-037)
+#
+# THE REFERENCE COMMS IMPLEMENTATION: this is the app ADR-037 describes — a
+# per-user connector (Gmail), a codex bot that runs scripts/oshal-gmail.js in
+# its own sandbox, and a cockpit surface. Originally emitted by codex-packer
+# (the kernel keeps the archived emission at ai-lab/packer-emissions/).
+#
+# Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
+# ONLY the surface carves). What STAYS framework-resident per ADR-093:
+#   - the communications-bot REAL node (email-bot container + BOTH registry
+#     blocks b0…0001 + the core ai-lab/bot-personas/email-summarizer.yaml
+#     persona) — the persona here is a package COPY for the registrar;
+#   - the kernel email-send machinery at @/app/routes/email-routes: sendGmail
+#     (with the header-injection fence — every header-bound value CRLF-flattened
+#     at the ONE MIME builder) + sendOutlookMail + summarizeGmailMetadata —
+#     notify-routes, jarvis-brief-cron, and other store packages send through
+#     it, so this package IMPORTS it instead of forking the builder;
+#   - the gmail/google connector + scripts/oshal-gmail.js (the codex bot's
+#     shell-out leg), scripts/oshal-outlook.js + scripts/oshal-twilio.js (the
+#     M365 + phone/text legs, with the CLI-level no-send confirm gate);
+#   - the inbox-ingest/Signals engine (oshal_inbox_messages) — the Social app's
+#     Signals view reads it; this app's ingest never owned it.
+# This package is the app: the inbox/my-day/social surfaces + the /api/email
+# routes (read + AI summary/draft on the bot + the no-send 428-gated /send) +
+# the app's own oshal_email_digests store (owner-RLS at the lazy-DDL chokepoint).
+# Framework: OSHAL (see docs/build-your-own-swarm-app.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: email-summarizer
+suite: ai-productivity   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Intelligent Communication
+description: >-
+  Your inbox, calendar, and day in one surface. Reads the signed-in user's
+  connected Gmail + Calendar (read-only scopes), builds a prioritized "My Day"
+  digest, and drafts replies with the communications bot — sending is a single
+  explicit-confirm gated action ("email me a copy"). The bot does the reasoning
+  on its own harness/model with cost captured per user.
+version: 1.0.0
+status: active
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: email-summarizer
+  ref: main
+
+# Runtime connector allow-list — the mailbox/calendar provider, the M365 + phone
+# legs the bot's broker hands tokens for, and the Social tab's identity read.
+dependencies:
+  apps: []
+  tools: []
+  connectors: [google, outlook, twilio, facebook]
+
+# Per-app skin (approved palette) — gray so the comms workspace reads distinct.
+theme: gray
+
+ticketType: email-summarizer
+
+workflow:
+  name: Email Digest Pipeline
+  # No `pipeline:` — this is not an incident. A ticketType=email-summarizer ticket
+  # (e.g. a cron-driven daily digest) routes via the generic single-bot worker
+  # dispatch (dispatchManifestWorkerTicket) straight to the email bot over the
+  # mesh — the background half of ADR-036. Interactive work uses the direct
+  # BotNodeClient path (no ticket). Same bot owns both.
+  workerBot: communications-bot
+  # One-and-done: the persona is its own quality gate (Mode A/B + preflight
+  # + side-effect rules + PII handling all baked in). No reviewer needed.
+
+# ADR-090 addendum (skill profiles): teach the generic `summarize` capability this app's
+# COMMS domain. Same mechanism little-monsters uses for class-notes — one capability, a
+# different declared pattern → domain-appropriate output. Resolved by ticketType at dispatch
+# and composed into the worker prompt; the communications-bot still does the reasoning (ADR-036).
+skillProfiles:
+  summarize:
+    pattern: email-digest
+    instructions: >-
+      Summarize the inbox/thread for a busy professional who wants to act, not read. Lead with
+      what NEEDS A REPLY and by when. Name each sender and the single decision or ask on the
+      table. Flag anything time-sensitive (deadlines, meetings, approvals). Keep it skimmable —
+      short lines, no restating full email bodies. Never invent senders, dates, or commitments
+      that are not in the source.
+    sections:
+      - needs-reply
+      - decisions-and-asks
+      - deadlines-and-meetings
+      - fyi
+    outputContract: markdown, newest/most-urgent first
+
+# The comms NODE (container + static registry blocks) is framework-resident (ADR-093);
+# the persona here is a package COPY for the registrar — the container keeps using
+# /app/ai-lab. ADR-083: this manifest and the Social package's manifest BOTH declare
+# communications-bot, and manifest bot upserts clobber base_capabilities whole-array
+# — keep this list the SAME UNION as social's or load order decides the bot's identity.
+bots:
+  - agentId: b0000000-0000-0000-0000-000000000001
+    name: communications-bot
+    persona: personas/email-summarizer.yaml
+    role: comms/email-calendar-social
+    capabilities:
+      - email-summarization
+      - gmail-triage
+      - outlook-mail
+      - calendar-digest
+      - meeting-agenda
+      - reply-drafting
+      - inbox-triage
+      - social-signals-feed
+      - social-publishing
+      - sms-texting
+      - voice-calls
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — ribbon icons open the email client pages (served by the
+# packaged createEmailRoutes at /api/email/*) in the main stage. Read-only
+# Gmail + Calendar for the signed-in user's connected Google account (connect
+# once at /utilities). Replies are AI-drafted, not sent without confirmation.
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    # My Day is the dashboard / intro to Intelligent Communication — list it first.
+    - toolName: email-myday
+      label: My Day
+      icon: codicon codicon-calendar
+      iframeUrl: /api/email/my-day
+      section: top
+    - toolName: email-inbox
+      label: Inbox
+      icon: codicon codicon-mail
+      iframeUrl: /api/email/inbox
+      section: top
+    - toolName: email-social
+      label: Social
+      icon: codicon codicon-account
+      iframeUrl: /api/email/social
+      section: top
+
+routes:
+  - module: routes/email-app-routes.js
+    factory: createEmailRoutes
+    mountPath: /api/email
+    auth: oidc   # what core server.ts mounted (requiresAuth — ADR-085 D2)
+    requiresAuth: true
+    requiresContext: true
+
+# No migrations: oshal_email_digests is lazy DDL at the route's ensureEmailSchema
+# chokepoint (owner-RLS appended). Uninstall/toggle never touches the digests.
+
+# When /cockpit?app=email-summarizer is requested, show this app's surfaces and
+# hide the generic framework tabs (settings stays so config is always reachable).
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  defaultView: email-myday

@@ -1,0 +1,155 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — rides ("Get a Ride" Uber Rides Concierge)
+# Carved out of OSHAL core 2026-07-18 (ADR-085 Wave 2 carve #3). The rides-concierge
+# REAL bot-node (rides-bot container, BOTH registry blocks, worker+foundation personas,
+# uberRidesToolKit.js, oshal-uber-rides.js CLI, migration 043 bot seed) STAYS in the
+# framework repo per ADR-093 interim — this manifest declares NO bots; workflow.workerBot
+# resolves via the static registry.
+# Framework: OSHAL (see docs/build-your-own-swarm-app.md)
+#
+# An AI transportation concierge that drives a visual surface: take a pickup +
+# destination, show ride options (UberX/Comfort/XL/Black) with estimated fares,
+# and hand off a ready Uber ride deep link.
+#
+# Checkout truth: requesting a ride on a third party's behalf needs Uber for
+# Business; this app's personal path is a UNIVERSAL DEEP LINK the rider confirms
+# and pays in their own Uber app. No payment or rider credentials touch OSHAL.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: rides
+suite: ai-home   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Rides
+description: >-
+  AI transportation concierge — estimate Uber fares, compare ride types, and hand
+  off a ready Uber ride link. Other swarm bots can ask it to plan a trip.
+version: 1.0.0
+status: active
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: rides
+  ref: main
+
+# uber-rides is the one connector this app uses (optional operator config via broker).
+dependencies:
+  apps: []
+  tools: []
+  connectors: [uber-rides]
+
+# Guests never request rides (this app really calls Uber). Request only — grants come
+# from the operator endpoint (D4).
+guestTier: blocked
+
+tools:
+  - name: estimate-ride
+    displayName: Estimate Ride
+    type: api
+    category: transportation
+    description: Estimate ride options and fares for a pickup/dropoff pair.
+    executor: { executorType: api, apiEndpoint: "GET /api/rides/estimate?pickup={input.pickup}&dropoff={input.dropoff}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        pickup: { type: string }
+        dropoff: { type: string }
+      required: [pickup, dropoff]
+    usageInstructions: >-
+      Call with {pickup,dropoff}. Return options as estimates and ask before preparing a handoff.
+    routingTags: [rides, transportation, estimate]
+    skills: [ride-estimate, ride-options]
+    tags: [rides, route-backed]
+
+  - name: prepare-ride-booking
+    displayName: Prepare Ride Handoff
+    type: api
+    category: transportation
+    description: Build a ride deep-link handoff. The rider confirms and pays in Uber.
+    executor: { executorType: api, apiEndpoint: "POST /api/rides/request" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        pickup: { type: string }
+        dropoff: { type: string }
+        rideType: { type: string }
+      required: [pickup, dropoff]
+    usageInstructions: >-
+      Call only after the rider asks to book/request the ride. It returns a handoff URL, not an in-app charge.
+    routingTags: [rides, transportation, handoff]
+    skills: [ride-handoff, trip-planning]
+    tags: [rides, route-backed, approval-required]
+
+  - name: ask-rides-concierge
+    displayName: Ask Rides Concierge
+    type: api
+    category: transportation
+    description: Let the rides concierge reason over pickup, destination, preferences, options, and handoff.
+    executor: { executorType: api, apiEndpoint: "POST /api/rides/chat" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        message: { type: string }
+        pickup: { type: string }
+        dropoff: { type: string }
+      required: [message]
+    usageInstructions: >-
+      Call with {message,pickup?,dropoff?} for conversational ride planning or clarification.
+    routingTags: [rides, transportation, concierge]
+    skills: [trip-planning, preference-learning, ride-options]
+    tags: [rides, route-backed]
+
+ui:
+  static:
+    - toolName: rides-concierge
+      label: Get a Ride
+      icon: codicon codicon-rocket
+      iframeUrl: /api/rides/app
+      section: top
+    - toolName: rides-history
+      label: Trips
+      icon: codicon codicon-history
+      iframeUrl: /api/rides/app?view=history
+      section: top
+
+routes:
+  - module: routes/rides-routes.js
+    factory: createRidesRoutes
+    mountPath: /api/rides
+    auth: service-or-oidc   # what server.ts ACTUALLY mounts (ADR-085 D2)
+    requiresAuth: true
+    requiresContext: true
+
+# Belt-and-braces: same four tables ensureRidesSchema creates lazily (owner RLS at the
+# chokepoint). Idempotent — safe where core migration 042 already ran. 043 (bot seed)
+# stays core with the bot.
+migrations:
+  - migrations/042-rides-platform.sql
+
+ticketType: rides
+workflow:
+  name: Rides Concierge Pipeline
+  pipeline: rides
+  workerBot: rides-concierge
+  phases:
+    - intake     # confirm pickup + destination
+    - estimate   # show ride options + fares
+    - delivery   # hand off the Uber ride deep link
+
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  hideChatPanel: true
+  defaultView: rides-concierge

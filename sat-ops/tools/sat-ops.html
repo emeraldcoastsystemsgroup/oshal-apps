@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sat Ops — Fleet Plane</title>
+<style>
+  /* Self-contained surface theme (embedded-surface rule: own your CSS). */
+  :root {
+    --bg: #06080f; --panel: #0c1120; --panel2: #101730; --line: #1c2745;
+    --text: #d7e0f4; --dim: #7c89a8; --accent: #5aa7ff; --ok: #38d39f;
+    --warn: #ffc857; --bad: #ff6b6b; --purple: #b78aff;
+    font-size: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    display: grid; grid-template-rows: 44px 1fr; overflow: hidden;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px; padding: 0 14px;
+    background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.4px; }
+  header .sim-badge {
+    font-size: 11px; color: var(--ok); border: 1px solid var(--ok);
+    border-radius: 10px; padding: 2px 8px; opacity: 0.9;
+  }
+  header .spacer { flex: 1; }
+  header .clock { font-variant-numeric: tabular-nums; color: var(--dim); font-size: 12px; }
+  main { display: grid; grid-template-columns: 300px 1fr 330px; min-height: 0; }
+  /* ── left: fleet + catalog ── */
+  #left, #right { background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; }
+  #right { border-right: none; border-left: 1px solid var(--line); }
+  section { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  section h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); margin-bottom: 8px; }
+  .sat-row {
+    display: flex; align-items: center; gap: 8px; padding: 6px 8px; margin: 3px 0;
+    border: 1px solid transparent; border-radius: 6px; cursor: pointer; font-size: 13px;
+  }
+  .sat-row:hover { background: var(--panel2); }
+  .sat-row.sel { border-color: var(--accent); background: var(--panel2); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .sat-row .meta { color: var(--dim); font-size: 11px; margin-left: auto; text-align: right; }
+  .mode-chip { font-size: 10px; padding: 1px 6px; border-radius: 8px; border: 1px solid var(--line); }
+  .mode-POINT { color: var(--ok); border-color: var(--ok); }
+  .mode-SLEW { color: var(--accent); border-color: var(--accent); }
+  .mode-DETUMBLE { color: var(--warn); border-color: var(--warn); }
+  .mode-DESAT { color: var(--purple); border-color: var(--purple); }
+  .mode-SAFE { color: var(--dim); }
+  button {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: #14335c; border-color: var(--accent); }
+  button.danger { border-color: var(--bad); color: var(--bad); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  input, select, textarea {
+    background: var(--bg); color: var(--text); border: 1px solid var(--line);
+    border-radius: 5px; padding: 5px 7px; font-size: 12px; width: 100%;
+  }
+  textarea { font-family: Consolas, monospace; font-size: 11px; resize: vertical; }
+  label { font-size: 11px; color: var(--dim); display: block; margin: 6px 0 2px; }
+  .row { display: flex; gap: 6px; align-items: center; }
+  .row > * { flex: 1; }
+  /* ── center: 3D + map ── */
+  #center { display: grid; grid-template-rows: 1fr 220px; min-width: 0; min-height: 0; }
+  #view3dWrap, #mapWrap { position: relative; min-height: 0; }
+  canvas { display: block; width: 100%; height: 100%; }
+  .overlay {
+    position: absolute; top: 8px; left: 10px; font-size: 11px; color: var(--dim);
+    background: rgba(6,8,15,0.55); padding: 4px 8px; border-radius: 6px; pointer-events: none;
+  }
+  #view3dCtl { position: absolute; top: 8px; right: 10px; display: flex; gap: 6px; }
+  #view3dCtl button { font-size: 11px; padding: 3px 8px; }
+  #mapWrap { border-top: 1px solid var(--line); }
+  /* ── tables ── */
+  table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  th { text-align: left; color: var(--dim); font-weight: 500; padding: 3px 6px; border-bottom: 1px solid var(--line); }
+  td { padding: 3px 6px; border-bottom: 1px solid rgba(28,39,69,0.5); font-variant-numeric: tabular-nums; }
+  .miss-bad { color: var(--bad); font-weight: 600; }
+  .miss-warn { color: var(--warn); }
+  .empty { color: var(--dim); font-size: 12px; padding: 6px; }
+  /* ── modal ── */
+  #modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none;
+    align-items: center; justify-content: center; z-index: 50;
+  }
+  #modal .card {
+    background: var(--panel); border: 1px solid var(--accent); border-radius: 10px;
+    padding: 18px; width: 380px; max-width: 92vw;
+  }
+  #modal h3 { font-size: 14px; margin-bottom: 8px; }
+  #modal .body { font-size: 12.5px; color: var(--dim); margin-bottom: 14px; white-space: pre-wrap; }
+  #modal .actions { display: flex; gap: 8px; justify-content: flex-end; }
+  #toast {
+    position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 14px; font-size: 12.5px; display: none; z-index: 60; max-width: 70vw;
+  }
+  .telemetry-grid { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 12px; }
+  .telemetry-grid .k { color: var(--dim); }
+  .telemetry-grid .v { font-variant-numeric: tabular-nums; text-align: right; }
+
+  /* Stack the desktop flight console when the surface is narrow. */
+  @media (max-width: 1080px) {
+    html, body { height: auto; min-height: 100%; }
+    body {
+      display: block;
+      min-height: 100dvh;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      min-height: 44px;
+      padding: 8px 12px;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    header h1 { flex: 1 1 auto; }
+    header .spacer { display: none; }
+    header .sim-badge {
+      order: 3;
+      flex: 1 0 100%;
+      border: 0;
+      padding: 0;
+    }
+    header .clock { display: none; }
+    header #btnHelp { min-height: 36px; margin-left: 0 !important; }
+    main { display: flex; flex-direction: column; width: 100%; min-width: 0; }
+    #left, #right {
+      width: 100%;
+      min-width: 0;
+      overflow: visible;
+      border-right: 0;
+      border-left: 0;
+    }
+    #center {
+      width: 100%;
+      min-height: 580px;
+      grid-template-rows: minmax(340px, 52vh) 240px;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+    section { overflow-x: auto; }
+    .row { flex-wrap: wrap; }
+    .row > * { flex: 1 1 120px; min-width: 0; }
+    button { min-height: 44px; }
+    input, select, textarea { min-height: 44px; font-size: 16px; }
+    textarea { font-size: 16px; }
+    #view3dCtl {
+      top: auto;
+      right: 8px;
+      bottom: 8px;
+      left: 8px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+    #view3dCtl button { min-height: 36px; }
+    #toast { width: max-content; max-width: calc(100vw - 24px); }
+    #helpModal > div { padding: 16px !important; }
+  }
+
+  @media (max-width: 420px) {
+    section { padding: 10px; }
+    #center { grid-template-rows: 320px 220px; min-height: 540px; }
+    .overlay { right: 8px; max-width: calc(100% - 18px); }
+  }
+</style>
+<!-- Shared glass treatment (contract: tests/unit/surface-glass-assets.spec.ts); after local styles. -->
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<header>
+  <h1>🛰 Sat Ops — Fleet Plane</h1>
+  <span class="sim-badge">SIM FLEET — commands cannot leave simulation</span>
+  <span class="spacer"></span>
+  <span class="clock" id="clock"></span>
+  <button id="btnHelp" title="Operator guide" style="margin-left:10px">? Help</button>
+</header>
+
+<div id="helpModal" style="position:fixed; inset:0; background:rgba(0,0,0,0.65); display:none; align-items:center; justify-content:center; z-index:70">
+  <div style="background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:20px 24px; width:640px; max-width:94vw; max-height:86vh; overflow-y:auto; font-size:12.5px; line-height:1.55">
+    <div style="display:flex; align-items:center; margin-bottom:10px">
+      <h3 style="font-size:15px">Sat Ops — operator guide</h3>
+      <span style="flex:1"></span>
+      <button id="helpClose">Close</button>
+    </div>
+    <p style="color:var(--dim); margin-bottom:10px">Satellites are swarm nodes (ADR-102). Each sat runs its own ADCS — MEKF attitude estimation, a SAFE/DETUMBLE/SLEW/POINT/DESAT mode manager, magnetorquer momentum dumping — against a simulator engine (in-process RK4 or the NASA&nbsp;42 referee). <b>Every engine is a simulator; commands cannot reach hardware by construction, and every command still requires your explicit Approve.</b></p>
+    <p><b>Fleet (attitude nodes)</b> — live sats heartbeating in. Dot = online; chip = ADCS mode; number = pointing error. Click a row to select. A sat appears here when a node process is running (<code>npm run sat:node</code>) — orbit catalog entries alone don't heartbeat.</p>
+    <p><b>Orbit catalog (TLE)</b> — orbit identity, deliberately separate from attitude nodes; the two join by sat id. Paste any two/three-line element set, or <i>Seed demo fleet</i> (leader + a 5.9&nbsp;km trailing chaser + a polar bird). Registering a TLE draws its orbit in the 3D console and its ground track on the map.</p>
+    <p><b>3D console</b> — drag to orbit the camera, wheel to zoom, <i>auto-rotate</i> toggles the idle spin. <i>frame: inertial</i> shows ECI (TEME) with the Earth graticule rotating at GMST; <i>frame: earth</i> holds the globe still. The selected sat shows its body-axis triad (red/green/blue = x/y/z from the node's quaternion). Rings with km labels are conjunction events at their time of closest approach.</p>
+    <p><b>Conjunction screening</b> — pairwise SGP4 close-approach search over the catalog inside the horizon; events list TCA, refined miss distance, and relative speed. A screening aid for the sim fleet: point geometry only — no covariance, no collision probability.</p>
+    <p><b>Selected sat</b> — live telemetry: mode + transition reason, pointing error, wheel momentum (with <i>dumping</i> when the rods are active), body rate, MEKF health (updates/rejections/reinits, attitude σ, gyro bias estimate).</p>
+    <p><b>Command console</b> — SAFE (sticky fault floor: zero torque, never auto-exits), DETUMBLE (rate damp; auto-completes or resumes a latched target), DESAT (dump wheel momentum, then return to the latched target), POINT (slew axis + angle; the node runs SLEW→POINT with hysteresis and <i>refuses</i> while the attitude estimate is unhealthy). Every send passes an Approve dialog.</p>
+    <p><b>Sat operator (drafts only)</b> — describe intent in plain language ("point sat42-live 30° off current", "why is momentum high?"). The concierge replies and may offer a validated draft; <i>Load draft</i> only pre-fills the console — you still press the command button and Approve. It never sends anything itself.</p>
+    <p><b>Pass windows</b> — pick a catalog sat and a ground station (lat/lon/alt); predicts 24&nbsp;h of contacts (rise/set, duration, max elevation) via SGP4.</p>
+    <p style="color:var(--dim); margin-top:10px">Full docs: <code>docs/apps/sat-ops.md</code> (operator guide) · <code>docs/adr/102-sat-ops-satellites-as-swarm-nodes.md</code> (architecture) · evidence: <code>docs/evidence/sat-ops-adcs-campaign-*.md</code>.</p>
+  </div>
+</div>
+<main>
+  <div id="left">
+    <section>
+      <h2>Fleet (attitude nodes)</h2>
+      <div id="fleetList"><div class="empty">no heartbeats yet</div></div>
+    </section>
+    <section>
+      <h2>Orbit catalog (TLE)</h2>
+      <div id="catalogList"><div class="empty">catalog empty</div></div>
+      <label>sat id</label>
+      <input id="catId" placeholder="sat-1" value="sat-1">
+      <label>two-line element set (2 or 3 lines)</label>
+      <textarea id="catTle" rows="3" placeholder="1 25544U ...&#10;2 25544 ..."></textarea>
+      <div class="row" style="margin-top:8px">
+        <button class="primary" id="catAdd">Register TLE</button>
+        <button id="catSeed">Seed demo fleet</button>
+      </div>
+    </section>
+    <section>
+      <h2>Conjunction screening</h2>
+      <div class="row">
+        <div><label>horizon (h)</label><input id="cjHours" type="number" value="24" min="1" max="72"></div>
+        <div><label>threshold (km)</label><input id="cjKm" type="number" value="25" min="1" max="1000"></div>
+      </div>
+      <button class="primary" id="cjRun" style="margin-top:8px; width:100%">Screen fleet</button>
+      <div id="cjOut" style="margin-top:8px"><div class="empty">not screened yet</div></div>
+    </section>
+  </div>
+
+  <div id="center">
+    <div id="view3dWrap">
+      <canvas id="view3d"></canvas>
+      <div class="overlay" id="ovl3d">ECI (TEME) · drag to orbit · wheel to zoom</div>
+      <div id="view3dCtl">
+        <button id="btnAutoRot">auto-rotate: on</button>
+        <button id="btnFrame">frame: inertial</button>
+      </div>
+    </div>
+    <div id="mapWrap">
+      <canvas id="map2d"></canvas>
+      <div class="overlay">ground track (subpoint) · equirectangular</div>
+    </div>
+  </div>
+
+  <div id="right">
+    <section>
+      <h2>Selected sat</h2>
+      <div id="selNone" class="empty">select a sat from the fleet or catalog</div>
+      <div id="selBox" style="display:none">
+        <div class="telemetry-grid" id="selTele"></div>
+        <h2 style="margin-top:12px">Command console</h2>
+        <div class="row" style="margin-bottom:6px">
+          <button id="cmdSafe">SAFE</button>
+          <button id="cmdDetumble">DETUMBLE</button>
+          <button id="cmdDesat">DESAT</button>
+        </div>
+        <label>point: slew axis (body) + angle</label>
+        <div class="row">
+          <input id="axX" type="number" value="1" step="0.1" title="x">
+          <input id="axY" type="number" value="1" step="0.1" title="y">
+          <input id="axZ" type="number" value="0" step="0.1" title="z">
+          <input id="angDeg" type="number" value="30" step="1" title="deg">
+        </div>
+        <button class="primary" id="cmdPoint" style="margin-top:6px; width:100%">POINT (approve required)</button>
+      </div>
+    </section>
+    <section>
+      <h2>Sat operator (drafts only)</h2>
+      <div id="chatLog" style="max-height:170px; overflow-y:auto; font-size:12px; margin-bottom:6px"></div>
+      <div class="row">
+        <input id="chatMsg" placeholder="e.g. point sat42-live 30° off nadir">
+        <button class="primary" id="chatSend" style="flex:0 0 auto">Ask</button>
+      </div>
+      <div id="chatDraft" style="margin-top:6px"></div>
+    </section>
+    <section>
+      <h2>Pass windows</h2>
+      <label>catalog sat</label>
+      <select id="passSat"></select>
+      <div class="row">
+        <div><label>lat°</label><input id="gsLat" type="number" value="30.40" step="0.01"></div>
+        <div><label>lon°</label><input id="gsLon" type="number" value="-86.86" step="0.01"></div>
+        <div><label>alt km</label><input id="gsAlt" type="number" value="0.02" step="0.01"></div>
+      </div>
+      <button class="primary" id="passRun" style="margin-top:8px; width:100%">Predict passes (24 h)</button>
+      <div id="passOut" style="margin-top:8px"><div class="empty">no prediction yet</div></div>
+    </section>
+  </div>
+</main>
+
+<div id="modal">
+  <div class="card">
+    <h3 id="mTitle"></h3>
+    <div class="body" id="mBody"></div>
+    <div class="actions">
+      <button id="mCancel">Cancel</button>
+      <button class="primary" id="mApprove">Approve &amp; send</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* Sat Ops fleet plane — hand-rolled 3D orbit console (no external libs; strict CSP-safe).
+ * Data: /api/sat/fleet (attitude nodes), /api/sat/catalog + /track (orbits),
+ * /conjunctions (screening), /passes (ground contacts), commands via /nodes/:id/*.
+ * Every engine is a simulator — the approve modal restates it on each command. */
+
+const $ = (id) => document.getElementById(id);
+const COLORS = ['#5aa7ff', '#38d39f', '#ffc857', '#ff6b6b', '#b78aff', '#4dd0e1', '#f48fb1', '#aed581'];
+const EARTH_KM = 6371;
+
+const state = {
+  fleet: [],            // rows from /fleet
+  catalog: [],          // rows from /catalog
+  tracks: new Map(),    // satId -> {track, fetchedMs}
+  selected: null,       // satId
+  events: [],           // conjunction events
+  cam: { yaw: 0.6, pitch: 0.35, dist: 4.2, auto: true },
+  frame: 'inertial',    // 'inertial' | 'earth'
+  drag: null,
+};
+
+async function api(path, opts) {
+  const res = await fetch('/api/sat' + path, Object.assign(
+    { headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin' }, opts));
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || (res.status + ' on ' + path));
+  return body;
+}
+
+function toast(msg, bad) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.style.borderColor = bad ? 'var(--bad)' : 'var(--line)';
+  t.style.display = 'block';
+  clearTimeout(t._h);
+  t._h = setTimeout(() => { t.style.display = 'none'; }, 4200);
+}
+
+function colorOf(satId) {
+  const ids = [...new Set([...state.catalog.map(c => c.satId), ...state.fleet.map(f => f.satId)])].sort();
+  return COLORS[Math.max(0, ids.indexOf(satId)) % COLORS.length];
+}
+
+/* ── approve modal (every command passes through it) ─────────────────────── */
+function approve(title, body) {
+  return new Promise((resolve) => {
+    $('mTitle').textContent = title;
+    $('mBody').textContent = body + '\n\nSIM FLEET: every engine is a simulator — commands cannot reach real hardware by construction.';
+    $('modal').style.display = 'flex';
+    const done = (ok) => { $('modal').style.display = 'none'; $('mApprove').onclick = $('mCancel').onclick = null; resolve(ok); };
+    $('mApprove').onclick = () => done(true);
+    $('mCancel').onclick = () => done(false);
+  });
+}
+
+async function sendCommand(satId, kind, payload, describe) {
+  if (!(await approve(kind + ' → ' + satId, describe))) return;
+  try {
+    if (kind === 'POINT') await api('/nodes/' + encodeURIComponent(satId) + '/point', { method: 'POST', body: JSON.stringify(payload) });
+    else await api('/nodes/' + encodeURIComponent(satId) + '/mode', { method: 'POST', body: JSON.stringify(payload) });
+    toast(kind + ' accepted by ' + satId);
+  } catch (e) { toast(kind + ' rejected: ' + e.message, true); }
+}
+
+/* ── fleet + catalog polling ─────────────────────────────────────────────── */
+async function pollFleet() {
+  try {
+    const { fleet } = await api('/fleet');
+    state.fleet = fleet;
+    renderFleet();
+    renderSelected();
+  } catch (e) { /* transient — keep last */ }
+}
+
+async function refreshCatalog() {
+  try {
+    const { catalog } = await api('/catalog');
+    state.catalog = catalog;
+    renderCatalog();
+    renderPassSats();
+    await Promise.all(catalog.map(c => ensureTrack(c.satId)));
+  } catch (e) { toast('catalog: ' + e.message, true); }
+}
+
+async function ensureTrack(satId, force) {
+  const cur = state.tracks.get(satId);
+  if (!force && cur && Date.now() - cur.fetchedMs < 10 * 60_000) return;
+  try {
+    const track = await api('/track', { method: 'POST', body: JSON.stringify({ satId, durationMinutes: 100, stepSeconds: 30 }) });
+    state.tracks.set(satId, { track, fetchedMs: Date.now() });
+  } catch (e) { toast('track ' + satId + ': ' + e.message, true); }
+}
+
+/* ── rendering: panels ───────────────────────────────────────────────────── */
+function renderFleet() {
+  const el = $('fleetList');
+  if (!state.fleet.length) { el.innerHTML = '<div class="empty">no heartbeats yet</div>'; return; }
+  el.innerHTML = '';
+  for (const f of state.fleet) {
+    const row = document.createElement('div');
+    row.className = 'sat-row' + (state.selected === f.satId ? ' sel' : '');
+    const err = f.telemetry && f.telemetry.pointingErrorDeg;
+    row.innerHTML =
+      '<span class="dot" style="background:' + (f.online ? colorOf(f.satId) : '#444') + '"></span>' +
+      '<span>' + f.satId + '</span>' +
+      '<span class="mode-chip mode-' + (f.telemetry ? f.telemetry.mode : '?') + '">' + (f.telemetry ? f.telemetry.mode : '?') + '</span>' +
+      '<span class="meta">' + (f.online ? (err == null ? f.engine : err.toFixed(2) + '°') : 'offline') + '</span>';
+    row.onclick = () => { state.selected = f.satId; renderFleet(); renderCatalog(); renderSelected(); };
+    el.appendChild(row);
+  }
+}
+
+function renderCatalog() {
+  const el = $('catalogList');
+  if (!state.catalog.length) { el.innerHTML = '<div class="empty">catalog empty</div>'; return; }
+  el.innerHTML = '';
+  for (const c of state.catalog) {
+    const row = document.createElement('div');
+    row.className = 'sat-row' + (state.selected === c.satId ? ' sel' : '');
+    row.innerHTML =
+      '<span class="dot" style="background:' + colorOf(c.satId) + '"></span>' +
+      '<span>' + c.satId + '</span>' +
+      '<span class="meta">#' + c.satnum + (c.name ? ' · ' + c.name : '') + '</span>';
+    row.onclick = () => { state.selected = c.satId; renderFleet(); renderCatalog(); renderSelected(); };
+    el.appendChild(row);
+  }
+}
+
+function fmt(v, d) { return v == null || Number.isNaN(v) ? '—' : Number(v).toFixed(d == null ? 2 : d); }
+
+function renderSelected() {
+  const satId = state.selected;
+  const f = state.fleet.find(x => x.satId === satId);
+  $('selNone').style.display = satId ? 'none' : 'block';
+  $('selBox').style.display = satId ? 'block' : 'none';
+  if (!satId) return;
+  const t = f && f.telemetry;
+  const est = t && t.estimator;
+  const adcs = t && t.adcs;
+  const rows = [
+    ['sat', satId + (f ? (f.online ? ' · online' : ' · OFFLINE') : ' · no attitude node')],
+    ['mode', t ? t.mode + (adcs ? ' (' + adcs.reason + ')' : '') : '—'],
+    ['pointing err', t && t.pointingErrorDeg != null ? fmt(t.pointingErrorDeg, 3) + '°' : '—'],
+    ['momentum', adcs ? fmt(adcs.momentumFrac * 100, 1) + '%' + (adcs.dumping ? ' · dumping' : '') : '—'],
+    ['|ω|', t ? fmt(Math.hypot(t.state.omega.x, t.state.omega.y, t.state.omega.z) * 57.2958, 3) + '°/s' : '—'],
+    ['MEKF', est ? (est.updatesApplied + ' upd · ' + est.rejected + ' rej · ' + est.reinits + ' reinit') : '—'],
+    ['σ attitude', est ? fmt(Math.hypot(est.attitudeSigmaDeg.x, est.attitudeSigmaDeg.y, est.attitudeSigmaDeg.z), 4) + '°' : '—'],
+    ['gyro bias', est ? '[' + fmt(est.biasDegHr.x, 2) + ', ' + fmt(est.biasDegHr.y, 2) + ', ' + fmt(est.biasDegHr.z, 2) + ']°/hr' : '—'],
+  ];
+  $('selTele').innerHTML = rows.map(r => '<span class="k">' + r[0] + '</span><span class="v">' + r[1] + '</span>').join('');
+  const canCmd = !!(f && f.online);
+  for (const id of ['cmdSafe', 'cmdDetumble', 'cmdDesat', 'cmdPoint']) $(id).disabled = !canCmd;
+}
+
+function renderPassSats() {
+  const sel = $('passSat');
+  const cur = sel.value;
+  sel.innerHTML = state.catalog.map(c => '<option value="' + c.satId + '">' + c.satId + ' (#' + c.satnum + ')</option>').join('');
+  if (cur && state.catalog.some(c => c.satId === cur)) sel.value = cur;
+}
+
+/* ── 3D console: hand-rolled camera + projection ─────────────────────────── */
+const V3D = $('view3d');
+const MAP = $('map2d');
+
+function fitCanvas(cv) {
+  const r = cv.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  if (cv.width !== Math.round(r.width * dpr) || cv.height !== Math.round(r.height * dpr)) {
+    cv.width = Math.round(r.width * dpr);
+    cv.height = Math.round(r.height * dpr);
+  }
+  return { w: r.width, h: r.height, dpr };
+}
+
+/** GMST (radians) — IAU 1982-ish approximation, plenty for visualization. */
+function gmstRad(utcMs) {
+  const d = (utcMs / 86400000) - 10957.5 + 36525 * 0; // days since J2000.0 (2000-01-01T12Z = 10957.5 unix days)
+  const T = ((utcMs / 86400000) - 10957.5) / 36525;
+  let g = 280.46061837 + 360.98564736629 * ((utcMs / 86400000) - 10957.5) + 0.000387933 * T * T;
+  g = ((g % 360) + 360) % 360;
+  return g * Math.PI / 180 + d * 0; // keep d referenced (clarity)
+}
+
+function camBasis() {
+  const { yaw, pitch } = state.cam;
+  const cx = Math.cos(pitch) * Math.cos(yaw);
+  const cy = Math.cos(pitch) * Math.sin(yaw);
+  const cz = Math.sin(pitch);
+  const eye = { x: cx, y: cy, z: cz };            // unit, looking at origin
+  const up0 = { x: 0, y: 0, z: 1 };
+  const right = norm3(cross3(up0, eye));
+  const up = cross3(eye, right);
+  return { eye, right, up };
+}
+function cross3(a, b) { return { x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x }; }
+function norm3(v) { const n = Math.hypot(v.x, v.y, v.z) || 1; return { x: v.x / n, y: v.y / n, z: v.z / n }; }
+
+/** Project an ECI point (units of Earth radius) to screen; returns null when behind camera. */
+function project(p, basis, w, h) {
+  const d = state.cam.dist;
+  const eyePos = { x: basis.eye.x * d, y: basis.eye.y * d, z: basis.eye.z * d };
+  const rel = { x: p.x - eyePos.x, y: p.y - eyePos.y, z: p.z - eyePos.z };
+  const zc = -(rel.x * basis.eye.x + rel.y * basis.eye.y + rel.z * basis.eye.z); // depth toward origin
+  if (zc <= 0.05) return null;
+  const xc = rel.x * basis.right.x + rel.y * basis.right.y + rel.z * basis.right.z;
+  const yc = rel.x * basis.up.x + rel.y * basis.up.y + rel.z * basis.up.z;
+  const f = (0.9 * Math.min(w, h)) / zc;
+  return { x: w / 2 + xc * f, y: h / 2 - yc * f, z: zc };
+}
+
+/** Interpolate the current ECI position (Earth radii) from a sampled track. */
+function currentEci(track, nowMs) {
+  const pts = track.points;
+  if (nowMs <= pts[0].tUtcMs) return eciOf(pts[0]);
+  for (let i = 1; i < pts.length; i++) {
+    if (nowMs <= pts[i].tUtcMs) {
+      const a = pts[i - 1], b = pts[i];
+      const u = (nowMs - a.tUtcMs) / (b.tUtcMs - a.tUtcMs || 1);
+      return {
+        x: (a.eciKm.x + (b.eciKm.x - a.eciKm.x) * u) / EARTH_KM,
+        y: (a.eciKm.y + (b.eciKm.y - a.eciKm.y) * u) / EARTH_KM,
+        z: (a.eciKm.z + (b.eciKm.z - a.eciKm.z) * u) / EARTH_KM,
+      };
+    }
+  }
+  return null; // track expired
+}
+function eciOf(p) { return { x: p.eciKm.x / EARTH_KM, y: p.eciKm.y / EARTH_KM, z: p.eciKm.z / EARTH_KM }; }
+
+/** Rotate an ECI vector into the Earth-fixed frame (for frame: earth). */
+function maybeEarthFrame(p, theta) {
+  if (state.frame !== 'earth') return p;
+  const c = Math.cos(-theta), s = Math.sin(-theta);
+  return { x: p.x * c - p.y * s, y: p.x * s + p.y * c, z: p.z };
+}
+
+function draw3d(nowMs) {
+  const { w, h, dpr } = fitCanvas(V3D);
+  const ctx = V3D.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  const basis = camBasis();
+  const theta = gmstRad(nowMs);
+  const spinFor3d = state.frame === 'earth' ? 0 : theta; // in earth frame the globe is static
+
+  // starfield (deterministic)
+  ctx.fillStyle = 'rgba(215,224,244,0.5)';
+  for (let i = 0; i < 90; i++) {
+    const sx = ((i * 733) % 997) / 997 * w;
+    const sy = ((i * 397) % 883) / 883 * h;
+    ctx.fillRect(sx, sy, i % 7 === 0 ? 1.5 : 1, i % 7 === 0 ? 1.5 : 1);
+  }
+
+  // Earth sphere: limb + graticule rotated by GMST (inertial frame) or static (earth frame)
+  const center = project({ x: 0, y: 0, z: 0 }, basis, w, h);
+  if (center) {
+    const edge = project({ x: basis.right.x, y: basis.right.y, z: basis.right.z }, basis, w, h);
+    const R = edge ? Math.hypot(edge.x - center.x, edge.y - center.y) : 100;
+    const grad = ctx.createRadialGradient(center.x - R * 0.3, center.y - R * 0.3, R * 0.1, center.x, center.y, R);
+    grad.addColorStop(0, '#1c3b6e'); grad.addColorStop(0.7, '#0e2244'); grad.addColorStop(1, '#081228');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(center.x, center.y, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(90,167,255,0.5)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(center.x, center.y, R, 0, Math.PI * 2); ctx.stroke();
+
+    // graticule: meridians every 30°, parallels at ±30/±60 + equator
+    ctx.strokeStyle = 'rgba(124,137,168,0.28)';
+    for (let m = 0; m < 12; m++) {
+      const lon0 = m * Math.PI / 6 + spinFor3d;
+      strokePath3d(ctx, basis, w, h, (k) => {
+        const lat = -Math.PI / 2 + k * Math.PI;
+        return { x: Math.cos(lat) * Math.cos(lon0), y: Math.cos(lat) * Math.sin(lon0), z: Math.sin(lat) };
+      }, 40, true);
+    }
+    for (const latDeg of [-60, -30, 0, 30, 60]) {
+      const lat = latDeg * Math.PI / 180;
+      ctx.strokeStyle = latDeg === 0 ? 'rgba(90,167,255,0.45)' : 'rgba(124,137,168,0.28)';
+      strokePath3d(ctx, basis, w, h, (k) => {
+        const lon = k * 2 * Math.PI + spinFor3d;
+        return { x: Math.cos(lat) * Math.cos(lon), y: Math.cos(lat) * Math.sin(lon), z: Math.sin(lat) };
+      }, 60, true);
+    }
+  }
+
+  // orbits + sats
+  for (const [satId, rec] of state.tracks) {
+    const col = colorOf(satId);
+    const pts = rec.track.points;
+    ctx.strokeStyle = col + 'aa';
+    ctx.lineWidth = state.selected === satId ? 2 : 1.1;
+    strokePath3d(ctx, basis, w, h, (k) => {
+      const p = pts[Math.min(pts.length - 1, Math.round(k * (pts.length - 1)))];
+      return maybeEarthFrame(eciOf(p), theta);
+    }, Math.min(160, pts.length), false);
+    const cur = currentEci(rec.track, nowMs);
+    if (cur) {
+      const pp = project(maybeEarthFrame(cur, theta), basis, w, h);
+      if (pp) {
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(pp.x, pp.y, state.selected === satId ? 5 : 3.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(215,224,244,0.9)';
+        ctx.font = '11px Segoe UI';
+        // stagger labels by catalog index so co-orbital sats (km apart = same pixel) stay legible
+        const li = [...state.tracks.keys()].indexOf(satId);
+        ctx.fillText(satId, pp.x + 7, pp.y - 5 + (li % 3) * 13);
+        // attitude triad for the selected sat when its node reports a quaternion
+        const f = state.fleet.find(x => x.satId === satId);
+        if (state.selected === satId && f && f.telemetry) drawTriad(ctx, basis, w, h, maybeEarthFrame(cur, theta), f.telemetry.state.q, theta);
+      }
+    } else {
+      ensureTrack(satId, true); // track window expired — refresh
+    }
+  }
+
+  // conjunction TCA markers
+  for (const e of state.events.slice(0, 6)) {
+    const recA = state.tracks.get(e.aId);
+    if (!recA) continue;
+    const p = currentEciAt(recA.track, e.tcaUtcMs);
+    if (!p) continue;
+    const pp = project(maybeEarthFrame(p, theta), basis, w, h);
+    if (!pp) continue;
+    ctx.strokeStyle = e.missKm < 5 ? 'rgba(255,107,107,0.9)' : 'rgba(255,200,87,0.8)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(pp.x, pp.y, 9, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.font = '10px Segoe UI';
+    ctx.fillText(e.missKm.toFixed(1) + ' km', pp.x + 11, pp.y + 4);
+  }
+}
+
+function currentEciAt(track, tMs) {
+  const pts = track.points;
+  if (tMs < pts[0].tUtcMs || tMs > pts[pts.length - 1].tUtcMs) return null;
+  return currentEci(track, tMs);
+}
+
+function strokePath3d(ctx, basis, w, h, fn, n, closed) {
+  ctx.beginPath();
+  let pen = false;
+  for (let i = 0; i <= n; i++) {
+    const p = fn(closed ? (i % n) / n : i / n);
+    const pp = project(p, basis, w, h);
+    if (!pp) { pen = false; continue; }
+    // hide the far side of the globe: points whose ray passes into the sphere
+    const d = state.cam.dist;
+    const dot = (p.x * basis.eye.x + p.y * basis.eye.y + p.z * basis.eye.z);
+    const r2 = p.x * p.x + p.y * p.y + p.z * p.z;
+    const behindGlobe = r2 <= 1.001 && dot < 0;
+    if (behindGlobe) { pen = false; continue; }
+    if (!pen) { ctx.moveTo(pp.x, pp.y); pen = true; }
+    else ctx.lineTo(pp.x, pp.y);
+  }
+  ctx.stroke();
+}
+
+function drawTriad(ctx, basis, w, h, pos, q, theta) {
+  // body axes → inertial via q (scalar-first, body→inertial), drawn 0.35 R long
+  const axes = [[1, 0, 0, '#ff6b6b'], [0, 1, 0, '#38d39f'], [0, 0, 1, '#5aa7ff']];
+  const p0 = project(pos, basis, w, h);
+  if (!p0) return;
+  for (const [x, y, z, col] of axes) {
+    const r = rotQ(q, { x, y, z });
+    const tip = maybeEarthFrame({ x: pos.x + r.x * 0.35, y: pos.y + r.y * 0.35, z: pos.z + r.z * 0.35 }, 0);
+    const pt = project(tip, basis, w, h);
+    if (!pt) continue;
+    ctx.strokeStyle = col; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(pt.x, pt.y); ctx.stroke();
+  }
+}
+function rotQ(q, v) {
+  const { w, x, y, z } = q;
+  const uvx = y * v.z - z * v.y, uvy = z * v.x - x * v.z, uvz = x * v.y - y * v.x;
+  const uuvx = y * uvz - z * uvy, uuvy = z * uvx - x * uvz, uuvz = x * uvy - y * uvx;
+  return { x: v.x + 2 * (w * uvx + uuvx), y: v.y + 2 * (w * uvy + uuvy), z: v.z + 2 * (w * uvz + uuvz) };
+}
+
+/* ── 2D ground-track map ─────────────────────────────────────────────────── */
+function drawMap(nowMs) {
+  const { w, h, dpr } = fitCanvas(MAP);
+  const ctx = MAP.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  const X = (lon) => (lon + 180) / 360 * w;
+  const Y = (lat) => (90 - lat) / 180 * h;
+  // graticule
+  ctx.strokeStyle = 'rgba(28,39,69,0.9)';
+  ctx.lineWidth = 1;
+  for (let lon = -150; lon <= 150; lon += 30) { ctx.beginPath(); ctx.moveTo(X(lon), 0); ctx.lineTo(X(lon), h); ctx.stroke(); }
+  for (let lat = -60; lat <= 60; lat += 30) { ctx.beginPath(); ctx.moveTo(0, Y(lat)); ctx.lineTo(w, Y(lat)); ctx.stroke(); }
+  ctx.strokeStyle = 'rgba(90,167,255,0.35)';
+  ctx.beginPath(); ctx.moveTo(0, Y(0)); ctx.lineTo(w, Y(0)); ctx.stroke();
+  // ground station marker
+  const gs = { lat: Number($('gsLat').value), lon: Number($('gsLon').value) };
+  if (Number.isFinite(gs.lat) && Number.isFinite(gs.lon)) {
+    ctx.fillStyle = '#ffc857';
+    ctx.beginPath(); ctx.arc(X(gs.lon), Y(gs.lat), 3, 0, Math.PI * 2); ctx.fill();
+    ctx.font = '10px Segoe UI'; ctx.fillText('GS', X(gs.lon) + 5, Y(gs.lat) - 4);
+  }
+  // tracks
+  for (const [satId, rec] of state.tracks) {
+    const col = colorOf(satId);
+    ctx.strokeStyle = col + '99';
+    ctx.lineWidth = state.selected === satId ? 1.8 : 1;
+    ctx.beginPath();
+    let pen = false, prevLon = null;
+    for (const p of rec.track.points) {
+      const px = X(p.lonDeg), py = Y(p.latDeg);
+      if (pen && prevLon != null && Math.abs(p.lonDeg - prevLon) > 180) pen = false; // date-line wrap
+      if (!pen) { ctx.moveTo(px, py); pen = true; } else ctx.lineTo(px, py);
+      prevLon = p.lonDeg;
+    }
+    ctx.stroke();
+    // current subpoint
+    const pts = rec.track.points;
+    for (let i = 1; i < pts.length; i++) {
+      if (nowMs <= pts[i].tUtcMs) {
+        const a = pts[i - 1], b = pts[i];
+        const u = (nowMs - a.tUtcMs) / (b.tUtcMs - a.tUtcMs || 1);
+        let lon = a.lonDeg + (b.lonDeg - a.lonDeg) * u;
+        if (Math.abs(b.lonDeg - a.lonDeg) > 180) lon = b.lonDeg; // skip wrap interp
+        const lat = a.latDeg + (b.latDeg - a.latDeg) * u;
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(X(lon), Y(lat), 3.5, 0, Math.PI * 2); ctx.fill();
+        ctx.font = '10px Segoe UI';
+        ctx.fillText(satId, X(lon) + 6, Y(lat) - 4);
+        break;
+      }
+    }
+  }
+}
+
+/* ── camera interaction ──────────────────────────────────────────────────── */
+V3D.addEventListener('mousedown', (e) => { state.drag = { x: e.clientX, y: e.clientY }; });
+window.addEventListener('mousemove', (e) => {
+  if (!state.drag) return;
+  state.cam.yaw -= (e.clientX - state.drag.x) * 0.006;
+  state.cam.pitch = Math.max(-1.45, Math.min(1.45, state.cam.pitch + (e.clientY - state.drag.y) * 0.006));
+  state.drag = { x: e.clientX, y: e.clientY };
+});
+window.addEventListener('mouseup', () => { state.drag = null; });
+V3D.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  state.cam.dist = Math.max(1.6, Math.min(14, state.cam.dist * (e.deltaY > 0 ? 1.1 : 0.9)));
+}, { passive: false });
+$('btnAutoRot').onclick = () => {
+  state.cam.auto = !state.cam.auto;
+  $('btnAutoRot').textContent = 'auto-rotate: ' + (state.cam.auto ? 'on' : 'off');
+};
+$('btnFrame').onclick = () => {
+  state.frame = state.frame === 'inertial' ? 'earth' : 'inertial';
+  $('btnFrame').textContent = 'frame: ' + state.frame;
+  $('ovl3d').textContent = (state.frame === 'inertial' ? 'ECI (TEME)' : 'Earth-fixed') + ' · drag to orbit · wheel to zoom';
+};
+
+/* ── catalog + screening + passes actions ────────────────────────────────── */
+$('catAdd').onclick = async () => {
+  const satId = $('catId').value.trim();
+  const tle = $('catTle').value.trim();
+  if (!satId || !tle) { toast('sat id and TLE are required', true); return; }
+  try {
+    await api('/catalog/' + encodeURIComponent(satId), { method: 'PUT', body: JSON.stringify({ tle }) });
+    toast('registered ' + satId);
+    await refreshCatalog();
+  } catch (e) { toast(e.message, true); }
+};
+
+/* Seed a demo trio: ISS-class leader + a 0.05° trailing chaser (conjunction demo) + a polar bird. */
+$('catSeed').onclick = async () => {
+  const cs = (s) => s + String(s.slice(0, 68).split('').map(c => c === '-' ? 1 : /\d/.test(c) ? Number(c) : 0).reduce((a, b) => a + b, 0) % 10);
+  const epoch = (() => {
+    const now = new Date();
+    const y = String(now.getUTCFullYear() % 100).padStart(2, '0');
+    const start = Date.UTC(now.getUTCFullYear(), 0, 1);
+    const doy = (Date.now() - start) / 86400000 + 1;
+    return y + doy.toFixed(8).padStart(12, '0');
+  })();
+  const mk = (satnum, incl, raan, ma, mm) => [
+    cs('1 ' + satnum + 'U 26001A   ' + epoch + '  .00000000  00000-0  00000-0 0    1'),
+    cs('2 ' + satnum + ' ' + incl + ' ' + raan + ' 0003000 130.5360 ' + ma + ' ' + mm + '  100'),
+  ].join('\n');
+  const demo = [
+    ['sat42-live', mk('90001', ' 51.6400', '247.4627', ' 10.0000', '15.50000000')],
+    ['sat-chaser', mk('90002', ' 51.6400', '247.4627', ' 10.0500', '15.50000000')],
+    ['sat-polar',  mk('90003', ' 97.5000', '120.0000', ' 45.0000', '15.10000000')],
+  ];
+  try {
+    for (const [id, tle] of demo) await api('/catalog/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify({ tle }) });
+    toast('demo fleet seeded (leader + 5.9 km chaser + polar)');
+    await refreshCatalog();
+  } catch (e) { toast(e.message, true); }
+};
+
+$('cjRun').onclick = async () => {
+  if (state.catalog.length < 2) { toast('need ≥2 catalog sats to screen', true); return; }
+  $('cjRun').disabled = true;
+  try {
+    const rep = await api('/conjunctions', { method: 'POST', body: JSON.stringify({
+      horizonHours: Number($('cjHours').value) || 24,
+      thresholdKm: Number($('cjKm').value) || 25,
+    }) });
+    state.events = rep.events;
+    const el = $('cjOut');
+    if (!rep.events.length) { el.innerHTML = '<div class="empty">no approaches under ' + rep.thresholdKm + ' km in ' + rep.horizonHours + ' h</div>'; }
+    else {
+      el.innerHTML = '<table><tr><th>pair</th><th>TCA</th><th>miss</th><th>rel v</th></tr>' + rep.events.map(e =>
+        '<tr><td>' + e.aId + ' ↔ ' + e.bId + '</td><td>' + new Date(e.tcaUtcMs).toISOString().slice(5, 16).replace('T', ' ') + 'Z</td>' +
+        '<td class="' + (e.missKm < 5 ? 'miss-bad' : 'miss-warn') + '">' + e.missKm.toFixed(2) + ' km</td>' +
+        '<td>' + e.relSpeedKmS.toFixed(2) + ' km/s</td></tr>').join('') + '</table>';
+    }
+  } catch (e) { toast('screening: ' + e.message, true); }
+  $('cjRun').disabled = false;
+};
+
+$('passRun').onclick = async () => {
+  const satId = $('passSat').value;
+  const cat = state.catalog.find(c => c.satId === satId);
+  if (!cat) { toast('pick a catalog sat', true); return; }
+  $('passRun').disabled = true;
+  try {
+    const rep = await api('/passes', { method: 'POST', body: JSON.stringify({
+      tle: cat.tleRaw,
+      station: { latDeg: Number($('gsLat').value), lonDeg: Number($('gsLon').value), altKm: Number($('gsAlt').value) },
+    }) });
+    const el = $('passOut');
+    if (!rep.passes.length) el.innerHTML = '<div class="empty">no passes in 24 h above mask</div>';
+    else el.innerHTML = '<table><tr><th>rise (UTC)</th><th>dur</th><th>max el</th></tr>' + rep.passes.map(p =>
+      '<tr><td>' + new Date(p.riseUtcMs).toISOString().slice(5, 16).replace('T', ' ') + '</td>' +
+      '<td>' + Math.round(p.durationS / 60) + 'm</td>' +
+      '<td>' + p.maxElevationDeg.toFixed(0) + '°</td></tr>').join('') + '</table>';
+  } catch (e) { toast('passes: ' + e.message, true); }
+  $('passRun').disabled = false;
+};
+
+/* ── sat-operator concierge (drafts only — the approve gate sends) ───────── */
+const chatHistory = [];
+function chatLine(role, text) {
+  chatHistory.push({ role, content: text });
+  const div = document.createElement('div');
+  div.style.margin = '3px 0';
+  div.innerHTML = '<span style="color:var(--dim)">' + (role === 'user' ? 'you' : 'sat-op') + ':</span> ' + text.replace(/</g, '&lt;');
+  $('chatLog').appendChild(div);
+  $('chatLog').scrollTop = $('chatLog').scrollHeight;
+}
+$('chatSend').onclick = async () => {
+  const msg = $('chatMsg').value.trim();
+  if (!msg) return;
+  $('chatMsg').value = '';
+  chatLine('user', msg);
+  $('chatSend').disabled = true;
+  try {
+    const r = await api('/chat', { method: 'POST', body: JSON.stringify({ message: msg, history: chatHistory.slice(0, -1) }) });
+    chatLine('assistant', r.say);
+    const el = $('chatDraft');
+    if (r.draft) {
+      const d = r.draft;
+      const desc = d.command === 'point'
+        ? 'POINT ' + d.satId + ': ' + d.angleDeg + '° about [' + d.axis.x + ', ' + d.axis.y + ', ' + d.axis.z + ']'
+        : d.command.toUpperCase() + ' ' + d.satId;
+      el.innerHTML = '';
+      const btn = document.createElement('button');
+      btn.className = 'primary';
+      btn.style.width = '100%';
+      btn.textContent = 'Load draft → ' + desc;
+      btn.onclick = () => {
+        state.selected = d.satId;
+        renderFleet(); renderCatalog(); renderSelected();
+        if (d.command === 'point') {
+          $('axX').value = d.axis.x; $('axY').value = d.axis.y; $('axZ').value = d.axis.z; $('angDeg').value = d.angleDeg;
+          toast('draft loaded — review, then POINT (approve required)');
+        } else {
+          toast('draft loaded — use the ' + d.command.toUpperCase() + ' button to approve & send');
+        }
+        el.innerHTML = '';
+      };
+      el.appendChild(btn);
+    } else {
+      el.innerHTML = '';
+    }
+  } catch (e) { chatLine('assistant', '(error: ' + e.message + ')'); }
+  $('chatSend').disabled = false;
+};
+$('chatMsg').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('chatSend').click(); });
+
+/* ── command buttons ─────────────────────────────────────────────────────── */
+$('cmdSafe').onclick = () => sendCommand(state.selected, 'SAFE', { mode: 'safe' }, 'Force SAFE: zero torque, sticky until a new operator command.');
+$('cmdDetumble').onclick = () => sendCommand(state.selected, 'DETUMBLE', { mode: 'detumble' }, 'Rate-damp the body; auto-completes to SAFE (or resumes a latched target).');
+$('cmdDesat').onclick = () => sendCommand(state.selected, 'DESAT', { mode: 'desat' }, 'Dump wheel momentum through the magnetorquers, then return to the latched target.');
+$('cmdPoint').onclick = () => {
+  const axis = { x: Number($('axX').value), y: Number($('axY').value), z: Number($('axZ').value) };
+  const angleDeg = Number($('angDeg').value);
+  sendCommand(state.selected, 'POINT', { axis, angleDeg },
+    'Slew ' + angleDeg + '° about body [' + axis.x + ', ' + axis.y + ', ' + axis.z + '].\nMode manager runs SLEW→POINT with hysteresis; refuses if the attitude estimate is unhealthy.');
+};
+
+/* ── help modal ──────────────────────────────────────────────────────────── */
+$('btnHelp').onclick = () => { $('helpModal').style.display = 'flex'; };
+$('helpClose').onclick = () => { $('helpModal').style.display = 'none'; };
+$('helpModal').addEventListener('click', (e) => { if (e.target === $('helpModal')) $('helpModal').style.display = 'none'; });
+
+/* ── main loop ───────────────────────────────────────────────────────────── */
+function frame() {
+  const now = Date.now();
+  if (state.cam.auto && !state.drag) state.cam.yaw += 0.0016;
+  draw3d(now);
+  drawMap(now);
+  $('clock').textContent = new Date(now).toISOString().slice(0, 19).replace('T', ' ') + 'Z';
+  requestAnimationFrame(frame);
+}
+
+pollFleet();
+refreshCatalog();
+setInterval(pollFleet, 2000);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shop — Concierge</title>
+  <link rel="stylesheet" href="/api/purchasing/purchasing.css" />
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+  <header class="shop-header">
+    <div class="brand"><span class="dot"></span> Shopping Concierge</div>
+    <nav class="tabs">
+      <button class="tab" data-view="shop">Shop</button>
+      <button class="tab" data-view="lists">List</button>
+      <button class="tab" data-view="deals">Deals</button>
+    </nav>
+    <div id="status" class="status"></div>
+  </header>
+
+  <!-- SHOP -->
+  <section id="view-shop" class="view">
+    <form id="search-form" class="searchbar">
+      <input id="q" type="text" placeholder='Try "milk", "dish soap", "coffee"…' autocomplete="off" />
+      <button id="mic" type="button" title="Speak">🎙️</button>
+      <button type="submit">Search</button>
+    </form>
+    <p id="resolve-line" class="resolve-line"></p>
+    <div id="results" class="grid"></div>
+  </section>
+
+  <!-- LIST -->
+  <section id="view-lists" class="view hidden">
+    <div class="list-head">
+      <h2>My List</h2>
+      <button id="checkout" class="primary">Checkout →</button>
+    </div>
+    <div id="list-items"></div>
+    <div id="checkout-result" class="checkout-result hidden"></div>
+  </section>
+
+  <!-- DEALS -->
+  <section id="view-deals" class="view hidden">
+    <div class="list-head"><h2>Rollbacks &amp; Deals</h2></div>
+    <div id="deals" class="grid"></div>
+  </section>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const api = (p, opts) => fetch('/api/purchasing' + p, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts)).then((r) => r.json());
+    let listId = null;
+
+    function setStatus(msg) { $('#status').textContent = msg || ''; }
+
+    function showView(v) {
+      document.querySelectorAll('.view').forEach((el) => el.classList.add('hidden'));
+      $('#view-' + v).classList.remove('hidden');
+      document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.view === v));
+      if (v === 'lists') loadList();
+      if (v === 'deals') loadDeals();
+    }
+    document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => showView(t.dataset.view)));
+
+    function card(item, onAdd) {
+      const el = document.createElement('div');
+      el.className = 'card';
+      const price = typeof item.price === 'number' ? '$' + item.price.toFixed(2) : '—';
+      const sale = item.onSale ? '<span class="sale">rollback</span>' : '';
+      el.innerHTML =
+        (item.imageUrl ? '<img src="' + item.imageUrl + '" alt="" />' : '<div class="noimg"></div>') +
+        '<div class="title">' + (item.title || '') + '</div>' +
+        '<div class="meta"><span class="price">' + price + '</span> ' + sale +
+        '<span class="retailer">' + (item.retailer || '') + '</span></div>' +
+        '<button class="add">Add to list</button>';
+      el.querySelector('.add').addEventListener('click', () => onAdd(item, el));
+      return el;
+    }
+
+    async function ensureList() {
+      if (listId) return listId;
+      const { lists } = await api('/lists');
+      listId = lists[0] ? lists[0].list_id : (await api('/lists', { method: 'POST', body: '{}' })).list.list_id;
+      return listId;
+    }
+
+    let lastQuery = '';
+    async function addToList(item, basis) {
+      await ensureList();
+      const reason = basis || (item.onSale ? 'on rollback' : 'best match');
+      await api('/lists/' + listId + '/items', {
+        method: 'POST',
+        body: JSON.stringify({
+          productId: item.productId, title: item.title, brand: item.brand, retailer: item.retailer,
+          imageUrl: item.imageUrl, productUrl: item.productUrl, price: item.price, quantity: item.quantity || 1,
+          itemKey: lastQuery || item.title, reason: 'Added ' + (item.title || '') + ' — ' + reason + '.',
+        }),
+      });
+      setStatus('Added ' + (item.title || '') + ' (' + reason + ')');
+    }
+
+    // Search — first ask the brain to resolve to the shopper's usual.
+    $('#search-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const q = $('#q').value.trim();
+      if (!q) return;
+      lastQuery = q;
+      setStatus('Searching…');
+      $('#resolve-line').textContent = '';
+      const resolved = await api('/resolve', { method: 'POST', body: JSON.stringify({ item: q }) });
+      if (resolved.hasUsual && resolved.item) {
+        $('#resolve-line').innerHTML = '🧠 ' + resolved.reason +
+          ' <button id="add-usual" class="link">Add it</button>';
+        $('#add-usual').addEventListener('click', () => addToList(resolved.item, 'your usual'));
+      }
+      const { items, source } = await api('/search?q=' + encodeURIComponent(q));
+      setStatus(source === 'mock' ? 'Demo catalog (add Walmart key for live results)' : '');
+      const grid = $('#results');
+      grid.innerHTML = '';
+      (items || []).forEach((it) => grid.appendChild(card(it, (item) => addToList(item))));
+    });
+
+    // Voice — "listening" via the browser speech API.
+    $('#mic').addEventListener('click', () => {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) { setStatus('Voice not supported in this browser'); return; }
+      const rec = new SR();
+      rec.lang = 'en-US';
+      setStatus('Listening…');
+      rec.onresult = (ev) => { $('#q').value = ev.results[0][0].transcript; $('#search-form').requestSubmit(); };
+      rec.onerror = () => setStatus('Could not hear that');
+      rec.start();
+    });
+
+    async function loadList() {
+      await ensureList();
+      const { items } = await api('/lists/' + listId + '/items');
+      const wrap = $('#list-items');
+      if (!items.length) { wrap.innerHTML = '<p class="empty">Your list is empty.</p>'; return; }
+      wrap.innerHTML = '';
+      items.forEach((i) => {
+        const row = document.createElement('div');
+        row.className = 'list-row';
+        const price = i.unit_price != null ? '$' + Number(i.unit_price).toFixed(2) : '—';
+        row.innerHTML =
+          '<div class="lr-main"><span class="lr-title">' + (i.title || '') + '</span>' +
+          '<span class="lr-why">' + (i.reason || '') + '</span></div>' +
+          '<span class="lr-qty">×' + i.quantity + '</span><span class="lr-price">' + price + '</span>' +
+          '<button class="rm" data-id="' + i.item_id + '">remove</button>';
+        row.querySelector('.rm').addEventListener('click', async (e) => {
+          await api('/lists/' + listId + '/items/' + e.target.dataset.id, { method: 'DELETE' });
+          loadList();
+        });
+        wrap.appendChild(row);
+      });
+    }
+
+    $('#checkout').addEventListener('click', async () => {
+      await ensureList();
+      setStatus('Building your cart…');
+      const r = await api('/checkout', { method: 'POST', body: JSON.stringify({ listId }) });
+      const box = $('#checkout-result');
+      box.classList.remove('hidden');
+      if (r.error) { box.innerHTML = '<p>' + r.error + '</p>'; setStatus(''); return; }
+      window.open(r.checkoutUrl, '_blank', 'noopener');
+      box.innerHTML =
+        '<p><strong>Cart ready — $' + r.total + '.</strong> ' + r.note + '</p>' +
+        '<a class="primary" href="' + r.checkoutUrl + '" target="_blank" rel="noopener">Open checkout at Walmart →</a>';
+      setStatus('');
+    });
+
+    async function loadDeals() {
+      setStatus('Loading deals…');
+      const { items, source } = await api('/deals?feed=rollback');
+      setStatus(source === 'mock' ? 'Demo deals (add Walmart key for live rollbacks)' : '');
+      const grid = $('#deals');
+      grid.innerHTML = '';
+      (items || []).forEach((it) => grid.appendChild(card(it, (item) => addToList(item, 'on rollback'))));
+    }
+
+    // Open to the view named in ?view=, default shop.
+    showView(new URLSearchParams(location.search).get('view') || 'shop');
+  </script>
+</body>
+</html>

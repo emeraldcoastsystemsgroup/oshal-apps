@@ -1,0 +1,95 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — Portrait Studio
+#
+# Upload a photo, crop the head, and generate a portrait:
+#   • Professional mode — a studio-quality headshot (backdrop, attire, framing).
+#   • Character mode — the fun side: the subject's face (person OR pet) on a
+#     human-type body, hands in frame, in a themed scene — American Gothic with
+#     a pitchfork, steel-mill worker, Renaissance noble, astronaut, …
+#
+# ADR-085 package: self-contained, installed from the oshal-applications store,
+# nothing compiled into the swarm core. Every path below is package-relative.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: portrait-studio
+suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Portrait Studio
+description: >-
+  Turn any photo into a portrait worth framing — a professional studio
+  headshot, or your pet's face on a human body holding a pitchfork.
+  Upload, crop the head, pick a style, generate.
+version: 1.3.0
+status: active
+# Deployment-wide tile visibility (the little-monsters lesson: person-scope hid
+# the installed row from every other user). Portrait DATA stays strictly
+# per-user — every route filters ps_portraits by the caller's user_sub.
+scope: public
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: portrait-studio
+  ref: main
+
+# ── Kernel skills this app calls (ADR-090 D8) — derived from actual imports ──
+#   @/features/video-generation → media-generation (storyboard image providers:
+#                                 the vendor-abstracted image-to-image engine)
+#   @/features/llm-provider     → tool-registry    (swarm credential resolver)
+uses:
+  - media-generation
+  - tool-registry
+
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+ragCollections: []
+
+settings:
+  schema:
+    dailyCap:
+      type: integer
+      default: 25
+      label: Portrait generations per user per day
+
+# ── The app's bot — prompt-craft rules + quality gate live in the persona.
+# Reason-only concierge (registered inline via the manifest bot registrar);
+# the interactive generate path is deterministic template + media-generation
+# kernel skill, same shape as deck-generation.
+bots:
+  - agentId: b0100000-0000-0000-0000-000000000001
+    name: portrait-artist
+    persona: personas/portrait-artist.yaml
+    role: media/portrait-generation
+    capabilities: [portrait-generation, headshot-styling, identity-preservation, image-prompt-craft]
+
+# ── Ribbon surface ────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: portrait-studio
+      label: Portrait Studio
+      icon: codicon codicon-device-camera
+      iframeUrl: /api/portrait-studio/app
+      section: top
+
+# ── Routes — compiled JS bundled in this package, mounted in-process ─────────
+# service-or-oidc: browser users sign in via OIDC; internal service calls
+# (Jarvis / operator tools / smoke tests) pass X-Service-Secret + X-OSHAL-User-Sub,
+# which the mounter resolves into the caller sub (same pattern as eats/rides/spotify).
+routes:
+  - module: routes/portrait-studio-routes.js
+    factory: createPortraitStudioRoutes
+    mountPath: /api/portrait-studio
+    auth: service-or-oidc
+    requiresContext: true
+
+# ── This app's own schema, applied idempotently on install ───────────────────
+migrations:
+  - migrations/001-portrait-studio.sql
+  - migrations/002-cost-and-resilience.sql
+
+theme: midnight
+
+ribbon:
+  defaultView: portrait-studio

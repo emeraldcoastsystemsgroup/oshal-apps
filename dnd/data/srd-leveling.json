@@ -1,0 +1,19 @@
+{
+  "_license": "Level-up numbers derived from SRD 5.1, CC-BY-4.0. See LICENSE-SRD.md.",
+  "_note": "Applied by the /advance route when a hero crosses an XP threshold. hpGain = fixed (average roll + Con mod, the SRD default). newSlots replaces the slots map wholesale. newActions append; newFeatures append.",
+  "thresholds": { "2": 300, "3": 900 },
+  "level2": {
+    "Fighter":   { "hpGain": 8, "newFeatures": ["Action Surge: once per rest, take one additional action on your turn — tell the DM when you use it."] },
+    "Cleric (Life)": { "hpGain": 8, "newSlots": { "1": 3 }, "newFeatures": ["Channel Divinity (1/rest): Preserve Life — restore HP equal to 5× your level, split among allies below half HP."] },
+    "Wizard":    { "hpGain": 5, "newSlots": { "1": 3 }, "newFeatures": ["Arcane Recovery: once per day after a short rest, recover a 1st-level spell slot."] },
+    "Rogue":     { "hpGain": 7, "newFeatures": ["Cunning Action: Dash, Disengage, or Hide as a bonus action — narrate it and the DM honors it."] },
+    "Barbarian": { "hpGain": 9, "newFeatures": ["Reckless Attack: gain advantage on melee attacks this turn; attacks against you also have advantage.", "Danger Sense."] },
+    "Ranger":    { "hpGain": 8, "newSlots": { "1": 2 }, "newActions": [
+      { "id": "hunters-mark", "name": "Hunter's Mark", "type": "spell", "level": 1, "slot": 1, "mode": "autohit", "delivery": "ranged", "range": 90, "darts": 1, "damage": { "dice": "1d6", "bonus": 0, "type": "piercing" }, "text": "Mark a quarry: an extra 1d6 lands with your focus. (Simplified: one bonus strike.)" }
+    ] },
+    "Paladin":   { "hpGain": 8, "newSlots": { "1": 2 }, "newActions": [
+      { "id": "divine-smite", "name": "Divine Smite", "type": "spell", "level": 1, "slot": 1, "mode": "attack", "delivery": "melee", "reach": 5, "toHit": 5, "damage": { "dice": "2d8", "bonus": 3, "type": "radiant" }, "text": "Channel your oath through the blade — radiant fury on a hit." }
+    ] },
+    "Bard":      { "hpGain": 7, "newSlots": { "1": 3 }, "newFeatures": ["Jack of All Trades: add half proficiency to every ability check."] }
+  }
+}

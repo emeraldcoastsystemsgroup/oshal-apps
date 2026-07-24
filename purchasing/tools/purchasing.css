@@ -1,0 +1,115 @@
+/* Shopping Concierge surface — brand-aligned with the OSHAL navy/emerald demos. */
+:root {
+  --navy: #0b1f3a; --emerald: #1faa6b; --ink: #14202e; --muted: #6b7a8d;
+  --line: #e3e8ef; --bg: #f6f8fb; --card: #ffffff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif; color: var(--ink); background: var(--bg); }
+
+.shop-header { display: flex; align-items: center; gap: 18px; padding: 12px 18px; background: var(--navy); color: #fff; }
+.brand { font-weight: 700; letter-spacing: .2px; display: flex; align-items: center; gap: 8px; }
+.brand .dot { width: 10px; height: 10px; background: var(--emerald); transform: rotate(45deg); display: inline-block; }
+.tabs { display: flex; gap: 6px; }
+.tab { background: transparent; color: #cdd8e6; border: 1px solid transparent; padding: 6px 14px; border-radius: 999px; cursor: pointer; font-size: 14px; }
+.tab.active { background: rgba(255,255,255,.12); color: #fff; }
+.status { margin-left: auto; font-size: 13px; color: #9fd9bf; min-height: 18px; }
+
+.view { padding: 18px; max-width: 1080px; margin: 0 auto; }
+.hidden { display: none; }
+
+.searchbar { display: flex; gap: 8px; }
+.searchbar input { flex: 1; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; font-size: 15px; }
+.searchbar button { padding: 0 16px; border: 0; border-radius: 10px; background: var(--emerald); color: #fff; font-weight: 600; cursor: pointer; }
+.searchbar #mic { background: #fff; border: 1px solid var(--line); }
+
+.resolve-line { margin: 14px 2px; font-size: 14px; color: var(--ink); background: #eafaf2; border: 1px solid #c7ecd9; padding: 10px 12px; border-radius: 10px; min-height: 0; }
+.resolve-line:empty { display: none; }
+.link { background: none; border: 0; color: var(--emerald); font-weight: 700; cursor: pointer; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; margin-top: 14px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.card img, .card .noimg { width: 100%; height: 120px; object-fit: contain; background: #f1f4f8; border-radius: 8px; }
+.card .title { font-size: 13px; line-height: 1.3; min-height: 34px; }
+.card .meta { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.card .price { font-weight: 700; }
+.card .sale { background: #ffe7d6; color: #b4501a; font-size: 11px; padding: 1px 7px; border-radius: 999px; }
+.card .retailer { margin-left: auto; color: var(--muted); font-size: 11px; text-transform: capitalize; }
+.card .add { margin-top: auto; border: 0; background: var(--navy); color: #fff; padding: 8px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+
+.list-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.primary { background: var(--emerald); color: #fff; border: 0; padding: 10px 16px; border-radius: 10px; font-weight: 700; cursor: pointer; text-decoration: none; display: inline-block; }
+.list-row { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; }
+.lr-main { display: flex; flex-direction: column; flex: 1; }
+.lr-title { font-weight: 600; }
+.lr-why { font-size: 12px; color: var(--muted); }
+.lr-qty { color: var(--muted); }
+.lr-price { font-weight: 700; min-width: 64px; text-align: right; }
+.rm { background: none; border: 0; color: #c0392b; cursor: pointer; font-size: 12px; }
+.empty { color: var(--muted); }
+.checkout-result { margin-top: 16px; padding: 14px; background: #eafaf2; border: 1px solid #c7ecd9; border-radius: 10px; }
+.checkout-result a { margin-top: 8px; }
+
+/* ── Conversational surface ─────────────────────────────────────────────── */
+.chat-body { height: 100vh; display: flex; flex-direction: column; }
+.shop-header .ghost { background: rgba(255,255,255,.1); color: #cdd8e6; border: 1px solid rgba(255,255,255,.18); border-radius: 999px; padding: 5px 12px; cursor: pointer; font-size: 13px; }
+.cart-pill { margin-left: auto; display: flex; align-items: center; gap: 10px; color: #cdd8e6; font-size: 13px; }
+.cart-pill.has { color: #fff; }
+.primary.sm { padding: 6px 12px; font-size: 13px; }
+
+.thread { flex: 1; overflow-y: auto; padding: 20px; max-width: 860px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.bubble { display: flex; }
+.bubble.user { justify-content: flex-end; }
+.bubble .bub-inner { max-width: 80%; padding: 11px 15px; border-radius: 14px; line-height: 1.45; font-size: 15px; white-space: pre-wrap; }
+.bubble.assistant .bub-inner { background: var(--card); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.bubble.user .bub-inner { background: var(--navy); color: #fff; border-bottom-right-radius: 4px; }
+.bubble.assistant { flex-direction: column; align-items: flex-start; }
+.bubble.typing .bub-inner { display: inline-flex; gap: 4px; }
+.bubble.typing span { width: 7px; height: 7px; background: var(--muted); border-radius: 50%; display: inline-block; animation: blink 1.2s infinite both; }
+.bubble.typing span:nth-child(2) { animation-delay: .2s; }
+.bubble.typing span:nth-child(3) { animation-delay: .4s; }
+@keyframes blink { 0%, 80%, 100% { opacity: .2; } 40% { opacity: 1; } }
+
+.chat-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 10px; max-width: 80%; }
+.chat-card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.chat-card img, .chat-card .noimg { width: 100%; height: 90px; object-fit: contain; background: #f1f4f8; border-radius: 6px; }
+.chat-card .cc-title { font-size: 12px; line-height: 1.3; min-height: 30px; }
+.chat-card .cc-meta { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+.chat-card .cc-add { border: 0; background: var(--emerald); color: #fff; padding: 6px; border-radius: 7px; cursor: pointer; font-weight: 600; font-size: 12px; }
+.chat-card .cc-add:disabled { background: #cfe9dc; color: #2c6b4f; cursor: default; }
+.remembered { margin-top: 8px; font-size: 13px; color: #2c6b4f; background: #eafaf2; border: 1px solid #c7ecd9; padding: 7px 10px; border-radius: 8px; }
+.chat-checkout { margin-top: 10px; padding: 12px; background: #eafaf2; border: 1px solid #c7ecd9; border-radius: 10px; font-size: 14px; }
+.chat-checkout a { margin-top: 8px; }
+
+.composer { display: flex; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--line); background: #fff; max-width: 860px; width: 100%; margin: 0 auto; }
+.composer input { flex: 1; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; font-size: 15px; }
+.composer #mic { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 0 14px; cursor: pointer; font-size: 18px; }
+.composer #mic.listening { background: #ffe7d6; border-color: #f0b48a; }
+
+/* ── Mobile (≤640 px) ───────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  /* Header: wrap brand + tabs onto separate lines */
+  .shop-header { flex-wrap: wrap; gap: 10px; padding: 10px 12px; }
+  .status { margin-left: 0; width: 100%; }
+
+  /* Search bar: keep row but ensure input font-size ≥16px (prevents iOS zoom) */
+  .searchbar input { font-size: 16px; }
+  .searchbar { gap: 6px; }
+
+  /* Product grid: already collapses at ≤400px via minmax(200px,1fr);
+     shrink the minimum so it doesn't force horizontal scroll on 390px */
+  .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+
+  /* List rows: stack the main info block, price, and actions vertically */
+  .list-row { flex-wrap: wrap; gap: 8px; }
+  .lr-main { width: 100%; }
+  .lr-price { min-width: unset; }
+
+  /* Composer (chat surface): ensure input font-size ≥16px */
+  .composer input { font-size: 16px; }
+  .composer { padding: 10px 12px; }
+
+  /* Prevent any overflow from wide fixed elements */
+  .view { padding: 12px; }
+  .primary { width: 100%; text-align: center; }
+  .list-head .primary { width: auto; }
+}

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Little Monsters — Voice Settings</title>
+<script>
+// Sync iframe theme to parent cockpit's data-theme. Storage events don't fire
+// in the writing window, so a MutationObserver on the parent <html> is the
+// reliable path for live same-tab updates when the operator cycles themes.
+(function(){
+  function applyTheme(n){
+    if(!n)return;
+    document.documentElement.setAttribute('data-theme',n);
+    var href='/cockpit/css/themes/'+n+'.css';
+    var link=document.querySelector('link[data-lm-theme-link="1"]');
+    if(link){if(link.getAttribute('href')!==href)link.setAttribute('href',href);return;}
+    link=document.createElement('link');link.rel='stylesheet';link.href=href;
+    link.setAttribute('data-lm-theme-link','1');document.head.appendChild(link);
+  }
+  function initial(){
+    try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(_e){}
+    try{var s=window.localStorage.getItem('cockpit-theme');if(s)return s;}catch(_e){}
+    return 'midnight';
+  }
+  applyTheme(initial());
+  try{if(window.parent&&window.parent!==window){
+    var ph=window.parent.document.documentElement;
+    new MutationObserver(function(ms){for(var i=0;i<ms.length;i++){if(ms[i].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)applyTheme(t);}}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});
+  }}catch(_e){}
+})();
+</script>
+<link rel="stylesheet" href="/api/education/education.css" />
+<script src="/api/education/lm-voice.js"></script>
+<style>
+  .vform label { display:block; font-size:0.85rem; color: var(--lm-muted,#9a8dbf); margin: 0.6rem 0 0.25rem; }
+  .vform select, .vform input[type="range"] { width: 100%; }
+  .vform .togglerow { display:flex; align-items:center; gap:0.5rem; margin-bottom:0.25rem; }
+  .vform .actions { margin-top: 0.9rem; display:flex; gap:0.5rem; align-items:center; }
+  .vform .saved { color:#7ae07a; font-size:0.85rem; }
+  body { padding: 1.5rem; max-width: 780px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+  h2 { font-size: 1.05rem; margin-top: 1.5rem; }
+  .card {
+    border: 1px solid var(--lm-border, #3a2d4f);
+    background: var(--lm-panel, #1e1830);
+    border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem;
+  }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+  .pid { font-family: monospace; font-size: 0.85rem; color: var(--lm-muted, #9a8dbf); }
+  .status-ok { color: #7ae07a; font-weight: 600; }
+  .status-bad { color: #ff8a8a; font-weight: 600; }
+  .reason { color: var(--lm-muted, #9a8dbf); font-size: 0.85rem; margin-top: 0.25rem; }
+  .default-pill {
+    background: var(--lm-accent, #7c5cff); color: #fff;
+    border-radius: 999px; padding: 2px 8px; font-size: 0.7rem;
+    margin-left: 0.5rem; letter-spacing: 0.03em;
+  }
+  .subtle { color: var(--lm-muted, #9a8dbf); font-size: 0.88rem; }
+  code.edit-hint {
+    display: block; padding: 0.5rem; margin-top: 0.5rem;
+    background: var(--lm-code, #0f0a1c); border-radius: 0.25rem;
+    font-size: 0.8rem; color: var(--lm-muted, #cbb9f5);
+  }
+  .preview-ctrl { margin-top: 0.75rem; }
+  button {
+    background: var(--lm-accent, #7c5cff); color: #fff;
+    border: none; border-radius: 0.25rem; padding: 0.35rem 0.8rem;
+    cursor: pointer; font-size: 0.85rem;
+  }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  #preview-audio { width: 100%; margin-top: 0.5rem; }
+  .err { color: #ff8a8a; font-size: 0.85rem; margin-top: 0.5rem; }
+
+  @media (max-width: 640px) {
+    body { padding: 1rem; }
+    .row { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+    .vform .actions { flex-wrap: wrap; }
+    .vform select, .vform input[type="range"] { font-size: 16px; }
+    button { padding: 0.5rem 1rem; font-size: 0.9rem; }
+  }
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<h1>Voice Settings</h1>
+<p class="subtle">Choose how read-aloud sounds for you. These settings are saved on this device and apply across Little Monsters.</p>
+
+<div class="card vform">
+  <strong>My read-aloud</strong>
+  <div class="togglerow" style="margin-top:0.6rem;">
+    <input type="checkbox" id="vEnabled" />
+    <label for="vEnabled" style="margin:0;">Read things aloud</label>
+  </div>
+  <label for="vVoice">Voice</label>
+  <select id="vVoice">
+    <option value="">Default (recommended)</option>
+    <option value="Kore">Kore — warm</option>
+    <option value="Puck">Puck — upbeat</option>
+    <option value="Charon">Charon — calm</option>
+    <option value="Aoede">Aoede — bright</option>
+    <option value="Fenrir">Fenrir — deep</option>
+    <option value="Leda">Leda — gentle</option>
+  </select>
+  <label for="vRate">Speaking speed: <span id="vRateLabel">1.0×</span></label>
+  <input type="range" id="vRate" min="0.6" max="1.4" step="0.05" value="1" />
+  <div class="actions">
+    <button type="button" id="vSave">Save</button>
+    <button type="button" id="vPreview" style="background:transparent;border:1px solid var(--lm-accent,#7c5cff);">&#128264; Preview</button>
+    <span id="vSaved" class="saved" style="display:none;">Saved ✓</span>
+  </div>
+</div>
+
+<script>
+(function () {
+  function get(k, d) { try { var v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } }
+  var enabled = document.getElementById('vEnabled');
+  var voice = document.getElementById('vVoice');
+  var rate = document.getElementById('vRate');
+  var rateLabel = document.getElementById('vRateLabel');
+  enabled.checked = get('lm-tts-enabled', '1') !== '0';
+  voice.value = get('lm-tts-voice', '');
+  rate.value = get('lm-tts-rate', '1');
+  rateLabel.textContent = parseFloat(rate.value).toFixed(2).replace(/0$/, '') + '×';
+  rate.addEventListener('input', function () { rateLabel.textContent = parseFloat(rate.value).toFixed(2).replace(/0$/, '') + '×'; });
+  document.getElementById('vSave').addEventListener('click', function () {
+    try {
+      localStorage.setItem('lm-tts-enabled', enabled.checked ? '1' : '0');
+      localStorage.setItem('lm-tts-voice', voice.value);
+      localStorage.setItem('lm-tts-rate', rate.value);
+      var s = document.getElementById('vSaved'); s.style.display = 'inline'; setTimeout(function () { s.style.display = 'none'; }, 2000);
+    } catch (e) { alert('Could not save settings: ' + e.message); }
+  });
+  document.getElementById('vPreview').addEventListener('click', function () {
+    // Save first so the preview reflects the current choices, then speak.
+    try {
+      localStorage.setItem('lm-tts-enabled', '1');
+      localStorage.setItem('lm-tts-voice', voice.value);
+      localStorage.setItem('lm-tts-rate', rate.value);
+    } catch (e) { /* ignore */ }
+    if (window.lmSpeak) window.lmSpeak('Hi! This is how I will read things aloud for you.');
+  });
+})();
+</script>
+
+<h2 style="margin-top:1.5rem;">Provider status</h2>
+<p class="subtle">Which voice engines the server has available (for reference).</p>
+<div id="content">Loading…</div>
+
+<script>
+(async function () {
+  const root = document.getElementById('content');
+  let payload;
+  try {
+    const res = await fetch('/api/education/voice-config', { credentials: 'include' });
+    const body = await res.json();
+    if (!body.success) throw new Error(body.message || 'voice-config endpoint failed');
+    payload = body.data;
+  } catch (err) {
+    root.innerHTML = '<div class="card err">Failed to load voice config: ' + String(err && err.message || err) + '</div>';
+    return;
+  }
+
+  const ttsDefault = payload.config.tts.default;
+  const sttDefault = payload.config.stt.default;
+  const ttsServerSide = payload.config.tts.serverSide || ttsDefault;
+
+  function renderSection(title, providers, defaultId, extraDefaultLabel, kind) {
+    const items = providers.map(function (p) {
+      const ok = p.status.configured;
+      const badge = p.id === defaultId
+        ? '<span class="default-pill">DEFAULT</span>'
+        : (p.id === extraDefaultLabel
+          ? '<span class="default-pill" style="background:#a48cff">SERVER-SIDE</span>'
+          : '');
+      const previewBtn = kind === 'tts'
+        ? '<button class="preview-provider" data-provider-id="' + p.id + '" type="button">Preview</button>'
+        : '';
+      return ''
+        + '<div class="card">'
+        +   '<div class="row">'
+        +     '<div><strong>' + p.displayName + '</strong>' + badge
+        +       '<div class="pid">' + p.id + ' &middot; ' + p.kind + '</div>'
+        +     '</div>'
+        +     '<div style="display:flex; gap:0.75rem; align-items:center;">'
+        +       previewBtn
+        +       '<div class="' + (ok ? 'status-ok' : 'status-bad') + '">'
+        +         (ok ? 'CONFIGURED' : 'NOT CONFIGURED')
+        +       '</div>'
+        +     '</div>'
+        +   '</div>'
+        +   (ok ? '' : '<div class="reason">' + (p.status.reason || '') + '</div>')
+        + '</div>';
+    }).join('');
+    return '<h2>' + title + '</h2>' + items;
+  }
+
+  const html = ''
+    + renderSection('Text-to-Speech providers', payload.tts.providers, ttsDefault, ttsServerSide, 'tts')
+    + '<audio id="preview-audio" controls hidden style="width:100%; margin:0.5rem 0;"></audio>'
+    + '<div id="preview-msg" class="reason" style="margin-bottom:1rem;"></div>'
+    + renderSection('Speech-to-Text providers', payload.stt.providers, sttDefault, null, 'stt')
+    + '<div class="card">'
+    +   '<strong>How to change defaults</strong>'
+    +   '<div class="subtle">Edit the <code>voice</code> block in <code>config-seed/global-config.json</code> (swarm-level) or <code>swarm-apps/little-monsters.yaml</code> (per-app override). Restart the swarm controller to apply.</div>'
+    +   '<code class="edit-hint">' + 'voice.tts.default = "' + ttsDefault + '"  →  change to "browser" | "gemini-tts" | "google-cloud-tts"' + '</code>'
+    +   '<code class="edit-hint">' + 'voice.stt.default = "' + sttDefault + '"  →  change to "browser" | "gemini-stt" | "google-cloud-stt"' + '</code>'
+    + '</div>';
+
+  root.innerHTML = html;
+
+  async function previewProvider(providerId, btn) {
+    const msg = document.getElementById('preview-msg');
+    const audio = document.getElementById('preview-audio');
+    btn.disabled = true; msg.textContent = 'Synthesizing via ' + providerId + '…'; audio.hidden = true;
+    try {
+      const res = await fetch('/api/voice/synthesize', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: 'Hello from Little Monsters!', providerId: providerId }),
+      });
+      const body = await res.json();
+      if (!body.success) throw new Error(body.error && body.error.message || 'unknown error');
+      if (body.data.fallback === 'browser') {
+        if (window.speechSynthesis) {
+          const u = new SpeechSynthesisUtterance('Hello from Little Monsters!');
+          window.speechSynthesis.speak(u);
+          msg.textContent = 'Synthesized locally via speechSynthesis (browser fallback).';
+        } else {
+          msg.textContent = 'Browser fallback requested but speechSynthesis unavailable.';
+        }
+      } else if (body.data.fallback === 'unconfigured') {
+        msg.textContent = 'Provider not configured — ' + (body.data.message || '');
+      } else if (body.data.audioData) {
+        audio.src = 'data:' + (body.data.format || 'audio/wav') + ';base64,' + body.data.audioData;
+        audio.hidden = false;
+        audio.play().catch(function () {});
+        msg.textContent = 'Synthesized by ' + body.data.providerId + '.';
+      } else {
+        msg.textContent = 'Empty response.';
+      }
+    } catch (err) {
+      msg.textContent = 'Preview failed: ' + String(err && err.message || err);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  document.querySelectorAll('.preview-provider').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      previewProvider(btn.getAttribute('data-provider-id'), btn);
+    });
+  });
+})();
+</script>
+</body>
+</html>

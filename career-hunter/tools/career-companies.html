@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Companies — Admin</title>
+<style>
+  :root {
+    --bg: var(--surface-bg, #0d1420); --panel: var(--surface-panel, #131c2b);
+    --line: var(--surface-line, #223247); --text: var(--surface-text, #e6edf5);
+    --muted: var(--surface-muted, #8aa0b6); --accent: var(--surface-accent, #34d399);
+    --warn: #f4b350; --bad: #ef6b6b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 Inter, system-ui, sans-serif; background: var(--bg); color: var(--text); }
+  header { padding: 16px 20px 8px; }
+  h1 { margin: 0 0 2px; font-size: 18px; font-weight: 650; }
+  .sub { color: var(--muted); font-size: 12.5px; }
+  .bar { display: flex; gap: 10px; align-items: center; padding: 10px 20px; flex-wrap: wrap; }
+  input[type=search], input.url {
+    background: var(--panel); border: 1px solid var(--line); color: var(--text);
+    border-radius: 8px; padding: 7px 10px; font: inherit; }
+  input[type=search] { width: 280px; }
+  input.url { width: 100%; }
+  label.chk { color: var(--muted); font-size: 12.5px; display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  .count { color: var(--muted); font-size: 12.5px; margin-left: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { position: sticky; top: 0; background: var(--bg); color: var(--muted); font-weight: 600; font-size: 12px; z-index: 1; }
+  td.name { font-weight: 600; white-space: nowrap; }
+  td.jobs { text-align: right; font-variant-numeric: tabular-nums; }
+  .pill { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .pill.none { color: var(--bad); border-color: var(--bad); }
+  .urlcell { display: flex; gap: 8px; min-width: 380px; }
+  button { background: var(--accent); color: #06231a; border: 0; border-radius: 8px; padding: 7px 12px;
+           font: inherit; font-weight: 650; cursor: pointer; white-space: nowrap; }
+  button:disabled { opacity: .55; cursor: default; }
+  .msg { font-size: 12px; margin-top: 3px; }
+  .msg.ok { color: var(--accent); } .msg.err { color: var(--bad); }
+  .empty { padding: 40px 20px; color: var(--muted); }
+  .wrap { max-height: calc(100vh - 118px); overflow: auto; }
+</style>
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+  <header>
+    <h1>Companies <span class="sub">· admin</span></h1>
+    <div class="sub">Every company and its detected job board. Paste the real careers / jobs URL and hit
+      <b>Resolve</b> to re-detect the ATS and scrape now. Writes the shared corpus for all users.</div>
+  </header>
+  <div class="bar">
+    <input type="search" id="q" placeholder="search company…" autocomplete="off" />
+    <label class="chk"><input type="checkbox" id="attn" /> needs attention only (no jobs / not found)</label>
+    <span class="count" id="count"></span>
+  </div>
+  <div class="wrap">
+    <table>
+      <thead><tr><th>Company</th><th style="text-align:right">Jobs</th><th>Platform</th>
+        <th>Careers / jobs URL — paste the real search URL &amp; Resolve</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="empty" hidden></div>
+  </div>
+<script>
+const $ = (s) => document.querySelector(s);
+let ALL = [];
+
+function needsAttention(c) { return (c.active_jobs || 0) === 0 || (c.discover_status && c.discover_status !== 'found'); }
+
+function render() {
+  const q = ($('#q').value || '').trim().toLowerCase();
+  const attn = $('#attn').checked;
+  const rows = ALL.filter(c =>
+    (!q || (c.name || '').toLowerCase().includes(q)) && (!attn || needsAttention(c)));
+  $('#count').textContent = rows.length + ' of ' + ALL.length + ' companies';
+  const tb = $('#rows'); tb.innerHTML = '';
+  for (const c of rows) {
+    const tr = document.createElement('tr');
+    const jobsClass = (c.active_jobs || 0) === 0 ? 'pill none' : 'pill';
+    tr.innerHTML =
+      '<td class="name">' + esc(c.name) + '</td>' +
+      '<td class="jobs">' + (c.active_jobs || 0).toLocaleString() + '</td>' +
+      '<td><span class="' + (c.ats_type ? 'pill' : 'pill none') + '">' + esc(c.ats_type || 'none') + '</span></td>' +
+      '<td><div class="urlcell"><input class="url" value="' + esc(c.careers_url || '') + '" ' +
+      'placeholder="paste careers / jobs search URL…" /><button>Resolve</button></div>' +
+      '<div class="msg" hidden></div></td>';
+    const input = tr.querySelector('input.url');
+    const btn = tr.querySelector('button');
+    const msg = tr.querySelector('.msg');
+    btn.onclick = () => resolve(c, input, btn, msg, tr);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') btn.click(); });
+    tb.appendChild(tr);
+  }
+  $('#empty').hidden = rows.length > 0;
+  $('#empty').textContent = ALL.length === 0 ? '' : 'No companies match.';
+}
+
+async function resolve(c, input, btn, msg, tr) {
+  const url = (input.value || '').trim();
+  if (!url) { show(msg, 'Enter a URL first.', 'err'); return; }
+  btn.disabled = true; btn.textContent = 'Resolving…'; msg.hidden = true;
+  try {
+    const r = await fetch('/api/career-hunter/companies-admin/seturl?companyId=' + c.id +
+      '&url=' + encodeURIComponent(url), { method: 'POST' });
+    const d = await r.json();
+    if (d.ok && d.result) {
+      c.active_jobs = d.result.jobs != null ? d.result.jobs : c.active_jobs;
+      c.ats_type = d.result.atype || c.ats_type; c.careers_url = url;
+      tr.querySelector('td.jobs').textContent = (c.active_jobs || 0).toLocaleString();
+      show(msg, d.result.message || 'Done.', 'ok');
+    } else {
+      show(msg, (d.error || 'Failed — could not resolve.'), 'err');
+    }
+  } catch (e) { show(msg, 'Request failed: ' + e, 'err'); }
+  btn.disabled = false; btn.textContent = 'Resolve';
+}
+
+function show(el, t, cls) { el.textContent = t; el.className = 'msg ' + cls; el.hidden = false; }
+function esc(s) { return String(s).replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m])); }
+
+async function load() {
+  try {
+    const r = await fetch('/api/career-hunter/companies-admin/list');
+    if (r.status === 403) { document.body.innerHTML = '<div class="empty">Admin only.</div>'; return; }
+    const d = await r.json();
+    ALL = d.companies || [];
+    render();
+  } catch (e) { $('#empty').hidden = false; $('#empty').textContent = 'Failed to load companies.'; }
+}
+$('#q').addEventListener('input', render);
+$('#attn').addEventListener('change', render);
+load();
+</script>
+</body>
+</html>

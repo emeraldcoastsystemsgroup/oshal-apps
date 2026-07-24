@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Composer — Social</title>
+<!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
+     Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
+     matters — without it the surface would have no colors at all. -->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  /* This surface keeps its own short alias names, but DERIVES them from the framework theme rather
+     than hardcoding hex — so all eleven themes work, not just the dark ones. The palette used to be
+     literal (#0e0e16 …), which is why it only ever looked right in a dark theme. Status colors come
+     from the theme too, with the old hex as a fallback. --li / --x are LinkedIn / X brand colors and
+     stay literal in every theme. */
+  :root {
+    --bg: var(--bg-primary);
+    --panel: var(--bg-secondary);
+    --panel2: var(--bg-tertiary);
+    --line: var(--border-color);
+    --text: var(--text-primary);
+    --muted: var(--text-secondary);
+    --accent: var(--accent-primary, #7c6cff);
+    --accent2: var(--status-success, #00d3a7);
+    --li: #0a66c2;
+    --x: #1d9bf0;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family: system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  .page { max-width:760px; margin:0 auto; padding:30px 26px 60px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:20px; }
+  .accounts { display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
+  .acct { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:9px 13px; display:flex; gap:9px; align-items:center; font-size:13px; }
+  .acct img { width:26px; height:26px; border-radius:50%; }
+  .acct .dot { width:8px; height:8px; border-radius:50%; background:var(--accent2); }
+  .acct.off { opacity:.6; } .acct.off .dot { background:var(--text-muted, #555); }
+  .acct a { color:var(--accent); text-decoration:none; }
+  .acct .mini { color:var(--muted); font-size:12px; }
+  .netsel { display:flex; gap:8px; margin-bottom:16px; }
+  .net { flex:0 0 auto; background:var(--panel); border:1px solid var(--line); color:var(--muted); border-radius:9px; padding:9px 16px; cursor:pointer; font-size:13px; font-weight:600; }
+  .net.sel { color:#fff; }
+  .net.sel.x { background:var(--x); border-color:var(--x); }
+  .net.sel.li { background:var(--li); border-color:var(--li); }
+  .net:disabled { opacity:.4; cursor:not-allowed; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px; margin-bottom:16px; }
+  .row { display:flex; gap:10px; align-items:center; margin-bottom:12px; }
+  .row input { flex:1; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:14px; }
+  textarea { width:100%; min-height:180px; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:9px; padding:13px; font-family:inherit; font-size:14px; line-height:1.55; resize:vertical; }
+  .chips { display:flex; flex-wrap:wrap; gap:7px; align-items:center; margin-top:12px; }
+  .chiplbl { color:var(--muted); font-size:12px; margin-right:2px; }
+  .chip { background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:16px; padding:6px 11px; cursor:pointer; font-size:12px; }
+  .chip:hover { border-color:var(--accent); } .chip:disabled { opacity:.45; cursor:default; }
+  .refineRow { display:flex; gap:8px; margin-top:10px; }
+  .refineRow input { flex:1; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:9px 11px; font-size:13px; }
+  .bar { display:flex; gap:10px; align-items:center; margin-top:14px; }
+  .btn { border:none; border-radius:8px; padding:10px 16px; cursor:pointer; font-size:13px; font-weight:600; }
+  .btn.draft { background:var(--panel2); border:1px solid var(--line); color:var(--text); }
+  .btn.pub { background:var(--li); color:#fff; }
+  .btn.pub.x { background:var(--x); }
+  .btn:disabled { opacity:.5; cursor:default; }
+  .count { color:var(--muted); font-size:12px; margin-left:auto; }
+  .count.over { color:var(--status-error, #ff7a7a); font-weight:600; }
+  .note { font-size:13px; color:var(--muted); margin-top:6px; }
+  .result { margin-top:14px; padding:12px 14px; border-radius:9px; font-size:13px; }
+  .result.ok { background:rgba(0,211,167,.1); border:1px solid var(--accent2); color:var(--accent2); }
+  .result.err { background:rgba(255,90,90,.1); border:1px solid var(--status-error, #ff5a5a); color:#ff9a9a; }
+  .result.ok a, .result.err a { color:inherit; }
+  .notice { color:var(--muted); } .notice a { color:var(--accent); }
+  .spin { color:var(--muted); font-size:13px; }
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--muted,rgba(255,255,255,.28))}
+  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
+  @media (max-width: 640px) {
+    .page { padding: 16px 14px 40px; }
+    .row { flex-direction: column; align-items: stretch; }
+    .row input { width: 100%; font-size: 16px; }
+    .row .btn { width: 100%; padding: 12px 16px; }
+    textarea { font-size: 16px; }
+    .refineRow { flex-direction: column; }
+    .refineRow input { width: 100%; font-size: 16px; }
+    .refineRow .btn { width: 100%; padding: 12px 16px; }
+    .bar { flex-wrap: wrap; }
+    .bar .btn { flex: 1 1 auto; min-width: 0; padding: 12px 14px; }
+    .count { width: 100%; text-align: right; }
+    .netsel { flex-wrap: wrap; }
+    .net { flex: 1 1 auto; text-align: center; }
+  }
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+  <div class="page">
+    <h1>✍️ Composer</h1>
+    <div class="sub">Draft with AI, refine, and publish to <b>X</b> or <b>LinkedIn</b>. Nothing posts until you click Publish.</div>
+    <div class="accounts" id="accounts"><span class="spin">Checking connected accounts…</span></div>
+    <div style="background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 14px;margin:0 0 16px;font-size:12.5px;color:var(--muted);line-height:1.55;">
+      💡 <b style="color:var(--text)">Want a feed here?</b> These platforms don't expose your timeline via API (X paywalls it; Facebook &amp; LinkedIn deprecated it). Instead, turn on <b>email notifications</b> on X / Facebook / LinkedIn — or forward their alerts — to your connected inbox. <a href="/api/email/inbox" target="_top" style="color:var(--accent)">Intelligent Communication</a> reads those alerts, assesses them, and surfaces what matters — the inbox becomes your feed.
+    </div>
+    <div class="netsel" id="netsel"></div>
+
+    <div class="card">
+      <div class="row">
+        <input id="topic" placeholder="Topic or angle for AI draft (e.g. 'agents moving into workflow queues')" />
+        <button class="btn draft" id="draftBtn">✨ Draft</button>
+      </div>
+      <textarea id="text" placeholder="Write your post, or use ✨ Draft to start — then refine it to sound like you."></textarea>
+      <div class="chips" id="chips" style="display:none">
+        <span class="chiplbl">Refine:</span>
+      </div>
+      <div class="refineRow" id="refineRow" style="display:none">
+        <input id="refineInput" placeholder="…or tell me exactly how to change it" />
+        <button class="btn draft" id="refineBtn">Refine ↻</button>
+      </div>
+      <div class="bar">
+        <button class="btn pub" id="pubBtn">Publish</button>
+        <span class="count" id="count">0 chars</span>
+      </div>
+      <div class="note">Review every word — this publishes a real public post on your behalf.</div>
+      <div id="result"></div>
+    </div>
+  </div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+function esc(s){ return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+const LIMITS = { twitter: 280, linkedin: 3000 };
+const NAMES = { twitter: 'X', linkedin: 'LinkedIn' };
+const REFINEMENTS = [
+  ['✂️ Punchier', 'Make it punchier and more concise — tighten every line, stronger hook.'],
+  ['📏 Shorter', 'Cut it down by about half while keeping the core point.'],
+  ['🔬 More technical', 'Make it more technical and specific for an engineering audience.'],
+  ['📣 Add CTA', 'Add a clear, natural call-to-action at the end.'],
+  ['❓ End w/ question', 'End with one sharp question that invites discussion.'],
+];
+let PROFILES = {}, NET = 'twitter';
+
+function setCount(){
+  const n = $('text').value.length, lim = LIMITS[NET];
+  const c = $('count'); c.textContent = `${n} / ${lim}`;
+  c.className = 'count' + (n > lim ? ' over' : '');
+}
+
+function renderNetsel(){
+  const conn = { twitter: !!PROFILES.twitter, linkedin: !!PROFILES.linkedin };
+  if (NET === 'twitter' && !conn.twitter && conn.linkedin) NET = 'linkedin';
+  if (NET === 'linkedin' && !conn.linkedin && conn.twitter) NET = 'twitter';
+  $('netsel').innerHTML =
+    `<button class="net ${NET==='twitter'?'sel x':''}" data-net="twitter" ${conn.twitter?'':'disabled title="Connect X at /utilities"'}>𝕏 X</button>` +
+    `<button class="net ${NET==='linkedin'?'sel li':''}" data-net="linkedin" ${conn.linkedin?'':'disabled title="Connect LinkedIn at /utilities"'}>in LinkedIn</button>`;
+  $('netsel').querySelectorAll('.net').forEach(b => b.onclick = () => { if (!b.disabled){ NET = b.dataset.net; renderNetsel(); syncPub(); setCount(); } });
+}
+function syncPub(){
+  const connected = !!PROFILES[NET];
+  $('pubBtn').className = 'btn pub' + (NET==='twitter'?' x':'');
+  $('pubBtn').textContent = `Publish to ${NAMES[NET]} ▸`;
+  $('pubBtn').disabled = !connected;
+  if (!connected) $('result').innerHTML = `<div class="result err">Connect ${NAMES[NET]} at <a href="/utilities" target="_top">/utilities</a> to publish.</div>`;
+  else if ($('result').textContent.startsWith('Connect')) $('result').innerHTML = '';
+}
+
+async function loadAccounts(){
+  const el = $('accounts');
+  let r; try { r = await fetch('/api/social/profiles'); } catch { el.innerHTML='<span class="notice">Error loading accounts.</span>'; return; }
+  if (!r.ok) { el.innerHTML = '<span class="notice">Sign in to use the composer.</span>'; return; }
+  PROFILES = (await r.json()).profiles || {};
+  const tw = PROFILES.twitter && PROFILES.twitter.data, li = PROFILES.linkedin, fb = PROFILES.facebook;
+  const parts = [];
+  parts.push(tw
+    ? `<div class="acct"><span class="dot"></span><b>𝕏</b> @${esc(tw.username)} <span class="mini">· ${(tw.public_metrics&&tw.public_metrics.followers_count)||0} followers</span></div>`
+    : `<div class="acct off"><span class="dot"></span><b>𝕏 X</b> · <a href="/utilities" target="_top">Connect →</a></div>`);
+  parts.push(li
+    ? `<div class="acct"><span class="dot"></span>${li.picture?`<img src="${esc(li.picture)}">`:''}<b>LinkedIn</b> · ${esc(li.name||'connected')}</div>`
+    : `<div class="acct off"><span class="dot"></span><b>LinkedIn</b> · <a href="/utilities" target="_top">Connect →</a></div>`);
+  parts.push(fb
+    ? `<div class="acct"><span class="dot"></span><b>Facebook</b> · ${esc(fb.name||'connected')} <a href="/api/social/facebook" target="_top" class="mini" style="color:var(--accent);text-decoration:none">Publish to a Page →</a></div>`
+    : `<div class="acct off"><span class="dot"></span><b>Facebook</b> · <a href="/api/social/facebook" target="_top">Pages →</a></div>`);
+  el.innerHTML = parts.join('');
+  renderNetsel(); syncPub(); setCount();
+}
+
+$('text').addEventListener('input', setCount);
+
+$('draftBtn').onclick = async () => {
+  const topic = $('topic').value.trim();
+  if (!topic) { $('topic').focus(); return; }
+  $('draftBtn').disabled = true; $('draftBtn').textContent = 'Drafting…';
+  try {
+    const r = await fetch('/api/social/draft', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ topic, target: NET }) });
+    const j = await r.json();
+    if (r.ok && j.draft) { $('text').value = j.draft; setCount(); showRefine(); }
+    else $('result').innerHTML = '<div class="result err">Draft failed: '+esc(j.error||r.status)+'</div>';
+  } catch (e) { $('result').innerHTML = '<div class="result err">Draft error.</div>'; }
+  $('draftBtn').disabled = false; $('draftBtn').textContent = '✨ Draft';
+};
+
+function showRefine(){
+  const chips = $('chips');
+  if (chips.querySelectorAll('.chip').length === 0)
+    REFINEMENTS.forEach((p,i) => { const b=document.createElement('button'); b.className='chip'; b.textContent=p[0]; b.onclick=()=>refine(p[1]); chips.appendChild(b); });
+  chips.style.display = 'flex'; $('refineRow').style.display = 'flex';
+}
+$('refineBtn') && ($('refineBtn').onclick = () => refine($('refineInput').value));
+$('refineInput') && $('refineInput').addEventListener('keydown', e => { if (e.key==='Enter') refine($('refineInput').value); });
+
+async function refine(instruction){
+  const inst=(instruction||'').trim(), cur=$('text').value.trim();
+  if (!inst || !cur) return;
+  const ctrls = document.querySelectorAll('.chip, #refineBtn'); ctrls.forEach(b=>b.disabled=true);
+  try {
+    const r = await fetch('/api/content/refine', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ draft: cur, instruction: inst, topic: $('topic').value.trim() }) });
+    const j = await r.json();
+    if (r.ok && j.draft) { $('text').value = j.draft; setCount(); if ($('refineInput')) $('refineInput').value=''; }
+    else $('result').innerHTML = '<div class="result err">Refine failed: '+esc(j.error||r.status)+'</div>';
+  } catch (e) { $('result').innerHTML = '<div class="result err">Refine error.</div>'; }
+  ctrls.forEach(b=>b.disabled=false);
+}
+
+$('pubBtn').onclick = async () => {
+  const text = $('text').value.trim();
+  if (!text) { $('text').focus(); return; }
+  if (text.length > LIMITS[NET]) { $('result').innerHTML = `<div class="result err">${text.length} chars — over the ${NAMES[NET]} limit of ${LIMITS[NET]}.</div>`; return; }
+  if (!confirm(`Publish this as a public ${NAMES[NET]} post now?`)) return;
+  $('pubBtn').disabled = true; const lbl = $('pubBtn').textContent; $('pubBtn').textContent = 'Publishing…';
+  $('result').innerHTML = '<div class="spin">Publishing…</div>';
+  try {
+    const r = await fetch('/api/social/post', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text, target: NET, confirm: true }) });
+    const j = await r.json();
+    if (r.ok && j.ok) $('result').innerHTML = `<div class="result ok">✓ Published to ${NAMES[NET]}${j.tweetId?(' · '+esc(j.tweetId)):(j.postId?(' · '+esc(j.postId)):'')}</div>`;
+    else if (j.code === 409 || r.status === 409) $('result').innerHTML = '<div class="result err">'+esc(j.message||('Connect '+NAMES[NET]+' first'))+' (<a href="/utilities" target="_top">/utilities</a>)</div>';
+    else $('result').innerHTML = '<div class="result err">Publish failed: '+esc(j.error||('HTTP '+r.status))+'</div>';
+  } catch (e) { $('result').innerHTML = '<div class="result err">Publish error.</div>'; }
+  $('pubBtn').disabled = false; $('pubBtn').textContent = lbl;
+};
+
+loadAccounts();
+</script>
+</body>
+</html>

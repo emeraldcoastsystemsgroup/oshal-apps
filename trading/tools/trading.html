@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<!--
+  Trading surface — signal-justified stock trading (ADR-052). Self-contained iframe page
+  (served by createTradingRoutes at /api/trading/). MASTER-DETAIL cockpit: a KPI strip, then a
+  left "universe" list (held positions + conviction-ranked recommendations) and a right DETAIL
+  pane (real candle chart + the deterministic signal model + an order ticket) for the focused
+  name. The deep features (journal, Strategy Lab — saved variations + persisted backtests +
+  out-of-sample forward curves + regression drift (ADR-092), plus per-strategy notes/lessons
+  journals and APPLY-TO-PROFILE with the hub strategy strip (ADR-095) — tuning, performance,
+  recommendations, algorithms, capture/signals) live in tabs below (?tab=lab deep-links). Every
+  order links back to its decision + the signal(s) that triggered it.
+  Paper-only by default; live is gated server-side and needs an explicit confirm. Theme syncs to
+  the cockpit. All data is live from /api/trading/* — nothing here is simulated.
+-->
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Trading</title>
+<!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
+     Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
+     matters — without it the surface would have no colors at all. -->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  /* This surface keeps its own short alias names, but DERIVES them from the framework theme rather
+     than hardcoding hex — so all eleven themes work, not just midnight. Semantic status colors come
+     from the theme too, with the old hex as a fallback so the surface stays legible if a theme omits
+     one. Buy/sell BUTTONS (--buy2) keep a constant brand green by design. */
+  :root {
+    --bg:var(--bg-primary); --panel:var(--bg-secondary); --panel2:var(--bg-tertiary); --line:var(--border-color);
+    --text:var(--text-primary); --muted:var(--text-secondary); --accent:var(--accent-primary, #7c6cff); --accent2:var(--status-success, #00d3a7);
+    --scrollbar-thumb:rgba(255,255,255,.14);
+    --buy:var(--status-success, #2fbf8f); --buy2:#1ba883; --sell:var(--status-error, #ec7672); --warn:var(--status-warning, #e3bd6a); --danger:var(--status-error, #f0908c);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif;
+    background:radial-gradient(1100px 460px at 50% -10%, color-mix(in srgb, var(--accent) 12%, transparent) 0, transparent 70%), var(--bg); color:var(--text); }
+  .page { max-width:1480px; margin:0 auto; padding:18px 18px 70px; }
+  .head { display:flex; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap;
+    background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:11px 14px; }
+  ::-webkit-scrollbar{width:10px;height:10px} ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb);border-radius:6px}
+  h1 { font-size:19px; margin:0; letter-spacing:.2px; }
+  .badge { font-size:19px; }
+  .sub { color:var(--muted); font-size:13px; line-height:1.5; }
+  .actions { margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .chip { display:flex; align-items:center; gap:7px; font-size:12.5px; font-weight:700; color:var(--text-primary, #dce8e5); }
+  .chip i { width:8px; height:8px; border-radius:50%; background:var(--buy); }
+  .btn { border:1px solid var(--line); background:var(--panel2); border-radius:8px; padding:9px 14px; cursor:pointer; font-size:13px; font-weight:700; color:var(--text); }
+  .btn.primary { background:var(--buy2); color:#05130e; border-color:var(--buy2); }
+  .btn.buy { background:var(--buy2); color:#05130e; border-color:var(--buy2); }
+  .btn.ghost { background:var(--panel2); border:1px solid var(--line); color:var(--text); }
+  .btn.sm { padding:5px 10px; font-size:12px; }
+  .btn:hover { border-color:var(--accent); }
+  .btn:disabled { opacity:.45; cursor:default; }
+  .icon-btn { width:38px; min-height:36px; border:1px solid var(--line); background:var(--panel2); color:var(--text); border-radius:8px; cursor:pointer; font-weight:800; font-size:15px; }
+  .icon-btn:hover { border-color:var(--accent); background:var(--panel2); }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; box-shadow:0 22px 50px -34px #000; }
+  .panel h2 { font-size:14px; margin:0 0 12px; }
+  .panel.head2 { display:flex; align-items:center; gap:10px; }
+
+  /* KPI strip */
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(124px,1fr)); gap:10px; margin-bottom:16px; }
+  .kpi { background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:12px 14px; }
+  .kpi .n { font-size:20px; font-weight:800; color:var(--text); letter-spacing:-.3px; font-variant-numeric:tabular-nums; }
+  .kpi .n.pos { color:var(--buy); } .kpi .n.neg { color:var(--sell); }
+  .kpi .l { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-top:3px; }
+  .kpi .s { font-size:11px; color:var(--muted); margin-top:2px; }
+
+  /* master-detail */
+  .dash { display:grid; grid-template-columns:330px minmax(0,1fr); gap:16px; align-items:start; }
+  @media (max-width:1000px){ .dash { grid-template-columns:1fr; } }
+
+  /* universe list (LEFT) */
+  .uni-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .uni-head h2 { font-size:14px; margin:0; }
+  .uni-head span { font-size:11px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--muted); }
+  .uni-list { display:grid; gap:7px; max-height:660px; overflow:auto; padding-right:4px; }
+  .uni-row { display:grid; grid-template-columns:1fr auto; gap:3px 10px; align-items:center; width:100%; text-align:left;
+    padding:9px 11px; border:1px solid var(--line); border-radius:8px; background:var(--bg-tertiary, #16202b); cursor:pointer; color:inherit; transition:.14s; }
+  .uni-row:hover { border-color:var(--border-color-hover, #3a4b58); background:var(--bg-card-hover, #1a2531); }
+  .uni-row.active { border-color:var(--buy2); background:rgba(27,168,131,.10); box-shadow:inset 3px 0 0 var(--buy2); }
+  .uni-row .s { font-weight:800; font-size:14px; }
+  .uni-row .p { font-variant-numeric:tabular-nums; font-weight:800; font-size:13px; text-align:right; }
+  .uni-row .a { font-size:11px; font-weight:700; color:var(--muted); display:flex; align-items:center; gap:6px; }
+  .uni-row .c { font-size:12px; font-weight:800; text-align:right; font-variant-numeric:tabular-nums; }
+  .uni-row .gbar { grid-column:1 / -1; height:4px; border-radius:5px; background:var(--bg-tertiary, #233039); overflow:hidden; margin-top:5px; }
+  .uni-row .gbar i { display:block; height:100%; border-radius:5px; }
+
+  /* detail (RIGHT) */
+  .det-head { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:12px; }
+  .det-id h2 { font-size:15px; margin:0; display:flex; align-items:center; gap:9px; }
+  .det-price { font-size:24px; font-weight:800; font-variant-numeric:tabular-nums; margin-top:4px; }
+  .det-meta { display:flex; gap:10px; align-items:center; flex-wrap:wrap; color:var(--muted); font-size:12.5px; font-weight:700; margin-top:2px; }
+  .tf-switch { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .tf-switch button { background:var(--panel2); color:var(--muted); border:none; padding:6px 11px; cursor:pointer; font-size:12px; font-weight:700; }
+  .tf-switch button.on { background:var(--buy2); color:#05130e; }
+  .det-chart { height:330px; width:100%; border:1px solid var(--line); border-radius:8px; background:var(--bg-tertiary, #0e1620); overflow:hidden; }
+  /* signal model bars */
+  .sigmodel { display:grid; gap:9px; }
+  .sm-row { display:grid; grid-template-columns:84px 1fr 56px; gap:10px; align-items:center; }
+  .sm-row .k { font-size:12px; font-weight:800; color:var(--muted); text-transform:capitalize; }
+  .sm-bar { position:relative; height:11px; border-radius:6px; background:var(--bg-tertiary, #1c2731); overflow:hidden; }
+  .sm-bar .mid { position:absolute; left:50%; top:0; bottom:0; width:1px; background:var(--border-color, #34424f); z-index:1; }
+  .sm-bar i { position:absolute; top:0; bottom:0; border-radius:6px; }
+  .sm-bar i.pos { left:50%; background:linear-gradient(90deg,#34c79a,#1ba883); }
+  .sm-bar i.neg { right:50%; background:linear-gradient(90deg,#ec7672,#c54747); }
+  .sm-row .v { font-size:11px; font-weight:800; text-align:right; font-variant-numeric:tabular-nums; }
+  .sm-why { margin:11px 0 0; font-size:13px; color:var(--muted); font-weight:600; line-height:1.5; }
+  /* detail stat grid — the "what I own / made" numbers, always shown even when the chart can't load */
+  .det-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(96px,1fr)); gap:8px; margin:12px 0 14px; }
+  .det-stats .st { background:var(--panel2); border:1px solid var(--line); border-radius:9px; padding:8px 10px; }
+  .det-stats .st .l { font-size:9.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); }
+  .det-stats .st .v { font-size:14px; font-weight:800; font-variant-numeric:tabular-nums; margin-top:3px; }
+
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; color:var(--muted); font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:.4px; padding:7px 8px; border-bottom:1px solid var(--line); cursor:pointer; user-select:none; }
+  th.num, td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  td { padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  tr:hover td { background:color-mix(in srgb, var(--accent) 6%, transparent); }
+  .pos-row.active td { background:color-mix(in srgb, var(--accent) 16%, transparent); }
+  .pos-row.active td:first-child { box-shadow:inset 3px 0 0 var(--accent); }
+  input, select, textarea { width:100%; padding:8px; background:var(--panel2); border:1px solid var(--line); border-radius:8px; color:var(--text); font-family:inherit; font-size:13px; }
+  textarea { resize:vertical; min-height:54px; }
+  label.f { display:block; font-size:12px; color:var(--muted); margin-bottom:10px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .switch { display:inline-flex; border:1px solid var(--line); border-radius:9px; overflow:hidden; }
+  .switch button { background:var(--panel2); color:var(--muted); border:none; padding:7px 14px; cursor:pointer; font-size:12px; font-weight:700; }
+  .switch button.on { background:var(--buy2); color:#05130e; }
+  .switch button.on.live { background:var(--warn); color:#2b1d00; }
+  .switch button:disabled { opacity:.4; cursor:not-allowed; }
+  .pill { display:inline-block; font-size:10px; padding:2px 7px; border-radius:20px; border:1px solid var(--line); color:var(--muted); text-transform:uppercase; letter-spacing:.4px; font-weight:700; }
+  .pill.buy { color:var(--buy); border-color:var(--buy); } .pill.sell { color:var(--sell); border-color:var(--sell); } .pill.hold { color:var(--muted); }
+  .pill.own { color:var(--accent2); border-color:var(--accent); }
+  .pill.filled { color:var(--buy); border-color:var(--buy); } .pill.rejected { color:var(--danger); border-color:var(--danger); } .pill.pending,.pill.accepted{ color:var(--warn); border-color:var(--warn); }
+  .livebanner { background:#3a2a08; border:1px solid #6b4a18; color:var(--warn); border-radius:10px; padding:10px 14px; font-size:13px; margin-bottom:14px; }
+  .err { color:var(--danger); } .ok { color:var(--buy); }
+  .spin { color:var(--muted); font-size:14px; padding:22px 0; text-align:center; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--buy); animation:p 1s infinite; }
+  @keyframes p { 0%,100%{opacity:.3} 50%{opacity:1} }
+  .foot { color:var(--muted); font-size:11px; margin-top:8px; }
+  .why { background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-top:8px; font-size:13px; }
+  .why .rat { white-space:pre-wrap; line-height:1.55; color:var(--text-primary, #dbe6fb); }
+  .sig { border-left:3px solid var(--buy2); padding:6px 10px; margin:8px 0; background:var(--bg-tertiary, #16202b); border-radius:0 8px 8px 0; }
+  .sig a { color:var(--accent2); }
+
+  /* tabs */
+  .tabbar { display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 14px; border-bottom:1px solid var(--line); }
+  .tabbar button { background:transparent; border:none; border-bottom:2px solid transparent; color:var(--muted); padding:10px 14px; cursor:pointer; font-size:13px; font-weight:700; }
+  .tabbar button.on { color:var(--text); border-bottom-color:var(--buy2); }
+
+  /* settings modal */
+  .modal-overlay { position:fixed; inset:0; background:rgba(6,10,14,.62); -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px); display:grid; place-items:start center; padding-top:84px; z-index:60; }
+  .modal-overlay[hidden] { display:none; }
+  .modal { width:min(440px,92vw); }
+  .modal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  .modal-head h2 { margin:0; font-size:16px; }
+
+  @media (max-width:640px) {
+    .page { padding:12px 10px 60px; }
+    .grid2 { grid-template-columns:1fr; }
+    input, select, textarea { font-size:16px; }
+    .panel table { display:block; overflow-x:auto; white-space:nowrap; }
+    .uni-list { max-height:300px; }
+  }
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+  <script src="/api/trading-charts/vendor/lightweight-charts.js?v=4.2.0"></script>
+</head>
+<body>
+<div class="page">
+  <div class="head">
+    <span class="badge">📈</span>
+    <h1>Trading</h1>
+    <div class="actions">
+      <span class="chip"><i id="engineDot"></i><span id="engineState">Autopilot</span></span>
+      <div class="switch" id="bookSwitch">
+        <button data-mode="paper" class="on" id="paperBtn">Paper</button>
+        <button data-mode="live" id="liveBtn">Live</button>
+      </div>
+      <button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">C</button>
+      <button class="btn ghost sm" id="refreshBtn">Refresh</button>
+    </div>
+  </div>
+  <div id="main"><div class="spin"><span class="dot"></span> Loading…</div></div>
+</div>
+
+<div class="modal-overlay" id="settings" hidden>
+  <div class="modal panel" role="dialog" aria-modal="true" aria-label="Settings">
+    <div class="modal-head"><h2>Settings</h2><button class="icon-btn" id="settingsClose" aria-label="Close">&times;</button></div>
+    <div id="settingsBody" class="sub">Loading…</div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const main = $('main');
+let MODE = 'paper';
+let STATUS = { liveEnabled:false, paperConfigured:false, liveConfigured:false, guardrails:{} };
+let STATE = { equity:0, positions:[], posSort:{ key:'marketValue', dir:-1 } };
+let UNIVERSE = {};          // symbol -> { symbol, price, changePct, conviction, stance, held, avg, signals }
+let CURRENT = null;         // focused symbol
+let FOC_TF = '1Day';
+let PERF_PERIOD = '1M';
+/* deep-linkable tab: /api/trading/?tab=lab (or #tab=lab) opens straight into a tab — the hub
+   strategy strip + external links use this to land on the Strategy Lab. */
+let TAB = (function(){ try {
+  const q = new URLSearchParams(location.search).get('tab') || (location.hash.match(/tab=([a-z]+)/i)||[])[1] || 'journal';
+  return ['journal','lab','tuning','perf','reco','algos','capture'].includes(q) ? q : 'journal';
+} catch { return 'journal'; } })();
+
+const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(Number(n||0)).toLocaleString(undefined, { maximumFractionDigits: 2 });
+const pct = (n) => (n>=0?'+':'') + Number(n||0).toFixed(2) + '%';
+const fmtDate = (iso) => { try { return new Date(iso).toLocaleString(); } catch { return iso || '—'; } };
+const esc = (s) => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const cls = (n) => Number(n)>0?'pos':(Number(n)<0?'neg':'');
+const gColor = (g) => g>=58 ? '#34c79a' : g>=46 ? '#e3bd6a' : '#ec7672';
+/* one detail stat tile + a combined "$ amount (with %)" cell, colored by sign */
+const st = (l, v) => '<div class="st"><div class="l">' + l + '</div><div class="v">' + v + '</div></div>';
+const dollarPctCell = (d, p) => {
+  const ref = d!=null ? d : (p!=null ? p : 0);
+  const klass = ref>=0 ? 'ok' : 'err';
+  const dPart = d!=null ? money(d) : '—';
+  const pPart = p!=null ? ' <span style="font-size:11px;font-weight:700">' + pct(p) + '</span>' : '';
+  return '<span class="' + klass + '">' + dPart + pPart + '</span>';
+};
+
+async function api(path, opts) {
+  const sep = path.includes('?') ? '&' : '?';
+  const r = await fetch('/api/trading' + path + sep + 'mode=' + MODE, Object.assign({ credentials: 'include' }, opts || {}));
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.message || j.error || ('HTTP ' + r.status));
+  return j;
+}
+
+/* ── book switch + settings ─────────────────────────────────── */
+function wireSwitch() {
+  $('paperBtn').onclick = () => setMode('paper');
+  $('liveBtn').onclick = () => { if (STATUS.liveEnabled) setMode('live'); };
+  $('liveBtn').disabled = !STATUS.liveEnabled;
+  $('liveBtn').title = STATUS.liveEnabled ? '' : 'Live trading is disabled (TRADING_LIVE_ENABLED is not true).';
+  $('refreshBtn').onclick = render;
+  $('settingsBtn').onclick = openSettings;
+  $('settingsClose').onclick = closeSettings;
+  $('settings').addEventListener('click', (e) => { if (e.target === $('settings')) closeSettings(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSettings(); });
+}
+function setMode(m) { MODE = m; $('paperBtn').className = m==='paper'?'on':''; $('liveBtn').className = m==='live'?'on live':''; render(); }
+function openSettings() {
+  const g = STATUS.guardrails || {};
+  $('settingsBody').innerHTML =
+    '<div class="foot" style="margin-bottom:8px">BOOK</div>' +
+    '<div style="margin-bottom:14px">Paper ' + (STATUS.paperConfigured?'<span class="ok">connected</span>':'<span class="err">not configured</span>') +
+      ' · Live ' + (STATUS.liveEnabled ? (STATUS.liveConfigured?'<span class="ok">armed</span>':'<span class="warn">enabled, not configured</span>') : '<span class="foot">disabled</span>') + '</div>' +
+    '<div class="foot" style="margin-bottom:8px">GUARDRAILS</div>' +
+    '<table><tbody>' + (Object.keys(g).length ? Object.entries(g).map(([k,v]) =>
+      '<tr><td style="color:var(--muted)">' + esc(k) + '</td><td class="num">' + esc(typeof v==='object'?JSON.stringify(v):v) + '</td></tr>').join('')
+      : '<tr><td class="foot">No guardrail config returned by /status.</td></tr>') + '</tbody></table>';
+  $('settings').hidden = false;
+}
+function closeSettings() { $('settings').hidden = true; }
+
+/* ── main render ─────────────────────────────────────────────── */
+async function render() {
+  main.innerHTML = '<div class="spin"><span class="dot"></span> Loading the ' + MODE + ' book…</div>';
+  try {
+    STATUS = await api('/status');
+    $('liveBtn').disabled = !STATUS.liveEnabled;
+    $('engineState').textContent = MODE === 'live' ? 'Live book' : 'Paper book';
+    const configured = MODE === 'live' ? STATUS.liveConfigured : STATUS.paperConfigured;
+    const live = MODE === 'live'
+      ? '<div class="livebanner">LIVE book — orders place REAL trades with REAL money. Each order asks you to confirm.</div>' : '';
+    if (!configured) {
+      main.innerHTML = live + '<div class="panel"><h2>Broker not connected</h2><div class="sub err">Set ALPACA_' + MODE.toUpperCase() +
+        '_KEY_ID and ALPACA_' + MODE.toUpperCase() + '_SECRET_KEY' + (MODE==='live'?' and TRADING_LIVE_ENABLED=true':' (free + instant at alpaca.markets)') + '.</div></div>';
+      return;
+    }
+    main.innerHTML = live +
+      '<div id="kpis" class="kpis"></div>' +
+      // WHAT the book is running (env defaults vs an applied lab strategy) — always visible on the hub.
+      '<div id="stratStrip"></div>' +
+      // LEAD with the open positions — the whole book up top, full width.
+      '<div id="positionsHero"><div class="panel"><div class="spin"><span class="dot"></span> Loading positions…</div></div></div>' +
+      // The detail pane (chart + signal model + ticket) reveals below when you click a position.
+      '<div class="panel" id="focus"><div class="foot" style="padding:22px 6px;text-align:center">Select a position above to open its chart, signal model and order ticket.</div></div>' +
+      '<div class="tabbar" id="tabbar"></div><div id="tabpanel"></div>';
+    renderTabs();
+    loadStrategyStrip();            // the hub's "what strategy is my profile on?" strip (async)
+    await loadKpisAndPositions();   // KPI strip + STATE.positions + render the positions table (hero)
+    annotatePositionSignals();      // annotate each position with its current stored signal (async, DB)
+    loadPerfSummary();              // fill total-return / vs-S&P KPI tiles without opening the tab
+    selectTab(TAB);                 // render the active tab's content
+  } catch (e) {
+    main.innerHTML = '<div class="panel err">' + esc(e.message) + '</div>';
+  }
+}
+
+/* ── KPI strip + positions → universe seed ───────────────────── */
+async function loadKpisAndPositions() {
+  try {
+    const j = await api('/ledger');
+    const a = j.account || { equity:0, cash:0, buyingPower:0 };
+    const pos = (j.positions || []).map(p => {
+      const cost = Number(p.avgEntryPrice||0) * Number(p.qty||0);
+      const px = Number(p.currentPrice|| (cost? (Number(p.marketValue)/Number(p.qty)) : 0));
+      return Object.assign({}, p, { cost, price:px, retPct: cost>0 ? (Number(p.unrealizedPl)/cost)*100 : 0 });
+    });
+    STATE.equity = Number(a.equity||0); STATE.positions = pos;
+    const upl = pos.reduce((s,p)=>s+Number(p.unrealizedPl||0),0);
+    // ONE consolidated, honest day number. Prefer the server's day = equity − last COMPLETED session close
+    // (reliable baseline). Only if that's unavailable fall back to the intraday-move sum. We do NOT add
+    // realized-since-entry here — that's accumulated profit, not today's move, and made a down day look green.
+    const serverDay = (j.day && j.day.dayPL != null) ? j.day : null;
+    const intradayKnown = pos.some(p => p.unrealizedIntradayPl != null);
+    const intradayPL = pos.reduce((s,p) => s + (p.unrealizedIntradayPl != null ? Number(p.unrealizedIntradayPl) : 0), 0);
+    const dayPL = serverDay ? Number(serverDay.dayPL) : intradayPL;
+    const dayPct = serverDay ? Number(serverDay.dayPLPct) : (STATE.equity - dayPL > 0 ? (dayPL/(STATE.equity - dayPL))*100 : 0);
+    // hold ourselves accountable: show today's move next to SPY's today move (are we beating the market today?)
+    const spyPos = pos.find(p => p.symbol === 'SPY');
+    const spyDayPct = (spyPos && spyPos.changeToday != null) ? Number(spyPos.changeToday)*100 : null;
+    const spyBit = spyDayPct!=null ? (' <span class="s">vs S&P '+pct(spyDayPct)+'</span>') : '';
+    const dayNode = (serverDay || intradayKnown) ? ('<span class="n" style="color:'+(dayPL>=0?'var(--buy)':'var(--sell)')+'">' + money(dayPL) + '</span> <span class="s">' + pct(dayPct) + ' today</span>' + spyBit) : '—';
+    $('kpis').innerHTML =
+      kpi(money(a.equity), 'Equity') +
+      '<div class="kpi"><div>' + dayNode + '</div><div class="l">Day P&L</div></div>' +
+      kpi('<span id="kTot">—</span>', 'Total return') +
+      kpi('<span id="kVs">—</span>', 'vs S&P 500') +
+      kpi(money(upl), 'Open P&L', null, cls(upl)) +
+      kpi('<span id="kReal">—</span>', 'Realized today') +
+      kpi('<span id="kWin">—</span>', 'Win rate 30d') +
+      kpi(money(a.cash), 'Cash') +
+      kpi(String(pos.length), 'Positions');
+    // seed universe with held names (instant), then focus the largest holding (or SPY)
+    pos.forEach(p => { UNIVERSE[p.symbol] = Object.assign(UNIVERSE[p.symbol]||{}, {
+      symbol:p.symbol, price:p.price, changePct: p.changeToday!=null?Number(p.changeToday)*100:null,
+      held:true, qty:p.qty, avg:Number(p.avgEntryPrice||0), retPct:p.retPct, mktValue:Number(p.marketValue||0),
+      uPl:Number(p.unrealizedPl||0), uPlDay:(p.unrealizedIntradayPl!=null?Number(p.unrealizedIntradayPl):null) }); });
+    renderPortfolioTable();   // the hero table at the top — lead with the open book
+    loadRealized();
+  } catch (e) { $('kpis').innerHTML = '<div class="panel err">' + esc(e.message) + '</div>'; }
+}
+function kpi(n, l, id, klass) { return '<div class="kpi"' + (id?(' id="'+id+'"'):'') + '><div class="n ' + (klass||'') + '">' + n + '</div><div class="l">' + l + '</div></div>'; }
+
+async function loadRealized() {
+  try {
+    const j = await api('/realized'); const t = j.today || {}, d = j.last30d || {};
+    STATE.realized = j; // feeds today's realized into the Day P&L tile on the next render/refresh
+    const kr = $('kReal'); if (kr) {
+      kr.parentElement.style.color = Number(t.net)>=0?'var(--buy)':'var(--sell)';
+      kr.innerHTML = (t.trades ? money(t.net) + ' <span class="s">' + (t.wins||0) + 'W · ' + (t.losses||0) + 'L</span>' : '<span class="s" style="font-size:13px">no closes yet</span>');
+    }
+    const kw = $('kWin'); if (kw) kw.innerHTML = (d.winRatePct==null ? '<span class="s" style="font-size:13px">building…</span>' : d.winRatePct + '% <span class="s">' + (d.wins||0) + '–' + (d.losses||0) + '</span>');
+  } catch { /* tile stays as placeholder */ }
+}
+
+/* ── positions list (LEFT) — YOUR BOOK; the signal is annotated ON each holding ──
+ * This is the active book, not a recommendation feed: every row is a name you actually hold
+ * (HELD qty + unrealized P&L), and the deterministic ensemble shows what to DO with it
+ * (SELL→trim / BUY→add / HOLD). New ideas you don't own live in the Recommendations tab. */
+function renderPositions() {
+  const host = $('uniList'); if (!host) return;
+  const items = Object.values(UNIVERSE).filter(u => u.held)
+    .sort((a,b) => (Number(b.mktValue)||0)-(Number(a.mktValue)||0) || (a.symbol<b.symbol?-1:1));
+  if ($('uniMeta')) $('uniMeta').textContent = items.length + ' held';
+  if (!items.length) { host.innerHTML = '<div class="foot">No open positions in the ' + MODE + ' book.</div>'; return; }
+  host.innerHTML = items.map(u => {
+    const pnl = u.retPct;
+    const sig = u.signal; // ensemble action for THIS holding
+    const verb = sig==='sell' ? ' · trim' : sig==='buy' ? ' · add' : sig==='hold' ? ' · hold' : '';
+    const sigPill = sig ? '<span class="pill ' + sig + '" style="font-size:9px">' + sig.toUpperCase() + verb + '</span>'
+      : '<span class="foot" style="font-size:9px">scoring…</span>';
+    const pnlSpan = pnl!=null ? '<span class="c ' + (pnl>=0?'ok':'err') + '">' + pct(pnl) + '</span>' : '<span class="c foot">—</span>';
+    const w = pnl!=null ? Math.min(100, Math.max(4, Math.abs(pnl)*5)) : 0;
+    const barColor = (pnl||0)>=0 ? '#34c79a' : '#ec7672';
+    return '<button class="uni-row' + (u.symbol===CURRENT?' active':'') + '" data-symbol="' + esc(u.symbol) + '">' +
+      '<span class="s">' + esc(u.symbol) + '</span><span class="p">' + (u.price?money(u.price):'—') + '</span>' +
+      '<span class="a"><span class="pill own" style="font-size:9px">HELD ' + (u.qty||0) + '</span> ' + sigPill + '</span>' + pnlSpan +
+      '<span class="gbar"><i style="width:' + w + '%;background:' + barColor + '"></i></span></button>';
+  }).join('');
+  host.querySelectorAll('.uni-row').forEach(r => r.onclick = () => focus(r.getAttribute('data-symbol')));
+}
+/* one deterministic scan of the held book → annotate each position with its current ensemble signal */
+async function annotatePositionSignals() {
+  const held = Object.values(UNIVERSE).filter(u => u.held).map(u => u.symbol);
+  if (!held.length) return;
+  try {
+    // DB lookup of the engine's recorded signals — ONE query for the whole book, no market-data calls.
+    const j = await api('/signal-latest', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ symbols: held }) });
+    (j.results || []).forEach(s => { if (UNIVERSE[s.symbol]) UNIVERSE[s.symbol].signal = (s.ensemble || {}).action || 'hold'; });
+    renderPortfolioTable();
+  } catch { /* leave rows as 'scoring…' */ }
+}
+
+/* ── portfolio table (TAB) — the whole book at a glance: avg cost, value, day & total P&L ──
+ * Read-only ledger of what the AI holds and how each name is doing. Sortable; click a row to
+ * open that name's chart + signal model + ticket in the detail pane above. This is the view the
+ * old screen had — every position and its money, without clicking through one at a time. */
+function posSortVal(p) {
+  switch (STATE.posSort.key) {
+    case 'symbol': return p.symbol;
+    case 'qty': return Number(p.qty)||0;
+    case 'avg': return Number(p.avgEntryPrice)||0;
+    case 'last': return Number(p.price)||0;
+    case 'dayPl': return p.unrealizedIntradayPl!=null?Number(p.unrealizedIntradayPl):-1e15;
+    case 'dayPct': return p.changeToday!=null?Number(p.changeToday):-1e15;
+    case 'uPl': return Number(p.unrealizedPl)||0;
+    case 'retPct': return Number(p.retPct)||0;
+    default: return Number(p.marketValue)||0;
+  }
+}
+function renderPortfolioTable() {
+  const host = $('positionsHero'); if (!host) return;
+  const pos = STATE.positions || [];
+  if (!pos.length) { host.innerHTML = '<div class="panel"><h2>Positions</h2><div class="foot">No open positions in the ' + MODE + ' book.</div></div>'; return; }
+  const tot = pos.reduce((s,p)=>({ mv:s.mv+Number(p.marketValue||0), day:s.day+(p.unrealizedIntradayPl!=null?Number(p.unrealizedIntradayPl):0), upl:s.upl+Number(p.unrealizedPl||0) }), { mv:0, day:0, upl:0 });
+  const dir = STATE.posSort.dir;
+  const rows = pos.slice().sort((a,b)=>{ const va=posSortVal(a), vb=posSortVal(b); return dir * (va<vb?-1:va>vb?1:0); });
+  const arrow = (k) => STATE.posSort.key===k ? (STATE.posSort.dir<0?' ▾':' ▴') : '';
+  const th = (k,label,extra) => '<th class="' + (extra||'') + '" data-sort="' + k + '">' + label + arrow(k) + '</th>';
+  const body = rows.map(p => {
+    const sig = (UNIVERSE[p.symbol]||{}).signal;
+    const verb = sig==='sell'?' · trim':sig==='buy'?' · add':sig==='hold'?' · hold':'';
+    const sigPill = sig ? '<span class="pill ' + sig + '" style="font-size:9px">' + sig.toUpperCase() + verb + '</span>' : '<span class="foot" style="font-size:9px">scoring…</span>';
+    const dayPl = p.unrealizedIntradayPl!=null?Number(p.unrealizedIntradayPl):null;
+    const dayPct = p.changeToday!=null?Number(p.changeToday)*100:null;
+    return '<tr data-fsym="' + esc(p.symbol) + '" class="pos-row' + (p.symbol===CURRENT?' active':'') + '" style="cursor:pointer">' +
+      '<td><strong>' + esc(p.symbol) + '</strong></td>' +
+      '<td>' + sigPill + '</td>' +
+      '<td class="num">' + (p.qty) + '</td>' +
+      '<td class="num">' + money(p.avgEntryPrice) + '</td>' +
+      '<td class="num">' + money(p.price) + '</td>' +
+      '<td class="num">' + money(p.marketValue) + '</td>' +
+      '<td class="num ' + (dayPl==null?'':(dayPl>=0?'ok':'err')) + '">' + (dayPl==null?'—':money(dayPl)) + '</td>' +
+      '<td class="num ' + (dayPct==null?'':(dayPct>=0?'ok':'err')) + '">' + (dayPct==null?'—':pct(dayPct)) + '</td>' +
+      '<td class="num ' + (p.unrealizedPl>=0?'ok':'err') + '">' + money(p.unrealizedPl) + '</td>' +
+      '<td class="num ' + (p.retPct>=0?'ok':'err') + '">' + pct(p.retPct) + '</td>' +
+    '</tr>';
+  }).join('');
+  host.innerHTML = '<div class="panel"><div class="panel head2"><h2 style="margin:0">Portfolio — your whole book (' + MODE + ')</h2>' +
+      '<span class="foot" style="margin-left:auto">' + pos.length + ' held · ' + money(tot.mv) + ' value</span></div>' +
+    '<div style="overflow-x:auto"><table><thead><tr>' +
+      th('symbol','Symbol') + '<th>Signal</th>' + th('qty','Qty','num') + th('avg','Avg cost','num') + th('last','Last','num') +
+      th('marketValue','Mkt value','num') + th('dayPl','Today $','num') + th('dayPct','Today %','num') + th('uPl','Total $','num') + th('retPct','Total %','num') +
+    '</tr></thead><tbody>' + body + '</tbody>' +
+    '<tfoot><tr><td colspan="5" class="foot">Totals</td>' +
+      '<td class="num"><strong>' + money(tot.mv) + '</strong></td>' +
+      '<td class="num ' + (tot.day>=0?'ok':'err') + '"><strong>' + money(tot.day) + '</strong></td><td></td>' +
+      '<td class="num ' + (tot.upl>=0?'ok':'err') + '"><strong>' + money(tot.upl) + '</strong></td><td></td></tr></tfoot>' +
+    '</table></div>' +
+    '<div class="foot" style="margin-top:8px">Click any row to open its chart, signal model and order ticket below. The AI manages these positions — this table is your read-only ledger of what it holds and how each is doing.</div></div>';
+  host.querySelectorAll('th[data-sort]').forEach(t => t.onclick = () => {
+    const k = t.getAttribute('data-sort');
+    if (STATE.posSort.key===k) STATE.posSort.dir *= -1; else STATE.posSort = { key:k, dir:-1 };
+    renderPortfolioTable();
+  });
+  host.querySelectorAll('tr[data-fsym]').forEach(r => r.onclick = () => { focus(r.getAttribute('data-fsym')); const f=$('focus'); if (f) f.scrollIntoView({ behavior:'smooth', block:'start' }); });
+}
+
+/* ── detail pane (RIGHT) — chart + signal model + ticket ─────── */
+let FCHART = null, FCANDLE = null, FVOL = null, FENTRY = null;
+async function chartBars(symbol, tf) {
+  const r = await fetch('/api/trading-charts/bars?symbol=' + encodeURIComponent(symbol) + '&timeframe=' + tf, { credentials: 'include' });
+  const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.message || j.error || ('HTTP ' + r.status)); return j.bars || [];
+}
+function focus(sym) {
+  if (!sym) return;
+  CURRENT = sym;
+  document.querySelectorAll('#positionsHero tr[data-fsym]').forEach(r => r.classList.toggle('active', r.getAttribute('data-fsym')===sym));
+  const u = UNIVERSE[sym] || { symbol:sym };
+  const host = $('focus'); if (!host) return;
+  const tfs = ['5Min','1Hour','1Day','1Week'];
+  const stancePill = u.signal ? '<span class="pill ' + u.signal + '">' + u.signal.toUpperCase() + '</span>' : (u.held ? '<span class="pill own">HELD</span>' : '');
+  const chg = u.changePct!=null ? '<span class="' + (u.changePct>=0?'ok':'err') + '">' + pct(u.changePct) + '</span>' : '';
+  const statGrid = u.held ? (
+    '<div class="det-stats">' +
+      st('Shares', String(u.qty||0)) +
+      st('Avg cost', u.avg?money(u.avg):'—') +
+      st('Last', u.price?money(u.price):'—') +
+      st('Mkt value', u.mktValue!=null?money(u.mktValue):'—') +
+      st('Today', dollarPctCell(u.uPlDay, u.changePct)) +
+      st('Total P&L', dollarPctCell(u.uPl, u.retPct)) +
+    '</div>'
+  ) : '';
+  host.innerHTML =
+    '<div class="det-head"><div class="det-id">' +
+      '<h2>' + esc(sym) + ' ' + stancePill + (u.held?'<span class="pill own">held ' + (u.qty||0) + '</span>':'') + '</h2>' +
+      '<div class="det-price">' + (u.price?money(u.price):'—') + '</div>' +
+      '<div class="det-meta">' + chg + (u.avg?('<span>avg ' + money(u.avg) + '</span>'):'') + (u.retPct!=null?('<span class="' + (u.retPct>=0?'ok':'err') + '">' + pct(u.retPct) + ' unreal</span>'):'') + '</div>' +
+    '</div><div class="tf-switch" id="focTf">' + tfs.map(t => '<button data-tf="' + t + '"' + (t===FOC_TF?' class="on"':'') + '>' + t + '</button>').join('') + '</div></div>' +
+    statGrid +
+    '<div class="det-chart" id="focChart"></div>' +
+    '<div style="margin-top:14px"><div class="panel head2" style="padding:0;margin-bottom:10px;background:none;border:0;box-shadow:none"><h2 style="margin:0;font-size:13px">Signal model</h2>' +
+      '<span class="foot" style="margin-left:auto" id="focConv">scoring…</span></div>' +
+      '<div class="sigmodel" id="focSig"><div class="spin"><span class="dot"></span></div></div><div class="sm-why" id="focWhy"></div></div>' +
+    '<div id="focTicket" style="margin-top:14px"></div>';
+  $('focTf').querySelectorAll('button').forEach(b => b.onclick = () => { FOC_TF = b.getAttribute('data-tf'); $('focTf').querySelectorAll('button').forEach(x=>x.className=''); b.className='on'; drawFocusChart(sym); });
+  drawFocusChart(sym);
+  loadSignalModel(sym);
+}
+async function drawFocusChart(sym) {
+  const el = $('focChart'); if (!el) return;
+  if (!window.LightweightCharts) { el.innerHTML = '<div class="foot err" style="padding:14px">Chart library failed to load.</div>'; return; }
+  if (FCHART) { try { FCHART.remove(); } catch {} FCHART = null; FENTRY = null; }
+  const css = getComputedStyle(document.documentElement); const line = (v,d)=>(css.getPropertyValue(v).trim()||d);
+  FCHART = LightweightCharts.createChart(el, { width: el.clientWidth, height: 330,
+    layout:{ background:{ type:'solid', color:'transparent' }, textColor: line('--muted','#8a99a3') },
+    grid:{ vertLines:{ color: line('--line','#26333f') }, horzLines:{ color: line('--line','#26333f') } },
+    timeScale:{ timeVisible: FOC_TF==='5Min'||FOC_TF==='1Hour', borderColor: line('--line','#26333f') },
+    rightPriceScale:{ borderColor: line('--line','#26333f') }, crosshair:{ mode:0 } });
+  FCANDLE = FCHART.addCandlestickSeries({ upColor:'#34c79a', downColor:'#ec7672', wickUpColor:'#34c79a', wickDownColor:'#ec7672', borderVisible:false });
+  FVOL = FCHART.addHistogramSeries({ priceFormat:{ type:'volume' }, priceScaleId:'' });
+  FVOL.priceScale().applyOptions({ scaleMargins:{ top:0.82, bottom:0 } });
+  try {
+    const bars = await chartBars(sym, FOC_TF);
+    FCANDLE.setData(bars.map(b => ({ time:b.t, open:b.o, high:b.h, low:b.l, close:b.c })));
+    FVOL.setData(bars.map(b => ({ time:b.t, value:b.v, color: b.c>=b.o?'rgba(52,199,154,.35)':'rgba(236,118,114,.35)' })));
+    const avg = (UNIVERSE[sym]||{}).avg || 0;
+    if (avg > 0) FENTRY = FCANDLE.createPriceLine({ price: avg, color:'#5fa8ff', lineWidth:1, lineStyle:2, axisLabelVisible:true, title:'avg cost' });
+    FCHART.timeScale().fitContent();
+    try { new ResizeObserver(()=>{ if (FCHART && el.clientWidth) FCHART.applyOptions({ width: el.clientWidth }); }).observe(el); } catch {}
+  } catch (e) {
+    const m = String(e.message || '');
+    const feedDown = /HTTP 50\d|alpaca_|fetch failed|timed?_?out|timeout|data_feed|broker_not_configured/i.test(m);
+    el.innerHTML = '<div style="padding:18px 16px;color:var(--muted);font-size:13px;line-height:1.6">' +
+      '<div style="font-weight:800;color:var(--text);margin-bottom:4px">Live chart unavailable</div>' +
+      (feedDown
+        ? 'The market-data feed isn’t responding right now (' + esc(m) + '). The position numbers above are live from your broker — only the candles are missing.'
+        : esc(m)) +
+      ' <button class="btn ghost sm" id="focChartRetry" style="margin-top:10px;display:block">Retry chart</button></div>';
+    const rb = document.getElementById('focChartRetry'); if (rb) rb.onclick = () => drawFocusChart(sym);
+  }
+}
+/* the deterministic "influence model": the engine's per-algo signals + ensemble for this name.
+ * Default = a pure DB read of the engine's RECORDED signals (no Alpaca call, no rate limit). The
+ * "Recompute live" button is the only click path that re-hits the market-data feed on demand. */
+function renderSigModel(sym, s, live) {
+  const host = $('focSig'), why = $('focWhy'), conv = $('focConv'); if (!host || CURRENT !== sym) return;
+  const e = s.ensemble || { action:'hold', score:0 };
+  const sigs = s.signals || [];
+  const ALGOS = ['momentum','gravity','donchian','meanrev'];
+  if (conv) conv.innerHTML = 'ensemble <span class="pill ' + (e.action==='buy'?'buy':e.action==='sell'?'sell':'hold') + '">' + e.action + (e.score!=null?(' ' + e.score):'') + '</span>';
+  host.innerHTML = ALGOS.map(algo => {
+    const v = sigs.find(x => (x.algo||'').toLowerCase().startsWith(algo.slice(0,4)));
+    const dir = v ? v.dir : null;
+    const mag = v && v.confidence!=null ? Math.round(Math.abs(v.confidence)*100) : (dir? 60 : 0);
+    const wpx = Math.min(50, mag/2);
+    const barI = dir==='up' ? '<i class="pos" style="width:' + wpx + '%"></i>' : dir==='down' ? '<i class="neg" style="width:' + wpx + '%"></i>' : '';
+    const val = dir==='up' ? '<span class="v ok">▲</span>' : dir==='down' ? '<span class="v err">▼</span>' : '<span class="v foot">—</span>';
+    return '<div class="sm-row"><span class="k">' + algo + '</span><span class="sm-bar"><span class="mid"></span>' + barI + '</span>' + val + '</div>';
+  }).join('');
+  const mtf = s.mtf ? ' Multi-timeframe conviction: <strong class="' + (s.mtf.dir==='up'?'ok':'err') + '">' + s.mtf.dir + ' ' + Math.round((s.mtf.confidence||0)*100) + '%</strong>.' : '';
+  if (s.error) why.innerHTML = '<span class="err">' + esc(s.error) + '</span>';
+  else if (!sigs.length && !s.mtf) why.innerHTML = '<span class="err">No stored signal for ' + esc(sym) + ' yet — the engine hasn’t scored it recently. Hit “Recompute live”.</span> <button class="btn ghost sm" id="focRecompute" style="margin-top:8px">Recompute live</button>';
+  else why.innerHTML = (live
+      ? 'Recomputed live just now from market data (momentum, gravity, donchian, mean-reversion — no LLM).'
+      : 'Latest stored read from the engine — a DB lookup, no live call' + (s.asOf?(' · as of ' + fmtDate(s.asOf)):'') + '.') +
+    mtf + ' Current: ' + e.action + (e.score!=null?(' (score ' + e.score + ')'):'') + '.' +
+    ' <button class="btn ghost sm" id="focRecompute" style="margin-top:8px">Recompute live</button>';
+  const rb = $('focRecompute'); if (rb) rb.onclick = () => recomputeSignalLive(sym);
+  renderTicket(sym, e);
+}
+/* passive read — pure DB lookup of the engine's recorded signals (no Alpaca call, no rate limit) */
+async function loadSignalModel(sym) {
+  try {
+    const j = await api('/signal-latest', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ symbols:[sym] }) });
+    renderSigModel(sym, (j.results || []).find(x => x.symbol===sym) || { signals:[], ensemble:{ action:'hold', score:0 } }, false);
+  } catch (err) {
+    if (CURRENT === sym) { const h=$('focSig'); if (h) h.innerHTML = '<div class="foot err">' + esc(err.message) + '</div>'; const c=$('focConv'); if (c) c.textContent=''; }
+  }
+}
+/* explicit, user-triggered live recompute — the ONLY click path that calls the market-data feed */
+async function recomputeSignalLive(sym) {
+  const why = $('focWhy'); if (why) why.innerHTML = '<span class="dot"></span> Recomputing from live market data…';
+  try {
+    const j = await api('/scan', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ symbols:[sym] }) });
+    renderSigModel(sym, (j.scanned || []).find(x => x.symbol===sym) || { signals:[], ensemble:{ action:'hold', score:0 } }, true);
+  } catch (err) {
+    if (CURRENT === sym && why) why.innerHTML = '<span class="err">' + esc(err.message) + '</span>';
+  }
+}
+function renderTicket(sym, ensemble) {
+  const host = $('focTicket'); if (!host) return;
+  const act = (ensemble||{}).action || 'hold';
+  if (act === 'hold') { host.innerHTML = '<div class="why">Ensemble says <strong>HOLD</strong> — no order proposed. Capture a signal or wait for the read to firm up.</div>'; return; }
+  host.innerHTML = '<div class="why"><div class="panel head2" style="padding:0;background:none;border:0;box-shadow:none;margin:0 0 8px"><h2 style="margin:0;font-size:13px">Order ticket</h2><span class="pill ' + (act==='buy'?'buy':'sell') + '" style="margin-left:auto">' + act.toUpperCase() + '</span></div>' +
+    '<button class="btn ' + (act==='buy'?'buy':'ghost') + ' sm" id="focTrade">' + (MODE==='live'?'Reason &amp; place LIVE order':'Reason &amp; place paper order') + '</button> <span class="sub" id="focTradeMsg"></span><div id="focTradeOut"></div></div>';
+  $('focTrade').onclick = () => focusTrade(sym);
+}
+async function focusTrade(sym) {
+  const out = $('focTradeOut'), msg = $('focTradeMsg'); if (!out) return;
+  msg.className='sub'; msg.innerHTML='<span class="dot"></span> Deterministic decision…';
+  try {
+    const d = await api('/decide-algo', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ symbol: sym }) });
+    const dec = d.decision || {}; msg.textContent='';
+    if (dec.action === 'hold') { out.innerHTML = '<div class="foot" style="margin-top:8px">Ensemble says HOLD — no trade. ' + esc(dec.rationale || '') + '</div>'; return; }
+    out.innerHTML = '<div style="margin-top:8px"><div class="rat" style="margin-bottom:8px">' + esc(dec.rationale || '') + '</div>' +
+      '<button class="btn ' + (dec.side==='sell'?'ghost':'buy') + ' sm" id="focExec">' + (MODE==='live'?'Place LIVE order':'Place paper order') + ' · ' + dec.side + ' ' + dec.qty + ' ' + esc(sym) + '</button> <span class="sub" id="focExecMsg"></span></div>';
+    $('focExec').onclick = async () => {
+      const em = $('focExecMsg');
+      if (MODE === 'live' && !confirm('LIVE order: ' + dec.side + ' ' + dec.qty + ' ' + sym + '? Real money.')) return;
+      em.className='sub'; em.innerHTML='<span class="dot"></span> Placing…';
+      try {
+        const o = await api('/orders', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ decisionId: d.decisionId, requestId:'foc-' + Date.now(), confirm: MODE==='live' }) });
+        em.className='sub ok'; em.textContent = 'Order ' + o.order.status + '.';
+        UNIVERSE = {}; await loadKpisAndPositions();
+      } catch (e) { em.className='sub err'; em.textContent = e.message; }
+    };
+  } catch (e) { msg.className='sub err'; msg.textContent = e.message; }
+}
+
+/* ── perf summary (KPI tiles only) ───────────────────────────── */
+async function loadPerfSummary() {
+  try {
+    const j = await api('/performance?period=' + PERF_PERIOD); const s = j.summary || {};
+    const totRet = (s.inceptionReturnPct != null) ? s.inceptionReturnPct : s.totalReturnPct;
+    const kt = $('kTot'); if (kt && totRet!=null) { kt.textContent = pct(totRet); kt.parentElement.style.color = totRet>=0?'var(--buy)':'var(--sell)'; }
+    const kv = $('kVs'); if (kv && s.vsSpyPct!=null) { kv.textContent = pct(s.vsSpyPct); kv.parentElement.style.color = s.vsSpyPct>=0?'var(--buy)':'var(--sell)'; }
+  } catch { /* tiles stay as placeholders */ }
+}
+
+/* ── hub strategy strip — WHAT is my profile running, always visible (ADR-095) ── */
+async function loadStrategyStrip() {
+  const el = $('stratStrip'); if (!el) return;
+  try {
+    const j = await labApi('/apply');
+    const a = j.active, env = j.envDefaults || {};
+    const rotTxt = env.rotation && env.rotation.enabled
+      ? env.rotation.rank + '/' + env.rotation.everyDays + 'd/top' + env.rotation.topN + '/' + env.rotation.weighting
+      : 'scan sleeve (rotation off)';
+    el.innerHTML = '<div class="panel" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;margin-bottom:16px">' +
+      (a
+        ? '<span class="pill buy">APPLIED STRATEGY</span><strong>' + esc(a.strategyName) + '</strong>' +
+          '<span class="foot">@ ' + a.applyPct + '% of profile since ' + fmtDate(a.createdAt) + ' — ' + esc(j.activeSummary || '') + '</span>'
+        : '<span class="pill">ENV DEFAULTS</span><span class="foot">' +
+          esc(rotTxt + ' · posture ' + (env.posture || '?') + ' · core ' + ((env.core && env.core.symbols) || 'none') +
+              ' · tp ' + (env.takeProfitPct != null ? env.takeProfitPct + '%' : '—') + ' · universe ' + (env.universeCount || '?')) + '</span>') +
+      '<button class="btn ghost sm" style="margin-left:auto" id="stripLab">Strategy Library →</button></div>';
+    $('stripLab').onclick = () => selectTab('lab');
+  } catch { el.innerHTML = ''; /* lab routes unavailable — the strip is optional chrome */ }
+}
+
+/* ── tabs ────────────────────────────────────────────────────── */
+const TABS = [['journal','Trade journal'],['lab','Strategy Lab'],['tuning','Tuning'],['perf','Performance'],['reco','Recommendations'],['algos','Algorithms'],['capture','Capture & signals']];
+function renderTabs() {
+  $('tabbar').innerHTML = TABS.map(([k,l]) => '<button data-tab="'+k+'"'+(k===TAB?' class="on"':'')+'>'+l+'</button>').join('');
+  $('tabbar').querySelectorAll('button').forEach(b => b.onclick = () => selectTab(b.getAttribute('data-tab')));
+}
+function selectTab(k) {
+  TAB = k; $('tabbar').querySelectorAll('button').forEach(b => b.className = b.getAttribute('data-tab')===k?'on':'');
+  const panel = $('tabpanel'); panel.innerHTML = '<div id="tabbody"></div>';
+  if (k==='journal') loadJournal();
+  else if (k==='lab') loadLab();
+  else if (k==='tuning') loadTuning();
+  else if (k==='perf') loadPerformance();
+  else if (k==='reco') loadReco();
+  else if (k==='algos') loadAlgos();
+  else if (k==='capture') { renderCapture(); loadFeed(); }
+}
+
+/* ── Strategy Lab — tab (ADR-092) ────────────────────────────── */
+let LAB = { strategies: [], selected: new Set(), chart: null, knobs: null, runsOpen: null };
+const LAB_COLORS = ['#34c79a','#6aa5e3','#e3bd6a','#c98ae0','#ec7672','#7fd4d4','#b7c96a'];
+const labApi = async (path, opts) => api('/lab' + path, opts);
+const jbody = (o) => ({ method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(o||{}) });
+
+function loadLab() {
+  const host = $('tabbody'); if (!host) return;
+  host.innerHTML =
+    '<div id="labApplied"></div>' +
+    '<div class="panel"><div class="panel head2"><h2 style="margin:0">Strategy Lab</h2>' +
+      '<span class="foot" style="margin-left:auto" id="labMsg"></span>' +
+      '<button class="btn ghost sm" id="labBlendBtn" title="Combine the CHECKED rotation strategies into one blend — e.g. 30% of the money on one, 20% on another, remainder in the core">Blend selected…</button>' +
+      '<button class="btn ghost sm" id="labFwdAll" title="Advance every strategy&#39;s out-of-sample walk to the latest session">Forward-step all</button>' +
+      '<button class="btn ghost sm" id="labRegAll" title="Re-run every baselined strategy over its pinned window and flag drift">Run regressions</button></div>' +
+      '<div class="foot" style="margin-bottom:8px">Save strategy variations, backtest them, and let each one accrue an <strong>out-of-sample forward curve</strong> nightly. Regressions re-run pinned windows so an engine change that moves the numbers is caught automatically. Click a strategy name for its runs and its <strong>notes &amp; lessons journal</strong>; <strong>Apply…</strong> switches your profile onto it (part or all) until you Revert. Check ≥2 rotation strategies and hit <strong>Blend selected…</strong> to run several at once — "30% into this one, 20% into that one" — as one backtestable, appliable strategy.</div>' +
+      '<div id="labList"><div class="spin"><span class="dot"></span> Loading strategies…</div></div></div>' +
+    '<div class="panel"><div class="panel head2"><h2 style="margin:0">Equity curves</h2><span class="foot" style="margin-left:auto">solid = backtest · dashed = out-of-sample forward · gray = SPY</span></div>' +
+      '<div id="labChart" style="height:320px;width:100%"></div><div id="labChartMsg" class="foot"></div><div id="labLegend" class="foot" style="margin-top:6px"></div></div>' +
+    '<div class="panel"><div class="panel head2"><h2 style="margin:0">New variation</h2></div>' +
+      '<div class="foot" style="margin-bottom:8px">Describe it in words and let the analyst fill the knobs — or set them by hand. Nothing saves until you hit Save; every knob is explained below.</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"><input id="labDraftText" placeholder="e.g. daily gravity rotation of the top 10, 50% SPY core, take profit at 20%" style="flex:1;min-width:280px">' +
+      '<button class="btn ghost sm" id="labDraftBtn">Draft knobs from words</button></div>' +
+      '<div id="labForm"></div><div id="labFormMsg" class="sub" style="margin-top:6px"></div></div>' +
+    '<div class="panel"><div class="panel head2"><h2 style="margin:0">Knobs &amp; formulas — what the machine actually computes</h2></div><div id="labKnobs"><div class="spin"><span class="dot"></span></div></div></div>';
+  $('labFwdAll').onclick = () => labRunAll('/forward-run', 'forward walks');
+  $('labRegAll').onclick = () => labRunAll('/regression-run', 'regressions');
+  $('labBlendBtn').onclick = labBlendSelected;
+  $('labDraftBtn').onclick = labDraft;
+  renderLabForm();
+  loadLabApplied();
+  refreshLabList();
+  loadLabKnobs();
+}
+
+/* ── applied-to-profile panel (ADR-095) — what the autopilot actually runs, apply history, revert ── */
+async function loadLabApplied() {
+  const el = $('labApplied'); if (!el) return;
+  try {
+    const j = await labApi('/apply');
+    const a = j.active, env = j.envDefaults || {};
+    const rotTxt = env.rotation && env.rotation.enabled
+      ? env.rotation.rank + '/' + env.rotation.everyDays + 'd/top' + env.rotation.topN + '/' + env.rotation.weighting
+      : 'scan sleeve (rotation off)';
+    const envTxt = rotTxt + ' · posture ' + (env.posture || '?') + ' · core ' + ((env.core && env.core.symbols) || 'none') +
+      ' · tp ' + (env.takeProfitPct != null ? env.takeProfitPct + '%' : '—') + ' · universe ' + (env.universeCount || '?');
+    const hist = (j.history || []).filter(h => !h.active);
+    el.innerHTML = '<div class="panel">' +
+      '<div class="panel head2"><h2 style="margin:0">Profile</h2><span class="foot" style="margin-left:auto" id="labAppMsg"></span>' +
+        (a ? '<button class="btn ghost sm" id="labRevert" title="Back to env defaults on the next autopilot fire">Revert to env defaults</button>' : '') +
+        (LAB.lastLogRow ? '<button class="btn ghost sm" id="labCopyLog" title="Copy the strategy-log.md row for this change">Copy log row</button>' : '') + '</div>' +
+      (a
+        ? '<div><span class="pill buy">APPLIED</span> <strong>' + esc(a.strategyName) + '</strong> <span class="foot">@ ' + a.applyPct + '% of profile · since ' + fmtDate(a.createdAt) + '</span></div>' +
+          '<div class="foot" style="margin-top:4px">' + esc(j.activeSummary || '') + '</div>' +
+          '<div class="foot" style="margin-top:6px;opacity:.75">Env defaults (what Revert resumes): ' + esc(envTxt) + '</div>'
+        : '<div><span class="pill">ENV DEFAULTS</span> <span class="foot">' + esc(envTxt) + '</span></div>' +
+          '<div class="foot" style="margin-top:6px">No strategy applied — the autopilot runs the env knobs. Use <strong>Apply…</strong> on any strategy below to switch part or all of the profile onto it.</div>') +
+      (hist.length ? '<div class="foot" style="margin-top:8px;opacity:.75">History: ' + hist.slice(0, 5).map(h =>
+          esc(h.strategyName) + ' @ ' + h.applyPct + '% (' + fmtDate(h.createdAt) + ' → ' + (h.deactivatedAt ? fmtDate(h.deactivatedAt) : '…') + ')').join(' · ') +
+          (hist.length > 5 ? ' · +' + (hist.length - 5) + ' more' : '') + '</div>' : '') +
+      '<div class="foot" style="margin-top:6px;opacity:.6">Applying changes what the autopilot trades on its NEXT fire, on BOTH books. Every apply/revert returns a strategy-log.md row — paste it into docs/apps/trading/strategy-log.md (the log rule stands).</div></div>';
+    if (a) { const b = $('labRevert'); if (b) b.onclick = labRevert; }
+    const c = $('labCopyLog'); if (c) c.onclick = () => copyText(LAB.lastLogRow, $('labAppMsg'));
+  } catch (e) { el.innerHTML = '<div class="panel"><div class="foot err">' + esc(e.message) + '</div></div>'; }
+}
+function copyText(text, msgEl) {
+  const done = () => { if (msgEl) { msgEl.textContent = 'copied ✓'; setTimeout(() => { msgEl.textContent = ''; }, 1800); } };
+  try { navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done)); }
+  catch { fallbackCopy(text, done); }
+}
+function fallbackCopy(text, done) {
+  const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta);
+  ta.select(); try { document.execCommand('copy'); } catch {} document.body.removeChild(ta); done();
+}
+async function labApply(id) {
+  const s = LAB.strategies.find(x => x.id === id); if (!s) return;
+  const cfg = s.config || {};
+  const pctRaw = prompt(
+    'Run "' + s.name + '" on what percent of the profile?\n\n' +
+    '100 = the strategy exactly as designed (its own core/sleeve split).\n' +
+    'Lower = only that share of its designed sleeve trades; the remainder parks in the ' + (cfg.coreSymbol || 'SPY') + ' core.', '100');
+  if (pctRaw == null) return;
+  const applyPct = Math.max(1, Math.min(100, Math.round(Number(pctRaw) || 100)));
+  const knobs = cfg.kind === 'blend'
+    ? 'BLEND: ' + (cfg.components || []).map(x => x.weightPct + '% ' + x.name).join(' + ') +
+      ' · core ' + cfg.corePct + '% ' + (cfg.coreSymbol || 'SPY') + ' · exits: most-conservative component'
+    : (cfg.kind === 'rotation'
+        ? 'rotation ' + cfg.rank + '/' + cfg.cadenceDays + 'd/top' + cfg.topN + '/' + cfg.weighting
+        : 'ensemble scan') +
+      ' · posture ' + cfg.posture + ' · designed core ' + cfg.corePct + '% ' + (cfg.coreSymbol || 'SPY') +
+      ' · tp ' + (cfg.takeProfitPct == null ? 'posture-default' : cfg.takeProfitPct + '%') +
+      ' · universe ' + ((cfg.universe || []).length ? (cfg.universe || []).length + ' pinned' : 'default');
+  if (!confirm('APPLY to profile @ ' + applyPct + '%?\n\n' + s.name + '\n' + knobs +
+    '\n\nThis changes what the autopilot trades on its NEXT fire (both books). Env knobs stay untouched and resume on Revert.')) return;
+  try {
+    const j = await labApi('/strategies/' + id + '/apply', jbody({ applyPct, confirm: true }));
+    LAB.lastLogRow = j.logRow || '';
+    $('labMsg').textContent = 'Applied — ' + ((j.effective && j.effective.summary) || '');
+    await refreshLabList(); loadLabApplied(); loadStrategyStrip();
+  } catch (e) { $('labMsg').textContent = e.message; }
+}
+/* Blend builder — checked rotation strategies → one weighted portfolio strategy ("30% A + 20% B"). */
+async function labBlendSelected() {
+  const picked = LAB.strategies.filter(s => LAB.selected.has(s.id));
+  const rot = picked.filter(s => (s.config || {}).kind === 'rotation');
+  if (rot.length < 2) { $('labMsg').textContent = 'Check at least 2 ROTATION strategies (the checkboxes on the left), then Blend.'; return; }
+  if (rot.length < picked.length) $('labMsg').textContent = (picked.length - rot.length) + ' non-rotation selection(s) skipped — blends take rotation components only.';
+  const components = [];
+  const equal = Math.floor(100 / (rot.length + 1)); // leave room for a core by default
+  for (const s of rot) {
+    const w = prompt('Percent of the money for:\n"' + s.name + '"\n\n(The unallocated remainder becomes the SPY core.)', String(equal));
+    if (w == null) return;
+    const pct = Math.round(Number(w));
+    if (!(pct >= 1 && pct <= 95)) { $('labMsg').textContent = 'Weights must be 1–95%.'; return; }
+    components.push({ strategyId: s.id, weightPct: pct, _name: s.name });
+  }
+  const total = components.reduce((t, c) => t + c.weightPct, 0);
+  if (total > 100) { $('labMsg').textContent = 'Weights sum to ' + total + '% — must be ≤ 100.'; return; }
+  const name = prompt('Name this blend:', components.map(c => c.weightPct + '% ' + c._name.split(' ')[0]).join(' + ') + (total < 100 ? ' + ' + (100 - total) + '% core' : ''));
+  if (!name) return;
+  try {
+    await labApi('/strategies', jbody({
+      name: name.trim(),
+      description: 'Blend: ' + components.map(c => c.weightPct + '% ' + c._name).join(' + ') + (total < 100 ? ' · ' + (100 - total) + '% SPY core' : ''),
+      config: { kind: 'blend', coreSymbol: 'SPY', components: components.map(c => ({ strategyId: c.strategyId, weightPct: c.weightPct })) },
+    }));
+    $('labMsg').textContent = 'Blend saved — hit Backtest to see what the mix would have done.';
+    await refreshLabList();
+  } catch (e) { $('labMsg').textContent = e.message; }
+}
+async function labRevert() {
+  if (!confirm('Revert the profile to env defaults?\n\nThe applied strategy stops driving the autopilot on its next fire; the override is kept in history.')) return;
+  try {
+    const j = await labApi('/apply/revert', jbody({}));
+    LAB.lastLogRow = j.logRow || '';
+    await refreshLabList(); loadLabApplied(); loadStrategyStrip();
+  } catch (e) { const m = $('labAppMsg'); if (m) m.textContent = e.message; }
+}
+
+async function refreshLabList() {
+  const el = $('labList'); if (!el) return;
+  try {
+    const j = await labApi('/strategies');
+    LAB.strategies = j.strategies || [];
+    if (!LAB.strategies.length) { el.innerHTML = '<div class="foot">No saved strategies yet. The armed production shape is pre-filled below — hit Save, then Backtest.</div>'; return; }
+    const rows = LAB.strategies.map((s, i) => {
+      const m = (s.latestBacktest && s.latestBacktest.metrics) || null;
+      const cfg = s.config || {};
+      const knobs = cfg.kind==='blend'
+        ? 'BLEND: ' + (cfg.components||[]).map(x => x.weightPct + '% ' + x.name).join(' + ')
+        : cfg.kind==='rotation'
+          ? cfg.rank + '/' + cfg.cadenceDays + 'd/top' + cfg.topN + '/' + cfg.weighting
+          : 'ensemble scan';
+      const extras = cfg.kind==='blend'
+        ? (cfg.corePct>0 ? ' · core ' + cfg.corePct + '% ' + esc(cfg.coreSymbol||'SPY') : '') + ' · conservative exits'
+        : (cfg.corePct>0 ? ' · core ' + cfg.corePct + '% ' + esc(cfg.coreSymbol||'SPY') : '') + (cfg.takeProfitPct!=null ? ' · tp ' + cfg.takeProfitPct + '%' : '') + ' · ' + esc(cfg.posture);
+      const met = m ? '<span class="'+cls(m.totalReturnPct)+'">'+pct(m.totalReturnPct)+'</span> · DD '+Number(m.maxDrawdownPct).toFixed(1)+'% · Sharpe '+Number(m.sharpe).toFixed(2)+' · <span class="'+cls(m.alphaVsSpyPct)+'">α '+pct(m.alphaVsSpyPct)+'</span>' : '<span class="foot">not backtested</span>';
+      const fwd = s.forwardPoints ? s.forwardPoints + ' sessions' + (s.forwardLast ? ' · ' + money(s.forwardLast.e) : '') : '—';
+      const chip = s.status==='armed' ? '<span class="pill buy">ARMED</span>' : s.status==='retired' ? '<span class="pill" style="opacity:.6">RETIRED</span>' : '<span class="pill">CANDIDATE</span>';
+      const journal = s.notesCount ? ' <span class="foot" title="notes · lessons — click the name to read">📝' + s.notesCount + (s.lessonsCount ? ' 🎓' + s.lessonsCount : '') + '</span>' : '';
+      return '<tr>' +
+        '<td><input type="checkbox" data-sel="' + s.id + '"' + (LAB.selected.has(s.id)?' checked':'') + '></td>' +
+        '<td><strong style="cursor:pointer" data-runs="' + s.id + '" title="' + esc(s.description||'') + '">' + esc(s.name) + '</strong>' + journal + '<div class="foot">' + esc(knobs + extras) + '</div></td>' +
+        '<td>' + chip + '</td><td>' + met + '</td><td class="foot">' + fwd + '</td>' +
+        '<td style="white-space:nowrap">' +
+          '<button class="btn ghost sm" data-bt="' + s.id + '">Backtest</button> ' +
+          '<button class="btn ghost sm" data-fw="' + s.id + '">Forward</button> ' +
+          '<button class="btn ghost sm" data-apply="' + s.id + '" title="Switch the profile onto this strategy (part or all) until you revert">Apply…</button> ' +
+          '<button class="btn ghost sm" data-arm="' + s.id + '">' + (s.status==='armed'?'Retire':'Arm') + '</button> ' +
+          '<button class="btn ghost sm" data-del="' + s.id + '" title="Delete strategy + its runs">✕</button></td></tr>';
+    }).join('');
+    el.innerHTML = '<table style="width:100%"><thead><tr><th></th><th>Strategy</th><th>Status</th><th>Latest backtest</th><th>Forward (out-of-sample)</th><th></th></tr></thead><tbody>' + rows + '</tbody></table><div id="labRuns"></div>';
+    el.querySelectorAll('input[data-sel]').forEach(c => c.onchange = () => { const id=c.getAttribute('data-sel'); if (c.checked) LAB.selected.add(id); else LAB.selected.delete(id); drawLabChart(); });
+    el.querySelectorAll('button[data-bt]').forEach(b => b.onclick = () => labBacktest(b.getAttribute('data-bt'), b));
+    el.querySelectorAll('button[data-fw]').forEach(b => b.onclick = () => labAct(b, 'POST', '/strategies/' + b.getAttribute('data-fw') + '/forward'));
+    el.querySelectorAll('button[data-apply]').forEach(b => b.onclick = () => labApply(b.getAttribute('data-apply')));
+    el.querySelectorAll('button[data-arm]').forEach(b => { const s = LAB.strategies.find(x=>x.id===b.getAttribute('data-arm')); b.onclick = () => labPatch(s.id, { status: s.status==='armed' ? 'retired' : 'armed' }); });
+    el.querySelectorAll('button[data-del]').forEach(b => b.onclick = () => { if (confirm('Delete this strategy and all its saved runs?')) labAct(b, 'DELETE', '/strategies/' + b.getAttribute('data-del')); });
+    el.querySelectorAll('[data-runs]').forEach(n => n.onclick = () => showLabRuns(n.getAttribute('data-runs')));
+    if (!LAB.selected.size && LAB.strategies.length) { LAB.selected.add(LAB.strategies[0].id); const c = el.querySelector('input[data-sel="'+LAB.strategies[0].id+'"]'); if (c) c.checked = true; }
+    drawLabChart();
+  } catch (e) { el.innerHTML = '<div class="foot err">' + esc(e.message) + '</div>'; }
+}
+
+async function showLabRuns(id) {
+  const el = $('labRuns'); if (!el) return;
+  LAB.runsOpen = id;
+  el.innerHTML = '<div class="spin"><span class="dot"></span></div>';
+  try {
+    const j = await labApi('/strategies/' + id);
+    const rows = (j.runs || []).map(r => {
+      const m = r.metrics || {};
+      const st = r.status==='ok' ? '<span class="ok">ok</span>' : r.status==='drifted' ? '<span class="err">DRIFTED</span>' : '<span class="err">failed</span>';
+      const drift = m.deltas ? ' <span class="foot" title="delta vs pinned baseline">Δret ' + Number(m.deltas.totalReturnPct).toFixed(2) + ' · Δdd ' + Number(m.deltas.maxDrawdownPct).toFixed(2) + ' · Δtrades ' + m.deltas.trades + '</span>' : '';
+      return '<tr><td>' + esc(r.kind) + '</td><td>' + st + drift + '</td><td class="foot">' + esc((r.windowStart||'—') + ' → ' + (r.windowEnd||'—')) + ' (' + r.bars + ' bars)</td>' +
+        '<td>' + (m.totalReturnPct!=null ? '<span class="'+cls(m.totalReturnPct)+'">'+pct(m.totalReturnPct)+'</span>' : '—') + '</td>' +
+        '<td class="foot">' + (m.maxDrawdownPct!=null ? Number(m.maxDrawdownPct).toFixed(1)+'%' : '—') + '</td>' +
+        '<td class="foot">' + (m.sharpe!=null ? Number(m.sharpe).toFixed(2) : '—') + '</td>' +
+        '<td class="foot">' + esc(r.feed) + (r.gitSha ? ' @ ' + esc(r.gitSha) : '') + '</td><td class="foot">' + fmtDate(r.createdAt) + '</td>' +
+        (r.error ? '<td class="foot err">' + esc(r.error) + '</td>' : '<td></td>') + '</tr>';
+    }).join('');
+    const s = LAB.strategies.find(x=>x.id===id);
+    el.innerHTML = '<div class="foot" style="margin:10px 0 4px"><strong>' + esc(s ? s.name : 'runs') + '</strong> — every saved run (newest first). The ★ baseline is what regressions replay.</div>' +
+      '<table style="width:100%"><thead><tr><th>kind</th><th>status</th><th>window</th><th>return</th><th>maxDD</th><th>Sharpe</th><th>feed@sha</th><th>when</th><th></th></tr></thead><tbody>' + (rows || '<tr><td class="foot" colspan="9">no runs yet</td></tr>') + '</tbody></table>' +
+      '<div id="labNotes"><div class="spin"><span class="dot"></span></div></div>';
+    renderLabNotes(id);
+  } catch (e) { el.innerHTML = '<div class="foot err">' + esc(e.message) + '</div>'; }
+}
+
+/* ── notes & lessons journal per strategy (ADR-095) ──────────── */
+async function renderLabNotes(id) {
+  const el = $('labNotes'); if (!el || LAB.runsOpen !== id) return;
+  const icon = k => k==='lesson' ? '🎓' : k==='decision' ? '⚖️' : '📝';
+  try {
+    const j = await labApi('/strategies/' + id + '/notes');
+    const items = (j.notes || []).map(n =>
+      '<div class="sig" style="margin-bottom:6px">' + icon(n.kind) + ' <span class="foot" style="text-transform:uppercase;letter-spacing:.4px">' + esc(n.kind) + '</span>' +
+      ' <span class="foot" style="opacity:.65">' + fmtDate(n.createdAt) + '</span>' +
+      '<button class="btn ghost sm" data-ndel="' + n.id + '" title="Delete note" style="float:right;padding:1px 7px">✕</button>' +
+      '<div style="margin-top:4px;white-space:pre-wrap;font-size:13px;line-height:1.5">' + esc(n.body) + '</div></div>').join('');
+    el.innerHTML =
+      '<div class="foot" style="margin:14px 0 6px"><strong>Notes &amp; lessons learned</strong> — the journal for this configuration (what we tested, what the verdict was, what to remember).</div>' +
+      (items || '<div class="foot" style="margin-bottom:6px">No notes yet — record the verdict, the surprise, the lesson.</div>') +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;margin-top:8px">' +
+        '<select id="labNoteKind"><option value="note">📝 note</option><option value="lesson">🎓 lesson</option><option value="decision">⚖️ decision</option></select>' +
+        '<textarea id="labNoteBody" placeholder="e.g. Sweep verdict, root cause, arming bar, what NOT to retry…" style="flex:1;min-width:260px;min-height:52px"></textarea>' +
+        '<button class="btn primary sm" id="labNoteAdd">Add</button></div>';
+    $('labNoteAdd').onclick = async () => {
+      const body = $('labNoteBody').value.trim(); if (!body) return;
+      try { await labApi('/strategies/' + id + '/notes', jbody({ body, kind: $('labNoteKind').value })); await refreshLabList(); LAB.runsOpen = id; showLabRuns(id); }
+      catch (e) { $('labMsg').textContent = e.message; }
+    };
+    el.querySelectorAll('button[data-ndel]').forEach(b => b.onclick = async () => {
+      if (!confirm('Delete this note?')) return;
+      try { await labApi('/strategies/' + id + '/notes/' + b.getAttribute('data-ndel'), { method: 'DELETE' }); await refreshLabList(); LAB.runsOpen = id; showLabRuns(id); }
+      catch (e) { $('labMsg').textContent = e.message; }
+    });
+  } catch (e) { el.innerHTML = '<div class="foot err">' + esc(e.message) + '</div>'; }
+}
+
+async function labBacktest(id, btn) {
+  btn.disabled = true; btn.textContent = 'Running…';
+  $('labMsg').textContent = 'Backtest running — a 2-year, full-universe walk takes 10–30 s.';
+  try { await labApi('/strategies/' + id + '/backtest', jbody({})); $('labMsg').textContent = ''; await refreshLabList(); if (LAB.runsOpen===id) showLabRuns(id); }
+  catch (e) { $('labMsg').textContent = e.message; }
+  finally { btn.disabled = false; btn.textContent = 'Backtest'; }
+}
+async function labAct(btn, method, path) {
+  const old = btn.textContent; btn.disabled = true; btn.textContent = '…';
+  try { await labApi(path, method==='DELETE' ? { method:'DELETE' } : jbody({})); await refreshLabList(); }
+  catch (e) { $('labMsg').textContent = e.message; }
+  finally { btn.disabled = false; btn.textContent = old; }
+}
+async function labPatch(id, patch) {
+  try { await labApi('/strategies/' + id, Object.assign(jbody(patch), { method:'PATCH' })); await refreshLabList(); }
+  catch (e) { $('labMsg').textContent = e.message; }
+}
+async function labRunAll(path, label) {
+  $('labMsg').textContent = 'Running ' + label + '…';
+  try {
+    const j = await labApi(path, jbody({}));
+    $('labMsg').textContent = path==='/regression-run'
+      ? 'Regressions: ' + (j.verdicts||[]).length + ' run, ' + (j.drifted||0) + ' drifted, ' + (j.failed||0) + ' failed.'
+      : 'Forward: ' + (j.results||[]).reduce((s,r)=>s+(r.applied||0),0) + ' sessions applied across ' + (j.results||[]).length + ' strategies.';
+    await refreshLabList();
+  } catch (e) { $('labMsg').textContent = e.message; }
+}
+
+async function drawLabChart() {
+  const el = $('labChart'), msg = $('labChartMsg'), leg = $('labLegend'); if (!el) return;
+  if (LAB.chart) { try { LAB.chart.remove(); } catch {} LAB.chart = null; }
+  if (!window.LightweightCharts) { msg.innerHTML = '<span class="err">chart lib missing</span>'; return; }
+  const ids = [...LAB.selected]; leg.innerHTML = '';
+  if (!ids.length) { msg.textContent = 'Select a strategy above to chart its curves.'; return; }
+  msg.textContent = 'loading curves…';
+  const css = getComputedStyle(document.documentElement); const line = (v,d)=> (css.getPropertyValue(v).trim()||d);
+  LAB.chart = LightweightCharts.createChart(el, { width: el.clientWidth, height: 320,
+    layout:{ background:{ type:'solid', color:'transparent' }, textColor: line('--muted','#8a99a3') },
+    grid:{ vertLines:{ color: line('--line','#26333f') }, horzLines:{ color: line('--line','#26333f') } },
+    rightPriceScale:{ borderColor: line('--line','#26333f') }, timeScale:{ borderColor: line('--line','#26333f') }, crosshair:{ mode:0 } });
+  let spyDrawn = false; const legends = [];
+  for (let i = 0; i < ids.length; i++) {
+    try {
+      const detail = await labApi('/strategies/' + ids[i]);
+      const s = detail.strategy;
+      const runId = s.baselineRunId || ((detail.runs||[]).find(r => r.kind==='backtest' && r.status==='ok') || {}).id;
+      const color = LAB_COLORS[i % LAB_COLORS.length];
+      if (runId) {
+        const rr = await labApi('/runs/' + runId);
+        const curve = (rr.run && rr.run.curve) || [];
+        if (curve.length) {
+          LAB.chart.addLineSeries({ color, lineWidth: 2, title: s.name }).setData(curve.map(p => ({ time: p.d, value: p.e })));
+          if (!spyDrawn) { LAB.chart.addLineSeries({ color: line('--muted','#8a99a3'), lineWidth: 1, lineStyle: 2, title: 'SPY' }).setData(curve.map(p => ({ time: p.d, value: p.s }))); spyDrawn = true; }
+        }
+      }
+      const fwd = (detail.forward && detail.forward.points) || [];
+      if (fwd.length) LAB.chart.addLineSeries({ color, lineWidth: 2, lineStyle: 2, title: s.name + ' (fwd)' }).setData(fwd.map(p => ({ time: p.d, value: p.e })));
+      legends.push('<span style="color:' + color + '">■</span> ' + esc(s.name) + (fwd.length ? ' <span class="foot">(+' + fwd.length + ' fwd)</span>' : ''));
+    } catch (e) { legends.push('<span class="err">' + esc(e.message) + '</span>'); }
+  }
+  LAB.chart.timeScale().fitContent();
+  leg.innerHTML = legends.join(' · ');
+  msg.textContent = '';
+  try { new ResizeObserver(()=>{ if (LAB.chart && el.clientWidth) LAB.chart.applyOptions({ width: el.clientWidth }); }).observe(el); } catch {}
+}
+
+/* the new-variation form — defaults mirror the ARMED production config (2026-07-10 sweep) */
+function renderLabForm(v) {
+  v = v || { name:'', description:'', config:{ kind:'rotation', posture:'active', corePct:60, coreSymbol:'SPY', takeProfitPct:null, rank:'gravity', cadenceDays:1, topN:12, weighting:'conviction', universe:[], warmupDays:80, windowDays:780 } };
+  const c = v.config;
+  const opt = (list, cur) => list.map(o=>'<option'+(o===cur?' selected':'')+'>'+o+'</option>').join('');
+  $('labForm').innerHTML =
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">' +
+    '<label class="foot">Name<input id="lfName" value="' + esc(v.name) + '" placeholder="my variation"></label>' +
+    '<label class="foot">Kind<select id="lfKind">' + opt(['rotation','ensemble'], c.kind) + '</select></label>' +
+    '<label class="foot">Posture<select id="lfPosture">' + opt(['conservative','balanced','aggressive','active'], c.posture) + '</select></label>' +
+    '<label class="foot">Core % (SPY ballast)<input id="lfCore" type="number" min="0" max="90" value="' + c.corePct + '"></label>' +
+    '<label class="foot">Core symbol<input id="lfCoreSym" value="' + esc(c.coreSymbol||'SPY') + '"></label>' +
+    '<label class="foot">Take-profit % (blank = posture)<input id="lfTp" type="number" min="1" max="95" value="' + (c.takeProfitPct==null?'':c.takeProfitPct) + '"></label>' +
+    '<label class="foot">Rank<select id="lfRank">' + opt(['gravity','momentum','ensemble','blend'], c.rank) + '</select></label>' +
+    '<label class="foot">Cadence (days)<input id="lfCad" type="number" min="1" max="63" value="' + c.cadenceDays + '"></label>' +
+    '<label class="foot">Top N<input id="lfTopN" type="number" min="1" max="64" value="' + c.topN + '"></label>' +
+    '<label class="foot">Weighting<select id="lfWeight">' + opt(['conviction','equal'], c.weighting) + '</select></label>' +
+    '<label class="foot">Window (calendar days)<input id="lfWin" type="number" min="200" max="2000" value="' + c.windowDays + '"></label>' +
+    '</div>' +
+    '<label class="foot" style="display:block;margin-top:8px">Universe (comma tickers; blank = default ~140)<input id="lfUni" value="' + esc((c.universe||[]).join(',')) + '" placeholder="default universe"></label>' +
+    '<label class="foot" style="display:block;margin-top:8px">Description<input id="lfDesc" value="' + esc(v.description||'') + '"></label>' +
+    '<div style="margin-top:10px"><button class="btn primary" id="lfSave">Save strategy</button></div>';
+  $('lfSave').onclick = saveLabStrategy;
+}
+async function saveLabStrategy() {
+  const msg = $('labFormMsg'); msg.className='sub'; msg.textContent = 'saving…';
+  const tp = $('lfTp').value.trim();
+  const body = {
+    name: $('lfName').value.trim(), description: $('lfDesc').value.trim(),
+    config: {
+      kind: $('lfKind').value, posture: $('lfPosture').value,
+      corePct: Number($('lfCore').value)||0, coreSymbol: $('lfCoreSym').value.trim().toUpperCase()||'SPY',
+      takeProfitPct: tp==='' ? null : Number(tp),
+      rank: $('lfRank').value, cadenceDays: Number($('lfCad').value)||1, topN: Number($('lfTopN').value)||12,
+      weighting: $('lfWeight').value, windowDays: Number($('lfWin').value)||780, warmupDays: 80,
+      universe: $('lfUni').value.split(',').map(s=>s.trim().toUpperCase()).filter(Boolean),
+    },
+  };
+  try { await labApi('/strategies', jbody(body)); msg.className='sub ok'; msg.textContent = 'Saved. Now hit Backtest to give it a baseline.'; refreshLabList(); }
+  catch (e) { msg.className='sub err'; msg.textContent = e.message; }
+}
+async function labDraft() {
+  const msg = $('labFormMsg'); const text = $('labDraftText').value.trim();
+  if (!text) { msg.className='sub err'; msg.textContent = 'Describe the strategy first.'; return; }
+  msg.className='sub'; msg.textContent = 'The analyst is turning your words into knobs…';
+  try { const j = await labApi('/draft', jbody({ text })); renderLabForm(j); msg.className='sub ok'; msg.textContent = 'Drafted — review every knob (they are explained below), then Save.'; }
+  catch (e) { msg.className='sub err'; msg.textContent = 'Draft failed: ' + e.message; }
+}
+
+async function loadLabKnobs() {
+  const el = $('labKnobs'); if (!el) return;
+  try {
+    if (!LAB.knobs) LAB.knobs = await labApi('/knobs');
+    const k = LAB.knobs;
+    const postures = (k.knobs.find(x=>x.key==='posture')||{}).values || [];
+    el.innerHTML =
+      '<div class="foot" style="margin-bottom:6px"><strong>Strategy kinds</strong></div>' +
+      k.kinds.map(x=>'<div class="sig" style="margin-bottom:6px"><strong>' + esc(x.label) + '</strong><div class="foot">' + esc(x.what) + '</div></div>').join('') +
+      '<div class="foot" style="margin:10px 0 6px"><strong>Knobs</strong></div>' +
+      '<table style="width:100%"><tbody>' + k.knobs.filter(x=>x.key!=='posture').map(x=>'<tr><td style="color:var(--muted);white-space:nowrap;vertical-align:top">' + esc(x.key) + '</td><td class="foot">' + esc(x.what) + '</td></tr>').join('') + '</tbody></table>' +
+      '<div class="foot" style="margin:10px 0 6px"><strong>Postures (every dial, % of equity or position)</strong></div>' +
+      '<div style="overflow-x:auto"><table style="width:100%"><thead><tr><th>posture</th><th>per-name</th><th>sector</th><th>deployed</th><th>positions</th><th>stop</th><th>take-profit</th><th>day-halt</th><th>trail arm/give</th><th>DD halt</th></tr></thead><tbody>' +
+      postures.map(p=>'<tr><td>' + esc(p.posture) + '</td><td>' + p.maxPerNamePct + '%</td><td>' + p.maxSectorPct + '%</td><td>' + p.maxDeployedPct + '%</td><td>' + p.maxPositions + '</td><td>' + p.stopLossPct + '%</td><td>' + p.takeProfitPct + '%</td><td>' + p.dailyLossHaltPct + '%</td><td>' + p.trailArmPct + '/' + p.trailGivebackPct + '%</td><td>' + p.maxDrawdownPct + '%</td></tr>').join('') + '</tbody></table></div>' +
+      '<div class="foot" style="margin:10px 0 6px"><strong>Formulas (verbatim from the engine)</strong></div>' +
+      '<table style="width:100%"><tbody>' + k.formulas.map(f=>'<tr><td style="color:var(--muted);white-space:nowrap;vertical-align:top">' + esc(f.algo) + '</td><td class="foot">' + esc(f.formula) + ' <span style="opacity:.6">(' + esc(f.source) + ')</span></td></tr>').join('') + '</tbody></table>' +
+      '<div class="foot" style="margin-top:10px"><strong>Honest limits:</strong> ' + esc(k.honestLimits) + '</div>';
+  } catch (e) { el.innerHTML = '<div class="foot err">' + esc(e.message) + '</div>'; }
+}
+
+/* ── performance vs market (SPY) — tab ───────────────────────── */
+let PCHART = null;
+function loadPerformance() {
+  const host = $('tabbody'); if (!host) return;
+  const periods = ['1W','1M','3M','1Y'];
+  host.innerHTML = '<div class="panel"><div class="panel head2"><h2 style="margin:0">Performance vs market</h2>' +
+    '<div class="switch" id="perfTf" style="margin-left:auto">' + periods.map(p=>'<button data-p="'+p+'"'+(p===PERF_PERIOD?' class="on"':'')+'>'+p+'</button>').join('') + '</div></div>' +
+    '<div id="perfSum" class="foot" style="margin-bottom:8px">&nbsp;</div><div id="perfC" style="height:300px;width:100%"></div><div id="perfMsg" class="foot"></div></div>';
+  $('perfTf').querySelectorAll('button').forEach(b => b.onclick = () => { PERF_PERIOD = b.getAttribute('data-p'); loadPerformance(); });
+  drawPerformance();
+}
+async function drawPerformance() {
+  const el = $('perfC'), msg = $('perfMsg'), sum = $('perfSum'); if (!el) return;
+  msg.textContent = 'loading…';
+  try {
+    const j = await api('/performance?period=' + PERF_PERIOD);
+    const p = j.portfolio || [], spy = j.spy || [];
+    if (!p.length) { msg.textContent = 'No equity history yet for this period.'; return; }
+    if (PCHART) { try { PCHART.remove(); } catch {} PCHART = null; }
+    if (!window.LightweightCharts) { msg.innerHTML = '<span class="err">chart lib missing</span>'; return; }
+    const css = getComputedStyle(document.documentElement); const line = (v,d)=> (css.getPropertyValue(v).trim()||d);
+    PCHART = LightweightCharts.createChart(el, { width: el.clientWidth, height: 300,
+      layout:{ background:{ type:'solid', color:'transparent' }, textColor: line('--muted','#8a99a3') },
+      grid:{ vertLines:{ color: line('--line','#26333f') }, horzLines:{ color: line('--line','#26333f') } },
+      rightPriceScale:{ borderColor: line('--line','#26333f') }, timeScale:{ borderColor: line('--line','#26333f') }, crosshair:{ mode:0 } });
+    const me = PCHART.addLineSeries({ color: line('--buy','#34c79a'), lineWidth: 2, title: 'You' });
+    me.setData(p.map(d => ({ time: d.t, value: Number(d.pct.toFixed(3)) })));
+    if (spy.length) { const sp = PCHART.addLineSeries({ color: line('--muted','#8a99a3'), lineWidth: 1, lineStyle: 2, title: 'S&P 500' });
+      sp.setData(spy.filter(d=>d.t).map(d => ({ time: d.t, value: Number(d.pct.toFixed(3)) }))); }
+    PCHART.timeScale().fitContent();
+    const s = j.summary || {};
+    sum.innerHTML = '<strong style="font-size:14px;color:'+(s.totalReturnPct>=0?'var(--buy)':'var(--sell)')+'">' + pct(s.totalReturnPct) + '</strong> you · ' +
+      '<span style="color:var(--muted)">' + pct(s.spyReturnPct) + ' S&P</span> · ' +
+      '<strong style="color:'+(s.vsSpyPct>=0?'var(--buy)':'var(--sell)')+'">' + pct(s.vsSpyPct) + ' vs market</strong> <span class="foot">(' + PERF_PERIOD + ', cumulative)</span>';
+    msg.textContent = '';
+    try { new ResizeObserver(()=>{ if (PCHART && el.clientWidth) PCHART.applyOptions({ width: el.clientWidth }); }).observe(el); } catch {}
+  } catch (e) { msg.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; }
+}
+
+/* ── recommendations — tab ───────────────────────────────────── */
+function loadReco() {
+  const host = $('tabbody'); if (!host) return;
+  host.innerHTML = '<div class="panel"><div class="panel head2"><h2 style="margin:0">Market analysis &amp; recommendations</h2>' +
+    '<button class="btn ghost sm" id="recoBtn" style="margin-left:auto">Re-analyze</button></div>' +
+    '<div id="recoBody"><div class="spin"><span class="dot"></span> Analyzing the market…</div></div></div>';
+  $('recoBtn').onclick = doAnalyze; doAnalyze();
+}
+async function doAnalyze() {
+  const body = $('recoBody'); if (!body) return;
+  body.innerHTML = '<div class="spin"><span class="dot"></span> Scanning the universe…</div>';
+  try {
+    const j = await api('/recommendations');
+    const list = (arr, kind) => arr.length ? arr.map((r) => {
+      const e = r.ensemble || {}; const conf = Math.round((Math.abs(e.score) || 0) * 100);
+      const pills = (r.signals || []).map((s) => '<span class="pill ' + (s.dir === 'up' ? 'buy' : 'sell') + '" style="font-size:9px">' + s.algo + '</span>').join(' ');
+      return '<div class="sig" style="border-left-color:' + (kind === 'buy' ? 'var(--buy)' : 'var(--sell)') + '">' +
+        '<div><span class="pill ' + kind + '">' + kind.toUpperCase() + '</span> <strong>' + esc(r.symbol) + '</strong> ' + money(r.price) +
+        ' <span class="foot">conviction ' + conf + '%</span>' +
+        ' <button class="btn ghost sm" data-fsym="' + esc(r.symbol) + '" style="float:right">Focus →</button></div>' +
+        '<div class="foot" style="margin-top:4px">' + pills + '</div></div>';
+    }).join('') : '<div class="foot">none</div>';
+    body.innerHTML =
+      '<div class="foot" style="margin-bottom:10px">Assessed <strong>' + (j.assessed ? j.assessed.symbols : 0) + '</strong> symbols · ' + ((j.buys||[]).length) + ' buys, ' + ((j.sells||[]).length) + ' sells, ' + (j.holds||0) + ' hold · ' + fmtDate(j.asOf) + '</div>' +
+      '<div class="grid2">' +
+      '<div><div class="foot" style="color:var(--buy);margin-bottom:4px">TOP BUYS</div>' + list(j.buys||[],'buy') + '</div>' +
+      '<div><div class="foot" style="color:var(--sell);margin-bottom:4px">TOP SELLS / SHORTS</div>' + list(j.sells||[],'sell') + '</div></div>';
+    body.querySelectorAll('button[data-fsym]').forEach((b) => b.onclick = () => { const s=b.getAttribute('data-fsym'); focus(s); window.scrollTo({top:0,behavior:'smooth'}); });
+  } catch (e) { body.innerHTML = '<div class="foot err">' + esc(e.message) + '</div>'; }
+}
+
+/* ── algorithms — tab ────────────────────────────────────────── */
+async function loadAlgos() {
+  const host = $('tabbody'); if (!host) return;
+  host.innerHTML = '<div class="panel"><h2>Algorithms — deterministic engine</h2>' +
+    '<div class="sub" style="margin-bottom:10px">Scan a watchlist: momentum / gravity / donchian / mean-rev and their ensemble — reproducible from market data, no LLM. Focus any name to chart it and place the trade.</div>' +
+    '<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap"><input id="scanSyms" placeholder="HD,LOW,GNRC,BLDR,SPY" value="HD,LOW,GNRC,BLDR,SPY" style="max-width:340px"><button class="btn primary" id="scanBtn">Scan</button> <span id="scanMsg" class="sub"></span></div>' +
+    '<div id="scoreboard"></div><div id="scanOut"></div></div>';
+  $('scanBtn').onclick = doScan; loadScoreboard();
+}
+async function loadScoreboard() {
+  const host = $('scoreboard'); if (!host) return;
+  try {
+    const a = (await api('/algo-stats')).algos || [];
+    host.innerHTML = a.length
+      ? '<div class="foot" style="margin-bottom:4px">PER-ALGO LIVE HIT-RATE (resolved predictions)</div><table><thead><tr><th>Algorithm</th><th class="num">resolved</th><th class="num">open</th><th class="num">hit %</th></tr></thead><tbody>'
+        + a.map((r) => '<tr><td>' + esc(r.algo) + '</td><td class="num">' + (r.resolved||0) + '</td><td class="num">' + (r.open||0) + '</td><td class="num">' + (r.hit_rate_pct==null?'—':r.hit_rate_pct+'%') + '</td></tr>').join('') + '</tbody></table>'
+      : '<div class="foot">No resolved predictions yet — Scan now, then again after the horizon.</div>';
+  } catch (e) { host.innerHTML = '<div class="foot err">' + esc(e.message) + '</div>'; }
+}
+async function doScan() {
+  const msg = $('scanMsg'), out = $('scanOut');
+  const syms = ($('scanSyms').value || 'HD,LOW,GNRC,BLDR,SPY').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+  msg.className = 'sub'; msg.innerHTML = '<span class="dot"></span> Scanning…';
+  try {
+    const j = await api('/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbols: syms }) });
+    msg.textContent = 'resolved ' + (j.resolved || 0) + ' prior predictions';
+    const rows = (j.scanned || []).filter((s) => !s.error);
+    const cell = (s, a) => { const v = (s.signals || []).find((x) => x.algo === a); return v ? '<span class="pill ' + (v.dir === 'up' ? 'buy' : 'sell') + '">' + v.dir + '</span>' : '<span class="foot">—</span>'; };
+    out.innerHTML = '<table style="margin-top:8px"><thead><tr><th>Symbol</th><th class="num">price</th><th>momentum</th><th>gravity</th><th>donchian</th><th>mean-rev</th><th>ensemble</th><th></th></tr></thead><tbody>' +
+      rows.map((s) => { const e = s.ensemble || { action: 'hold' };
+        const ep = '<span class="pill ' + (e.action === 'buy' ? 'buy' : e.action === 'sell' ? 'sell' : 'hold') + '">' + e.action + (e.score != null ? ' ' + e.score : '') + '</span>';
+        return '<tr><td><strong>' + esc(s.symbol) + '</strong></td><td class="num">' + money(s.price) + '</td><td>' + cell(s, 'momentum') + '</td><td>' + cell(s, 'gravity') + '</td><td>' + cell(s, 'donchian') + '</td><td>' + cell(s, 'meanrev') + '</td><td>' + ep + '</td><td><button class="btn ghost sm" data-fsym="' + esc(s.symbol) + '">Focus →</button></td></tr>'; }).join('') + '</tbody></table>';
+    out.querySelectorAll('button[data-fsym]').forEach((b) => b.onclick = () => { const sy=b.getAttribute('data-fsym'); if(!UNIVERSE[sy]) UNIVERSE[sy]={symbol:sy}; focus(sy); window.scrollTo({top:0,behavior:'smooth'}); });
+  } catch (e) { msg.className = 'sub err'; msg.textContent = e.message; }
+}
+
+/* ── signal capture + feed — tab ─────────────────────────────── */
+function renderCapture() {
+  const host = $('tabbody'); if (!host) return;
+  host.innerHTML =
+    '<div class="panel"><h2>Capture a signal</h2>' +
+    '<div class="sub" style="margin-bottom:12px">Snapshot what you read — a tweet, a headline. Stored immutably so any trade can be traced back to it.</div>' +
+    '<div class="grid2">' +
+      '<label class="f">Source<select id="sgSource"><option value="x">X / Twitter</option><option value="news">News</option><option value="inbox">Inbox</option><option value="manual">Manual</option></select></label>' +
+      '<label class="f">Symbols (comma-sep)<input id="sgSymbols" placeholder="AAPL, SPY"></label>' +
+      '<label class="f">Author / publisher<input id="sgAuthor" placeholder="@source"></label>' +
+      '<label class="f">Link (optional)<input id="sgUrl" placeholder="https://…"></label>' +
+    '</div>' +
+    '<label class="f">Headline / title<input id="sgTitle" placeholder="Short form"></label>' +
+    '<label class="f">Body<textarea id="sgBody" placeholder="Paste the artifact text…"></textarea></label>' +
+    '<button class="btn primary" id="sgBtn">Capture signal</button> <span id="sgMsg" class="sub"></span></div>' +
+    '<div id="feed"></div>';
+  $('sgBtn').onclick = captureSignal;
+}
+async function captureSignal() {
+  const msg = $('sgMsg'); const btn = $('sgBtn');
+  const body = { source: $('sgSource').value, symbols: $('sgSymbols').value.split(',').map(s=>s.trim()).filter(Boolean),
+    author: $('sgAuthor').value.trim(), url: $('sgUrl').value.trim(), title: $('sgTitle').value.trim(), body: $('sgBody').value.trim() };
+  if (!body.body && !body.title) { msg.className='sub err'; msg.textContent='Add a headline or body.'; return; }
+  btn.disabled = true; msg.className='sub'; msg.innerHTML='<span class="dot"></span> Capturing…';
+  try { await api('/signals', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    msg.className='sub ok'; msg.textContent='Captured.'; $('sgBody').value=''; $('sgTitle').value=''; await loadFeed();
+  } catch (e) { msg.className='sub err'; msg.textContent=e.message; } finally { btn.disabled=false; }
+}
+async function loadFeed() {
+  const host = $('feed'); if (!host) return;
+  let signals = [];
+  try { signals = (await api('/signals')).signals || []; } catch (e) { host.innerHTML='<div class="panel err">'+esc(e.message)+'</div>'; return; }
+  host.innerHTML = '<div class="panel"><h2>Signal feed</h2>' +
+    (signals.length ? signals.map(s =>
+      '<div class="sig"><div><strong>' + esc(s.title || (s.body||'').slice(0,80)) + '</strong> ' +
+      (s.symbols && s.symbols.length ? '<span class="pill">' + s.symbols.map(esc).join(', ') + '</span>' : '') + '</div>' +
+      '<div class="foot">' + esc(s.source) + (s.author ? ' · ' + esc(s.author) : '') + ' · ' + fmtDate(s.observed_at) +
+      (s.url ? ' · <a href="' + esc(s.url) + '" target="_blank">source</a>' : '') + '</div>' +
+      '<div style="margin-top:6px"><button class="btn ghost sm" data-sig="' + s.signal_id + '">Reason over this →</button> <span class="sub" id="dm_' + s.signal_id + '"></span></div>' +
+      '<div id="dec_' + s.signal_id + '"></div></div>'
+    ).join('') : '<div class="foot">No signals captured yet for the ' + MODE + ' book.</div>') + '</div>';
+  host.querySelectorAll('button[data-sig]').forEach(b => b.onclick = () => decide(b.getAttribute('data-sig')));
+}
+async function decide(signalId) {
+  const msg = $('dm_' + signalId); const host = $('dec_' + signalId);
+  msg.className='sub'; msg.innerHTML='<span class="dot"></span> Analyst is reasoning… (~20s)';
+  try {
+    const j = await api('/decide', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ signalIds:[signalId] }) });
+    msg.textContent=''; const d = j.decision; const actionable = d.action !== 'hold' && d.symbol && d.qty > 0;
+    host.innerHTML = '<div class="why"><div><span class="pill ' + d.action + '">' + d.action + '</span> ' +
+      (actionable ? '<strong>' + esc(d.symbol) + '</strong> · ' + d.qty + ' sh · ' + esc(d.orderType||'market') + (d.limitPrice?(' @ '+money(d.limitPrice)):'') : 'no trade') +
+      ' <span class="foot">confidence ' + Math.round((d.confidence||0)*100) + '%</span></div>' +
+      '<div class="rat" style="margin-top:8px">' + esc(d.rationale) + '</div>' +
+      (actionable ? '<div style="margin-top:10px"><button class="btn ' + (d.side==='sell'?'ghost':'buy') + ' sm" id="exec_' + j.decisionId + '">' + (MODE==='live'?'Place LIVE order':'Place paper order') + '</button> <span class="sub" id="em_' + j.decisionId + '"></span></div>' : '') + '</div>';
+    if (actionable) $('exec_' + j.decisionId).onclick = () => execute(j.decisionId, d);
+  } catch (e) { msg.className='sub err'; msg.textContent=e.message; }
+}
+async function execute(decisionId, d) {
+  const msg = $('em_' + decisionId); const btn = $('exec_' + decisionId);
+  const label = d.side + ' ' + d.qty + ' ' + d.symbol + (d.orderType==='limit'?(' @ '+money(d.limitPrice)):' at market');
+  if (MODE === 'live' && !confirm('Place a LIVE order to ' + label + '? This trades REAL money.')) return;
+  btn.disabled = true; msg.className='sub'; msg.innerHTML='<span class="dot"></span> Placing…';
+  const requestId = 'req-' + Date.now() + '-' + Math.random().toString(36).slice(2,8);
+  try { const j = await api('/orders', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ decisionId, requestId, confirm: MODE==='live' }) });
+    msg.className='sub ok'; msg.textContent = 'Order ' + j.order.status + ' (' + (j.order.id||'').slice(0,8) + ').'; UNIVERSE = {}; await loadKpisAndPositions();
+  } catch (e) { msg.className='sub err'; msg.textContent=e.message; btn.disabled=false; }
+}
+
+/* ── trade journal — tab ─────────────────────────────────────── */
+async function loadJournal() {
+  const host = $('tabbody'); if (!host) return;
+  let trades = [];
+  try { trades = (await api('/journal')).trades || []; } catch (e) { host.innerHTML='<div class="panel err">'+esc(e.message)+'</div>'; return; }
+  host.innerHTML = '<div class="panel"><h2>Trade journal — what the bot did &amp; why (' + MODE + ' book)</h2>' +
+    (trades.length ? trades.map((t,i) => renderTrade(t,i)).join('') : '<div class="foot">No trades in the ' + MODE + ' book yet.</div>') + '</div>';
+  host.querySelectorAll('button[data-exp]').forEach(b => b.onclick = () => { const el = $('exp_' + b.getAttribute('data-exp')); el.style.display = el.style.display === 'none' ? 'block' : 'none'; });
+}
+function renderTrade(t, i) {
+  const sig = (t.signals || [])[0];
+  const sigLine = sig ? '<span class="pill">' + esc(sig.source) + '</span> ' + esc(sig.author || '') + ' — ' + esc(sig.title || (sig.body||'').slice(0,90)) + (sig.url ? ' · <a href="'+esc(sig.url)+'" target="_blank">source</a>' : '') : '<span class="foot">algo / no signal</span>';
+  const px = (t.order_type === 'limit' || t.order_type === 'stop_limit') ? (' @ ' + money(t.limit_price)) : (t.order_type === 'stop') ? (' stop ' + money(t.stop_price)) : (t.order_type === 'trailing_stop') ? (' trail ' + (t.trail_percent ? t.trail_percent + '%' : money(t.trail_price))) : '';
+  const fill = Number(t.filled_qty) > 0 ? (' · filled ' + t.filled_qty + (t.filled_avg_price ? ' @ ' + money(t.filled_avg_price) : '')) : '';
+  // A sell isn't inherently "bad" — what matters is whether the CLOSE made money. Color the card by
+  // realized P&L when we closed a position, and show the gain/loss plainly. Buys (opens) stay neutral.
+  const rp = (t.realized_pnl != null && t.realized_pnl !== '') ? Number(t.realized_pnl) : null;
+  const showRp = rp != null && (t.side === 'sell' || rp !== 0);
+  const borderColor = showRp ? (rp >= 0 ? 'var(--buy)' : 'var(--sell)') : (t.side==='buy'?'var(--buy)':'var(--sell)');
+  const rpBadge = showRp ? ' <strong class="' + (rp>=0?'ok':'err') + '" title="Realized profit/loss on this close">' + (rp>=0?'+':'') + money(rp) + (rp>=0?' profit':' loss') + '</strong>' : '';
+  return '<div class="sig" style="border-left-color:' + borderColor + '">' +
+    '<div><span class="pill ' + t.side + '">' + t.side + '</span> <strong>' + esc(t.symbol) + '</strong> · ' + t.qty + ' sh · ' + esc(t.order_type) + px +
+      ' <span class="pill ' + esc(t.status) + '">' + esc(t.status) + '</span>' + rpBadge +
+      ' <span class="foot">' + fmtDate(t.created_at) + ' · conf ' + Math.round((t.confidence||0)*100) + '%' + fill + '</span>' +
+      ' <button class="btn ghost sm" data-fsym="' + esc(t.symbol) + '" style="float:right">Focus →</button></div>' +
+    '<div class="foot" style="margin-top:4px">SIGNAL: ' + sigLine + '</div>' +
+    '<div style="margin-top:4px"><button class="btn ghost sm" data-exp="' + i + '">Why?</button></div>' +
+    '<div id="exp_' + i + '" style="display:none"><div class="why"><div class="rat">' + esc(t.rationale) + '</div>' +
+      (t.signals||[]).map(s => '<div class="sig"><strong>' + esc(s.title || (s.body||'').slice(0,80)) + '</strong><div class="foot">' + esc(s.source) + (s.author?(' · '+esc(s.author)):'') + ' · ' + fmtDate(s.observed_at) + '</div>' + (s.body ? '<div class="rat" style="margin-top:4px">' + esc(s.body) + '</div>' : '') + '</div>').join('') +
+    '</div></div></div>';
+}
+
+/* ── Tuning — nightly optimizer & approvals tab ──────────────────
+ * Shows the parameter changes the nightly optimizer backtested and recommends, with Approve/Reject;
+ * the current live params; recent decisions; and a "Run optimization now" button. Nothing the optimizer
+ * proposes changes how the bot trades until you approve it here. */
+const fmtExp = (n) => n==null ? '—' : (Number(n)>=0?'+':'') + Number(n).toFixed(2) + '%';
+const fmtWin = (n) => n==null ? '—' : Math.round(Number(n)*100) + '%';
+async function loadTuning() {
+  const host = $('tabbody'); if (!host) return;
+  host.innerHTML = '<div class="panel"><div class="panel head2"><h2 style="margin:0">Tuning — nightly optimizer &amp; approvals</h2>' +
+      '<button class="btn ghost sm" id="optRunBtn" style="margin-left:auto">Run optimization now</button></div>' +
+    '<div class="sub" style="margin-bottom:8px">Each night the engine backtests small parameter tweaks against recent market history and proposes the ones that would have improved results. <strong>Nothing changes how the bot trades until you approve it here.</strong> Paper book.</div>' +
+    '<div id="optMsg" class="sub" style="min-height:18px"></div>' +
+    '<div id="tunePending"><div class="spin"><span class="dot"></span></div></div>' +
+    '<div id="tuneParams" style="margin-top:18px"></div>' +
+    '<div id="tuneHistory" style="margin-top:18px"></div></div>';
+  $('optRunBtn').onclick = runOptimizeNow;
+  await refreshTuning();
+}
+async function refreshTuning() { await Promise.all([loadTuneRecs(), loadTuneParams()]); }
+async function loadTuneRecs() {
+  const host = $('tunePending'), hist = $('tuneHistory'); if (!host) return;
+  let j; try { j = await api('/recommendations-tuning'); } catch (e) { host.innerHTML = '<div class="foot err">' + esc(e.message) + '</div>'; return; }
+  const pending = j.pending || [];
+  if (!pending.length) {
+    host.innerHTML = '<div class="why" style="margin-top:4px"><strong>No pending recommendations.</strong> The optimizer hasn’t found a parameter change worth making since the last run — the current settings are holding up. Run it now, or check back after tonight’s 5:30am pass.</div>';
+  } else {
+    host.innerHTML = '<div class="foot" style="margin:6px 0 8px">' + pending.length + ' recommended change(s) — review and approve:</div>' +
+      pending.map(r =>
+        '<div class="sig" style="border-left-color:var(--buy)">' +
+          '<div><strong>' + esc(r.label) + '</strong>: <span class="foot">' + r.currentValue + '</span> &rarr; <strong class="ok">' + r.proposedValue + '</strong></div>' +
+          '<div class="foot" style="margin-top:4px">backtest: win-rate ' + fmtWin(r.baselineWinrate) + ' &rarr; <strong>' + fmtWin(r.proposedWinrate) + '</strong> · expectancy ' + fmtExp(r.baselineExpectancy) + ' &rarr; <strong>' + fmtExp(r.proposedExpectancy) + '</strong> · ' + (r.proposedSignals||0) + ' signals</div>' +
+          '<div style="margin-top:8px"><button class="btn buy sm" data-approve="' + r.recId + '">Approve &amp; apply</button> <button class="btn ghost sm" data-reject="' + r.recId + '">Reject</button> <span class="sub" id="recmsg_' + r.recId + '"></span></div>' +
+        '</div>'
+      ).join('');
+    host.querySelectorAll('button[data-approve]').forEach(b => b.onclick = () => actOnRec(b.getAttribute('data-approve'), 'approve'));
+    host.querySelectorAll('button[data-reject]').forEach(b => b.onclick = () => actOnRec(b.getAttribute('data-reject'), 'reject'));
+  }
+  const history = j.history || [];
+  hist.innerHTML = history.length ? ('<div class="foot" style="margin-bottom:6px">RECENT DECISIONS</div>' +
+    '<table><thead><tr><th>When</th><th>Parameter</th><th class="num">Change</th><th>Decision</th></tr></thead><tbody>' +
+    history.map(r => '<tr><td class="foot">' + fmtDate(r.resolvedAt) + '</td><td>' + esc(r.label) + '</td><td class="num">' + r.currentValue + ' &rarr; ' + r.proposedValue + '</td><td><span class="pill ' + (r.status==='applied'?'buy':'sell') + '">' + esc(r.status) + '</span></td></tr>').join('') +
+    '</tbody></table>') : '';
+}
+async function actOnRec(id, action) {
+  const msg = $('recmsg_' + id); if (msg) { msg.className='sub'; msg.innerHTML='<span class="dot"></span> ' + (action==='approve'?'Applying…':'Rejecting…'); }
+  try { await api('/recommendations-tuning/' + encodeURIComponent(id) + '/' + action, { method:'POST' }); await refreshTuning(); }
+  catch (e) { if (msg) { msg.className='sub err'; msg.textContent = e.message; } }
+}
+async function loadTuneParams() {
+  const host = $('tuneParams'); if (!host) return;
+  let j; try { j = await api('/strategy-params'); } catch { host.innerHTML=''; return; }
+  const ps = j.params || [];
+  host.innerHTML = '<div class="foot" style="margin-bottom:6px">CURRENT LIVE PARAMETERS (paper engine)</div>' +
+    '<table><thead><tr><th>Parameter</th><th class="num">Value</th><th>Source</th><th>Updated</th></tr></thead><tbody>' +
+    ps.map(p => '<tr><td>' + esc(p.label) + '</td><td class="num"><strong>' + p.value + '</strong></td><td>' + (p.isDefault?'<span class="pill hold">default</span>':'<span class="pill buy">tuned</span>') + '</td><td class="foot">' + (p.updatedAt?fmtDate(p.updatedAt):'—') + '</td></tr>').join('') +
+    '</tbody></table>' +
+    '<div class="foot" style="margin-top:8px">Backtest scores signal direction vs. the next ~5 sessions’ move (a ranking proxy, not a fills/slippage simulator). v1 tunes the algo + ensemble parameters; multi-timeframe weights come later.</div>';
+}
+async function runOptimizeNow() {
+  const btn = $('optRunBtn'), msg = $('optMsg'); if (!btn) return;
+  btn.disabled = true; msg.className='sub'; msg.innerHTML='<span class="dot"></span> Backtesting parameter tweaks across the universe… (~10–30s)';
+  try {
+    const j = await api('/optimize-now', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ mode: MODE }) });
+    msg.className='sub ok'; msg.textContent = 'Done — assessed ' + (j.assessed||0) + ' symbols, ' + (j.recommendations||0) + ' recommendation(s).' + (j.skipped?(' ('+j.skipped+')'):'');
+    await refreshTuning();
+  } catch (e) { msg.className='sub err'; msg.textContent = e.message; } finally { btn.disabled=false; }
+}
+
+/* Theme is handled by /shared/ui/js/surface-theme.js (loaded in <head>): it sets data-theme on
+ * <html> from the operator's saved cockpit theme and live-follows changes via the storage event —
+ * so this surface needs no per-surface token mirroring. Its :root aliases derive from the framework
+ * tokens, which flow from whichever [data-theme] is active. */
+(function init() { wireSwitch();
+  // delegated Focus buttons rendered inside tabs
+  document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('button[data-fsym]'); if (b && b.closest('#tabpanel')) { const s=b.getAttribute('data-fsym'); if(!UNIVERSE[s]) UNIVERSE[s]={symbol:s}; focus(s); const f=$('focus'); if (f) f.scrollIntoView({ behavior:'smooth', block:'start' }); } });
+  render();
+})();
+</script>
+</body>
+</html>

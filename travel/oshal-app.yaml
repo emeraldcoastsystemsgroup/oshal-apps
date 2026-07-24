@@ -1,0 +1,270 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — travel ("Travel", the AI travel concierge — ADR-059)
+# Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
+# ADR-093). This package is the app: the /api/travel routes + the concierge surface
+# (tools/travel-app.html) + the manifest (ticketType `travel` + the concierge
+# workflow + the route-backed tools) + package COPIES of the travel-concierge and
+# travel-foundation personas for the registrar.
+#
+# What STAYS framework-resident per ADR-093 (this package ships none of it):
+#   - the swarm-shared PRICE ENGINE + fare-watch cron
+#     (@/app/routes/travel-farewatch: ensureTravelSchema / routeKeyFor /
+#     recordObservations / priceRead + startTravelFareWatchCron) — travel_observations
+#     is the swarm-wide price DB other bots read; the packaged route imports the
+#     engine back via the @/ alias;
+#   - scripts/oshal-duffel.js (the Duffel CLI) + the `duffel` connector + the
+#     per-user token broker (OSHAL_CRED_DUFFEL);
+#   - migrations 050-travel-platform.sql + 051-seed-travel-bots.sql
+#     (scripts/migrations/* are framework-owned, applied by the boot bootstrap);
+#   - the travel-concierge NODE (container + BOTH swarm-bot-registry blocks; the
+#     personas here are package COPIES for the registrar).
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: travel
+suite: ai-home   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Travel
+description: >-
+  AI travel concierge (ADR-059) — search real flights (Duffel), see an honest price read from
+  the swarm's shared price history, watch routes for a fare drop, and book via a deep-link
+  handoff. Hotels and cars are deep-link handoffs today. Other swarm bots can ask it to plan a
+  trip or check a fare on a traveller's behalf.
+version: 1.0.0
+status: active
+
+# Guest tier REQUEST (ADR-085 D4): travel was core Tier-A (deep-link handoff, does not
+# really book). Unapproved packages default to guest read-only until the operator approves.
+guestTier: full
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: travel
+  ref: main
+
+# Runtime connector allow-list — the flight-search API the concierge drives via the
+# per-user broker (a pasted Duffel access token at /utilities).
+dependencies:
+  apps: []
+  tools: []
+  connectors: [duffel]
+
+bots:
+  - agentId: b00c0000-0000-0000-0000-000000000001
+    name: travel-concierge
+    persona: personas/travel-concierge.yaml
+    role: travel/concierge
+    capabilities:
+      - flight-search
+      - hotel-search
+      - car-search
+      - fare-price-intelligence
+      - fare-watch
+      - trip-itinerary-planning
+      - traveller-preference-learning
+      - booking-handoff
+
+foundation:
+  persona: personas/travel-foundation.yaml
+
+# (toolsDir dropped at the carve: the field is inert — D12 — and the kernel dir it
+#  pointed at held only the surface html, which now ships in this package's tools/.)
+
+tools:
+  - name: search-flights
+    displayName: Search Flights
+    type: api
+    category: travel
+    description: Search real or demo-backed flight options and return price intelligence for the route.
+    executor: { executorType: api, apiEndpoint: "GET /api/travel/flights?origin={input.origin}&destination={input.destination}&departDate={input.departDate}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        origin: { type: string }
+        destination: { type: string }
+        departDate: { type: string }
+      required: [origin, destination, departDate]
+    usageInstructions: >-
+      Call with {origin,destination,departDate}. Use only returned flights and price readouts.
+    routingTags: [travel, flights, price]
+    skills: [flight-search, price-intelligence]
+    tags: [travel, route-backed]
+
+  - name: search-hotels
+    displayName: Search Hotels
+    type: api
+    category: travel
+    description: Search hotel handoff options for a city and dates.
+    executor: { executorType: api, apiEndpoint: "GET /api/travel/hotels?city={input.city}&checkIn={input.checkIn}&checkOut={input.checkOut}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        city: { type: string }
+        checkIn: { type: string }
+        checkOut: { type: string }
+      required: [city, checkIn, checkOut]
+    usageInstructions: >-
+      Call with {city,checkIn,checkOut}. Never claim a booking is complete; return options and handoff links.
+    routingTags: [travel, hotels]
+    skills: [hotel-search, booking-handoff]
+    tags: [travel, route-backed]
+
+  - name: search-cars
+    displayName: Search Rental Cars
+    type: api
+    category: travel
+    description: Search rental car handoff options for a city and dates.
+    executor: { executorType: api, apiEndpoint: "GET /api/travel/cars?city={input.city}&pickupDate={input.pickupDate}&dropoffDate={input.dropoffDate}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        city: { type: string }
+        pickupDate: { type: string }
+        dropoffDate: { type: string }
+      required: [city, pickupDate, dropoffDate]
+    usageInstructions: >-
+      Call with {city,pickupDate,dropoffDate}. Return options and handoff links only.
+    routingTags: [travel, cars]
+    skills: [car-search, booking-handoff]
+    tags: [travel, route-backed]
+
+  - name: read-price-intelligence
+    displayName: Read Travel Price Intelligence
+    type: api
+    category: travel
+    description: Read route price intelligence by refreshing the route search.
+    executor: { executorType: api, apiEndpoint: "GET /api/travel/flights?origin={input.origin}&destination={input.destination}&departDate={input.departDate}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        origin: { type: string }
+        destination: { type: string }
+        departDate: { type: string }
+      required: [origin, destination, departDate]
+    usageInstructions: >-
+      Call with the route and date to get the current price read. Report whether the fare looks high, normal, or low from the returned price block.
+    routingTags: [travel, price-intelligence, fare]
+    skills: [price-intelligence, flight-search]
+    tags: [travel, route-backed]
+
+  - name: create-fare-watch
+    displayName: Create Fare Watch
+    type: api
+    category: travel
+    description: Create a user-scoped fare watch for a route or trip.
+    executor: { executorType: api, apiEndpoint: "POST /api/travel/watches" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        kind: { type: string }
+        origin: { type: string }
+        destination: { type: string }
+        departDate: { type: string }
+        targetPrice: { type: number }
+    usageInstructions: >-
+      Call when the traveller asks to watch, track, or alert on a fare drop.
+    routingTags: [travel, fare-watch, price]
+    skills: [fare-watch, price-intelligence]
+    tags: [travel, route-backed]
+
+  # Renamed from `explain-pick` 2026-07-13 (ADR-085 D11). purchasing declares that name too,
+  # with a DIFFERENT executor (POST /api/purchasing/chat). Tool names are global and the runtime
+  # executor upsert is ON CONFLICT (tool_name) DO UPDATE — last writer wins — so whichever manifest
+  # loaded last owned the row. readdirSync put travel after purchasing, which meant the SHOPPING
+  # concierge's `explain-pick` was live-routing to /api/travel/chat. Tool names are now globally
+  # unique across active manifests, enforced at load.
+  - name: explain-travel-pick
+    displayName: Explain Travel Pick
+    type: api
+    category: travel
+    description: Ask the travel concierge to explain or refine options using the traveller profile and search context.
+    executor: { executorType: api, apiEndpoint: "POST /api/travel/chat" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        message: { type: string }
+      required: [message]
+    usageInstructions: >-
+      Call with {message} when explaining why an itinerary is a good fit or asking for refinements.
+    routingTags: [travel, explanation, itinerary]
+    skills: [itinerary-planning, preference-learning]
+    tags: [travel, route-backed]
+
+  - name: prepare-booking
+    displayName: Prepare Booking Handoff
+    type: api
+    category: travel
+    description: Prepare a booking handoff through the travel concierge. No booking or payment is completed in OSHAL.
+    executor: { executorType: api, apiEndpoint: "POST /api/travel/chat" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        message: { type: string }
+      required: [message]
+    usageInstructions: >-
+      Call only after the traveller asks to book or proceed. It returns handoff guidance/links; the traveller completes booking externally.
+    routingTags: [travel, booking, handoff]
+    skills: [booking-handoff, itinerary-planning]
+    tags: [travel, route-backed, approval-required]
+
+ui:
+  static:
+    - toolName: travel-concierge
+      label: Travel
+      icon: codicon codicon-globe
+      iframeUrl: /api/travel/app
+      section: top
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — the packaged surface router, mounted /api/travel on activation. (In core
+# server.ts this was createTravelRoutes behind serviceSecretOr(requiresAuth).)
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - module: routes/travel-routes.js
+    factory: createTravelRoutes
+    mountPath: /api/travel
+    auth: service-or-oidc   # what server.ts ACTUALLY mounted (ADR-085 D2)
+    requiresAuth: true
+    requiresContext: true
+
+# No package migrations: 050-travel-platform.sql + 051-seed-travel-bots.sql are
+# framework-owned (scripts/migrations/*, applied by the boot bootstrap) because the
+# travel_* store is swarm-shared — the kernel fare-watch cron and other bots read it.
+# The kernel-resident ensureTravelSchema remains the runtime fallback.
+
+ticketType: travel
+workflow:
+  name: Travel Concierge Pipeline
+  pipeline: travel
+  workerBot: travel-concierge
+  phases:
+    - intake
+    - search
+    - handoff
+
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  hideChatPanel: true
+  defaultView: travel-concierge

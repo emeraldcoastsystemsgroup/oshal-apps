@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Little Monsters - STEM Helpers</title>
+<script>
+(function(){function a(n){if(!n)return;document.documentElement.setAttribute('data-theme',n);var h='/cockpit/css/themes/'+n+'.css',l=document.querySelector('link[data-lm-theme-link]');if(l){if(l.getAttribute('href')!==h)l.setAttribute('href',h);return;}l=document.createElement('link');l.rel='stylesheet';l.href=h;l.setAttribute('data-lm-theme-link','1');document.head.appendChild(l);}function i(){try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(e){}try{var s=localStorage.getItem('cockpit-theme');if(s)return s;}catch(e){}return 'little-monsters';}a(i());try{if(window.parent&&window.parent!==window){var ph=window.parent.document.documentElement;new MutationObserver(function(m){for(var k=0;k<m.length;k++)if(m[k].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)a(t);}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});}}catch(e){}})();
+</script>
+<link rel="stylesheet" href="/api/education/education.css">
+<style>
+  body{margin:0;color:var(--text-primary,#fdeaf6);font-family:system-ui,'Inter',sans-serif;}
+  .wrap{padding:22px clamp(14px,4vw,40px) 60px;max-width:760px;}
+  .head{display:flex;align-items:center;gap:12px;}
+  .head img{width:48px;height:48px;border-radius:12px;border:3px solid var(--accent-primary,#ec4faa);background:var(--bg-card);}
+  h1{margin:0;font-size:clamp(20px,3vw,28px);}
+  .sub{color:var(--text-muted);font-size:13px;margin:4px 0 18px;}
+  .card{border:1px solid var(--border-color);border-radius:16px;background:var(--bg-card);padding:16px;margin-bottom:16px;}
+  .card h2{margin:0 0 10px;font-size:15px;}
+  /* calculator */
+  .calc-disp{width:100%;box-sizing:border-box;text-align:right;font-size:22px;padding:10px 12px;border-radius:10px;
+    border:1px solid var(--border-color);background:var(--bg-secondary);color:inherit;margin-bottom:8px;}
+  .keys{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;}
+  .keys button{padding:12px 0;border-radius:10px;border:1px solid var(--border-color);background:var(--bg-secondary);
+    color:inherit;font-size:15px;cursor:pointer;}
+  .keys button:hover{border-color:var(--accent-primary,#ec4faa);}
+  .keys .op{color:var(--accent-primary,#ec4faa);font-weight:700;}
+  .keys .eq{background:var(--accent-primary,#ec4faa);color:#fff;font-weight:800;}
+  .links{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;}
+  .links a{display:block;text-decoration:none;color:inherit;border:1px solid var(--border-color);border-radius:14px;
+    background:var(--bg-secondary);padding:14px;transition:.15s;}
+  .links a:hover{border-color:var(--accent-primary,#ec4faa);transform:translateY(-2px);}
+  .links .e{font-size:26px;} .links .n{font-weight:700;margin-top:6px;} .links .d{font-size:12px;color:var(--text-muted);}
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<div class="wrap">
+  <div class="head"><img src="/api/education/mascot.png" alt=""><div><h1>STEM Helpers</h1></div></div>
+  <p class="sub">A scientific calculator, the periodic table, and interactive labs — all in one place.</p>
+
+  <div class="card">
+    <h2>🔬 Scientific Calculator</h2>
+    <input class="calc-disp" id="disp" value="0" readonly>
+    <div class="keys" id="keys"></div>
+  </div>
+
+  <div class="card">
+    <h2>🧪 Interactive labs &amp; tables</h2>
+    <div class="links">
+      <a href="https://ptable.com/" target="_blank" rel="noopener"><div class="e">⚛️</div><div class="n">Periodic Table</div><div class="d">Interactive elements (ptable.com)</div></a>
+      <a href="https://phet.colorado.edu/en/simulations/filter?type=html" target="_blank" rel="noopener"><div class="e">🎛️</div><div class="n">PhET Simulations</div><div class="d">Physics, chem &amp; math sims</div></a>
+      <a href="https://www.desmos.com/scientific" target="_blank" rel="noopener"><div class="e">📈</div><div class="n">Desmos Graphing</div><div class="d">Plot functions &amp; data</div></a>
+    </div>
+  </div>
+</div>
+<script>
+var disp=document.getElementById('disp'), expr='';
+function setD(){ disp.value = expr || '0'; }
+var KEYS=['7','8','9','/','(','4','5','6','*',')','1','2','3','-','^','0','.','π','+','√','C','⌫','sin','cos','=' ];
+var keys=document.getElementById('keys');
+KEYS.forEach(function(k){
+  var b=document.createElement('button'); b.textContent=k;
+  if(['/','*','-','+','^','√','sin','cos','π','(',')'].indexOf(k)>=0) b.className='op';
+  if(k==='=') b.className='eq';
+  b.onclick=function(){ press(k); };
+  keys.appendChild(b);
+});
+function press(k){
+  if(k==='C'){ expr=''; }
+  else if(k==='⌫'){ expr=expr.slice(0,-1); }
+  else if(k==='='){ evalExpr(); return; }
+  else if(k==='π'){ expr+='PI'; }
+  else if(k==='√'){ expr+='sqrt('; }
+  else if(k==='^'){ expr+='**'; }
+  else if(k==='sin'||k==='cos'){ expr+=k+'('; }
+  else { expr+=k; }
+  setD();
+}
+function evalExpr(){
+  try{
+    var s=expr.replace(/PI/g,'Math.PI').replace(/sqrt/g,'Math.sqrt').replace(/sin/g,'Math.sin').replace(/cos/g,'Math.cos');
+    if(/[^0-9+\-*/().,\sMathPIsqrtinco*]/.test(s)){ disp.value='Error'; expr=''; return; }
+    var r = Function('"use strict";return ('+s+')')();
+    expr = (Math.round(r*1e10)/1e10).toString(); setD();
+  }catch(e){ disp.value='Error'; expr=''; }
+}
+setD();
+</script>
+</body>
+</html>

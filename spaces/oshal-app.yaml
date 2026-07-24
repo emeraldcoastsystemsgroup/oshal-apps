@@ -1,0 +1,132 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — spaces ("Spaces")
+# Carved out of OSHAL core (ADR-085, "skill with a surface" — ADR-093). This
+# package is the app: the /api/spaces routes + the Spaces surfaces (main page +
+# WebGL splat viewer + the phone capture HUD) + the manifest + a package COPY of
+# the spaces-operator persona for the registrar.
+#
+# Turn a real space into an explorable 3D scene, then reason over it (ADR-111):
+#   - Video → 3D: upload a walkthrough clip → a Gaussian-splat scene you walk in
+#     the browser (Sim provider synthetic room with no GPU, OR the real edge GPU
+#     box over RECON_URL).
+#   - Direct import lane: bring a finished .ply/.splat from iPhone/iPad LiDAR, a
+#     depth sensor, or a drone photogrammetry app → viewer with NO GPU.
+#   - Guided capture: a deterministic step-by-step filming plan + a live phone HUD
+#     (spaces-capture.html) with two arrow channels (WALK vs PAN).
+#   - Wi-Fi / RF coverage overlay: pose-keyed RSSI → router localization + a
+#     red→green coverage heat painted on the 3D map (OVERLAY, never geometry).
+#   - Sim-first drone scan: a mapper-drafted overlap orbit flown by the sim drone
+#     whose captures flow the same pipeline.
+#
+# What STAYS framework-resident (this package ships none of it):
+#   - the reconstruction ENGINE + owner-scoped scan store (@/features/spatial-mapping):
+#     SpatialMappingService, the Sim + Edge reconstruction providers, the import
+#     engine, pose persistence, the RfOverlayService, the capture-plan/drone-scan
+#     pattern generators — a PINNED KERNEL SKILL ('spatial-mapping'), imported via
+#     the @/ alias and resolved from the running framework's dist at mount time.
+#     Declared below in `uses:` (validated fail-closed against the kernel-skill
+#     registry — the id must be exactly 'spatial-mapping').
+#   - the spaces-operator INLINE concierge node (registered in BOTH
+#     swarm-bot-registry blocks) — the app's reasoning owner; the persona here is
+#     a package COPY for the registrar; the inline node keeps using /app/ai-lab.
+#   - the sim-drone helper the drone-scan mission flies (@/features/drone
+#     SimDroneProvider + validateMission) — kernel-resident via the drone
+#     node-server pin; imported here at runtime, NOT a declarable kernel-skill id.
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md,
+# docs/adr/111-spatial-mapping-3d-reconstruction.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: spaces
+suite: ai-home   # ADR-097: primary catalog shelf (spatial capture / home family)
+displayName: Spaces
+description: >-
+  Turn a real space into an explorable 3D scene. Film a walkthrough (or import an
+  iPhone/LiDAR/drone capture), walk the Gaussian splat in a WebGL viewer, get live
+  "walk/pan" guidance while you film, and paint Wi-Fi coverage onto the map.
+  Handheld, imported, or sim-drone capture — one 3D space.
+version: 0.5.0
+status: active
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: spaces
+  ref: main
+
+# No connector allow-list: captures are the user's OWN device output (uploaded
+# video, imported .ply/.splat, phone sensors, the sim drone) — not per-user OAuth
+# connectors.
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+# Kernel skills this app CALLS (ADR-090 uses: contract, fail-closed at load). The
+# reconstruction engine + owner-scoped scan store stay core; this package imports
+# @/features/spatial-mapping and resolves it from the running framework dist.
+uses:
+  - spatial-mapping
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — the reasoning owner (Form B inline concierge — briefs scans + drafts
+# capture guidance; never runs a reconstruction). Registered in BOTH
+# swarm-bot-registry blocks, framework-resident. The persona here is a package
+# COPY for the registrar; the inline node keeps using /app/ai-lab (core).
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: b0300000-0000-0000-0000-000000000001
+    name: spaces-operator
+    persona: personas/spaces-operator.yaml
+    role: reconstruction/spatial-capture
+    capabilities:
+      - scan-status-briefing
+      - capture-planning
+      - guided-capture
+      - reconstruction-guidance
+      - coverage-briefing
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon tile opens the Spaces surface, self-served by
+# this package's route from tools/spaces.html (ctx.appPackageDir). iframeUrl
+# matches the serve route (spaces-routes GET /app), same-origin + root-relative.
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: spaces-viewer
+      label: Spaces
+      icon: codicon codicon-globe
+      iframeUrl: /api/spaces/app
+      section: top
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — the packaged surface router, mounted /api/spaces on activation. (In
+# core server.ts this was createSpacesRoutes(ctx, apiDir) behind a single
+# requiresAuth; it now mounts from this package with the standard single-arg
+# (ctx) factory shape — the surface serves from ctx.appPackageDir/tools, every
+# handler re-derives the caller sub and pins reads to it. OIDC only.)
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - module: routes/spaces-routes.js
+    factory: createSpacesRoutes
+    mountPath: /api/spaces
+    auth: oidc
+    requiresContext: true
+
+# No migrations: the owner-scoped scan store is created lazily by the
+# spatial-mapping service at first use (runRuntimeSchemaBootstrap + owner RLS).
+migrations: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RIBBON VISIBILITY — focus mode for /cockpit?app=spaces
+# ─────────────────────────────────────────────────────────────────────────────
+ribbon:
+  hideFrameworkItems:
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  hideChatPanel: true
+  defaultView: spaces-viewer

@@ -1,0 +1,197 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — eats ("Eats" Uber Eats Concierge)
+# Carved out of OSHAL core 2026-07-18 (ADR-085 Wave 2 carve #4). The eats-concierge
+# REAL bot-node (eats-bot container, BOTH registry blocks, worker+foundation personas,
+# uberToolKit.js, oshal-uber.js CLI, migration 041 bot seed) STAYS in the framework repo
+# per ADR-093 interim — this manifest declares NO bots; workflow.workerBot resolves via
+# the static registry.
+#
+# An AI food-delivery concierge that drives a visual surface: it searches
+# restaurants + dishes, builds ONE Uber Eats order, learns the diner's cuisine +
+# dietary preferences, and hands off a ready Uber Eats checkout link.
+#
+# Checkout truth: Uber has no consumer API to place an Eats order on a third
+# party's behalf, so ordering is a DEEP-LINK HANDOFF — the diner signs in and
+# pays on Uber. No payment or diner credentials ever touch OSHAL.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: eats
+suite: ai-home   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Eats
+description: >-
+  AI food-delivery concierge — search Uber Eats restaurants, browse menus, build
+  an order, and hand off a ready Uber Eats checkout. Other swarm bots can ask it
+  to order food.
+version: 1.0.0
+status: active
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: eats
+  ref: main
+
+# uber (Uber Eats) is the one connector this app uses (operator affiliate/marketing blob
+# via broker; ordering is a deep-link handoff).
+dependencies:
+  apps: []
+  tools: []
+  connectors: [uber]
+
+# Guests never build orders (this app hands off to Uber Eats checkout). Request only —
+# grants come from the operator endpoint (D4).
+guestTier: blocked
+
+tools:
+  - name: search-restaurants
+    displayName: Search Restaurants
+    type: api
+    category: commerce
+    description: Search the diner's food-delivery catalog for restaurants or cuisines.
+    executor: { executorType: api, apiEndpoint: "GET /api/eats/search?q={input.query}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        query: { type: string }
+      required: [query]
+    usageInstructions: >-
+      Call with {query}. Use returned restaurants as the only source of restaurants, prices, and delivery context.
+    routingTags: [food, restaurants, delivery]
+    skills: [restaurant-search, dietary-awareness]
+    tags: [eats, route-backed]
+
+  - name: browse-menu
+    displayName: Browse Menu
+    type: api
+    category: commerce
+    description: Browse menu items for a selected restaurant/store.
+    executor: { executorType: api, apiEndpoint: "GET /api/eats/menu?storeId={input.storeId}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        storeId: { type: string }
+      required: [storeId]
+    usageInstructions: >-
+      Call with {storeId} after search-restaurants. Only add items returned by this tool.
+    routingTags: [food, menu, delivery]
+    skills: [menu-browse, food-order-building]
+    tags: [eats, route-backed]
+
+  - name: add-food-item
+    displayName: Add Food Item
+    type: api
+    category: commerce
+    description: Add a menu item to the diner's current order cart.
+    executor: { executorType: api, apiEndpoint: "POST /api/eats/cart/items" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        storeId: { type: string }
+        storeName: { type: string }
+        productId: { type: string }
+        title: { type: string }
+        price: { type: number }
+        quantity: { type: number }
+      required: [title]
+    usageInstructions: >-
+      Call only after the diner selects or approves an item. Keep one restaurant per order.
+    routingTags: [food, cart, delivery]
+    skills: [food-order-building]
+    tags: [eats, route-backed]
+
+  - name: prepare-food-order
+    displayName: Prepare Food Order Handoff
+    type: api
+    category: commerce
+    description: Build the Uber Eats checkout handoff for the current order. No payment is taken in OSHAL.
+    executor: { executorType: api, apiEndpoint: "POST /api/eats/order" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    usageInstructions: >-
+      Call only after the diner asks to order/checkout. It returns a handoff URL; the diner confirms address and pays in Uber Eats.
+    routingTags: [food, checkout, handoff]
+    skills: [checkout-handoff, food-order-building]
+    tags: [eats, route-backed, approval-required]
+
+  - name: ask-eats-concierge
+    displayName: Ask Eats Concierge
+    type: api
+    category: commerce
+    description: Let the Eats concierge reason over preferences, current cart, and delivery candidates.
+    executor: { executorType: api, apiEndpoint: "POST /api/eats/chat" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        message: { type: string }
+      required: [message]
+    usageInstructions: >-
+      Call with {message} when the diner wants conversational help choosing food or building an order.
+    routingTags: [food, concierge, delivery]
+    skills: [preference-learning, dietary-awareness, food-order-building]
+    tags: [eats, route-backed]
+
+# UI SURFACES — ribbon icons that open the Eats surface.
+ui:
+  static:
+    - toolName: eats-concierge
+      label: Order Food
+      icon: codicon codicon-flame
+      iframeUrl: /api/eats/app
+      section: top
+    - toolName: eats-browse
+      label: Restaurants
+      icon: codicon codicon-search
+      iframeUrl: /api/eats/app?view=browse
+      section: top
+    - toolName: eats-cart
+      label: Order
+      icon: codicon codicon-list-unordered
+      iframeUrl: /api/eats/app?view=cart
+      section: top
+
+# ROUTES — app-owned API + surface, gated to this app's activation.
+routes:
+  - module: routes/eats-routes.js
+    factory: createEatsRoutes
+    mountPath: /api/eats
+    auth: service-or-oidc   # what server.ts ACTUALLY mounts (ADR-085 D2)
+    requiresContext: true
+
+# Belt-and-braces: same seven tables ensureEatsSchema creates lazily (owner RLS at the
+# chokepoint). Idempotent — safe where core migration 040 already ran. 041 (bot seed)
+# stays core with the bot.
+migrations:
+  - migrations/040-eats-platform.sql
+
+# WORKFLOW — tickets of type 'eats' route to the concierge.
+ticketType: eats
+workflow:
+  name: Eats Concierge Pipeline
+  pipeline: eats
+  workerBot: eats-concierge
+  phases:
+    - intake     # understand the craving + dietary needs
+    - find       # search restaurants/dishes, build the order
+    - delivery   # hand off the Uber Eats deep link, record history
+
+# RIBBON VISIBILITY — focus mode for /cockpit?app=eats
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  hideChatPanel: true
+  defaultView: eats-concierge

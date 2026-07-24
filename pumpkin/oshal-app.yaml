@@ -1,0 +1,98 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — pumpkin ("Pumpkin")
+# Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
+# ADR-093). This package is the app: the /api/pumpkin routes + the control and
+# paired-remote surfaces + the manifest + a package COPY of the pumpkin-bot
+# persona for the registrar.
+#
+# A Halloween projection prop: a full-screen procedural jack-o'-lantern face you
+# project INTO an inflatable pumpkin. Bright glowing eyes + a mouth that lip-syncs
+# to speech; deep-orange / black configurable background. Two modes —
+#   MIMIC:      you feed it a line (mic → speech-to-text in the browser) and it
+#               SAYS it back in the pumpkin voice. Pure voice I/O, no LLM.
+#   AUTONOMOUS: a guest speaks and pumpkin-bot (inline, agent ...054) replies IN
+#               CHARACTER; the surface speaks + lip-syncs the reply.
+#
+# The pumpkin brain (autonomous mode) runs on the pumpkin-bot INLINE node, already
+# in the core bot registry (BOTH swarm-bot-registry blocks, container oshal-api) +
+# persona ai-lab/bot-personas/pumpkin-bot.yaml — so this manifest declares NO
+# `bots:` block (that would double-register agent ...054 and fail the
+# persona-identity check). personas/pumpkin-bot.yaml here is a package COPY for
+# the registrar/reference only.
+#
+# The pumpkin ENGINE is bundled with this package in src-routes/: presets, reply
+# parsing, the in-memory room registry, and PumpkinPresetService. What stays
+# framework-resident per ADR-093:
+#   - the full-screen PROJECTOR framework page at /pumpkin/ (src/pages/pumpkin
+#     via server-ui-assets — carved apps keep their framework page mounts);
+#   - scripts/migrations/084-pumpkin-platform.sql (kernel-owned history; this
+#     package ships a migrations/ COPY so fresh installs create the tables at
+#     package load);
+#   - the voice pipeline the surfaces call (/api/voice/*) and the default
+#     Pumpkin tile in config-seed/profiles/oshal-framework.json.
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: pumpkin
+suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Pumpkin
+description: >-
+  Animated talking jack-o'-lantern Halloween prop — project a glowing procedural
+  pumpkin face into an inflatable, with a lip-syncing mouth. Mimic mode says back
+  what you feed via mic; autonomous mode converses in character as a pumpkin.
+version: 1.0.1
+status: active
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: pumpkin
+  ref: main
+
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+# UI SURFACES — one ribbon icon that opens the pumpkin CONTROL surface. The control
+# surface picks preset + mode, edits/saves looks, pairs a projector room, and launches
+# the full-screen projector page (/pumpkin/) on a second display.
+ui:
+  static:
+    - toolName: pumpkin-control
+      label: Pumpkin
+      icon: codicon codicon-flame
+      iframeUrl: /api/pumpkin/app
+      section: top
+
+# ROUTES — the packaged surface router, mounted /api/pumpkin on activation. (In
+# core server.ts this was createPumpkinRoutes behind serviceSecretOr(requiresAuth),
+# same as eats. Input endpoints add the optional PUMPKIN_ALLOWED_SUBS/EMAILS
+# allowlist on top; everything is owner-scoped by OIDC sub regardless.)
+routes:
+  - module: routes/pumpkin-routes.js
+    factory: createPumpkinRoutes
+    mountPath: /api/pumpkin
+    auth: service-or-oidc   # what core server.ts mounted (ADR-085 D2)
+    requiresAuth: true
+    requiresContext: true
+
+# DATABASE MIGRATIONS — applied idempotently on load (per-user saved looks +
+# settings). Package COPY of the kernel's 084; the engine's lazy ensureSchema
+# (framework-resident PumpkinPresetService) also self-heals local dev.
+migrations:
+  - migrations/084-pumpkin-platform.sql
+
+# RIBBON VISIBILITY — focus mode for /cockpit?app=pumpkin.
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  hideChatPanel: true
+  defaultView: pumpkin-control

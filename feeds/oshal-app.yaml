@@ -1,0 +1,145 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — feeds ("Feeds")
+# Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
+# ONLY the surface carves). This package is the app: the /api/feeds routes + the
+# dashboard + the manifest (ticketType 'feeds' + curation workflow) + a package COPY
+# of the feeds-curator persona for the registrar.
+#
+# What STAYS framework-resident per ADR-093 (this package ships none of it):
+#   - the feeds-indexing ENGINE + cron (startFeedsIndexingCron / ensureFeedsSchema /
+#     indexUserFeed / getFeedSettings) that fills feed_messages from the connected
+#     Slack — this package's surface is a VIEW over that shared store, not the ingest;
+#   - scripts/oshal-feeds.js (the slack_feed tool's CLI) + 045-feeds-platform.sql
+#     (the feed_messages schema + curator seed), both kernel-owned;
+#   - the feeds-curator INLINE node (container: oshal-api, registered in BOTH
+#     swarm-bot-registry blocks) — the app's reasoning owner; the persona here is a
+#     package COPY for the registrar;
+#   - the 'slack' platform connector driven via the per-user broker;
+#   - the /feeds framework page (src/pages/feeds/index.html via server-ui-assets) and
+#     its default toolbar tile in oshal-framework.json — a framework-resident surface
+#     the app also self-serves at /api/feeds/dashboard for the installed tile.
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: feeds
+suite: ai-productivity   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Feeds
+description: >-
+  Your connected message feeds in one place — live stream, activity trends, hot
+  channels, and trending topics over your own Slack messages. Other swarm bots can
+  ask the curator "what did I miss" and get a signal-first summary.
+version: 1.0.0
+status: active
+
+theme: ocean
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: feeds
+  ref: main
+
+# Runtime connector allow-list — the mailbox/message platform whose feed this app
+# indexes + views, via the per-user broker.
+dependencies:
+  apps: []
+  tools: []
+  connectors: [slack]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — one curator (inline on the api via the orchestrator; seeded by the kernel
+# 045-feeds-platform.sql + registered in swarm-bot-registry). The persona here is a
+# package COPY for the registrar; the inline node keeps using /app/ai-lab (core).
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: fd000000-0000-0000-0000-000000000001
+    name: feeds-curator
+    persona: personas/feeds-curator.yaml
+    role: communications/feeds
+    capabilities:
+      - feed-aggregation
+      - feed-summarization
+      - hot-area-detection
+      - trend-analysis
+      - sentiment-triage
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TOOLS — what the curator (and Jarvis routing to it) can call. slack_feed reads the
+# user's indexed Slack messages (the cron-built feed_messages index) via the kernel
+# CLI at /app/scripts/oshal-feeds.js (framework-resident), scoped to the signed-in
+# user by the dispatcher; no Slack token needed at call time.
+# ─────────────────────────────────────────────────────────────────────────────
+tools:
+  - name: slack_feed
+    displayName: Slack Feed
+    type: cli
+    description: >-
+      Read the signed-in user's indexed Slack feed — recent messages across their channels
+      and DMs, hottest channels, top voices, counts, and (if enabled) sentiment. Use it to
+      answer "what did I miss", summarize Slack activity, or find what needs attention.
+    executor:
+      executorType: cli
+      cliCommand: node /app/scripts/oshal-feeds.js query
+    defaultAuthMode: auto
+    usageInstructions: >-
+      Call slack_feed (no arguments) for a JSON snapshot of THIS user's Slack: totalIndexed,
+      activeChannels, peopleTalking, overallMood, mentionsOfYou, followSuggestions
+      (ranked channels to follow — each with channel/messages/mentionsOfYou/reason),
+      hotChannels, topVoices, and recent[] (channel/from/text/at/mood). It is already scoped
+      to the signed-in user — never ask them to connect Slack or for a channel list; you
+      already have it. To answer "what should I follow / pay attention to", read
+      followSuggestions in order (top = highest signal; mentions of the user rank first). If
+      totalIndexed is 0, tell them to open Feeds and hit "Sync now".
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon icon opens the Feeds dashboard, self-served by
+# this package's route from tools/feeds.html (ctx.appPackageDir).
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: feeds-dashboard
+      label: Feeds
+      icon: codicon codicon-rss
+      iframeUrl: /api/feeds/dashboard
+      section: top
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — the packaged surface router, mounted /api/feeds on activation. (In core
+# server.ts this was createFeedsRoutes; it now mounts from this package.)
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - module: routes/feeds-routes.js
+    factory: createFeedsRoutes
+    mountPath: /api/feeds
+    auth: oidc   # what core server.ts mounted (requiresAuth — ADR-085 D2)
+    requiresAuth: true
+    requiresContext: true
+
+# No migrations: the feed_messages schema + feeds-curator seed are created by the
+# kernel-resident engine (045-feeds-platform.sql + feeds-indexing.ensureFeedsSchema),
+# which stays framework-resident with the indexing cron. This surface only reads them.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WORKFLOW — tickets of type 'feeds' route to the curator (queue == app name).
+# ─────────────────────────────────────────────────────────────────────────────
+ticketType: feeds
+workflow:
+  name: Feeds Curation Pipeline
+  pipeline: feeds
+  workerBot: feeds-curator
+  phases:
+    - intake      # understand the ask ("what did I miss", "summarize #channel")
+    - curate      # read the index, rank what matters, spot hot areas + trends
+    - deliver     # present the signal-first summary, record history
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RIBBON VISIBILITY — when /cockpit?app=feeds is focused, show the Feeds surface +
+# the base framework items minus this hide-list. Chat panel stays (ask the curator).
+# ─────────────────────────────────────────────────────────────────────────────
+ribbon:
+  hideFrameworkItems:
+    - addressbook
+    - echo
+    - logs
+    - operations
+  defaultView: feeds-dashboard

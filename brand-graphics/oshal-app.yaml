@@ -1,0 +1,124 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — brand-graphics (carved out of core 2026-07-17, ADR-085 Wave 1)
+#
+# A specialist bot that turns a short brief into an ON-BRAND OSHAL motion graphic
+# (the validated electric-"oshal" intro look) by driving Google Vids — REUSING the
+# vids app's @oshal/vids-operator package and its signed-in remote Chrome. The look
+# + the filter-safe rules live with the vids app (BRAND-THEME.md in the framework's
+# packages/oshal-vids-operator/); the builder is that package's src/brand/graphics.js
+# (makeIntro / makeBrandGraphic), exposed by the same Vids worker.
+#
+# STATUS: inactive (parity with how it shipped in core). Activation needs the vids
+# app's /api/vids routes live (they are, in today's kernel) and a registered Vids
+# worker; toggle active via the swarm-apps API or cockpit when a worker is signed in.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: brand-graphics
+suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Brand Graphics
+description: >-
+  Turn a short brief into an on-brand OSHAL motion graphic. The brand specialist
+  drives Google Vids (Veo + Voiceover + Music) to produce the validated
+  electric-"oshal" intro look — deep navy, glowing electric-blue energy, the
+  lowercase wordmark traced in light — on the operator's signed-in Chrome, and
+  returns the project URL.
+version: 1.0.1
+status: inactive
+
+theme: midnight
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: brand-graphics
+  ref: main
+
+# Runtime dependency on the vids app: the brand_graphic CLI enqueues jobs through
+# the LOCAL /api/vids API, and the render runs on the vids-operator worker. vids is
+# still framework-resident (Wave 2), so the resolver satisfies this from core; when
+# vids carves, this same declaration resolves to the store package instead.
+dependencies:
+  apps: [vids]
+  tools: []
+  connectors: []
+
+# The brand specialist bot — upserted + registered in the ACTIVE bot registry by the
+# loader from this manifest (ADR-085; zero core-registry edits).
+bots:
+  - agentId: b00f0000-0000-0000-0000-000000000001
+    name: brand-graphics
+    persona: personas/brand-graphics.yaml
+    role: media/brand-graphics
+    capabilities:
+      - brand-graphics
+      - veo-prompt-craft
+      - vids-generate
+      - vids-operate
+
+# CLI tool (backs the brand_graphic registered tool). Enqueues a brand-graphic job
+# to the registered Vids worker via the LOCAL /api/vids API (same container), which
+# hands it to the vids-operator's src/brand/graphics.js on the worker's Chrome.
+# {packageDir} resolves to this package's install directory at activation — the
+# script ships IN the package, nothing in core scripts/.
+tools:
+  - name: brand_graphic
+    displayName: Make an OSHAL brand graphic
+    type: cli
+    category: media
+    description: >-
+      Create an on-brand OSHAL motion graphic / intro clip from a short brief
+      (e.g. "intro for daily trade recap"). Produces the validated electric-"oshal"
+      look in Google Vids — graphic, optional Tyra voiceover, optional serious
+      evening-news music — and returns the project URL. Runs on the remote Vids
+      worker machine's signed-in Chrome.
+    executor:
+      executorType: cli
+      cliCommand: node {packageDir}/tools/oshal-brand.js intro {input}
+    defaultAuthMode: ask
+    requiresApproval: true
+    timeoutMs: 600000
+    inputSchema:
+      type: object
+      properties:
+        brief: { type: string, description: "Short brief, e.g. 'intro for daily trade recap'" }
+        subject: { type: string, description: "What the graphic is for (flavors the mood; defaults to the brief)" }
+        voiceover: { type: string, description: "Spoken line; if set, the Tyra voiceover is added ('oshal' is spoken 'Oh-shal')" }
+        music: { type: boolean, description: "Add the serious evening-news music bed (default true for an intro)" }
+      required: [brief]
+    usageInstructions: >-
+      Call with {brief}. Keep any spoken finance line filter-safe: percentages +
+      industry names only — never company names, never the words "dollars"/"trades".
+      Never request a talking on-screen anchor (Veo refuses it). Returns {ok,url}.
+    routingTags: [brand, graphics, intro, motion-graphic, vids, veo]
+    skills: [brand-graphics, veo-prompt-craft, browser-operate]
+    tags: [brand-graphics]
+
+# Cockpit ribbon tile + embedded surface. Reuses the Vids Studio job-queue surface
+# (the brand jobs run through the same worker), served by the vids app's routes.
+ui:
+  static:
+    - toolName: brand-graphics
+      label: Brand Graphics
+      icon: codicon codicon-symbol-color
+      iframeUrl: /api/vids/app
+      section: top
+
+# Tickets of type 'brand-graphics' route to the brand specialist bot.
+ticketType: brand-graphics
+workflow:
+  name: Brand Graphics Pipeline
+  pipeline: brand-graphics
+  workerBot: brand-graphics
+  phases:
+    - intake     # scope the brief into an on-brand graphic
+    - plan       # shape it onto the brand templates (filter-safe)
+    - generate   # drive the remote Chrome to render + place the layers
+    - deliver    # report the project URL + what was built
+
+ribbon:
+  hideFrameworkItems:
+    - addressbook
+    - echo
+    - logs
+    - operations
+  defaultView: brand-graphics

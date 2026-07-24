@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Resume Studio</title>
+<style>
+  /* Follow the swarm theme: map the cockpit design-system vars, with standalone fallbacks. */
+  :root {
+    --bg: var(--bg-primary, #0f141b); --panel: var(--bg-secondary, #161d27);
+    --card: var(--bg-tertiary, #1b2430); --line: var(--border-color, #283242);
+    --text: var(--text-primary, #e6edf3); --muted: var(--text-secondary, #93a1b3);
+    --accent: var(--accent-primary, #34d399); --danger: var(--danger, #f87171);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 14px/1.5 Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  .wrap { display: grid; grid-template-columns: 1fr 380px; height: 100vh; }
+  @media (max-width: 880px) { .wrap { grid-template-columns: 1fr; grid-template-rows: 1fr 45vh; } }
+  /* Preview pane */
+  .preview { overflow: auto; padding: 24px; }
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  select, button { font: inherit; color: var(--text); background: var(--card);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+  button.primary { background: var(--accent); color: #06231a; border-color: transparent; font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  .sheet { background: #fff; color: #14202e; max-width: 760px; margin: 0 auto; padding: 40px 48px;
+    border-radius: 6px; box-shadow: 0 10px 40px rgba(0,0,0,.35); }
+  .sheet h1 { font-size: 22px; margin: 0 0 2px; }
+  .sheet .headline { font-size: 13px; color: #5b6b7d; margin: 0 0 14px; font-weight: 600; }
+  .sheet h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #2f7d5f;
+    border-bottom: 1.5px solid #cfe4d9; padding-bottom: 3px; margin: 18px 0 8px; }
+  .sheet .summary { margin: 0 0 6px; }
+  .sheet .comp { display: flex; flex-wrap: wrap; gap: 6px; }
+  .sheet .comp span { background: #eef4f0; color: #2f7d5f; border-radius: 10px; padding: 2px 9px; font-size: 12px; }
+  .sheet .exp { margin: 0 0 12px; }
+  .sheet .exp .er { display: flex; justify-content: space-between; font-weight: 600; }
+  .sheet .exp .org { color: #5b6b7d; font-size: 13px; margin-bottom: 4px; }
+  .sheet ul { margin: 4px 0 0; padding-left: 18px; }
+  .sheet li { margin: 2px 0; }
+  /* Chat pane */
+  .chat { border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; }
+  .chat header { padding: 14px 16px; border-bottom: 1px solid var(--line); font-weight: 600; display: flex; gap: 8px; align-items: center; }
+  .chat header small { color: var(--muted); font-weight: 400; }
+  .log { flex: 1; overflow: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { padding: 9px 12px; border-radius: 10px; max-width: 92%; white-space: pre-wrap; }
+  .msg.you { align-self: flex-end; background: var(--accent); color: #06231a; }
+  .msg.bot { align-self: flex-start; background: var(--card); border: 1px solid var(--line); }
+  .msg.sys { align-self: center; color: var(--muted); font-size: 12px; }
+  .composer { padding: 12px; border-top: 1px solid var(--line); display: flex; gap: 8px; }
+  .composer textarea { flex: 1; resize: none; height: 44px; background: var(--card); color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; }
+  .empty { color: var(--muted); padding: 40px; text-align: center; }
+</style>
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<div class="wrap">
+  <div class="preview">
+    <div class="toolbar">
+      <select id="pick"><option value="">Loading your generated resumes…</option></select>
+      <button id="save" class="primary" disabled>Save &amp; re-render PDF</button>
+      <a id="pdf" href="#" target="_blank" rel="noopener" style="display:none">Open PDF</a>
+      <span id="status" style="color:var(--muted)"></span>
+    </div>
+    <div id="sheet" class="sheet" hidden></div>
+    <div id="empty" class="empty">Pick a generated resume to start editing. Then tell the editor what to change
+      ("tighten the summary", "lead the third bullet with the outcome") and watch it update live.</div>
+  </div>
+  <div class="chat">
+    <header>Resume Editor <small>· reaches in and fixes the resume</small></header>
+    <div id="log" class="log"></div>
+    <div class="composer">
+      <textarea id="msg" placeholder="e.g. emphasize SAP DevOps; cut the metrics on bullet 2" disabled></textarea>
+      <button id="send" disabled>Send</button>
+    </div>
+  </div>
+</div>
+<script>
+// ── theme bridge: inherit the cockpit's data-theme so this surface matches the swarm ──
+(function themeSync(){
+  try {
+    const apply = () => { const t = (window.parent && window.parent.document.documentElement.getAttribute('data-theme')) || 'dark';
+      document.documentElement.setAttribute('data-theme', t); };
+    apply(); window.addEventListener('storage', apply);
+    if (window.parent && window.parent.document) new MutationObserver(apply)
+      .observe(window.parent.document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  } catch (e) { /* cross-origin / standalone — keep defaults */ }
+})();
+
+const API = '/api/career-hunter';
+let state = { postingId: null, resume: null, cover: null, history: [] };
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+function setStatus(t){ $('status').textContent = t || ''; }
+function add(role, text){ const d = document.createElement('div'); d.className = 'msg ' + role; d.textContent = text; $('log').appendChild(d); $('log').scrollTop = $('log').scrollHeight; }
+
+function renderPreview(){
+  const r = state.resume || {};
+  const exp = (r.experience || []).map((e, i) =>
+    `<div class="exp"><div class="er"><span>${esc(e.title)}</span><span>${esc(e.span)}</span></div>`
+    + `<div class="org">${esc(e.org)}</div><ul>${(e.bullets || []).map((b) => `<li>${esc(b)}</li>`).join('')}</ul></div>`).join('');
+  const comp = (r.competencies || []).map((c) => `<span>${esc(c)}</span>`).join('');
+  const name = ((window.__contact && window.__contact.name) || 'Resume');
+  $('sheet').innerHTML =
+    `<h1>${esc(name)}</h1><p class="headline">${esc(r.headline)}</p>`
+    + (r.summary ? `<h2>Summary</h2><p class="summary">${esc(r.summary)}</p>` : '')
+    + (comp ? `<h2>Core Competencies</h2><div class="comp">${comp}</div>` : '')
+    + (exp ? `<h2>Experience</h2>${exp}` : '')
+    + ((r.skills || []).length ? `<h2>Skills</h2><p>${esc((r.skills || []).join(' · '))}</p>` : '')
+    + (r.clearance ? `<h2>Clearance</h2><p>${esc(r.clearance)}</p>` : '');
+  $('sheet').hidden = false; $('empty').hidden = true;
+}
+
+// Apply one whitelisted bot action to the in-memory resume/cover, then re-render.
+function applyAction(a){
+  const r = state.resume; if (!r) return;
+  if (a.op === 'set_headline') r.headline = a.text;
+  else if (a.op === 'set_summary') r.summary = a.text;
+  else if (a.op === 'set_clearance') r.clearance = a.text;
+  else if (a.op === 'set_competencies') r.competencies = a.items;
+  else if (a.op === 'set_skills') r.skills = a.items;
+  else if (a.op === 'set_cover_paragraphs') { state.cover = state.cover || {}; state.cover.paragraphs = a.items; }
+  else if (a.op === 'update_experience') {
+    const e = (r.experience || [])[a.index - 1]; if (e) {
+      if (a.title != null) e.title = a.title; if (a.org != null) e.org = a.org;
+      if (a.span != null) e.span = a.span; if (a.bullets != null) e.bullets = a.bullets;
+    }
+  }
+}
+
+async function loadList(){
+  const res = await fetch(`${API}/jobs?status=generated&per=80&sort=generated`);
+  const j = await res.json(); const jobs = (j.jobs || []).filter((x) => x.has_resume);
+  const sel = $('pick'); sel.innerHTML = '<option value="">' + (jobs.length ? 'Pick a generated resume…' : 'No generated resumes yet — generate one from the Job Board.') + '</option>';
+  jobs.forEach((x) => { const o = document.createElement('option'); o.value = x.id; o.textContent = `${x.title} — ${x.company}`; sel.appendChild(o); });
+}
+
+async function loadDoc(id){
+  setStatus('loading…');
+  const res = await fetch(`${API}/resume/doc?id=${encodeURIComponent(id)}`);
+  if (!res.ok) { setStatus('could not load'); return; }
+  const j = await res.json();
+  state = { postingId: Number(id), resume: j.resume || {}, cover: j.cover || {}, history: [] };
+  window.__meta = j.meta || {}; $('log').innerHTML = '';
+  add('sys', `Editing: ${j.meta && j.meta.title || ''} — ${j.meta && j.meta.company || ''}`);
+  renderPreview(); $('save').disabled = false; $('msg').disabled = false; $('send').disabled = false;
+  $('pdf').href = `${API}/resume?id=${encodeURIComponent(id)}`; $('pdf').style.display = 'inline-block';
+  setStatus('');
+}
+
+async function send(){
+  const text = $('msg').value.trim(); if (!text || !state.postingId) return;
+  $('msg').value = ''; add('you', text); state.history.push({ role: 'you', text });
+  $('send').disabled = true; setStatus('thinking…');
+  try {
+    const res = await fetch(`${API}/resume/guide`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ postingId: state.postingId, message: text, resume: state.resume, cover: state.cover, history: state.history }) });
+    const j = await res.json();
+    if (j.error) { add('bot', 'Sorry, that edit failed.'); }
+    else { (j.actions || []).forEach(applyAction); renderPreview(); add('bot', j.reply || 'Updated.'); state.history.push({ role: 'bot', text: j.reply || '' });
+      if ((j.actions || []).length) setStatus('edited — Save to re-render the PDF'); }
+  } catch (e) { add('bot', 'Network error.'); }
+  finally { $('send').disabled = false; setStatus(''); }
+}
+
+async function save(){
+  if (!state.postingId) return; $('save').disabled = true; setStatus('saving + re-rendering…');
+  try {
+    const res = await fetch(`${API}/resume/save`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ postingId: state.postingId, resume: state.resume, cover: state.cover }) });
+    const j = await res.json();
+    setStatus(j.ok ? 'saved — PDF re-rendered' : 'save failed');
+    add('sys', j.ok ? 'Saved and re-rendered the PDF.' : 'Save failed.');
+  } catch (e) { setStatus('save failed'); }
+  finally { $('save').disabled = false; }
+}
+
+$('pick').addEventListener('change', (e) => { if (e.target.value) loadDoc(e.target.value); });
+$('send').addEventListener('click', send);
+$('msg').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+$('save').addEventListener('click', save);
+loadList();
+// Deep-link: open straight to a resume when the board passes ?id=
+const pre = new URLSearchParams(location.search).get('id');
+if (pre) loadDoc(pre);
+</script>
+</body>
+</html>

@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Workspaces — Switchboard</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  :root {
+    --sb-bg:#0a0a12; --sb-surface:#12121e; --sb-card:rgba(28,28,48,.55); --sb-card-hover:rgba(40,40,68,.66);
+    --sb-line:rgba(255,255,255,.09); --sb-text:#eeeef5; --sb-text2:#c8c8da; --sb-muted:#8a8aa0;
+    --sb-accent:#7c7cff; --sb-ok:#00d3a7; --sb-warn:#f5b342; --sb-err:#ff6f5e;
+  }
+  @media (prefers-color-scheme: light){ :root{
+    --sb-bg:#eef1f5; --sb-surface:#f6f8fb; --sb-card:#fff; --sb-card-hover:#fbfcfe;
+    --sb-line:rgba(22,26,34,.10); --sb-text:#191c22; --sb-text2:#3a4048; --sb-muted:#5a606b;
+    --sb-accent:#5a5af0; --sb-ok:#1f9d74; --sb-warn:#b3762e; --sb-err:#d94f3d;
+  }}
+  :root{
+    --bg:var(--bg-primary,var(--sb-bg)); --surface:var(--bg-secondary,var(--sb-surface));
+    --card:var(--bg-card,var(--sb-card)); --cardh:var(--bg-card-hover,var(--sb-card-hover));
+    --line:var(--border-color,var(--sb-line)); --text:var(--text-primary,var(--sb-text));
+    --text2:var(--text-secondary,var(--sb-text2)); --muted:var(--text-muted,var(--sb-muted));
+    --accent:var(--accent-primary,var(--sb-accent)); --ok:var(--status-success,var(--sb-ok));
+    --warn:var(--status-warning,var(--sb-warn)); --err:var(--status-error,var(--sb-err));
+    --r-sm:9px; --r-md:15px; --pill:999px; --ease:cubic-bezier(.32,.72,.24,1);
+  }
+  /* fixed workspace identity colours (theme-independent, like platform marks) */
+  .c-brass{--wc:#d99a4e}.c-emerald{--wc:#12a488}.c-indigo{--wc:#5b6ef5}.c-magenta{--wc:#c53b8e}
+  .c-slate{--wc:#8892a0}.c-teal{--wc:#25b0a0}.c-coral{--wc:#f2704e}.c-amber{--wc:#e0a83a}
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-size:14px; line-height:1.45;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  ::-webkit-scrollbar{width:9px}::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
+  .wrap{ max-width:880px; margin:0 auto; padding:28px 26px 70px; }
+  .head{ margin-bottom:22px; }
+  .head h1{ font-size:24px;font-weight:680;letter-spacing:-.02em;margin:0 0 6px; }
+  .head p{ color:var(--muted);font-size:14px;margin:0;max-width:60ch; }
+  .prev{ display:none;align-items:center;gap:7px;font-size:12px;color:var(--warn);background:color-mix(in srgb,var(--warn) 12%,transparent);border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);padding:5px 12px;border-radius:var(--pill);margin:14px 0 0;width:fit-content; }
+  .prev.show{ display:inline-flex; } .prev svg{width:13px;height:13px}
+
+  .newrow{ display:flex;gap:9px;align-items:center;margin:20px 0 16px; }
+  .newrow input{ flex:1;background:var(--card);border:1px solid var(--line);border-radius:var(--pill);padding:11px 16px;color:var(--text);font:inherit;font-size:14px; }
+  .newrow input:focus{ outline:none;border-color:var(--accent); }
+  .btn{ appearance:none;border:1px solid var(--line);background:var(--card);color:var(--text);font:inherit;font-size:13px;font-weight:600;padding:10px 16px;border-radius:var(--pill);cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:all var(--ease) .15s;white-space:nowrap; }
+  .btn svg{ width:15px;height:15px; }
+  .btn:hover{ border-color:var(--accent);color:var(--accent); }
+  .btn.pri{ background:var(--accent);border-color:transparent;color:#fff; } .btn.pri:hover{ filter:brightness(1.08);color:#fff; }
+  .btn.sm{ padding:7px 12px;font-size:12px; } .btn.icon{ padding:8px;width:34px;justify-content:center; }
+
+  .wscard{ background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);margin-bottom:14px;overflow:hidden; position:relative; }
+  .wscard::before{ content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--wc,var(--accent)); }
+  .wshead{ display:flex;align-items:center;gap:12px;padding:15px 17px 13px; }
+  .wsname{ font-size:16px;font-weight:650;letter-spacing:-.01em;background:transparent;border:1px solid transparent;color:var(--text);font-family:inherit;border-radius:8px;padding:4px 8px;margin-left:-8px;min-width:120px;flex:1; }
+  .wsname:hover{ border-color:var(--line); } .wsname:focus{ outline:none;border-color:var(--accent);background:var(--surface); }
+  .swatches{ display:flex;gap:5px; }
+  .sw{ width:19px;height:19px;border-radius:6px;cursor:pointer;border:2px solid transparent;transition:transform var(--ease) .12s; }
+  .sw:hover{ transform:scale(1.12); } .sw.on{ border-color:var(--text); }
+  .wsmeta{ font-size:12px;color:var(--muted);padding:0 17px 6px;display:flex;align-items:center;gap:8px; }
+  .accts{ display:flex;flex-wrap:wrap;gap:8px;padding:6px 17px 17px; }
+  .chip{ display:flex;align-items:center;gap:8px;padding:8px 13px;border-radius:var(--pill);border:1.5px solid var(--line);background:var(--surface);cursor:pointer;font-size:12.5px;font-weight:550;color:var(--muted);transition:all var(--ease) .14s; }
+  .chip .pd{ width:9px;height:9px;border-radius:3px; }
+  .chip .tick{ width:15px;height:15px;border-radius:50%;border:1.5px solid var(--muted);display:grid;place-items:center; }
+  .chip.on{ border-color:var(--wc,var(--accent));color:var(--text);background:color-mix(in srgb,var(--wc,var(--accent)) 10%,transparent); }
+  .chip.on .tick{ background:var(--wc,var(--accent));border-color:transparent; } .chip.on .tick svg{ width:10px;height:10px;color:#fff; }
+  .chip .tick svg{ width:0;height:0; }
+
+  .empty{ text-align:center;padding:44px 24px;color:var(--muted);border:1px dashed var(--line);border-radius:var(--r-md); }
+  .empty h3{ color:var(--text);font-size:17px;margin:0 0 6px; }
+  .empty .sugg{ display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:16px; }
+  .hero{ text-align:center;padding:52px 30px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--card); }
+  .hero .badge{ width:60px;height:60px;border-radius:18px;background:linear-gradient(145deg,var(--accent),color-mix(in srgb,var(--accent) 60%,#000));display:grid;place-items:center;margin:0 auto 16px; } .hero .badge svg{ width:30px;height:30px;color:#fff; }
+  .hero h2{ font-size:20px;margin:0 0 8px; } .hero p{ color:var(--muted);max-width:44ch;margin:0 auto 20px;line-height:1.55; }
+  .hero a.btn{ text-decoration:none; }
+  .toast{ position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:10px 18px;border-radius:var(--pill);font-size:13px;font-weight:600;opacity:0;transition:all var(--ease) .25s;pointer-events:none;z-index:50; }
+  .toast.show{ opacity:1;transform:translateX(-50%); }
+  @media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-board" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="10" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="10" r="1.3" fill="currentColor" stroke="none"/><circle cx="16" cy="10" r="1.3" fill="currentColor" stroke="none"/><path d="M8 14v2M12 13v3M16 14v2"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
+</defs></svg>
+
+<div class="wrap">
+  <div class="head">
+    <h1>Workspaces</h1>
+    <p>Group your connected accounts into brand desks — your business, a client, your personal presence. Switchboard scopes your whole board to whichever workspace you pick.</p>
+    <div class="prev" id="prev"><svg><use href="#i-eye"/></svg> Preview — sign in and connect accounts to organize your real desks</div>
+  </div>
+  <div id="content"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+  var COLORS=["brass","emerald","indigo","magenta","slate","teal","coral","amber"];
+  var HEX={brass:"#d99a4e",emerald:"#12a488",indigo:"#5b6ef5",magenta:"#c53b8e",slate:"#8892a0",teal:"#25b0a0",coral:"#f2704e",amber:"#e0a83a"};
+  var PROVHEX={google:"#d64b3f",gmail:"#d64b3f",outlook:"#0a7cbb",linkedin:"#0a66c2",twitter:"#16181c",x:"#16181c","meta-business":"#1877f2",facebook:"#1877f2",instagram:"#d6297a",slack:"#611f69",telegram:"#2aabee",discord:"#5865f2",twilio:"#2aa87d"};
+  var state={accounts:[],workspaces:[],preview:false};
+  var toastT;
+  function esc(s){ var d=document.createElement("div"); d.textContent=s==null?"":String(s); return d.innerHTML; }
+  function toast(m){ var t=document.getElementById("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(function(){t.classList.remove("show");},1800); }
+  function api(method,url,body){ return fetch("/api/switchboard"+url,{method:method,headers:{"Content-Type":"application/json",Accept:"application/json"},body:body?JSON.stringify(body):undefined}).then(function(r){ if(!r.ok) return r.json().then(function(e){throw new Error(e.error||r.status);}); return r.status===204?{}:r.json(); }); }
+
+  function render(){
+    var c=document.getElementById("content");
+    if(!state.accounts.length){
+      c.innerHTML='<div class="hero"><div class="badge"><svg><use href="#i-board"/></svg></div><h2>Connect accounts first</h2>'
+        +'<p>Workspaces group the accounts you\'ve connected. Add a Gmail, an X handle, a Facebook Page or a Slack — then come back to organize them into brand desks.</p>'
+        +'<a class="btn pri" href="/utilities"><svg><use href="#i-plus"/></svg> Connect accounts</a></div>';
+      return;
+    }
+    var html='<div class="newrow"><input id="newname" placeholder="New workspace — e.g. Emerald Coast, a client, Personal…" maxlength="60" /><button class="btn pri" id="createBtn"><svg><use href="#i-plus"/></svg> Create</button></div>';
+    if(!state.workspaces.length){
+      html+='<div class="empty"><h3>No workspaces yet</h3><div>Create a desk for each brand or identity you run. A few to start:</div>'
+        +'<div class="sugg"><button class="btn sm sugbtn">Personal</button><button class="btn sm sugbtn">My business</button><button class="btn sm sugbtn">Client</button></div></div>';
+    }
+    state.workspaces.forEach(function(w){
+      var sel=new Set(w.accounts||[]);
+      html+='<div class="wscard c-'+esc(w.color)+'" data-id="'+esc(w.workspaceId)+'">'
+        +'<div class="wshead"><input class="wsname" value="'+esc(w.name)+'" maxlength="60" />'
+        +'<div class="swatches">'+COLORS.map(function(k){return '<span class="sw'+(k===w.color?' on':'')+'" data-color="'+k+'" style="background:'+HEX[k]+'"></span>';}).join("")+'</div>'
+        +'<button class="btn icon del" title="Delete workspace"><svg><use href="#i-trash"/></svg></button></div>'
+        +'<div class="wsmeta">'+sel.size+' of '+state.accounts.length+' accounts</div>'
+        +'<div class="accts">'+state.accounts.map(function(a){
+            var on=sel.has(a.connectionId);
+            return '<div class="chip'+(on?' on':'')+'" data-cid="'+esc(a.connectionId)+'"><span class="pd" style="background:'+(PROVHEX[a.provider]||"#888")+'"></span>'+esc(a.label)+'<span class="tick"><svg><use href="#i-check"/></svg></span></div>';
+          }).join("")+'</div></div>';
+    });
+    c.innerHTML=html;
+  }
+
+  // ── event delegation ──
+  document.addEventListener("click",function(e){
+    var t=e.target;
+    if(t.closest("#createBtn")){ create(); return; }
+    if(t.closest(".sugbtn")){ var el=document.getElementById("newname"); el.value=t.closest(".sugbtn").textContent; el.focus(); return; }
+    var sw=t.closest(".sw"); if(sw){ recolor(sw.closest(".wscard").dataset.id, sw.dataset.color); return; }
+    var del=t.closest(".del"); if(del){ removeWs(del.closest(".wscard").dataset.id, del.closest(".wscard").querySelector(".wsname").value); return; }
+    var chip=t.closest(".chip"); if(chip){ toggleAcct(chip.closest(".wscard").dataset.id, chip.dataset.cid); return; }
+  });
+  document.addEventListener("keydown",function(e){ if(e.key==="Enter"&&e.target.id==="newname"){ create(); } });
+  document.addEventListener("change",function(e){ if(e.target.classList.contains("wsname")){ rename(e.target.closest(".wscard").dataset.id, e.target.value); } });
+
+  function create(){
+    var el=document.getElementById("newname"); var name=(el.value||"").trim(); if(!name) return;
+    if(state.preview){ toast("Preview — sign in to save"); return; }
+    var color=COLORS[state.workspaces.length % COLORS.length];
+    api("POST","/workspaces",{name:name,color:color}).then(function(r){ state.workspaces.push(r.workspace); el.value=""; render(); toast("Workspace created"); }).catch(function(e){ toast(e.message); });
+  }
+  function rename(id,name){
+    var w=find(id); if(!w||w.name===name.trim()) return;
+    if(state.preview){ return; }
+    api("PATCH","/workspaces/"+id,{name:name.trim()}).then(function(){ w.name=name.trim(); toast("Renamed"); }).catch(function(e){ toast(e.message); });
+  }
+  function recolor(id,color){
+    var w=find(id); if(!w) return; w.color=color; render();
+    if(state.preview) return;
+    api("PATCH","/workspaces/"+id,{color:color}).catch(function(e){ toast(e.message); });
+  }
+  function removeWs(id,name){
+    if(!confirm('Delete "'+(name||"this workspace")+'"? Your connected accounts stay connected — only the grouping is removed.')) return;
+    if(state.preview){ state.workspaces=state.workspaces.filter(function(w){return w.workspaceId!==id;}); render(); return; }
+    api("DELETE","/workspaces/"+id).then(function(){ state.workspaces=state.workspaces.filter(function(w){return w.workspaceId!==id;}); render(); toast("Deleted"); }).catch(function(e){ toast(e.message); });
+  }
+  function toggleAcct(id,cid){
+    var w=find(id); if(!w) return;
+    var s=new Set(w.accounts||[]); if(s.has(cid)) s.delete(cid); else s.add(cid);
+    w.accounts=Array.from(s); render();
+    if(state.preview) return;
+    api("PUT","/workspaces/"+id+"/accounts",{connectionIds:w.accounts}).catch(function(e){ toast(e.message); });
+  }
+  function find(id){ return state.workspaces.filter(function(w){return w.workspaceId===id;})[0]; }
+
+  // ── load ──
+  var SAMPLE={accounts:[
+      {connectionId:"s1",provider:"google",label:"Gmail · roger@ecs.com"},
+      {connectionId:"s2",provider:"google",label:"Gmail · me@personal.com"},
+      {connectionId:"s3",provider:"outlook",label:"Outlook · roger@ecs.com"},
+      {connectionId:"s4",provider:"linkedin",label:"LinkedIn · Alex Rivera"},
+      {connectionId:"s5",provider:"twitter",label:"X · @emeraldcoast"},
+      {connectionId:"s6",provider:"facebook",label:"Facebook · Emerald Coast"},
+      {connectionId:"s7",provider:"slack",label:"Slack · nimbus.slack.com"}],
+    workspaces:[
+      {workspaceId:"w1",name:"Emerald Coast",color:"emerald",sortOrder:0,accounts:["s1","s3","s5","s6"]},
+      {workspaceId:"w2",name:"Nimbus (client)",color:"magenta",sortOrder:1,accounts:["s7"]},
+      {workspaceId:"w3",name:"Personal",color:"slate",sortOrder:2,accounts:["s2","s4"]}]};
+
+  Promise.all([
+    fetch("/api/switchboard/accounts",{headers:{Accept:"application/json"}}).then(function(r){return r.ok?r.json():Promise.reject(r.status);}),
+    fetch("/api/switchboard/workspaces",{headers:{Accept:"application/json"}}).then(function(r){return r.ok?r.json():Promise.reject(r.status);})
+  ]).then(function(res){
+    state.accounts=res[0].accounts||[]; state.workspaces=res[1].workspaces||[]; render();
+  }).catch(function(){
+    state.preview=true; state.accounts=SAMPLE.accounts; state.workspaces=SAMPLE.workspaces;
+    document.getElementById("prev").classList.add("show"); render();
+  });
+})();
+</script>
+</body>
+</html>

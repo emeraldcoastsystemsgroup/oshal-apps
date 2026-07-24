@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OSHAL Movies &amp; TV</title>
+<style>
+  /* OSHAL dark-glass surface (cockpit midnight palette) + cinematic gold accent. */
+  :root{
+    --bg:#0a0a12; --bg2:rgba(18,18,30,.85); --card:rgba(28,28,48,.55); --card-hover:rgba(40,40,68,.7);
+    --border:rgba(255,255,255,.08); --border2:rgba(255,255,255,.16);
+    --text:#eeeef5; --muted:#a0a0be; --dim:#5c5c78;
+    --accent:#f5c518; --accent2:#f59e0b; --accent-glow:rgba(245,197,24,.26);
+    --watch:#34d399; --warn:#fbbf24; --blur:20px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow-x:hidden}
+  input{font-size:16px}
+  body{
+    font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    color:var(--text); background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(245,197,24,.08), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, rgba(99,102,241,.10), transparent 60%),
+      var(--bg);
+    display:flex; flex-direction:column; min-height:100%;
+  }
+  a{color:inherit}
+  header{display:flex; align-items:center; gap:14px; padding:18px 22px 4px; max-width:1280px; margin:0 auto; width:100%}
+  .logo{width:34px;height:34px;flex:0 0 auto;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:10px;
+    box-shadow:0 6px 20px var(--accent-glow);font-size:18px;color:#fff}
+  .brand{font-weight:800;letter-spacing:.3px;font-size:19px}
+  .brand small{display:block;font-weight:500;color:var(--muted);font-size:11px;letter-spacing:.6px;text-transform:uppercase}
+  .pill{margin-left:auto;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:7px;
+    background:rgba(255,255,255,.04);border:1px solid var(--border);padding:7px 12px;border-radius:999px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--dim)}
+  .dot.on{background:var(--accent);box-shadow:0 0 10px var(--accent-glow)}
+
+  .col{max-width:1280px;width:100%;margin:0 auto;padding:14px 20px}
+
+  .gate{margin:40px auto;max-width:560px;text-align:center;background:var(--bg2);border:1px solid var(--border);
+    border-radius:18px;padding:30px 26px;backdrop-filter:blur(var(--blur))}
+  .gate h2{margin:6px 0 8px;font-size:19px}
+  .gate p{color:var(--muted);font-size:14px;line-height:1.6;margin:0 0 18px}
+  .gate code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:5px;font-size:12px}
+
+  .search{display:flex;gap:10px;margin:14px 0 8px}
+  .search input{flex:1;background:var(--bg2);border:1px solid var(--border);color:var(--text);
+    padding:14px 16px;border-radius:14px;font-size:16px;outline:none;backdrop-filter:blur(var(--blur))}
+  .search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+  .btn{cursor:pointer;border:none;border-radius:12px;font-weight:700;font-size:14px;padding:13px 18px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;transition:.15s;white-space:nowrap}
+  .btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
+  .btn.ghost{background:var(--card);color:var(--text);border:1px solid var(--border)}
+  .btn.ghost:hover{background:var(--card-hover)}
+  .btn.watch{background:linear-gradient(135deg,var(--watch),#10b981);color:#04130d}
+  .btn:disabled{opacity:.5;cursor:default;transform:none;filter:none}
+
+  .secrow{display:flex;align-items:center;gap:10px;margin:10px 0 12px}
+  .secrow h2{font-size:15px;margin:0;font-weight:700}
+  .secrow .sub{color:var(--muted);font-size:12px;margin-left:auto}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;cursor:pointer;
+    transition:.16s;backdrop-filter:blur(var(--blur))}
+  .card:hover{transform:translateY(-3px);background:var(--card-hover);border-color:var(--border2);box-shadow:0 16px 40px rgba(0,0,0,.45)}
+  .poster{position:relative;aspect-ratio:2/3;display:block;background:linear-gradient(135deg,#1c1c30,#2a2a48)}
+  .poster .emoji{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;opacity:.5}
+  .poster img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+  .poster .badge{position:absolute;left:8px;top:8px;background:rgba(0,0,0,.6);backdrop-filter:blur(6px);
+    border-radius:999px;font-size:10px;font-weight:800;padding:3px 7px;text-transform:uppercase;letter-spacing:.4px}
+  .poster .rate{position:absolute;right:8px;top:8px;background:rgba(0,0,0,.6);backdrop-filter:blur(6px);
+    border-radius:999px;font-size:11px;font-weight:700;padding:3px 7px;color:var(--accent)}
+  .meta{padding:9px 11px 11px}
+  .meta .name{font-weight:700;font-size:13px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .meta .year{color:var(--muted);font-size:12px;margin-top:2px}
+
+  /* Watchlist strip */
+  .wlrow{display:flex;gap:12px;overflow-x:auto;padding-bottom:6px}
+  .wl{flex:0 0 110px;position:relative;border-radius:12px;overflow:hidden;cursor:pointer;border:1px solid var(--border)}
+  .wl img{width:100%;aspect-ratio:2/3;object-fit:cover;display:block;background:#1c1c30}
+  .wl .rm{position:absolute;right:5px;top:5px;width:22px;height:22px;border-radius:50%;border:none;cursor:pointer;
+    background:rgba(0,0,0,.6);color:#fff;font-size:13px;display:grid;place-items:center}
+  .wl .rm:hover{background:var(--warn);color:#fff}
+  .wl .wn{position:absolute;left:0;right:0;bottom:0;padding:6px 7px;font-size:11px;font-weight:600;
+    background:linear-gradient(transparent,rgba(0,0,0,.85));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* Detail modal */
+  .modal{position:fixed;inset:0;z-index:60;display:none;align-items:flex-start;justify-content:center;
+    background:rgba(5,5,12,.7);backdrop-filter:blur(4px);overflow:auto;padding:40px 16px}
+  .modal.show{display:flex}
+  .sheet{background:var(--bg2);border:1px solid var(--border2);border-radius:18px;max-width:760px;width:100%;
+    overflow:hidden;backdrop-filter:blur(var(--blur));box-shadow:0 30px 80px rgba(0,0,0,.6)}
+  .sheet .hero{position:relative;aspect-ratio:16/8;background:#14142a}
+  .sheet .hero img{width:100%;height:100%;object-fit:cover;opacity:.6}
+  .sheet .hero .x{position:absolute;right:12px;top:12px;width:34px;height:34px;border-radius:50%;border:none;cursor:pointer;
+    background:rgba(0,0,0,.6);color:#fff;font-size:18px}
+  .sheet .body{padding:18px 20px 22px}
+  .sheet h2{margin:0 0 4px;font-size:21px}
+  .sheet .sub2{color:var(--muted);font-size:13px;margin-bottom:12px}
+  .sheet .ov{font-size:14px;line-height:1.6;color:#d8d8ea;margin-bottom:16px}
+  .where{margin:14px 0}
+  .where .lab{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}
+  .provs{display:flex;flex-wrap:wrap;gap:8px}
+  .prov{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border);
+    border-radius:10px;padding:5px 9px;font-size:12px}
+  .prov img{width:20px;height:20px;border-radius:5px}
+  .acts{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+
+  /* Assistant */
+  .assist{margin:8px auto 24px;max-width:1280px;width:100%;padding:0 20px}
+  .chatbox{background:var(--bg2);border:1px solid var(--border);border-radius:18px;backdrop-filter:blur(var(--blur));overflow:hidden}
+  .chathead{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--border);font-weight:700;font-size:14px}
+  .chathead .logo{width:26px;height:26px;font-size:13px}
+  .msgs{max-height:260px;overflow:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+  .msg{max-width:82%;padding:10px 13px;border-radius:13px;font-size:14px;line-height:1.45}
+  .msg.bot{background:var(--card);border:1px solid var(--border);align-self:flex-start;border-bottom-left-radius:4px}
+  .msg.me{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;align-self:flex-end;border-bottom-right-radius:4px;font-weight:600}
+  .chatin{display:flex;gap:10px;padding:12px 14px;border-top:1px solid var(--border)}
+  .chatin input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:12px 14px;border-radius:12px;outline:none}
+  .chatin input:focus{border-color:var(--accent)}
+  .hint{color:var(--dim);font-size:12px;text-align:center;padding:8px}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.25);border-top-color:var(--accent);border-radius:50%;animation:s .7s linear infinite;vertical-align:-2px}
+  @keyframes s{to{transform:rotate(360deg)}}
+  /* Skeleton loaders — a calm shimmer instead of a bare "Loading…" string. */
+  .skel{position:relative;overflow:hidden;background:var(--card);border:1px solid var(--border);border-radius:14px}
+  .skel::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.07),transparent);animation:sh 1.2s infinite}
+  @keyframes sh{100%{transform:translateX(100%)}}
+  .skel.poster{aspect-ratio:2/3}
+  .skel.wl{flex:0 0 110px;aspect-ratio:2/3}
+  .empty{display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--muted);font-size:13px;text-align:center;padding:30px 12px}
+  .empty .ico{font-size:30px;opacity:.5}
+  @media (prefers-reduced-motion:reduce){.skel::after,.spin{animation:none}}
+  .btn:focus-visible,.search input:focus-visible,.card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  @media (max-width:640px){
+    header{padding:12px 14px 4px;gap:10px;flex-wrap:wrap}
+    .pill{font-size:11px;padding:5px 9px}
+    .col{padding:10px 12px}
+    .assist{padding:0 12px}
+    .search{flex-direction:column;gap:8px}
+    .search input{width:100%}
+    .search .btn{width:100%;text-align:center}
+    .gate{padding:22px 16px;margin:24px auto}
+    .sheet{border-radius:14px}
+    .modal{padding:16px 8px}
+    .sheet .body{padding:14px 14px 18px}
+    .sheet h2{font-size:17px}
+    .acts{flex-direction:column;gap:8px}
+    .acts .btn,.acts a.btn{width:100%;text-align:center;box-sizing:border-box}
+    .chatin{gap:8px;padding:10px 10px}
+    .chatin input{padding:10px 12px}
+    .msgs{max-height:200px}
+    .secrow{flex-wrap:wrap}
+    .secrow .sub{margin-left:0;width:100%}
+  }
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--accent2);color:#fff;font-weight:700;
+    padding:11px 18px;border-radius:12px;box-shadow:0 10px 30px var(--accent-glow);opacity:0;transition:.25s;pointer-events:none;z-index:80}
+  .toast.show{opacity:1}
+</style>
+<!-- Theme bridge: inherit the cockpit's selected swarm theme (data-theme on the parent shell)
+     by copying its computed design-system variables into this surface, re-syncing on theme change.
+     Same pattern as the other framework surfaces. --watch stays a fixed semantic green. -->
+<script>(function(){
+  const M={'--bg':'--bg-primary','--bg2':'--glass-bg-heavy','--card':'--bg-card','--card-hover':'--bg-card-hover',
+    '--border':'--border-color','--border2':'--border-color-hover','--text':'--text-primary','--muted':'--text-secondary',
+    '--dim':'--text-muted','--accent':'--accent-primary','--accent2':'--accent-primary-hover',
+    '--accent-glow':'--accent-glow','--warn':'--status-warning'};
+  function sync(){try{
+    const p=(window.parent&&window.parent!==window)?window.parent:null; if(!p)return;
+    const cs=p.getComputedStyle(p.document.documentElement);
+    for(const k in M){const v=cs.getPropertyValue(M[k]).trim(); if(v)document.documentElement.style.setProperty(k,v);}
+  }catch(e){}}
+  sync();
+  window.addEventListener('storage',e=>{if(e.key==='cockpit-theme')setTimeout(sync,30);});
+  try{const p=window.parent; if(p&&p!==window) new MutationObserver(sync).observe(p.document.documentElement,{attributes:true,attributeFilter:['data-theme']});}catch(e){}
+  document.addEventListener('DOMContentLoaded',sync);
+})();</script>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+  <header>
+    <div class="logo">🎬</div>
+    <div class="brand">OSHAL Movies &amp; TV<small>What to watch &amp; where</small></div>
+    <div class="pill"><span class="dot" id="connDot"></span><span id="connTxt">checking…</span></div>
+  </header>
+
+  <div class="col" id="gateWrap" style="display:none">
+    <div class="gate">
+      <div class="logo" style="margin:0 auto;width:48px;height:48px;font-size:24px">🎬</div>
+      <h2>Connect a TMDB key</h2>
+      <p>Movies &amp; TV uses The Movie Database (free) to find what to watch, where it's streaming, and trailers. Paste a TMDB API key on the <code>Cloud / Connections</code> page (or set <code>TMDB_API_KEY</code>). Streaming + tickets open in their own apps — OSHAL never streams or sells.</p>
+      <a class="btn" href="/utilities" target="_top">Open Connections</a>
+      <p style="margin-top:14px;font-size:12px"><span id="recheck" style="color:var(--accent);cursor:pointer;font-weight:700">Refresh</span></p>
+    </div>
+  </div>
+
+  <div id="appWrap" style="display:none">
+    <div class="col">
+      <div class="search">
+        <input id="q" placeholder="Search a movie or show — “Dune”, “sci-fi thrillers”, “The Bear”…" />
+        <button class="btn" id="goBtn">Search</button>
+      </div>
+
+      <div class="secrow" id="wlSec" style="display:none"><h2>Your watchlist</h2></div>
+      <div class="wlrow" id="watchlist" style="display:none"></div>
+
+      <div class="secrow"><h2 id="secTitle">Trending this week</h2><span class="sub" id="secSub"></span></div>
+      <div class="grid" id="grid"></div>
+    </div>
+
+    <div class="assist">
+      <div class="chatbox">
+        <div class="chathead"><div class="logo">🎬</div> Ask the Movie Concierge</div>
+        <div class="msgs" id="msgs"><div class="hint">Try: “a feel-good movie on Netflix tonight” or “shows like Severance”.</div></div>
+        <div class="chatin">
+          <input id="chatq" placeholder="What are you in the mood to watch?" />
+          <button class="btn" id="sendBtn">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
+  <div class="toast" id="toast"></div>
+
+<script>
+const API='/api/movies';
+const $=s=>document.querySelector(s);
+// Jarvis-style durable session: a stable conversation id kept client-side so the SAME thread
+// deterministically resumes after you navigate away and the iframe reloads.
+let convId=localStorage.getItem('oshalMoviesConv')||'';
+
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2100);}
+async function jget(u){const r=await fetch(u);return r.json();}
+async function jpost(u,b){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});return r.json();}
+async function jdel(u){const r=await fetch(u,{method:'DELETE'});return r.json();}
+function esc(s){const d=document.createElement('div');d.textContent=String(s==null?'':s);return d.innerHTML;}
+function skeletons(n,cls){return Array.from({length:n},()=>`<div class="skel ${cls}"></div>`).join('');}
+function emptyState(glyph,msg){return `<div class="empty"><div class="ico">${glyph}</div><div>${esc(msg)}</div></div>`;}
+
+// ── Poster cards ───────────────────────────────────────────────────────────--
+function card(o){
+  const el=document.createElement('div');el.className='card';el.tabIndex=0;el.setAttribute('role','button');
+  el.setAttribute('aria-label',`${esc(o.title)}${o.year?` (${o.year})`:''} — details & where to watch`);
+  const img=o.posterUrl?`<img src="${o.posterUrl}" onerror="this.remove()" alt="${esc(o.title)} poster" loading="lazy">`:'';
+  const rate=o.rating?`<span class="rate">★ ${o.rating}</span>`:'';
+  el.innerHTML=`<div class="poster"><span class="emoji" aria-hidden="true">${o.mediaType==='tv'?'📺':'🎬'}</span>${img}
+      <span class="badge">${o.mediaType==='tv'?'TV':'Movie'}</span>${rate}</div>
+    <div class="meta"><div class="name" title="${esc(o.title)}">${esc(o.title)}</div><div class="year">${esc(o.year||'')}</div></div>`;
+  const open=()=>openDetail(o.mediaType,o.id);
+  el.onclick=open;el.onkeydown=(e)=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();open();}};
+  return el;
+}
+function renderGrid(items,title,sub){
+  $('#secTitle').textContent=title;$('#secSub').textContent=sub||'';
+  const grid=$('#grid');grid.innerHTML='';
+  (items||[]).forEach(o=>grid.appendChild(card(o)));
+  if(!(items||[]).length) grid.innerHTML=emptyState('🍿','Nothing found — try another title or mood.');
+}
+
+// ── Detail modal ─────────────────────────────────────────────────────────────
+function provChips(list){return (list||[]).map(p=>`<span class="prov">${p.logoUrl?`<img src="${p.logoUrl}" onerror="this.remove()">`:''}${p.name}</span>`).join('');}
+async function openDetail(type,id){
+  const sheet=$('#sheet');sheet.innerHTML='<div class="body">'+skeletons(1,'poster')+'<div class="hint" style="margin-top:12px">Loading…</div></div>';
+  $('#modal').classList.add('show');document.body.style.overflow='hidden';
+  let d;try{d=await jget(`${API}/title?type=${type}&id=${id}`);}catch(e){d={error:'network'};}
+  if(d.error){sheet.innerHTML='<div class="body">'+emptyState('⚠️','Could not load this title — try again.')+'<div style="text-align:center"><button class="btn ghost" onclick="closeDetail()">Close</button></div></div>';return;}
+  const t=d.title;const w=d.where||{};
+  const hero=t.backdropUrl?`<img src="${t.backdropUrl}" onerror="this.remove()">`:'';
+  let where='';
+  if(w.flatrate&&w.flatrate.length) where+=`<div class="where"><div class="lab">Stream</div><div class="provs">${provChips(w.flatrate)}</div></div>`;
+  if(w.rent&&w.rent.length) where+=`<div class="where"><div class="lab">Rent</div><div class="provs">${provChips(w.rent)}</div></div>`;
+  if(w.buy&&w.buy.length) where+=`<div class="where"><div class="lab">Buy</div><div class="provs">${provChips(w.buy)}</div></div>`;
+  if(!where) where=`<div class="where"><div class="lab">Where to watch</div><div class="hint" style="text-align:left;padding:4px 0">No streaming info for your region — check the link below.</div></div>`;
+  const acts=[];
+  if(w.link) acts.push(`<a class="btn watch" href="${w.link}" target="_blank" rel="noopener">▶ Where to watch</a>`);
+  if(d.trailer) acts.push(`<a class="btn ghost" href="${d.trailer}" target="_blank" rel="noopener">🎞 Trailer</a>`);
+  if(d.tickets) acts.push(`<a class="btn ghost" href="${d.tickets}" target="_blank" rel="noopener">🎟 Tickets</a>`);
+  acts.push(`<button class="btn ghost" id="wlAdd">+ Watchlist</button>`);
+  sheet.innerHTML=`<div class="hero">${hero}<button class="x" onclick="closeDetail()" aria-label="Close">×</button></div>
+    <div class="body">
+      <h2>${esc(t.title)}</h2>
+      <div class="sub2">${esc(t.year||'')} · ${t.mediaType==='tv'?'TV series':'Movie'}${t.genres&&t.genres.length?' · '+esc(t.genres.join(', ')):''}${t.rating?' · ★ '+t.rating:''}</div>
+      <div class="ov">${esc(t.overview||'No description available.')}</div>
+      ${where}
+      <div class="acts">${acts.join('')}</div>
+      ${(d.recommendations&&d.recommendations.length)?`<div class="secrow" style="margin-top:18px"><h2>More like this</h2></div><div class="grid" id="recGrid"></div>`:''}
+    </div>`;
+  const add=$('#wlAdd');if(add)add.onclick=async()=>{await jpost(`${API}/watchlist`,{key:t.key,mediaType:t.mediaType,id:t.id,title:t.title,year:t.year,posterUrl:t.posterUrl,tmdbUrl:t.tmdbUrl});toast('Added to watchlist');loadWatchlist();};
+  const rg=$('#recGrid');if(rg)(d.recommendations||[]).forEach(o=>rg.appendChild(card(o)));
+}
+function closeDetail(){$('#modal').classList.remove('show');document.body.style.overflow='';}
+$('#modal').onclick=(e)=>{if(e.target.id==='modal')closeDetail();};
+document.addEventListener('keydown',(e)=>{if(e.key==='Escape'&&$('#modal').classList.contains('show'))closeDetail();});
+
+// ── Search / trending ──────────────────────────────────────────────────────--
+async function search(q){
+  const grid=$('#grid');grid.innerHTML=skeletons(12,'poster');
+  $('#secTitle').textContent=q?`Results for “${q}”`:'Trending this week';$('#secSub').textContent='';
+  const go=$('#goBtn');go.disabled=true;
+  try{
+    const d=q?await jget(`${API}/search?q=${encodeURIComponent(q)}`):await jget(`${API}/trending`);
+    if(d&&d.error&&!(d.items||[]).length){grid.innerHTML=emptyState('⚠️',d.error==='not_configured'?'No TMDB key configured yet — add one on the Connections page.':d.error);return;}
+    renderGrid(d.items,q?`Results for “${q}”`:'Trending this week',(d.items||[]).length?'tap a poster for where to watch':'');
+  }catch(e){grid.innerHTML=emptyState('⚠️','Couldn’t reach the movie database — try again.');}
+  finally{go.disabled=false;}
+}
+$('#goBtn').onclick=()=>search($('#q').value.trim());
+$('#q').addEventListener('keydown',e=>{if(e.key==='Enter')search($('#q').value.trim());});
+
+// ── Watchlist ────────────────────────────────────────────────────────────────
+async function loadWatchlist(){
+  const d=await jget(`${API}/watchlist`);const items=d.items||[];
+  const row=$('#watchlist');
+  $('#wlSec').style.display=items.length?'flex':'none';row.style.display=items.length?'flex':'none';
+  row.innerHTML='';
+  items.forEach(i=>{
+    const el=document.createElement('div');el.className='wl';
+    const img=i.poster_url?`<img src="${i.poster_url}" onerror="this.style.opacity=.2" alt="${esc(i.title)} poster">`:'<img alt="">';
+    el.innerHTML=`${img}<button class="rm" title="Remove from watchlist" aria-label="Remove ${esc(i.title)} from watchlist">×</button><div class="wn" title="${esc(i.title)}">${esc(i.title)}</div>`;
+    el.querySelector('img').onclick=()=>openDetail(i.media_type,i.tmdb_id);
+    el.querySelector('.rm').onclick=async(e)=>{e.stopPropagation();await jdel(`${API}/watchlist/${i.row_id}`);loadWatchlist();};
+    row.appendChild(el);
+  });
+}
+
+// ── Assistant ────────────────────────────────────────────────────────────────
+function pushMsg(role,text){
+  const m=$('#msgs');const hint=m.querySelector('.hint');if(hint)hint.remove();
+  const d=document.createElement('div');d.className='msg '+(role==='me'?'me':'bot');d.textContent=text;
+  m.appendChild(d);m.scrollTop=m.scrollHeight;return d;
+}
+async function send(){
+  const inp=$('#chatq');const t=inp.value.trim();if(!t)return;inp.value='';
+  pushMsg('me',t);const thinking=pushMsg('bot','…');
+  try{
+    const d=await jpost(`${API}/chat`,{message:t,conversationId:convId});
+    convId=d.conversationId||convId;if(convId)localStorage.setItem('oshalMoviesConv',convId);
+    thinking.textContent=d.reply||'…';
+    if((d.cards||[]).length) renderGrid(d.cards,'Picks for you','tap a poster for where to watch');
+    if((d.added||[]).length) loadWatchlist();
+  }catch(e){thinking.textContent='Sorry — something went wrong. Try again.';}
+}
+$('#sendBtn').onclick=send;
+$('#chatq').addEventListener('keydown',e=>{if(e.key==='Enter')send();});
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+$('#recheck').onclick=()=>boot();
+async function boot(){
+  let c={};try{c=await jget(`${API}/config`);}catch(e){}
+  const connected=!!c.connected;
+  $('#connDot').classList.toggle('on',connected);
+  $('#connTxt').textContent=connected?'TMDB connected':'Not configured';
+  $('#gateWrap').style.display=connected?'none':'block';
+  $('#appWrap').style.display=connected?'block':'none';
+  if(!connected)return;
+  search('');loadWatchlist();
+  try{const cv=await jget(`${API}/conversation?id=${encodeURIComponent(convId||'')}`);if(cv.messages&&cv.messages.length){
+    convId=cv.conversationId;if(convId)localStorage.setItem('oshalMoviesConv',convId);$('#msgs').innerHTML='';
+    cv.messages.forEach(m=>pushMsg(m.role==='user'?'me':'bot',m.content));}}catch(e){}
+}
+boot();
+</script>
+</body>
+</html>

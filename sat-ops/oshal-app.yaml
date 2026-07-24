@@ -1,0 +1,281 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — sat-ops ("Sat Ops")
+# Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
+# ADR-093). This package is the app: the /api/sat routes + the fleet-plane
+# surface + the manifest + a package COPY of the sat-operator persona for the
+# registrar.
+#
+# Satellites are swarm nodes (drone-ops pattern, ADR-099/102): each sat node runs
+# its ADCS locally (MEKF estimation, SAFE/DETUMBLE/SLEW/POINT/DESAT mode
+# manager, magnetorquer desat) against a simulator engine — the in-process RK4
+# gyrostat or the NASA 42 referee over its standalone-AC socket — and joins the
+# fleet via authenticated heartbeats. Orbit identity (TLE catalog, SGP4 tracks,
+# pass windows, conjunction screening) is deliberately decoupled from the
+# attitude nodes; the fleet plane joins the two views by satId.
+#
+# Safety doctrine: EVERY engine is a simulator — commands cannot reach real
+# hardware by construction — and every command still passes an explicit
+# operator approve gate on the surface.
+#
+# What STAYS framework-resident per ADR-093 (this package ships none of it):
+#   - the sat ENGINE (src/features/sat-ops): SatFleet, TleCatalog, SGP4 pass/
+#     track/conjunction services, the RK4 gyrostat + NASA 42 adapters, MEKF,
+#     the ADCS mode manager + desat — imported via @/ aliases (its engine specs
+#     stay in the kernel too, incl. the SatFleet liveness case);
+#   - the standalone sat NODE (src/app/sat-node-server.ts) and the engine smoke
+#     scripts (scripts/sat-ops-42-smoke.ts) + the scored evidence campaign
+#     (scripts/evidence/prove-sat-ops-campaign.ts — engine-only, kernel-owned);
+#   - the sat-operator INLINE concierge node (registered in BOTH
+#     swarm-bot-registry blocks) — the app's reasoning owner; the persona here is
+#     a package COPY for the registrar;
+#   - the default Sat Ops tile in config-seed/profiles/oshal-framework.json
+#     (carved apps keep their default tiles).
+# The packaged route serves the SAME /api/sat paths the kernel mount did, so
+# live evidence probes against the surface remain valid after install.
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: sat-ops
+suite: ai-engineering   # ADR-097: primary catalog shelf
+displayName: Sat Ops
+description: >-
+  Satellite fleet plane — a 3D orbit console with fleet attitude telemetry
+  (MEKF health, wheel momentum, ADCS mode), ground tracks and pass windows
+  from SGP4, pairwise conjunction screening, and an approval-gated command
+  console (point / detumble / desat / safe). Sim engines only: the in-process
+  RK4 gyrostat or the NASA 42 referee. Commands cannot leave simulation.
+version: 1.1.0
+status: active
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: sat-ops
+  ref: main
+
+# No connector allow-list: sats are SWARM NODES that join by authenticated
+# heartbeat (swarm service secret), not per-user OAuth connectors.
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — the operations-planning brain (Form B inline concierge — drafts only,
+# never actuates; registered in BOTH swarm-bot-registry blocks, framework-
+# resident). The persona here is a package COPY for the registrar; the inline
+# node keeps using /app/ai-lab (core).
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: b0102000-0000-0000-0000-000000000001
+    name: sat-operator
+    persona: personas/sat-operator.yaml
+    role: space/satellite-operations-planning
+    capabilities:
+      - sat-command-drafting
+      - adcs-mode-planning
+      - sat-telemetry-briefing
+      - pass-window-awareness
+      - conjunction-awareness
+
+tools:
+  - name: sat-fleet-status
+    displayName: Sat Fleet Status
+    type: api
+    category: engineering
+    description: List every satellite in the fleet — engine kind, online/offline, ADCS mode, pointing error, estimator health, wheel momentum.
+    executor: { executorType: api, apiEndpoint: "GET /api/sat/fleet" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Read-only. The fleet listing is the only source of which sats exist, which are reachable,
+      and what their ADCS/estimator state is.
+    routingTags: [satellite, fleet, telemetry, status]
+    tags: [sat-ops, route-backed]
+
+  - name: sat-orbit-catalog
+    displayName: Sat Orbit Catalog
+    type: api
+    category: engineering
+    description: List the registered TLE element sets (orbit identity per sat).
+    executor: { executorType: api, apiEndpoint: "GET /api/sat/catalog" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Read-only. Orbit identity is decoupled from attitude nodes; join by satId.
+    routingTags: [satellite, orbit, tle, catalog]
+    tags: [sat-ops, route-backed]
+
+  - name: sat-orbit-track
+    displayName: Sat Orbit Track
+    type: api
+    category: engineering
+    description: Compute a satellite's orbit track (ECI + ground subpoint) from its catalog TLE via SGP4.
+    executor: { executorType: api, apiEndpoint: "POST /api/sat/track" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        satId: { type: string }
+        durationMinutes: { type: number }
+      required: [satId]
+    usageInstructions: >-
+      Call with {satId} (must be in the catalog). Deterministic SGP4 sampling; use for orbit
+      geometry questions, not attitude questions.
+    routingTags: [satellite, orbit, sgp4, track]
+    tags: [sat-ops, route-backed]
+
+  - name: sat-pass-windows
+    displayName: Sat Pass Windows
+    type: api
+    category: engineering
+    description: Predict ground-station contact windows (rise/culmination/set) for a TLE via SGP4.
+    executor: { executorType: api, apiEndpoint: "POST /api/sat/passes" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        tle: { type: string }
+        station:
+          type: object
+          properties:
+            latDeg: { type: number }
+            lonDeg: { type: number }
+            altKm: { type: number }
+          required: [latDeg, lonDeg, altKm]
+      required: [tle, station]
+    usageInstructions: >-
+      Supply the TLE text and the geodetic station. Windows come back with rise/set azimuths and
+      max elevation; grazing passes shorter than the step can be missed (documented behavior).
+    routingTags: [satellite, pass, ground-station, sgp4]
+    tags: [sat-ops, route-backed]
+
+  - name: sat-conjunction-screen
+    displayName: Sat Conjunction Screening
+    type: api
+    category: engineering
+    description: Screen the fleet catalog pairwise for close approaches (TCA + miss distance) inside a horizon.
+    executor: { executorType: api, apiEndpoint: "POST /api/sat/conjunctions" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        horizonHours: { type: number }
+        thresholdKm: { type: number }
+    usageInstructions: >-
+      Screening aid over the SIM fleet — TEME point geometry, no covariance, no collision
+      probability. Events are sorted by miss distance.
+    routingTags: [satellite, conjunction, proximity, screening]
+    tags: [sat-ops, route-backed]
+
+  - name: draft-sat-command
+    displayName: Draft Sat Command
+    type: api
+    category: engineering
+    description: Ask the sat-operator concierge to draft an ADCS command (point/detumble/desat/safe) from natural language over live fleet telemetry. Drafts never send by themselves.
+    executor: { executorType: api, apiEndpoint: "POST /api/sat/chat" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        message: { type: string }
+      required: [message]
+    usageInstructions: >-
+      Call with {message}. The reply contains say-text and an optional validated draft;
+      sending the command is a separate human-approved step.
+    routingTags: [satellite, command, planning, concierge]
+    tags: [sat-ops, route-backed]
+
+  - name: sat-point-command
+    displayName: Sat Point Command
+    type: api
+    category: engineering
+    description: Command a pointing target on a fleet sat (SLEW→POINT on the node's local ADCS). Approval-gated.
+    executor: { executorType: api, apiEndpoint: "POST /api/sat/nodes/{input.satId}/point" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        satId: { type: string }
+        axis:
+          type: object
+          properties:
+            x: { type: number }
+            y: { type: number }
+            z: { type: number }
+        angleDeg: { type: number }
+      required: [satId]
+    usageInstructions: >-
+      Call only after the human explicitly confirms. The node's mode manager refuses (409) when
+      the attitude estimate is unhealthy. Every engine is a simulator.
+    routingTags: [satellite, command, point, adcs]
+    tags: [sat-ops, route-backed, approval-required]
+
+  - name: sat-mode-command
+    displayName: Sat Mode Command
+    type: api
+    category: engineering
+    description: Command an ADCS mode (safe / detumble / desat) on a fleet sat. Approval-gated.
+    executor: { executorType: api, apiEndpoint: "POST /api/sat/nodes/{input.satId}/mode" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        satId: { type: string }
+        mode: { type: string, enum: [safe, detumble, desat] }
+      required: [satId, mode]
+    usageInstructions: >-
+      Call only after the human explicitly confirms. SAFE is sticky (never auto-exits); DESAT
+      returns to the latched target when momentum falls. Every engine is a simulator.
+    routingTags: [satellite, command, mode, adcs]
+    tags: [sat-ops, route-backed, approval-required]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon icon opens the fleet plane, self-served by
+# this package's route from tools/sat-ops.html (ctx.appPackageDir).
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: sat-ops
+      label: Sat Ops
+      icon: codicon codicon-globe
+      iframeUrl: /api/sat/app
+      section: top
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — the packaged surface router, mounted /api/sat on activation. (In core
+# server.ts this was createSatRoutes({ ctx }) behind serviceSecretOr(requiresAuth);
+# it now mounts from this package — sat nodes authenticate with the service
+# secret, operators with OIDC. The heartbeat route additionally REQUIRES the
+# secret itself: a node identity, never an operator browser.)
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - module: routes/sat-routes.js
+    factory: createSatRoutes
+    mountPath: /api/sat
+    auth: service-or-oidc   # what core server.ts mounted (ADR-085 D2)
+    requiresAuth: true
+    requiresContext: true
+
+# No migrations: the fleet plane and TLE catalog are in-memory (heartbeat-fed);
+# this surface owns no tables.
+
+# RIBBON VISIBILITY — focus mode for /cockpit?app=sat-ops
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  hideChatPanel: true
+  defaultView: sat-ops

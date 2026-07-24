@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Smart Home</title>
+<!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
+     Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
+     matters — without it the surface would have no colors at all. -->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Shared framework glass sheet: cards/rails read as one system across apps. Consumed read-only. -->
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<style>
+  /* This surface keeps its own short alias names, but DERIVES them from the framework theme rather
+     than hardcoding hex — so all eleven themes work, not just the dark ones. The "on"/success teal
+     comes from the theme's status token; the fallback after the comma keeps it legible if a theme
+     omits one. The scrollbar thumb stays a translucent overlay. */
+  :root {
+    --bg: var(--bg-primary);
+    --panel: var(--bg-card);
+    --panel2: var(--bg-tertiary);
+    --line: var(--border-color);
+    --text: var(--text-primary);
+    --muted: var(--text-secondary);
+    --accent: var(--accent-primary, #7c6cff);
+    --accent2: var(--status-success, #00d3a7);
+    --scrollbar-thumb: rgba(255,255,255,.14);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  .wrap { max-width:1100px; margin:0 auto; padding:18px 18px 120px; }
+  header { display:flex; align-items:center; gap:12px; margin-bottom:6px; }
+  h1 { font-size:20px; margin:0; }
+  .count { color:var(--muted); font-size:12.5px; }
+  .spacer { flex:1; }
+  .btn { border:1px solid var(--line); background:var(--panel2); color:var(--text); border-radius:9px;
+         padding:8px 13px; font-size:13px; font-weight:600; cursor:pointer; }
+  .btn:hover { border-color:var(--accent); }
+  .btn.solid { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .sectitle { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:22px 2px 10px; }
+  /* Scene tiles */
+  .scenes { display:flex; flex-wrap:wrap; gap:10px; }
+  .scene { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:11px 14px; cursor:pointer; min-width:120px; }
+  .scene:hover { border-color:var(--accent); }
+  .scene .nm { font-weight:600; font-size:14px; }
+  .scene .st { color:var(--muted); font-size:11.5px; margin-top:2px; }
+  /* Device grid */
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px; display:flex; flex-direction:column; gap:10px; }
+  .card.on { border-color:color-mix(in srgb, var(--accent2) 55%, var(--line)); }
+  .crow { display:flex; align-items:center; gap:10px; }
+  .nm { font-weight:600; font-size:14px; flex:1; }
+  .pill { font-size:11px; font-weight:700; padding:3px 9px; border-radius:20px; background:var(--panel2); color:var(--muted); }
+  .pill.on { background:color-mix(in srgb, var(--accent2) 22%, transparent); color:var(--accent2); }
+  /* Toggle */
+  .sw { width:46px; height:26px; border-radius:20px; background:var(--panel2); border:1px solid var(--line); position:relative; cursor:pointer; flex:none; transition:background .15s; }
+  .sw.on { background:var(--accent2); border-color:var(--accent2); }
+  .sw .knob { position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:#fff; transition:left .15s; }
+  .sw.on .knob { left:22px; }
+  .dim { display:flex; align-items:center; gap:8px; }
+  .dim input { flex:1; accent-color:var(--accent); }
+  .dim .lvl { font-size:11.5px; color:var(--muted); width:34px; text-align:right; }
+  .sel, .tin { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 9px; font-size:13px; }
+  .lnk { color:var(--accent); cursor:pointer; }
+  .empty { color:var(--muted); font-size:14px; padding:30px 2px; }
+  /* Chat bar */
+  .chat { position:fixed; left:0; right:0; bottom:0; background:var(--panel); border-top:1px solid var(--line); padding:12px 18px; }
+  .chat .inner { max-width:1100px; margin:0 auto; display:flex; gap:9px; align-items:center; }
+  .chat input { flex:1; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:9px; padding:11px 13px; font-size:14px; }
+  .reply { max-width:1100px; margin:0 auto 8px; color:var(--muted); font-size:13px; min-height:0; }
+  .toast { position:fixed; bottom:78px; left:50%; transform:translateX(-50%); background:var(--panel2); border:1px solid var(--line); color:var(--text); padding:9px 15px; border-radius:10px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; }
+  .toast.show { opacity:1; }
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb);border-radius:6px}
+  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb) transparent}
+  @media (max-width:640px) {
+    .wrap { padding-left:10px; padding-right:10px; }
+    .chat input { font-size:16px; } /* prevent iOS auto-zoom on focus */
+    .scene { min-width:unset; flex:1 1 calc(50% - 5px); }
+    .btn { padding:10px 12px; }
+    .btn.solid { min-height:44px; }
+    .card { border-radius:10px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Smart Home</h1>
+    <span class="count" id="count"></span>
+    <span class="spacer"></span>
+    <button class="btn" id="refresh" onclick="refresh()">↻ Refresh</button>
+  </header>
+
+  <div class="sectitle" id="scenes-title" style="display:none">Scenes</div>
+  <div class="scenes" id="scenes"></div>
+
+  <div class="sectitle">Schedules <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--muted)">— timers (also on the Calendar)</span></div>
+  <div class="scenes" id="schedules"></div>
+  <div class="card" style="max-width:600px;margin-top:8px;gap:8px">
+    <div class="nm">New schedule</div>
+    <select id="sch-what" class="sel"></select>
+    <div class="dim" style="gap:8px;flex-wrap:wrap">
+      <select id="sch-trig" class="sel" onchange="schTrigChange()">
+        <option value="clock">At a time</option>
+        <option value="sunset">At sunset</option>
+        <option value="sunrise">At sunrise</option>
+      </select>
+      <input id="sch-time" type="time" value="19:00" class="tin" />
+      <select id="sch-repeat" class="sel"><option value="daily">Every day</option><option value="weekdays">Weekdays</option></select>
+      <input id="sch-offset" type="number" value="0" class="tin" style="display:none;width:84px;flex:none" title="minutes before(-) / after(+)" />
+      <span id="sch-offlbl" class="lvl" style="display:none;width:auto">min offset</span>
+    </div>
+    <div class="crow"><button class="btn solid" onclick="createSchedule()">Add schedule</button></div>
+  </div>
+
+  <div class="sectitle">Devices</div>
+  <div class="grid" id="grid"><div class="empty">Loading…</div></div>
+</div>
+
+<div class="reply" id="reply"></div>
+<div class="chat"><div class="inner">
+  <input id="msg" placeholder='Ask: "make it cozy", "create a Movie Night scene", "I&apos;m home"…' onkeydown="if(event.key==='Enter')ask()" />
+  <button class="btn solid" id="send" onclick="ask()">Send</button>
+</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+let DEVICES = [];
+
+function toast(t) { const el = $('toast'); el.textContent = t; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 1800); }
+
+async function api(path, body, method) {
+  const opt = { credentials:'include', headers:{ 'Content-Type':'application/json' } };
+  if (method) opt.method = method;
+  if (body) { opt.method = method || 'POST'; opt.body = JSON.stringify(body); }
+  const r = await fetch('/api/home' + path, opt);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+
+function deviceName(d) { return d.userName || d.name; }
+function isOn(d) { return d.switch === 'on'; }
+function hasDim(d) { return (d.capabilities || []).includes('switchLevel'); }
+function homeMightWrite(message) {
+  const text = String(message || '').toLowerCase();
+  return /\b(turn|switch|set|dim|brighten|run|start|stop|open|close|lock|unlock|arm|disarm|schedule|create|save|delete)\b/.test(text)
+    && /\b(light|lights|lamp|plug|switch|thermostat|lock|door|garage|scene|routine|device|smartthings|home)\b/.test(text);
+}
+
+function cardHtml(d) {
+  const on = isOn(d);
+  const dim = hasDim(d) ? `<div class="dim"><input type="range" min="1" max="100" value="50"
+      onchange="setLevel('${d.key}', this.value)" /><span class="lvl" id="lvl-${d.key}">50%</span></div>` : '';
+  return `<div class="card ${on?'on':''}" id="card-${d.key}">
+    <div class="crow"><span class="nm">${esc(deviceName(d))}</span>
+      <span class="pill ${on?'on':''}">${on?'On':'Off'}</span></div>
+    <div class="crow">
+      <div class="sw ${on?'on':''}" onclick="toggle('${d.key}', ${on?0:1})"><div class="knob"></div></div>
+      <span class="spacer"></span></div>
+    ${dim}
+  </div>`;
+}
+
+async function loadDevices() {
+  const data = await api('/devices');
+  DEVICES = data.devices || [];
+  $('count').textContent = DEVICES.length ? `${DEVICES.length} devices${data.hubs && data.hubs.length ? ' · ' + data.hubs.join(', ') : ''}` : '';
+  $('grid').innerHTML = DEVICES.length
+    ? DEVICES.map(cardHtml).join('')
+    : '<div class="empty">No devices yet. Connect a hub at <b>Hubs</b> (or hit Refresh).</div>';
+  buildWhatOptions();
+}
+
+async function loadScenes() {
+  try {
+    const data = await api('/scenes');
+    const scenes = data.scenes || [];
+    window.__scenes = scenes;
+    $('scenes-title').style.display = scenes.length ? '' : 'none';
+    $('scenes').innerHTML = scenes.map((s) =>
+      `<div class="scene" onclick="runScene('${esc(s.name).replace(/'/g, "\\'")}')">
+        <div class="nm">${esc(s.name)}</div><div class="st">${(s.steps||[]).length} steps · run</div></div>`).join('');
+    buildWhatOptions();
+  } catch (e) { /* scenes are optional */ }
+}
+
+// ── Schedules ────────────────────────────────────────────────────────────────
+function buildWhatOptions() {
+  const sel = $('sch-what'); if (!sel) return;
+  const opts = [];
+  (window.__scenes || []).forEach((s) => opts.push({ l: 'Run scene: ' + s.name, a: { kind:'scene', name:s.name } }));
+  DEVICES.forEach((d) => { const nm = deviceName(d);
+    opts.push({ l: 'Turn ON: ' + nm, a: { kind:'device', name:nm, cmd:'on' } });
+    opts.push({ l: 'Turn OFF: ' + nm, a: { kind:'device', name:nm, cmd:'off' } }); });
+  window.__schedOpts = opts;
+  sel.innerHTML = opts.map((o, i) => `<option value="${i}">${esc(o.l)}</option>`).join('');
+}
+function cronToLocalTime(cron) {
+  const p = String(cron || '').split(' '); if (p.length < 2) return cron || '';
+  const d = new Date(); d.setUTCHours(Number(p[1]), Number(p[0]), 0, 0);
+  return d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+}
+async function loadSchedules() {
+  try {
+    const d = await api('/schedules'); const list = d.schedules || [];
+    $('schedules').innerHTML = list.length ? list.map((s) => {
+      const t = s.trigger || {};
+      const when = t.kind === 'solar'
+        ? (t.event + (t.offsetMin ? (t.offsetMin > 0 ? ` +${t.offsetMin}m` : ` ${t.offsetMin}m`) : ''))
+        : ('at ' + cronToLocalTime(s.cron) + (t.repeat === 'weekdays' ? ' · weekdays' : ''));
+      return `<div class="scene"><div class="nm">${esc(s.label || 'action')}</div>
+        <div class="st">${esc(when)} · <span class="lnk" onclick="delSchedule('${s.id}')">delete</span></div></div>`;
+    }).join('') : '<div class="empty" style="padding:8px 2px">No schedules yet.</div>';
+  } catch (e) { /* optional */ }
+}
+function schTrigChange() {
+  const clock = $('sch-trig').value === 'clock';
+  $('sch-time').style.display = clock ? '' : 'none';
+  $('sch-repeat').style.display = clock ? '' : 'none';
+  $('sch-offset').style.display = clock ? 'none' : '';
+  $('sch-offlbl').style.display = clock ? 'none' : '';
+}
+function createSchedule() {
+  const opts = window.__schedOpts || []; const action = opts[+$('sch-what').value] && opts[+$('sch-what').value].a;
+  if (!action) { toast('Pick an action'); return; }
+  const t = $('sch-trig').value;
+  if (t === 'clock') {
+    const [h, m] = $('sch-time').value.split(':').map(Number);
+    sendSchedule(action, { kind:'clock', hour:h, minute:m, repeat:$('sch-repeat').value, tzOffsetMin:new Date().getTimezoneOffset() });
+  } else {
+    const off = Number($('sch-offset').value || 0);
+    if (!navigator.geolocation) { toast('Location unavailable for sunrise/sunset'); return; }
+    toast('Getting your location…');
+    navigator.geolocation.getCurrentPosition(
+      (p) => sendSchedule(action, { kind:'solar', event:t, offsetMin:off, lat:p.coords.latitude, lng:p.coords.longitude }),
+      () => toast('Allow location to use sunrise/sunset'));
+  }
+}
+async function sendSchedule(action, trigger) {
+  if (!confirm('Create this smart-home schedule?')) return;
+  try { await api('/schedule', { action, trigger, confirm: true }); toast('Schedule added'); loadSchedules(); }
+  catch (e) { toast('Failed: ' + e.message); }
+}
+async function delSchedule(id) {
+  try { await api('/schedule/' + id, null, 'DELETE'); loadSchedules(); }
+  catch (e) { toast('Failed: ' + e.message); }
+}
+
+async function toggle(key, on) {
+  try { await api('/control', { device:key, cmd: on ? 'on' : 'off', confirm: true }); await loadDevices(); }
+  catch (e) { toast('Failed: ' + e.message); }
+}
+async function setLevel(key, val) {
+  $('lvl-' + key).textContent = val + '%';
+  try { await api('/control', { device:key, cmd:'set', capability:'switchLevel', command:'setLevel', arg:Number(val), confirm: true }); }
+  catch (e) { toast('Failed: ' + e.message); }
+}
+async function runScene(name) {
+  try { const r = await api('/scene/run', { name, confirm: true }); toast('Ran ' + r.ran); await loadDevices(); }
+  catch (e) { toast('Failed: ' + e.message); }
+}
+async function refresh() {
+  const b = $('refresh'); b.disabled = true; b.textContent = '↻ Refreshing…';
+  try { await api('/refresh', {}); await loadDevices(); await loadScenes(); toast('Refreshed'); }
+  catch (e) { toast('Failed: ' + e.message); }
+  finally { b.disabled = false; b.textContent = '↻ Refresh'; }
+}
+
+async function ask() {
+  const input = $('msg'); const message = input.value.trim(); if (!message) return;
+  const confirmWrite = homeMightWrite(message);
+  if (confirmWrite && !confirm('Run this smart-home action now?')) return;
+  const send = $('send'); input.value = ''; send.disabled = true; $('reply').textContent = 'Thinking…';
+  try {
+    const r = await api('/assistant', { message, confirm: confirmWrite });
+    $('reply').textContent = r.reply || '';
+    await loadDevices(); await loadScenes(); // the bot may have changed state/scenes
+  } catch (e) { $('reply').textContent = 'Error: ' + e.message; }
+  finally { send.disabled = false; }
+}
+
+loadDevices(); loadScenes(); loadSchedules();
+</script>
+
+<!-- TV mode (?tv=1): D-pad spatial navigation for big-screen surfaces that load this dashboard
+     top-level (Samsung Tizen; any future web-TV node). Self-contained so it does not depend on
+     the platform's own spatial-nav: arrow keys move focus to the nearest focusable in that
+     direction by geometry; OK/Enter activates. The Fire TV app injects its own equivalent from
+     the native WebView, so it loads WITHOUT ?tv=1 and this block stays dormant there. -->
+<script>
+(function(){
+  if (!new URLSearchParams(location.search).get('tv')) return;
+  var SEL = '.btn,.scene,.sw,.card,a,button,input,select,textarea,[onclick]';
+  function focusables(){
+    return Array.prototype.filter.call(document.querySelectorAll(SEL), function(el){
+      var r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && el.offsetParent !== null;
+    });
+  }
+  function tag(){ focusables().forEach(function(el){ if(!el.hasAttribute('tabindex')) el.setAttribute('tabindex','0'); }); }
+  var st = document.createElement('style');
+  st.textContent = ':focus{outline:3px solid var(--accent,#7c6cff)!important;outline-offset:2px;border-radius:10px;}';
+  document.documentElement.appendChild(st);
+  tag();
+  if (document.body) new MutationObserver(tag).observe(document.body,{childList:true,subtree:true});
+
+  // Pick the nearest focusable in a direction from the current element's center.
+  function move(dir){
+    var els = focusables(); if(!els.length) return;
+    var cur = document.activeElement;
+    if(!cur || els.indexOf(cur) < 0){ els[0].focus(); return; }
+    var cr = cur.getBoundingClientRect(), cx = cr.left+cr.width/2, cy = cr.top+cr.height/2;
+    var best = null, bestScore = Infinity;
+    els.forEach(function(el){
+      if(el === cur) return;
+      var r = el.getBoundingClientRect(), x = r.left+r.width/2, y = r.top+r.height/2;
+      var dx = x-cx, dy = y-cy;
+      var ok = (dir==='left'&&dx<-4)||(dir==='right'&&dx>4)||(dir==='up'&&dy<-4)||(dir==='down'&&dy>4);
+      if(!ok) return;
+      // Primary axis distance + heavy penalty for off-axis drift, so focus tracks rows/columns.
+      var along = (dir==='left'||dir==='right') ? Math.abs(dx) : Math.abs(dy);
+      var across = (dir==='left'||dir==='right') ? Math.abs(dy) : Math.abs(dx);
+      var score = along + across*2;
+      if(score < bestScore){ bestScore = score; best = el; }
+    });
+    if(best) best.focus();
+  }
+  var DIRS = {37:'left',38:'up',39:'right',40:'down'};
+  document.addEventListener('keydown', function(e){
+    var a = document.activeElement;
+    var typing = a && (a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.tagName==='SELECT');
+    if(DIRS[e.keyCode] && !typing){ move(DIRS[e.keyCode]); e.preventDefault(); return; }
+    if((e.key==='Enter'||e.keyCode===13||e.keyCode===23) && a && !typing){ a.click(); e.preventDefault(); }
+  });
+  // Land focus somewhere sensible once the dashboard has rendered.
+  setTimeout(function(){ var f = focusables(); if(f.length) f[0].focus(); }, 600);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Recruiters{% endblock %}
+{% block body %}
+<style>
+  .rt-top{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px}
+  .rt-top .rt-count{font-size:14px}
+  .rt-pills a{display:inline-block;padding:2px 9px;margin:2px 3px 2px 0;border:1px solid #cdd6e6;
+    border-radius:12px;font-size:12px;color:#34507f;text-decoration:none}
+  .rt-pills a.on{background:#102A54;color:#fff;border-color:#102A54}
+  .rt-bucket{margin:18px 0 6px;font-size:15px;font-weight:700;color:#102A54;
+    border-bottom:2px solid #102A54;padding-bottom:3px}
+  .rt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
+  .rt-card{border:1px solid #d7deea;border-radius:8px;padding:10px 12px;background:#fff;
+    box-shadow:0 1px 2px rgba(16,42,84,.05)}
+  .rt-card h3{margin:0 0 6px;font-size:14px}
+  .rt-card h3 a{color:#102A54;text-decoration:none}
+  .rt-card h3 a:hover{text-decoration:underline}
+  .rt-row{display:flex;gap:6px;margin:4px 0}
+  .rt-row label{font-size:11px;color:#667;width:74px;flex:none;padding-top:5px}
+  .rt-card input,.rt-card select,.rt-card textarea{flex:1;min-width:0;font:inherit;font-size:12px;
+    padding:3px 5px;border:1px solid #cdd6e6;border-radius:4px}
+  .rt-card textarea{resize:vertical;min-height:34px}
+  .rt-actions{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+  .rt-actions button{font-size:12px;padding:4px 12px;border:0;border-radius:5px;
+    background:#102A54;color:#fff;cursor:pointer}
+  .rt-actions .rt-del{background:none;color:#a33;border:1px solid #e0c2c2;padding:3px 8px}
+  .rt-open{font-size:11px;margin-left:6px;white-space:nowrap}
+  .rt-st{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+  .st-tocontact{background:#bbb}.st-contacted{background:#3b82f6}.st-replied{background:#8b5cf6}
+  .st-callscheduled{background:#f59e0b}.st-submittedme{background:#16a34a}
+  .st-onradar{background:#0ea5e9}.st-dead{background:#ef4444}
+  .rt-add{border:1px dashed #b9c4da;border-radius:8px;padding:10px 12px;margin-bottom:6px;background:#f7f9fc}
+  .rt-add form{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .rt-add input,.rt-add select{font-size:12px;padding:4px 6px;border:1px solid #cdd6e6;border-radius:4px}
+  .rt-note{color:#667;font-size:12px;margin:6px 0 0}
+</style>
+
+<div class="rt-top">
+  <div class="rt-count"><b>{{ total }}</b> recruiters ·
+    {% for s in statuses %}{% if counts.get(s) %}{{ counts[s] }} {{ s|lower }}{% if not loop.last %} · {% endif %}{% endif %}{% endfor %}
+  </div>
+</div>
+
+<div class="rt-pills">
+  Bucket:
+  <a href="{{ url_for('recruiters_page', status=sel_status) }}" class="{{ 'on' if not sel_bucket }}">All</a>
+  {% for b in buckets %}
+    <a href="{{ url_for('recruiters_page', bucket=b, status=sel_status) }}" class="{{ 'on' if sel_bucket==b }}">{{ b }}</a>
+  {% endfor %}
+  &nbsp;·&nbsp; Status:
+  <a href="{{ url_for('recruiters_page', bucket=sel_bucket) }}" class="{{ 'on' if not sel_status }}">Any</a>
+  {% for s in statuses %}
+    <a href="{{ url_for('recruiters_page', bucket=sel_bucket, status=s) }}" class="{{ 'on' if sel_status==s }}">{{ s }}</a>
+  {% endfor %}
+</div>
+
+<div class="rt-add">
+  <form method="post" action="{{ url_for('recruiters_add') }}">
+    <b style="font-size:12px;color:#102A54">+ Add</b>
+    <input name="firm" placeholder="firm or recruiter name" style="min-width:170px" required>
+    <select name="bucket">{% for b in all_buckets %}<option>{{ b }}</option>{% endfor %}</select>
+    <input name="contact_name" placeholder="contact (optional)">
+    <input name="contact_link" placeholder="email / LinkedIn" style="min-width:150px">
+    <input name="website" placeholder="website" style="min-width:150px">
+    <button type="submit">Add</button>
+  </form>
+</div>
+
+{% set ns = namespace(cur="") %}
+{% for r in rows %}
+  {% if r.bucket != ns.cur %}
+    {% set ns.cur = r.bucket %}
+    {% if not loop.first %}</div>{% endif %}
+    <div class="rt-bucket">{{ r.bucket or "Other" }}</div>
+    <div class="rt-grid">
+  {% endif %}
+
+  <div class="rt-card">
+    <form method="post" action="{{ url_for('recruiters_update', rid=r.id, bucket=sel_bucket, status=sel_status) }}">
+      <h3>
+        <span class="rt-st st-{{ (r.status or 'To contact')|lower|replace(' ','') }}" title="{{ r.status }}"></span>
+        {% if r.website %}<a href="{{ r.website }}" target="_blank" rel="noopener">{{ r.firm }} ↗</a>{% else %}{{ r.firm }}{% endif %}
+      </h3>
+
+      <div class="rt-row"><label>Status</label>
+        <select name="status">{% for s in statuses %}<option {{ 'selected' if r.status==s }}>{{ s }}</option>{% endfor %}</select>
+      </div>
+      <div class="rt-row"><label>Resume</label>
+        <select name="resume_label">
+          <option value="">— none —</option>
+          {% for lab in resume_labels %}<option {{ 'selected' if r.resume_label==lab }}>{{ lab }}</option>{% endfor %}
+        </select>
+        {% if r.resume_label and resume_exists.get(r.resume_label) %}
+          <a class="rt-open" href="{{ url_for('resume_file', name=r.resume_label) }}" target="_blank" rel="noopener">open</a>
+        {% endif %}
+      </div>
+      <div class="rt-row"><label>Channel</label>
+        <select name="channel">{% for c in channels %}<option {{ 'selected' if r.channel==c }}>{{ c }}</option>{% endfor %}</select>
+      </div>
+      <div class="rt-row"><label>Contact</label><input name="contact_name" value="{{ r.contact_name or '' }}" placeholder="name"></div>
+      <div class="rt-row"><label>Title</label><input name="contact_role" value="{{ r.contact_role or '' }}" placeholder="recruiter title"></div>
+      <div class="rt-row"><label>Email/LI</label><input name="contact_link" value="{{ r.contact_link or '' }}" placeholder="email or LinkedIn URL"></div>
+      <div class="rt-row"><label>Contacted</label><input name="date_contacted" type="date" value="{{ r.date_contacted or '' }}"></div>
+      <div class="rt-row"><label>Follow-up</label><input name="followup_date" type="date" value="{{ r.followup_date or '' }}"></div>
+      <div class="rt-row"><label>Next</label><input name="next_action" value="{{ r.next_action or '' }}" placeholder="next action"></div>
+      <div class="rt-row"><label>Website</label><input name="website" value="{{ r.website or '' }}" placeholder="https://…"></div>
+      <div class="rt-row"><label>Notes</label><textarea name="notes" placeholder="notes">{{ r.notes or '' }}</textarea></div>
+
+      <div class="rt-actions">
+        <button type="submit">Save</button>
+        <span class="rt-open">{% if r.contact_link %}<a href="{{ r.contact_link if '://' in r.contact_link else 'mailto:' + r.contact_link }}" target="_blank" rel="noopener">reach ↗</a>{% endif %}</span>
+      </div>
+    </form>
+    <form method="post" action="{{ url_for('recruiters_delete', rid=r.id) }}" onsubmit="return confirm('Remove {{ r.firm }}?')" style="text-align:right;margin-top:4px">
+      <button type="submit" class="rt-del">remove</button>
+    </form>
+  </div>
+
+  {% if loop.last %}</div>{% endif %}
+{% else %}
+  <p class="rt-note">No recruiters match this filter.</p>
+{% endfor %}
+
+<p class="rt-note">Tip: the outreach note to paste is in <code>_Recruiter Outreach/Headhunter_Target_List.md</code>.
+Set <b>Status</b> as you go (To contact → Contacted → Replied → Submitted me), pick which <b>Resume</b> you sent,
+and use <b>Follow-up</b> to remind yourself to nudge after ~5–7 days.</p>
+{% endblock %}

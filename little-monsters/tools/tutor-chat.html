@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Little Monsters - Class Tutor</title>
+<!--
+  CHANGE LOG
+  ---------------------------------------------------------------------------
+  DATE           | AUTHOR                    | DESCRIPTION
+  ---------------------------------------------------------------------------
+  2026-04-19     | roger.murphy@emeraldcoastsystemsgroup.com    | Initial creation — tutor chat UI
+  2026-04-22     | roger.murphy@agenticfederal.us   | Follow parent cockpit theme via theme-sync.js so the iframe recolors when the operator cycles themes instead of being pinned to midnight
+  ---------------------------------------------------------------------------
+-->
+<script>
+// Sync iframe theme to parent cockpit's data-theme. Storage events don't fire
+// in the writing window, so a MutationObserver on the parent <html> is the
+// reliable path for live same-tab updates when the operator cycles themes.
+(function(){
+  function applyTheme(n){
+    if(!n)return;
+    document.documentElement.setAttribute('data-theme',n);
+    var href='/cockpit/css/themes/'+n+'.css';
+    var link=document.querySelector('link[data-lm-theme-link="1"]');
+    if(link){if(link.getAttribute('href')!==href)link.setAttribute('href',href);return;}
+    link=document.createElement('link');link.rel='stylesheet';link.href=href;
+    link.setAttribute('data-lm-theme-link','1');document.head.appendChild(link);
+  }
+  function initial(){
+    try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(_e){}
+    try{var s=window.localStorage.getItem('cockpit-theme');if(s)return s;}catch(_e){}
+    return 'midnight';
+  }
+  applyTheme(initial());
+  try{if(window.parent&&window.parent!==window){
+    var ph=window.parent.document.documentElement;
+    new MutationObserver(function(ms){for(var i=0;i<ms.length;i++){if(ms[i].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)applyTheme(t);}}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});
+  }}catch(_e){}
+})();
+</script>
+<link rel="stylesheet" href="/api/education/education.css">
+<style>
+  body { height: 100vh; display: flex; flex-direction: column; }
+
+  /* ── Header ── */
+  .chat-header {
+    padding: 14px 20px; display: flex; align-items: center; gap: 12px;
+    background: var(--bg-secondary); border-bottom: 1px solid var(--border-color);
+  }
+  .tutor-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent-primary), var(--status-active));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .tutor-name { font-size: 15px; font-weight: 600; }
+  .tutor-class { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+  .tts-toggle {
+    margin-left: auto; padding: 6px 12px; border-radius: 8px;
+    border: 1px solid var(--border-color); background: transparent;
+    color: var(--text-muted); font-size: 11px; cursor: pointer;
+  }
+  .tts-toggle.active { color: var(--status-active); border-color: rgba(6,182,212,0.3); }
+
+  /* ── Messages ── */
+  .messages {
+    flex: 1; overflow-y: auto; padding: 20px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .msg {
+    max-width: 80%; padding: 12px 16px; border-radius: 14px;
+    font-size: 14px; line-height: 1.5; word-wrap: break-word;
+  }
+  .msg.student {
+    align-self: flex-end;
+    background: var(--accent-primary);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+  .msg.tutor {
+    align-self: flex-start;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-bottom-left-radius: 4px;
+  }
+  .msg.tutor .read-btn {
+    display: inline-block; margin-top: 8px; padding: 4px 10px;
+    border-radius: 6px; border: 1px solid var(--border-color);
+    background: transparent; color: var(--status-active); font-size: 11px;
+    cursor: pointer;
+  }
+  .msg.tutor .read-btn:hover { background: rgba(6,182,212,0.1); }
+  .msg.typing {
+    align-self: flex-start;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    font-style: italic;
+  }
+  .msg.typing .dots { display: inline-block; }
+  .msg.typing .dots span {
+    display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--text-muted); margin: 0 2px; animation: dotPulse 1.4s infinite;
+  }
+  .msg.typing .dots span:nth-child(2) { animation-delay: 0.2s; }
+  .msg.typing .dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes dotPulse { 0%,100%{opacity:0.3} 50%{opacity:1} }
+  .msg pre {
+    background: rgba(0,0,0,0.3); border-radius: 8px; padding: 10px;
+    overflow-x: auto; margin-top: 8px; font-size: 12px;
+  }
+
+  /* ── Input ── */
+  .input-area {
+    padding: 16px 20px; background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    display: flex; gap: 10px; align-items: flex-end;
+  }
+  .input-area textarea {
+    flex: 1; padding: 12px 14px; border-radius: 12px;
+    border: 1px solid var(--border-color); background: rgba(255,255,255,0.04);
+    color: var(--text-primary); font-size: 14px; font-family: var(--font-family);
+    resize: none; outline: none; max-height: 120px; min-height: 44px;
+  }
+  .input-area textarea:focus { border-color: var(--accent-primary); }
+  .send-btn {
+    width: 44px; height: 44px; border-radius: 12px; border: none;
+    background: var(--accent-primary); color: #fff; font-size: 18px;
+    cursor: pointer; flex-shrink: 0;
+  }
+  .send-btn:hover { background: #7c3aed; }
+  .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .mic-btn {
+    width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border-color);
+    background: transparent; color: var(--text-muted); font-size: 20px;
+    cursor: pointer; flex-shrink: 0; transition: all 0.2s;
+  }
+  .mic-btn:hover { background: rgba(239,68,68,0.1); color: #ef4444; }
+
+  /* ── Attachment preview ── */
+  .attach-preview {
+    padding: 8px 20px 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  }
+  .attach-chip {
+    display: inline-flex; align-items: center; gap: 8px; padding: 6px 8px;
+    border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-card);
+    font-size: 12px; color: var(--text-secondary); max-width: 260px;
+  }
+  .attach-chip img { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; }
+  .attach-chip .attach-x {
+    cursor: pointer; border: none; background: transparent; color: var(--text-muted);
+    font-size: 16px; line-height: 1; padding: 2px 4px;
+  }
+  .attach-chip .attach-x:hover { color: var(--status-error); }
+  .msg img.msg-photo { max-width: 200px; border-radius: 10px; margin-top: 6px; display: block; }
+
+  /* ── Live camera modal ── */
+  .cam-modal { position: fixed; inset: 0; z-index: 60; background: rgba(8,4,20,.82);
+    display: none; align-items: center; justify-content: center; padding: 16px; }
+  .cam-modal.open { display: flex; }
+  .cam-inner { width: min(520px, 100%); background: var(--bg-secondary); border: 1px solid var(--border-color);
+    border-radius: 16px; padding: 12px; }
+  .cam-inner video { width: 100%; border-radius: 12px; background: #000; max-height: 60vh; }
+  .cam-actions { display: flex; gap: 10px; margin-top: 10px; }
+  .cam-actions button { flex: 1; padding: 12px; border-radius: 12px; border: 1px solid var(--border-color);
+    background: var(--bg-card); color: var(--text-primary); font-weight: 700; cursor: pointer; font-size: 15px; }
+  .cam-actions .cam-snap { background: var(--accent-primary, #ec4faa); color: #fff; border: none; }
+  .mic-btn.listening { background: #ef4444; color: #fff; border-color: #ef4444; animation: pulse-mic 1.5s infinite; }
+  @keyframes pulse-mic { 0%,100%{box-shadow:none} 50%{box-shadow:0 0 12px rgba(239,68,68,0.4)} }
+
+  /* ── Welcome ── */
+  .welcome {
+    text-align: center; padding: 40px 20px; color: var(--text-muted);
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 12px;
+  }
+  .welcome .icon { font-size: 48px; margin-bottom: 8px; }
+  .welcome h2 { font-size: 18px; color: var(--text-primary); }
+  .welcome p { max-width: 360px; font-size: 13px; line-height: 1.5; }
+  .welcome .suggestions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 12px; }
+  .welcome .suggestion {
+    padding: 8px 14px; border-radius: 10px; border: 1px solid var(--border-color);
+    background: var(--bg-card); color: var(--text-primary); font-size: 12px;
+    cursor: pointer; transition: border-color 0.2s;
+  }
+  .welcome .suggestion:hover { border-color: var(--accent-primary); }
+
+  @media (max-width: 640px) {
+    /* Prevent iOS zoom-on-focus by keeping font-size >= 16px on inputs */
+    .input-area textarea {
+      font-size: 16px;
+    }
+  }
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div class="chat-header">
+  <div class="tutor-avatar">LM</div>
+  <div>
+    <div class="tutor-name" id="tutorName">Class Tutor</div>
+    <div class="tutor-class" id="tutorClass">Select a class</div>
+  </div>
+  <button class="tts-toggle" id="ttsToggle" onclick="toggleTTS()" title="Read responses aloud">
+    TTS Off
+  </button>
+</div>
+
+<!-- ── Messages ── -->
+<div class="messages" id="messages">
+  <div class="welcome" id="welcome">
+    <div class="icon">LM</div>
+    <h2>Hi! I'm your study buddy.</h2>
+    <p>Ask me anything about your class — type or tap the mic to talk. I'll use your textbook and notes to help you understand.</p>
+    <div class="suggestions">
+      <div class="suggestion" onclick="sendMessage('I need help understanding what we learned today')">Help with today's lesson</div>
+      <div class="suggestion" onclick="sendMessage('Can you quiz me on the last chapter?')">Quiz me</div>
+      <div class="suggestion" onclick="sendMessage('I\'m stuck on my homework, can you walk me through it step by step?')">Homework help</div>
+      <div class="suggestion" onclick="sendMessage('Explain this to me like I\'m 5')">Simple explanation</div>
+      <div class="suggestion" onclick="startCompanionMode()" style="border-color:rgba(52,211,153,0.4);color:var(--status-success);">Study with me</div>
+      <div class="suggestion" onclick="sendMessage('I\'m feeling frustrated and overwhelmed with this work. Can you help me calm down and break things into smaller steps?')" style="border-color:rgba(251,191,36,0.4);color:var(--status-warning);">I'm stressed</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Attachment preview (shows the photo/file the student is about to send) ── -->
+<div class="attach-preview" id="attachPreview" style="display:none;"></div>
+
+<!-- ── Input ── -->
+<div class="input-area">
+  <button class="mic-btn" id="camBtn" onclick="openCamera()" title="Take a photo of your work">&#128247;</button>
+  <button class="mic-btn" id="attachBtn" onclick="document.getElementById('fileInput').click()" title="Attach a picture or document">&#128206;</button>
+  <button class="mic-btn" id="micBtn" onclick="toggleVoiceInput()" title="Speak your question">&#127908;</button>
+  <textarea id="input" rows="1" placeholder="Ask me anything, or snap a photo of your worksheet" onkeydown="handleKey(event)"></textarea>
+  <button class="send-btn" id="sendBtn" onclick="sendFromInput()">&#x27A4;</button>
+</div>
+<!-- Fallback file inputs (used only if the live camera isn't available) -->
+<input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;" onchange="handleAttach(event)" />
+<input type="file" id="fileInput" accept="image/*,.pdf" style="display:none;" onchange="handleAttach(event)" />
+
+<!-- Live camera modal — a real getUserMedia capture, not a file picker -->
+<div class="cam-modal" id="camModal">
+  <div class="cam-inner">
+    <video id="camVideo" autoplay playsinline muted></video>
+    <div class="cam-actions">
+      <button class="cam-cancel" onclick="closeCamera()">Cancel</button>
+      <button class="cam-snap" onclick="capturePhoto()">&#128247; Snap</button>
+    </div>
+  </div>
+</div>
+
+<script src="/api/education/lm-voice.js"></script>
+<script>
+/**
+ * Tutor Chat — Client-side chat interface.
+ *
+ * Connects to the class-tutor bot via SSE streaming for real-time responses.
+ * Supports TTS read-aloud via the read-aloud tool / browser speechSynthesis.
+ */
+
+var ttsEnabled = false;
+var isProcessing = false;
+// The photo/document the student attached but hasn't sent yet:
+// { base64, mediaType, dataUrl, name, isImage }.
+var pendingAttachment = null;
+
+/** Read a chosen photo/document, stash it, and show a preview chip. */
+function handleAttach(event) {
+  var file = event.target.files && event.target.files[0];
+  event.target.value = ''; // allow re-selecting the same file
+  if (!file) return;
+  if (file.size > 8 * 1024 * 1024) { alert('That file is a bit big — please pick one under 8 MB.'); return; }
+  var reader = new FileReader();
+  reader.onload = function () {
+    var dataUrl = String(reader.result || '');
+    var comma = dataUrl.indexOf(',');
+    pendingAttachment = {
+      base64: comma >= 0 ? dataUrl.slice(comma + 1) : '',
+      mediaType: file.type || 'application/octet-stream',
+      dataUrl: dataUrl,
+      name: file.name || 'attachment',
+      isImage: /^image\//.test(file.type),
+    };
+    renderAttachPreview();
+  };
+  reader.onerror = function () { alert('Sorry, I could not read that file.'); };
+  reader.readAsDataURL(file);
+}
+
+/** Draw (or hide) the pending-attachment chip above the input. */
+function renderAttachPreview() {
+  var el = document.getElementById('attachPreview');
+  if (!pendingAttachment) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  var thumb = pendingAttachment.isImage
+    ? '<img src="' + pendingAttachment.dataUrl + '" alt="attachment" />'
+    : '<span class="codicon codicon-file"></span>';
+  el.innerHTML = '<span class="attach-chip">' + thumb +
+    '<span>' + escapeHtml(pendingAttachment.name) + '</span>' +
+    '<button class="attach-x" onclick="clearAttachment()" title="Remove">&times;</button></span>';
+  el.style.display = 'flex';
+}
+
+/** Drop the pending attachment. */
+function clearAttachment() { pendingAttachment = null; renderAttachPreview(); }
+
+// ── Live camera capture (real getUserMedia, not a file picker) ──
+var camStream = null;
+async function openCamera() {
+  var modal = document.getElementById('camModal');
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('no camera api');
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+    document.getElementById('camVideo').srcObject = camStream;
+    modal.classList.add('open');
+  } catch (e) {
+    // No camera / permission denied → fall back to the OS picker (which can still open a camera on mobile).
+    document.getElementById('cameraInput').click();
+  }
+}
+function closeCamera() {
+  document.getElementById('camModal').classList.remove('open');
+  if (camStream) { try { camStream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} camStream = null; }
+}
+function capturePhoto() {
+  var v = document.getElementById('camVideo');
+  var c = document.createElement('canvas');
+  c.width = v.videoWidth || 640; c.height = v.videoHeight || 480;
+  c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+  var dataUrl = c.toDataURL('image/jpeg', 0.85);
+  var comma = dataUrl.indexOf(',');
+  pendingAttachment = { base64: comma >= 0 ? dataUrl.slice(comma + 1) : '', mediaType: 'image/jpeg', dataUrl: dataUrl, name: 'photo.jpg', isImage: true };
+  renderAttachPreview();
+  closeCamera();
+}
+
+// Auto-prefill from URL param (used by "Break it down" button in class view)
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  var prefill = params.get('prefill');
+  if (prefill) {
+    setTimeout(function() { sendMessage(prefill); }, 500);
+  }
+})();
+
+/** Toggle text-to-speech. */
+function toggleTTS() {
+  ttsEnabled = !ttsEnabled;
+  var btn = document.getElementById('ttsToggle');
+  btn.textContent = ttsEnabled ? 'TTS On' : 'TTS Off';
+  btn.classList.toggle('active', ttsEnabled);
+}
+
+/** Send a message from the input field. */
+function sendFromInput() {
+  var input = document.getElementById('input');
+  var text = input.value.trim();
+  // A photo on its own is a valid message ("here's my worksheet") — only block
+  // when there's neither text nor an attachment.
+  if ((!text && !pendingAttachment) || isProcessing) return;
+  input.value = '';
+  input.style.height = 'auto';
+  sendMessage(text);
+}
+
+/** Handle Enter key (Shift+Enter for newline). */
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendFromInput();
+  }
+  // Auto-resize textarea
+  setTimeout(function() {
+    e.target.style.height = 'auto';
+    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+  }, 0);
+}
+
+/** Send a message to the tutor bot. */
+async function sendMessage(text) {
+  if (isProcessing) return;
+  isProcessing = true;
+
+  // Hide welcome screen
+  var welcome = document.getElementById('welcome');
+  if (welcome) welcome.style.display = 'none';
+
+  // Take ownership of any pending attachment, then clear the composer chip.
+  var attachment = pendingAttachment;
+  pendingAttachment = null;
+  renderAttachPreview();
+
+  // Add student message (with the photo thumbnail, if any)
+  var studentId = addMessage(text || (attachment ? "Here's my work — can you help?" : ''), 'student');
+  if (attachment && attachment.isImage) {
+    var sEl = document.getElementById(studentId);
+    if (sEl) { var im = document.createElement('img'); im.className = 'msg-photo'; im.src = attachment.dataUrl; sEl.appendChild(im); }
+  }
+
+  // Show typing indicator
+  var typingId = addMessage('<span class="dots"><span></span><span></span><span></span></span> Thinking...', 'typing');
+
+  document.getElementById('sendBtn').disabled = true;
+
+  try {
+    // POST to tutor chat endpoint. When a photo/doc is attached, include it so the
+    // tutor can analyze the student's handwritten work (vision) per the guardrails.
+    var payload = { message: text, classId: new URLSearchParams(window.location.search).get('classId') || '' };
+    if (attachment && attachment.base64) {
+      payload.imageData = attachment.base64;
+      payload.imageMediaType = attachment.mediaType;
+    }
+    var resp = await fetch('/api/education/tutor-chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    // Remove typing indicator
+    removeMessage(typingId);
+
+    if (!resp.ok) throw new Error('Tutor unavailable');
+
+    var data = await resp.json();
+    var reply = data.response || data.message || 'Sorry, I had trouble with that. Try again?';
+
+    var tutorMsgId = addMessage(reply, 'tutor');
+    if (data.grounded && Array.isArray(data.sources) && data.sources.length) {
+      appendGroundingBadge(tutorMsgId, data.sources);
+    }
+
+    // TTS if enabled
+    if (ttsEnabled) {
+      speakText(reply);
+    }
+  } catch (err) {
+    removeMessage(typingId);
+    addMessage('Sorry, I couldn\'t connect. Please try again in a moment.', 'tutor');
+  }
+
+  isProcessing = false;
+  document.getElementById('sendBtn').disabled = false;
+}
+
+/** Add a message to the chat. Returns the message element ID. */
+function addMessage(text, type) {
+  var container = document.getElementById('messages');
+  var div = document.createElement('div');
+  var id = 'msg-' + Date.now() + '-' + Math.random().toString(36).slice(2,6);
+  div.id = id;
+  div.className = 'msg ' + type;
+
+  if (type === 'tutor') {
+    // Bind the read-aloud handler in JS (closure over the real text) instead of inlining the
+    // reply into an onclick string — that avoids any attribute-injection from echoed content.
+    div.innerHTML = mdToHtml(escapeHtml(text)) + '<button class="read-btn">Read aloud</button>';
+    var rb = div.querySelector('.read-btn'); if (rb) rb.addEventListener('click', function () { speakText(text); });
+  } else if (type === 'typing') {
+    // The typing indicator is trusted, hardcoded markup (the animated dots). It must
+    // render as HTML — using textContent here was the bug that printed the literal
+    // "<span class="dots">…" code instead of animating.
+    div.innerHTML = text;
+  } else {
+    div.textContent = text;
+  }
+
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  return id;
+}
+
+/** Minimal, safe markdown -> HTML for tutor replies. Input MUST already be HTML-escaped.
+ *  Handles **bold**, `code`, bullet/numbered lists, and line breaks (ADHD-friendly formatting). */
+function mdToHtml(s) {
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>');
+  var lines = s.split('\n'), out = [], inUl = false;
+  function closeUl() { if (inUl) { out.push('</ul>'); inUl = false; } }
+  for (var i = 0; i < lines.length; i++) {
+    var ln = lines[i];
+    var m = ln.match(/^\s*(?:[-•]|\d+\.)\s+(.*)$/);
+    if (m) {
+      if (!inUl) { out.push('<ul style="margin:6px 0;padding-left:20px;line-height:1.5">'); inUl = true; }
+      out.push('<li>' + m[1] + '</li>');
+    } else if (ln.trim() === '') {
+      closeUl();
+      if (out.length && out[out.length - 1] !== '<br>') out.push('<br>');
+    } else {
+      closeUl();
+      out.push(ln + '<br>');
+    }
+  }
+  closeUl();
+  return out.join('');
+}
+
+/** Append a "grounded in your textbook" badge + collapsible source snippets under a tutor reply.
+ *  Driven by the tutor-chat API's grounded/sources fields (RAG over the class's own materials). */
+function appendGroundingBadge(msgId, sources) {
+  var el = document.getElementById(msgId);
+  if (!el) return;
+  var items = sources.map(function (s) {
+    return '<li style="margin-bottom:4px"><span style="color:#5fdcc0;font-weight:700">[' + s.n + ']</span> '
+      + escapeHtml(String(s.text || '').slice(0, 220)) + '…</li>';
+  }).join('');
+  var wrap = document.createElement('div');
+  wrap.style.cssText = 'margin-top:10px;display:flex;flex-direction:column;gap:6px';
+  wrap.innerHTML =
+    '<div style="display:inline-flex;align-items:center;gap:6px;align-self:flex-start;'
+    + 'background:rgba(94,220,192,.14);color:#5fdcc0;border:1px solid rgba(94,220,192,.4);'
+    + 'border-radius:999px;padding:3px 11px;font-size:12px;font-weight:600">'
+    + '<span class="codicon codicon-book"></span> Grounded in your class textbook</div>'
+    + '<details style="font-size:12px;color:#9fb3c8"><summary style="cursor:pointer;user-select:none">'
+    + sources.length + ' source' + (sources.length > 1 ? 's' : '') + ' from your materials</summary>'
+    + '<ul style="margin:6px 0 0;padding-left:18px;line-height:1.5">' + items + '</ul></details>';
+  el.appendChild(wrap);
+  var c = document.getElementById('messages');
+  if (c) c.scrollTop = c.scrollHeight;
+}
+
+/** Remove a message by ID. */
+function removeMessage(id) {
+  var el = document.getElementById(id);
+  if (el) el.remove();
+}
+
+/** Speak text using browser TTS (fallback when PollyService unavailable). */
+function speakText(text) {
+  var clean = (text || '').replace(/<[^>]*>/g, '');
+  if (window.lmSpeak) { window.lmSpeak(clean); return; } // neural voice + fallback
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+    var utterance = new SpeechSynthesisUtterance(clean);
+    utterance.rate = 0.9;
+    utterance.pitch = 1.0;
+    window.speechSynthesis.speak(utterance);
+  }
+}
+
+/** HTML escape. */
+function escapeHtml(str) {
+  var div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
+/** Voice input — browser speech recognition. */
+var recognition = null;
+var isListening = false;
+
+function toggleVoiceInput() {
+  if (isListening) {
+    stopListening();
+    return;
+  }
+
+  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    alert('Voice input is not supported in this browser. Try Chrome.');
+    return;
+  }
+
+  recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.lang = 'en-US';
+
+  recognition.onstart = function() {
+    isListening = true;
+    document.getElementById('micBtn').classList.add('listening');
+    document.getElementById('input').placeholder = 'Listening...';
+  };
+
+  recognition.onresult = function(event) {
+    var transcript = '';
+    for (var i = 0; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
+    }
+    document.getElementById('input').value = transcript;
+  };
+
+  recognition.onend = function() {
+    stopListening();
+    // Auto-send if we got text
+    var input = document.getElementById('input');
+    if (input.value.trim().length > 0) {
+      sendFromInput();
+    }
+  };
+
+  recognition.onerror = function(event) {
+    stopListening();
+    if (event.error !== 'no-speech') {
+      console.warn('Speech recognition error:', event.error);
+    }
+  };
+
+  recognition.start();
+}
+
+function stopListening() {
+  isListening = false;
+  document.getElementById('micBtn').classList.remove('listening');
+  document.getElementById('input').placeholder = 'Ask me anything... or tap the mic to speak';
+  if (recognition) { try { recognition.stop(); } catch (e) {} }
+}
+
+/** Study companion mode — tutor checks in every 10 minutes. */
+var companionTimer = null;
+var companionMinutes = 0;
+
+function startCompanionMode() {
+  sendMessage('I am starting my homework now. Can you study with me? Check in on me every few minutes to see how I am doing.');
+
+  companionMinutes = 0;
+  if (companionTimer) clearInterval(companionTimer);
+
+  companionTimer = setInterval(function() {
+    companionMinutes += 10;
+    var checkIns = [
+      'How is it going? Need help with anything?',
+      'Still working? You are doing great! Let me know if you get stuck.',
+      'Check-in! How are you feeling about this assignment?',
+      'You have been at it for ' + companionMinutes + ' minutes. Want to take a quick stretch break?',
+      'Nice focus! Remember, I am here if you need me.',
+    ];
+    var msg = checkIns[Math.floor(Math.random() * checkIns.length)];
+    addMessage(msg, 'tutor');
+    // Use the shared neural voice (lmSpeak) instead of the robotic browser voice,
+    // and let it cancel any prior utterance so check-ins don't pile up.
+    if (ttsEnabled) speakText(msg);
+  }, 10 * 60 * 1000); // Every 10 minutes
+}
+
+/** Escape for attribute (single-quote-safe). */
+function escapeAttr(str) {
+  return (str || '').replace(/'/g, "\\'").replace(/\n/g, ' ').substring(0, 500);
+}
+</script>
+</body>
+</html>

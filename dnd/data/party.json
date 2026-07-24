@@ -1,0 +1,590 @@
+{
+  "_license": "Character numbers derived from SRD 5.1, CC-BY-4.0. See LICENSE-SRD.md. Names/personalities are original.",
+  "party": [
+    {
+      "id": "bram",
+      "name": "Bram Ironhand",
+      "race": "Human",
+      "class": "Fighter",
+      "level": 1,
+      "prof": 2,
+      "ac": 18,
+      "maxHp": 12,
+      "speed": 30,
+      "abilities": {
+        "str": 16,
+        "dex": 13,
+        "con": 15,
+        "int": 8,
+        "wis": 12,
+        "cha": 10
+      },
+      "mods": {
+        "str": 3,
+        "dex": 1,
+        "con": 2,
+        "int": -1,
+        "wis": 1,
+        "cha": 0
+      },
+      "initiative": 1,
+      "token": {
+        "color": "#3b82f6",
+        "glyph": "⚔"
+      },
+      "features": [
+        "Fighting Style: Defense (+1 AC, included).",
+        "Second Wind: once per rest, regain 1d10+1 HP as a bonus action."
+      ],
+      "actions": [
+        {
+          "id": "longsword",
+          "name": "Longsword",
+          "type": "weapon",
+          "mode": "attack",
+          "delivery": "melee",
+          "reach": 5,
+          "toHit": 5,
+          "damage": {
+            "dice": "1d8",
+            "bonus": 3,
+            "type": "slashing"
+          },
+          "text": "Reliable steel. Versatile (1d10 two-handed)."
+        },
+        {
+          "id": "crossbow",
+          "name": "Light Crossbow",
+          "type": "weapon",
+          "mode": "attack",
+          "delivery": "ranged",
+          "range": 80,
+          "toHit": 3,
+          "damage": {
+            "dice": "1d8",
+            "bonus": 1,
+            "type": "piercing"
+          },
+          "text": "For enemies out of reach."
+        },
+        {
+          "id": "second-wind",
+          "name": "Second Wind",
+          "type": "feature",
+          "mode": "heal",
+          "delivery": "self",
+          "heal": {
+            "dice": "1d10",
+            "bonus": 1
+          },
+          "uses": 1,
+          "text": "Catch your breath — bonus action, once per rest."
+        }
+      ],
+      "inventory": {
+        "items": [
+          {
+            "id": "longsword",
+            "name": "Longsword",
+            "category": "weapon",
+            "quantity": 1,
+            "equipped": true,
+            "actionId": "longsword"
+          },
+          {
+            "id": "light-crossbow",
+            "name": "Light Crossbow",
+            "category": "weapon",
+            "quantity": 1,
+            "equipped": true,
+            "actionId": "crossbow"
+          },
+          {
+            "id": "crossbow-bolts",
+            "name": "Crossbow Bolts",
+            "category": "ammunition",
+            "quantity": 20,
+            "equipped": false
+          },
+          {
+            "id": "chain-mail",
+            "name": "Chain Mail",
+            "category": "armor",
+            "quantity": 1,
+            "equipped": true
+          },
+          {
+            "id": "shield",
+            "name": "Shield",
+            "category": "armor",
+            "quantity": 1,
+            "equipped": true
+          },
+          {
+            "id": "dungeoneers-pack",
+            "name": "Dungeoneer's Pack",
+            "category": "adventuring-gear",
+            "quantity": 1,
+            "equipped": false
+          }
+        ],
+        "coins": {
+          "cp": 0,
+          "sp": 0,
+          "ep": 0,
+          "gp": 10,
+          "pp": 0
+        }
+      },
+      "epithet": "The wall the goblins break against."
+    },
+    {
+      "id": "della",
+      "name": "Della Stonehearth",
+      "race": "Hill Dwarf",
+      "class": "Cleric (Life)",
+      "level": 1,
+      "prof": 2,
+      "ac": 18,
+      "maxHp": 12,
+      "speed": 25,
+      "abilities": {
+        "str": 14,
+        "dex": 10,
+        "con": 16,
+        "int": 11,
+        "wis": 16,
+        "cha": 12
+      },
+      "mods": {
+        "str": 2,
+        "dex": 0,
+        "con": 3,
+        "int": 0,
+        "wis": 3,
+        "cha": 1
+      },
+      "initiative": 0,
+      "spellSaveDc": 13,
+      "spellAttack": 5,
+      "slots": {
+        "1": 2
+      },
+      "token": {
+        "color": "#f59e0b",
+        "glyph": "✚"
+      },
+      "features": [
+        "Disciple of Life: your healing spells restore an extra 2 + the spell's level HP (included).",
+        "Channel Divinity: Preserve Life."
+      ],
+      "actions": [
+        {
+          "id": "sacred-flame",
+          "name": "Sacred Flame",
+          "type": "spell",
+          "level": 0,
+          "mode": "save",
+          "delivery": "ranged",
+          "range": 60,
+          "save": {
+            "ability": "DEX",
+            "dc": 13,
+            "half": false
+          },
+          "damage": {
+            "dice": "1d8",
+            "bonus": 0,
+            "type": "radiant"
+          },
+          "text": "Cantrip. Flame-like radiance; ignores cover."
+        },
+        {
+          "id": "guiding-bolt",
+          "name": "Guiding Bolt",
+          "type": "spell",
+          "level": 1,
+          "slot": 1,
+          "mode": "attack",
+          "delivery": "ranged",
+          "range": 120,
+          "toHit": 5,
+          "damage": {
+            "dice": "4d6",
+            "bonus": 0,
+            "type": "radiant"
+          },
+          "text": "A lance of light; the next attacker on the target has advantage."
+        },
+        {
+          "id": "cure-wounds",
+          "name": "Cure Wounds",
+          "type": "spell",
+          "level": 1,
+          "slot": 1,
+          "mode": "heal",
+          "delivery": "melee",
+          "reach": 5,
+          "heal": {
+            "dice": "1d8",
+            "bonus": 6
+          },
+          "text": "Touch heal (1d8 + 3 Wis + 3 Disciple of Life)."
+        },
+        {
+          "id": "mace",
+          "name": "Mace",
+          "type": "weapon",
+          "mode": "attack",
+          "delivery": "melee",
+          "reach": 5,
+          "toHit": 4,
+          "damage": {
+            "dice": "1d6",
+            "bonus": 2,
+            "type": "bludgeoning"
+          },
+          "text": "When faith needs a blunt argument."
+        }
+      ],
+      "inventory": {
+        "items": [
+          {
+            "id": "mace",
+            "name": "Mace",
+            "category": "weapon",
+            "quantity": 1,
+            "equipped": true,
+            "actionId": "mace"
+          },
+          {
+            "id": "chain-mail",
+            "name": "Chain Mail",
+            "category": "armor",
+            "quantity": 1,
+            "equipped": true
+          },
+          {
+            "id": "shield",
+            "name": "Shield",
+            "category": "armor",
+            "quantity": 1,
+            "equipped": true
+          },
+          {
+            "id": "holy-symbol",
+            "name": "Holy Symbol",
+            "category": "focus",
+            "quantity": 1,
+            "equipped": true
+          },
+          {
+            "id": "priests-pack",
+            "name": "Priest's Pack",
+            "category": "adventuring-gear",
+            "quantity": 1,
+            "equipped": false
+          }
+        ],
+        "coins": {
+          "cp": 0,
+          "sp": 0,
+          "ep": 0,
+          "gp": 8,
+          "pp": 0
+        }
+      },
+      "epithet": "Faith with a hammer behind it."
+    },
+    {
+      "id": "fenwick",
+      "name": "Fenwick Quill",
+      "race": "High Elf",
+      "class": "Wizard",
+      "level": 1,
+      "prof": 2,
+      "ac": 12,
+      "maxHp": 7,
+      "speed": 30,
+      "abilities": {
+        "str": 8,
+        "dex": 15,
+        "con": 13,
+        "int": 16,
+        "wis": 12,
+        "cha": 10
+      },
+      "mods": {
+        "str": -1,
+        "dex": 2,
+        "con": 1,
+        "int": 3,
+        "wis": 1,
+        "cha": 0
+      },
+      "initiative": 2,
+      "spellSaveDc": 13,
+      "spellAttack": 5,
+      "slots": {
+        "1": 2
+      },
+      "token": {
+        "color": "#a855f7",
+        "glyph": "✦"
+      },
+      "features": [
+        "Arcane Recovery.",
+        "High Elf: extra cantrip (Prestidigitation).",
+        "Fragile — keep your distance."
+      ],
+      "actions": [
+        {
+          "id": "fire-bolt",
+          "name": "Fire Bolt",
+          "type": "spell",
+          "level": 0,
+          "mode": "attack",
+          "delivery": "ranged",
+          "range": 120,
+          "toHit": 5,
+          "damage": {
+            "dice": "1d10",
+            "bonus": 0,
+            "type": "fire"
+          },
+          "text": "Cantrip. A mote of fire hurled at a foe."
+        },
+        {
+          "id": "magic-missile",
+          "name": "Magic Missile",
+          "type": "spell",
+          "level": 1,
+          "slot": 1,
+          "mode": "autohit",
+          "delivery": "ranged",
+          "range": 120,
+          "darts": 3,
+          "damage": {
+            "dice": "1d4",
+            "bonus": 1,
+            "type": "force"
+          },
+          "text": "Three darts of force. They never miss."
+        },
+        {
+          "id": "burning-hands",
+          "name": "Burning Hands",
+          "type": "spell",
+          "level": 1,
+          "slot": 1,
+          "mode": "save",
+          "delivery": "ranged",
+          "range": 15,
+          "aoe": "15-ft cone",
+          "save": {
+            "ability": "DEX",
+            "dc": 13,
+            "half": true
+          },
+          "damage": {
+            "dice": "3d6",
+            "bonus": 0,
+            "type": "fire"
+          },
+          "text": "A cone of roaring flame sweeps everyone in the arc; half damage on a save.",
+          "aoeShape": "cone",
+          "aoeSize": 15
+        },
+        {
+          "id": "dagger",
+          "name": "Dagger",
+          "type": "weapon",
+          "mode": "attack",
+          "delivery": "melee",
+          "reach": 5,
+          "toHit": 4,
+          "damage": {
+            "dice": "1d4",
+            "bonus": 2,
+            "type": "piercing"
+          },
+          "text": "Last resort. Finesse; can be thrown."
+        }
+      ],
+      "inventory": {
+        "items": [
+          {
+            "id": "dagger",
+            "name": "Dagger",
+            "category": "weapon",
+            "quantity": 1,
+            "equipped": true,
+            "actionId": "dagger"
+          },
+          {
+            "id": "spellbook",
+            "name": "Spellbook",
+            "category": "adventuring-gear",
+            "quantity": 1,
+            "equipped": false
+          },
+          {
+            "id": "arcane-focus",
+            "name": "Arcane Focus",
+            "category": "focus",
+            "quantity": 1,
+            "equipped": true
+          },
+          {
+            "id": "scholars-pack",
+            "name": "Scholar's Pack",
+            "category": "adventuring-gear",
+            "quantity": 1,
+            "equipped": false
+          },
+          {
+            "id": "robes",
+            "name": "Robes",
+            "category": "clothing",
+            "quantity": 1,
+            "equipped": true
+          }
+        ],
+        "coins": {
+          "cp": 0,
+          "sp": 0,
+          "ep": 0,
+          "gp": 10,
+          "pp": 0
+        }
+      },
+      "epithet": "Four spells, no fear, seven hit points."
+    },
+    {
+      "id": "pip",
+      "name": "Pip Underbough",
+      "race": "Halfling",
+      "class": "Rogue",
+      "level": 1,
+      "prof": 2,
+      "ac": 14,
+      "maxHp": 10,
+      "speed": 25,
+      "abilities": {
+        "str": 10,
+        "dex": 16,
+        "con": 14,
+        "int": 12,
+        "wis": 13,
+        "cha": 14
+      },
+      "mods": {
+        "str": 0,
+        "dex": 3,
+        "con": 2,
+        "int": 1,
+        "wis": 1,
+        "cha": 2
+      },
+      "initiative": 3,
+      "token": {
+        "color": "#22c55e",
+        "glyph": "🗡"
+      },
+      "features": [
+        "Sneak Attack (1d6): once per turn, +1d6 damage when you have advantage or an ally is adjacent to the target.",
+        "Halfling Lucky: reroll a natural 1 (applied automatically)."
+      ],
+      "actions": [
+        {
+          "id": "shortsword",
+          "name": "Shortsword",
+          "type": "weapon",
+          "mode": "attack",
+          "delivery": "melee",
+          "reach": 5,
+          "toHit": 5,
+          "damage": {
+            "dice": "1d6",
+            "bonus": 3,
+            "type": "piercing"
+          },
+          "sneak": "1d6",
+          "text": "Finesse. Best with a sneak-attack opening."
+        },
+        {
+          "id": "shortbow",
+          "name": "Shortbow",
+          "type": "weapon",
+          "mode": "attack",
+          "delivery": "ranged",
+          "range": 80,
+          "toHit": 5,
+          "damage": {
+            "dice": "1d6",
+            "bonus": 3,
+            "type": "piercing"
+          },
+          "sneak": "1d6",
+          "text": "Pick them off from cover."
+        }
+      ],
+      "inventory": {
+        "items": [
+          {
+            "id": "shortsword",
+            "name": "Shortsword",
+            "category": "weapon",
+            "quantity": 1,
+            "equipped": true,
+            "actionId": "shortsword"
+          },
+          {
+            "id": "shortbow",
+            "name": "Shortbow",
+            "category": "weapon",
+            "quantity": 1,
+            "equipped": true,
+            "actionId": "shortbow"
+          },
+          {
+            "id": "arrows",
+            "name": "Arrows",
+            "category": "ammunition",
+            "quantity": 20,
+            "equipped": false
+          },
+          {
+            "id": "leather-armor",
+            "name": "Leather Armor",
+            "category": "armor",
+            "quantity": 1,
+            "equipped": true
+          },
+          {
+            "id": "thieves-tools",
+            "name": "Thieves' Tools",
+            "category": "tool",
+            "quantity": 1,
+            "equipped": false
+          },
+          {
+            "id": "burglars-pack",
+            "name": "Burglar's Pack",
+            "category": "adventuring-gear",
+            "quantity": 1,
+            "equipped": false
+          }
+        ],
+        "coins": {
+          "cp": 0,
+          "sp": 0,
+          "ep": 0,
+          "gp": 10,
+          "pp": 0
+        }
+      },
+      "epithet": "You will not see the knife."
+    }
+  ]
+}

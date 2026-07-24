@@ -1,0 +1,247 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Submissions</title>
+<!--
+  Submissions — the print-queue view of the desktop worker.
+
+  Everything the apply rail does happens on ANOTHER machine, in a browser the operator is not looking
+  at. This surface is the window: is the desktop connected and claiming, what is waiting, what is
+  being submitted right now — and, per run, the narrated story the worker reports as it works
+  (captions + the screenshots it took). Polls /api/apply-operator/queue; opening a run pulls its
+  beats from /api/apply-operator/story/:ticketId and streams frames from /shot/:ticketId/:file.
+
+  Read-only. The only actions live on the Job Board (queue one) — this watches.
+-->
+<style>
+  :root { --bg:#0b0f14; --panel:#121821; --panel2:#0e141c; --line:#2a2f3a; --text:#e6edf3; --muted:#8b98a5; --accent:#4aa3ff; --accent2:#3fb950; --danger:#f85149; --warn:#d29922; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  .wrap { max-width:1100px; margin:0 auto; padding:18px 20px 60px; }
+  h1 { font-size:19px; margin:0 0 3px; }
+  .sub { color:var(--muted); font-size:12.5px; margin:0 0 14px; }
+
+  /* Worker status — the headline. A wedged box is the failure this queue actually has, so it gets
+     a full-width banner and a plain instruction, never a silently empty list. */
+  .worker { display:flex; gap:11px; align-items:flex-start; border:1px solid var(--line); background:var(--panel); border-radius:10px; padding:11px 14px; margin:0 0 14px; }
+  .worker .dot { width:9px; height:9px; border-radius:50%; margin-top:6px; flex:none; background:var(--muted); }
+  .worker.ok .dot { background:var(--accent2); box-shadow:0 0 0 3px rgba(63,185,80,.15); }
+  .worker.warn .dot { background:var(--warn); box-shadow:0 0 0 3px rgba(210,153,34,.15); }
+  .worker.off .dot { background:var(--danger); box-shadow:0 0 0 3px rgba(248,81,73,.15); }
+  .worker b { font-size:13px; } .worker p { margin:2px 0 0; font-size:12.5px; color:var(--muted); }
+  .worker .host { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; color:var(--muted); }
+
+  .nodebar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 10px; font-size:12.5px; color:var(--muted); }
+  .nodebar select { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:5px 9px; font-size:12.5px; }
+  .rtarget { color:var(--muted); font-size:11.5px; }
+  .lanes { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 14px; }
+  .lane { border:1px solid var(--line); background:var(--panel); border-radius:9px; padding:7px 13px; cursor:pointer; }
+  .lane.active { border-color:var(--accent); }
+  .lane .n { font-size:17px; font-weight:600; } .lane .l { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+
+  .row { border:1px solid var(--line); background:var(--panel); border-radius:10px; padding:11px 13px; margin:0 0 8px; }
+  .row.live { border-color:var(--accent); }
+  .rtop { display:flex; gap:10px; align-items:baseline; justify-content:space-between; flex-wrap:wrap; }
+  .rtitle { font-weight:600; font-size:13.5px; margin:0; }
+  .rco { color:var(--muted); font-size:12px; }
+  .pill { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; border:1px solid var(--line); border-radius:20px; padding:2px 9px; color:var(--muted); white-space:nowrap; }
+  .pill.queued { color:var(--accent); border-color:var(--accent); }
+  .pill.submitting { color:var(--warn); border-color:var(--warn); }
+  .pill.applied { color:var(--accent2); border-color:var(--accent2); }
+  .pill.needs_you { color:var(--danger); border-color:var(--danger); }
+  .rmeta { color:var(--muted); font-size:11.5px; margin:5px 0 0; display:flex; gap:12px; flex-wrap:wrap; }
+  .rmeta a { color:var(--accent); text-decoration:none; }
+
+  /* Live progress bar — the one thing that says "it is moving" during a long submission. */
+  .bar { height:3px; border-radius:3px; background:var(--panel2); overflow:hidden; margin:8px 0 0; }
+  .bar i { display:block; height:100%; background:var(--warn); width:30%; animation:slide 1.6s ease-in-out infinite; }
+  @keyframes slide { 0%{margin-left:-30%} 100%{margin-left:100%} }
+
+  /* The story: one beat per row, screenshots inline. Reads top-to-bottom as what happened. */
+  .story { margin:11px 0 0; border-top:1px solid var(--line); padding-top:10px; }
+  .beat { display:flex; gap:11px; padding:8px 0; border-bottom:1px dashed var(--line); }
+  .beat:last-child { border-bottom:0; }
+  .beat .seq { flex:none; width:22px; height:22px; border-radius:50%; border:1px solid var(--line); color:var(--muted); font-size:11px; display:flex; align-items:center; justify-content:center; }
+  .beat .body { flex:1; min-width:0; }
+  .beat .lab { font-size:13px; font-weight:600; }
+  .beat .note { font-size:12px; color:var(--muted); margin:2px 0 0; white-space:pre-wrap; }
+  .beat .when { font-size:11px; color:var(--muted); }
+  .beat img { display:block; margin:7px 0 0; max-width:100%; border:1px solid var(--line); border-radius:7px; cursor:zoom-in; background:#fff; }
+  .empty { color:var(--muted); font-size:12.5px; padding:16px 0; }
+
+  /* Full-size frame viewer — a form screenshot is unreadable at thumbnail width. */
+  .lb { position:fixed; inset:0; background:rgba(0,0,0,.85); display:none; align-items:center; justify-content:center; padding:24px; z-index:50; cursor:zoom-out; }
+  .lb.show { display:flex; } .lb img { max-width:100%; max-height:100%; border-radius:8px; }
+  .btn { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:5px 11px; font-size:12px; cursor:pointer; text-decoration:none; display:inline-block; }
+  .btn:hover { border-color:var(--accent); }
+</style>
+<link rel="stylesheet" href="/api/career-hunter/static/career-hunter.css"/>
+</head><body>
+<script>(function(){const M={'--bg':'--bg-primary','--panel':'--bg-secondary','--panel2':'--bg-tertiary','--line':'--border-color','--text':'--text-primary','--muted':'--text-secondary','--accent':'--accent-primary','--accent2':'--status-success','--scrollbar-thumb':'--scrollbar-thumb'};function m(){try{const p=(window.parent&&window.parent!==window)?window.parent:null;if(!p)return;const cs=p.getComputedStyle(p.document.documentElement);for(const k in M){const v=cs.getPropertyValue(M[k]).trim();if(v)document.documentElement.style.setProperty(k,v);}}catch(e){}}m();window.addEventListener('storage',e=>{if(e.key==='cockpit-theme')setTimeout(m,30);});try{const p=window.parent;if(p&&p!==window)new MutationObserver(m).observe(p.document.documentElement,{attributes:true,attributeFilter:['data-theme']});}catch(e){}document.addEventListener('DOMContentLoaded',m);})();</script>
+
+<div class="wrap">
+  <h1>Submissions</h1>
+  <p class="sub">What your desktop is doing with your résumés. Queue one from the <a href="/api/career-hunter/board-native" target="_top">Job Board</a>; they run one at a time.</p>
+
+  <div class="nodebar">
+    <label>Computer <select id="nodeSel"><option value="">default</option></select></label>
+    <span class="nodehint" id="nodeHint"></span>
+  </div>
+  <div class="worker" id="worker"><span class="dot"></span><div><b>Checking your desktop worker…</b></div></div>
+  <div class="lanes" id="lanes"></div>
+  <div id="list"><div class="empty">Loading…</div></div>
+</div>
+<div class="lb" id="lb" onclick="this.classList.remove('show')"><img id="lbimg" alt="Submission screenshot"/></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const LANES=[['queued','Queued'],['submitting','Submitting'],['applied','Applied'],['needs_you','Needs you'],['dismissed','Dismissed']];
+
+let filter='';            // '' = all lanes
+let openTicket=null;      // the run whose story is expanded
+let stories={};           // ticketId -> beats (kept across polls so an open run doesn't flicker)
+let lastSig='';           // change signature, so a poll that changed nothing doesn't re-render
+
+function rel(ms){
+  if(ms==null) return '';
+  const s=Math.round(ms/1000);
+  if(s<60) return s+'s';
+  const m=Math.round(s/60); if(m<60) return m+'m';
+  return Math.floor(m/60)+'h '+(m%60)+'m';
+}
+function ago(iso){ if(!iso) return ''; const d=Date.parse(iso); return isNaN(d)?'':rel(Date.now()-d)+' ago'; }
+
+function renderWorker(w){
+  const el=$('worker');
+  const cls = w.available ? 'ok' : (w.connected ? 'warn' : 'off');
+  const head = w.available ? 'Desktop worker ready'
+             : w.wedged ? 'Desktop worker stopped claiming work'
+             : w.connected ? 'Desktop worker unavailable'
+             : 'No desktop worker connected';
+  el.className='worker '+cls;
+  el.innerHTML=`<span class="dot"></span><div>
+    <b>${esc(head)}</b>
+    <p>${esc(w.detail||'')}</p>
+    ${w.hostname||w.lastSeenAt?`<p class="host">${w.hostname?esc(w.hostname):''}${w.lastSeenAt?` · last seen ${esc(ago(w.lastSeenAt))}`:''}</p>`:''}
+  </div>`;
+}
+
+function renderLanes(counts){
+  const total=LANES.reduce((n,[k])=>n+(counts[k]||0),0);
+  $('lanes').innerHTML=[['','All',total]].concat(LANES.map(([k,l])=>[k,l,counts[k]||0]))
+    .map(([k,l,n])=>`<div class="lane${k===filter?' active':''}" data-k="${k}"><div class="n">${n}</div><div class="l">${esc(l)}</div></div>`).join('');
+  $('lanes').querySelectorAll('.lane').forEach(d=>d.onclick=()=>{ filter=d.dataset.k; lastSig=''; poll(); });
+}
+
+function beatHtml(t,b){
+  const img=b.file?`<img loading="lazy" src="/api/apply-operator/shot/${encodeURIComponent(t)}/${encodeURIComponent(b.file)}" alt="${esc(b.label)}" onclick="zoom(this.src)"/>`:'';
+  return `<div class="beat">
+    <div class="seq">${b.seq}</div>
+    <div class="body">
+      <div class="lab">${esc(b.label)} <span class="when">· ${esc(ago(b.at))}</span></div>
+      ${b.note?`<div class="note">${esc(b.note)}</div>`:''}
+      ${img}
+    </div></div>`;
+}
+
+function storyHtml(t,live){
+  const beats=stories[t];
+  if(beats===undefined) return `<div class="story"><div class="empty">Loading the run…</div></div>`;
+  if(!beats.length) return `<div class="story"><div class="empty">${live
+    ? 'No steps reported yet — the worker sends its first update once it has the posting open.'
+    : 'This submission ran without reporting steps (it predates step reporting, or the worker could not reach the controller).'}</div></div>`;
+  return `<div class="story">${beats.map(b=>beatHtml(t,b)).join('')}</div>`;
+}
+
+function rowHtml(it){
+  const live=it.lane==='submitting';
+  const open=openTicket===it.ticketId;
+  const n=stories[it.ticketId]?stories[it.ticketId].length:0;
+  return `<div class="row${live?' live':''}">
+    <div class="rtop">
+      <div>
+        <p class="rtitle">${esc(it.title||'Application')}</p>
+        ${it.company?`<div class="rco">${esc(it.company)}</div>`:''}
+      </div>
+      <span class="pill ${it.lane}">${esc((LANES.find(l=>l[0]===it.lane)||[,it.status])[1]||it.status)}</span>
+    </div>
+    <div class="rmeta">
+      ${live&&it.inFlightMs!=null?`<span>running ${esc(rel(it.inFlightMs))}</span>`:`<span>${esc(ago(it.updatedAt))}</span>`}
+      ${it.targetClientId?`<span class="rtarget">on ${esc(it.targetHostname||it.targetClientId.slice(0,12))}</span>`:''}
+      ${it.jobUrl?`<a href="${esc(it.jobUrl)}" target="_blank" rel="noopener">posting ↗</a>`:''}
+      <a href="#" onclick="toggle('${it.ticketId}');return false">${open?'hide the run ▲':(n?`show the run (${n} steps) ▼`:'show the run ▼')}</a>
+    </div>
+    ${live?'<div class="bar"><i></i></div>':''}
+    ${open?storyHtml(it.ticketId,live):''}
+  </div>`;
+}
+
+function zoom(src){ $('lbimg').src=src; $('lb').classList.add('show'); }
+
+async function loadStory(t){
+  try {
+    const r=await fetch('/api/apply-operator/story/'+encodeURIComponent(t));
+    stories[t]=r.ok?((await r.json()).beats||[]):[];
+  } catch(e){ stories[t]=[]; }
+}
+
+async function toggle(t){
+  if(openTicket===t){ openTicket=null; lastSig=''; return poll(); }
+  openTicket=t;
+  if(stories[t]===undefined){ lastSig=''; poll(); await loadStory(t); }
+  lastSig=''; poll();
+}
+
+function selectedNode(){ const s=$('nodeSel'); return s ? s.value : ''; }
+
+// Populate the computer picker from the live leaf-node list. Selecting one scopes the worker banner
+// to THAT machine's reachability (via ?clientId), so you can check any node you might target.
+async function loadWorkers(){
+  const sel=$('nodeSel'), hint=$('nodeHint'); if(!sel) return;
+  try {
+    const { workers=[], defaultClientId } = await (await fetch('/api/apply-operator/workers')).json();
+    const keep=sel.value;
+    const label=w=>`${w.hostname||w.clientId.slice(0,12)}${w.isDefault?' (default)':''}${w.available?'':' — '+w.state}`;
+    sel.innerHTML='<option value="">default'+(defaultClientId?'':' — none connected')+'</option>'
+      + workers.map(w=>`<option value="${esc(w.clientId)}">${esc(label(w))}</option>`).join('');
+    sel.value = workers.some(w=>w.clientId===keep) ? keep : '';
+    if(hint) hint.textContent = workers.length ? `${workers.length} leaf node${workers.length===1?'':'s'} available` : 'No leaf node connected — install one with screen control on the machine that has your Chrome.';
+  } catch(e){ if(hint) hint.textContent=''; }
+}
+
+async function poll(){
+  let q;
+  const node=selectedNode();
+  try { q=await (await fetch('/api/apply-operator/queue'+(node?('?clientId='+encodeURIComponent(node)):''))).json(); }
+  catch(e){ $('list').innerHTML='<div class="empty">Could not reach the queue: '+esc(e.message)+'</div>'; return; }
+  if(!q||!q.worker) return;
+
+  renderWorker(q.worker);
+  renderLanes(q.counts||{});
+
+  const items=(q.items||[]).filter(it=>!filter||it.lane===filter);
+
+  // An open, still-running submission re-pulls its beats each cycle — that is the live narration.
+  if(openTicket){
+    const it=(q.items||[]).find(i=>i.ticketId===openTicket);
+    if(it&&it.lane==='submitting') await loadStory(openTicket);
+  }
+
+  // Only repaint on real change: repainting every 5s would fight the user's scroll and reload images.
+  const sig=JSON.stringify([filter,openTicket,q.worker.available,q.worker.detail,q.counts,
+    items.map(i=>[i.ticketId,i.lane,i.updatedAt,Math.round((i.inFlightMs||0)/5000)]),
+    openTicket?(stories[openTicket]||[]).length:0]);
+  if(sig===lastSig) return;
+  lastSig=sig;
+
+  $('list').innerHTML = items.length ? items.map(rowHtml).join('')
+    : `<div class="empty">${filter?'Nothing in this lane.':'No submissions yet. Generate a résumé on the Job Board, review it, then hit <b>Submit on my desktop</b>.'}</div>`;
+}
+
+const nsel=$('nodeSel');
+if(nsel) nsel.addEventListener('change', ()=>{ lastSig=''; poll(); });
+loadWorkers();
+poll();
+setInterval(()=>{ loadWorkers(); poll(); }, 5000);
+</script>
+</body></html>

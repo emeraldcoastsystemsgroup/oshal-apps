@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Monster Dash</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{background:#120a26;color:#fdeaf6;font-family:system-ui,'Inter',sans-serif;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:8px;padding:8px;}
+  h1{margin:0;font-size:19px;font-weight:800;}
+  .hud{font-weight:800;font-size:15px;}
+  canvas{border-radius:14px;border:2px solid rgba(236,79,170,.3);touch-action:none;max-width:96vw;background:linear-gradient(180deg,#2a1850,#1a0f33);}
+  .hint{font-size:12px;color:#b98cc8;}
+  .over{position:fixed;inset:0;background:rgba(10,6,24,.86);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;}
+  .over.on{display:flex;}
+  .over h2{font-size:26px;margin:0;}
+  .btn{background:#ec4faa;color:#fff;border:none;border-radius:12px;padding:12px 24px;font-weight:800;font-size:16px;cursor:pointer;}
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+  <h1>🏃 Monster Dash</h1>
+  <div class="hud">Distance <span id="score">0</span> m</div>
+  <canvas id="cv" width="640" height="280"></canvas>
+  <div class="hint">Press Space / tap to jump · double-tap for a double jump</div>
+  <div class="over" id="over"><h2>Nice run!</h2><div id="overScore"></div><button class="btn" onclick="reset()">Run again</button>
+    <button class="btn" style="background:transparent;border:1px solid #5b8def;color:#cfe0ff;margin-left:8px;" onclick="if(window.parent!==window)window.parent.postMessage({type:'lm-exit'},'*')">I'm done</button></div>
+<script>
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=cv.width,H=cv.height,GROUND=H-46;
+var monster,obstacles,coins,score,best=+(localStorage.getItem('lm-dash-best')||0),speed,alive,raf,jumps,spawnT,coinT;
+function reset(){
+  monster={x:80,y:GROUND-44,w:40,h:44,vy:0}; obstacles=[]; coins=[]; score=0; speed=4.2; alive=true; jumps=0; spawnT=0; coinT=40;
+  document.getElementById('over').classList.remove('on');
+  if(raf) cancelAnimationFrame(raf); loop();
+}
+function jump(){ if(!alive) return; if(monster.y>=GROUND-monster.h-1){ monster.vy=-12; jumps=1; } else if(jumps<2){ monster.vy=-10.5; jumps++; } }
+function spawnObstacle(){
+  var tall=Math.random()<0.35;
+  obstacles.push({x:W+10,y:GROUND-(tall?54:34),w:tall?26:34,h:tall?54:34,emoji:tall?'📚':'🎒'});
+}
+function loop(){
+  if(!alive) return;
+  ctx.clearRect(0,0,W,H);
+  // ground
+  ctx.fillStyle='#3a2566'; ctx.fillRect(0,GROUND,W,H-GROUND);
+  ctx.strokeStyle='rgba(255,255,255,.08)'; for(var gx=(score*3)%40;gx<W;gx+=40){ctx.beginPath();ctx.moveTo(gx,GROUND);ctx.lineTo(gx-14,H);ctx.stroke();}
+  // physics
+  monster.vy+=0.6; monster.y+=monster.vy;
+  if(monster.y>GROUND-monster.h){ monster.y=GROUND-monster.h; monster.vy=0; jumps=0; }
+  // monster
+  ctx.font='40px serif'; ctx.textBaseline='alphabetic'; ctx.fillText('🐲',monster.x,monster.y+monster.h);
+  // spawn
+  if(--spawnT<=0){ spawnObstacle(); spawnT=Math.max(48, 120-(score*0.5)) + Math.random()*40; }
+  if(--coinT<=0){ coins.push({x:W+10,y:GROUND-70-Math.random()*60}); coinT=60+Math.random()*60; }
+  // obstacles
+  ctx.font='30px serif';
+  for(var i=obstacles.length-1;i>=0;i--){ var o=obstacles[i]; o.x-=speed;
+    ctx.fillText(o.emoji,o.x,o.y+o.h);
+    if(o.x+o.w<0){ obstacles.splice(i,1); continue; }
+    if(monster.x+monster.w-8>o.x+4 && monster.x+8<o.x+o.w-4 && monster.y+monster.h-6>o.y+4){ return die(); }
+  }
+  // coins
+  ctx.font='22px serif';
+  for(var j=coins.length-1;j>=0;j--){ var c=coins[j]; c.x-=speed; ctx.fillText('⭐',c.x,c.y);
+    if(c.x<-20){ coins.splice(j,1); continue; }
+    if(Math.abs((monster.x+20)-(c.x+8))<26 && Math.abs((monster.y+20)-(c.y-8))<26){ score+=5; coins.splice(j,1); } }
+  // score / speed
+  score+=0.2; speed+=0.0015;
+  document.getElementById('score').textContent=Math.floor(score);
+  raf=requestAnimationFrame(loop);
+}
+function die(){ alive=false; cancelAnimationFrame(raf); var s=Math.floor(score);
+  if(s>best){ best=s; localStorage.setItem('lm-dash-best',best); }
+  document.getElementById('overScore').textContent='You ran '+s+' m · Best '+best+' m';
+  document.getElementById('over').classList.add('on');
+  try{ if(window.parent!==window) window.parent.postMessage({type:'lm-game',game:'dash',score:s},'*'); }catch(e){}
+}
+document.addEventListener('keydown',function(e){ if(e.key===' '||e.key==='ArrowUp'){ e.preventDefault(); jump(); } });
+cv.addEventListener('pointerdown',function(e){ e.preventDefault(); jump(); });
+reset();
+</script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Storage — OSHAL</title>
+<!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
+     Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
+     matters — without it the surface would have no colors at all. -->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  /* Keep the surface's own short alias names, but DERIVE each from a framework theme token instead
+     of hardcoding hex — so all eleven themes work, not just the dark ones. The old palette was
+     literal (#0e0e16 …), which is why it only ever looked right in a dark theme. The success accent
+     comes from the theme too, with the old hex as a fallback so it stays legible if a theme omits it. */
+  :root {
+    --bg: var(--bg-primary);
+    --panel: var(--bg-card);
+    --panel2: var(--bg-tertiary);
+    --line: var(--border-color);
+    --text: var(--text-primary);
+    --muted: var(--text-secondary);
+    --accent: var(--accent-primary);
+    --accent2: var(--status-success, #00d3a7);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family: system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  .page { max-width:720px; margin:0 auto; padding:28px 26px 70px; }
+  h1 { font-size:22px; margin:0 0 4px; } .sub { color:var(--muted); font-size:13px; margin-bottom:22px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px; margin-bottom:16px; }
+  .card h2 { font-size:15px; margin:0 0 4px; } .card .hint { color:var(--muted); font-size:12.5px; margin-bottom:13px; }
+  label { display:block; font-size:12px; color:var(--muted); margin:11px 0 5px; }
+  select, input { width:100%; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:9px 11px; font-size:13px; }
+  .det { margin-top:4px; } .det.hide { display:none; }
+  .bar { display:flex; gap:10px; align-items:center; margin-top:18px; }
+  .btn { border:none; border-radius:9px; padding:11px 18px; font-size:13.5px; font-weight:600; cursor:pointer; }
+  .btn.primary { background:var(--accent); color:#fff; } .btn:disabled { opacity:.5; cursor:default; }
+  .result { margin-top:14px; padding:11px 13px; border-radius:9px; font-size:13px; display:none; }
+  .result.ok { background:rgba(0,211,167,.1); border:1px solid var(--accent2); color:var(--accent2); display:block; }
+  .result.err { background:rgba(255,90,90,.1); border:1px solid var(--status-error,#ff5a5a); color:#ff9a9a; display:block; }
+  .note { color:var(--muted); font-size:12px; } .note a { color:var(--accent); }
+  .spin { color:var(--muted); font-size:13px; }
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--muted,rgba(255,255,255,.28))}
+  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
+  @media (max-width: 640px) {
+    .page { padding: 16px 14px 60px; }
+    select, input { font-size: 16px; }
+    .btn { padding: 12px 16px; font-size: 14px; min-height: 44px; }
+    .bar { flex-wrap: wrap; }
+  }
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+  <div class="page">
+    <h1>🗄️ Storage</h1>
+    <div class="sub">Choose where OSHAL saves what it generates. Two buckets — your call which backend each uses.</div>
+    <div id="body"><span class="spin">Loading…</span></div>
+    <div class="result" id="result"></div>
+    <div class="bar"><button class="btn primary" id="saveBtn" disabled>Save</button></div>
+  </div>
+<script>
+const $ = (id) => document.getElementById(id);
+let CONNECTED = [], DBX_FOLDERS = null, GH_REPOS = null;
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function toast(msg, ok){ const r=$('result'); r.className='result '+(ok?'ok':'err'); r.textContent=msg; if(ok) setTimeout(()=>{r.className='result';},3500); }
+
+function providerOpts(sel){
+  const opts = [['oshal-local','OSHAL (local, limited 250 MB)'], ['dropbox','Dropbox'], ['github','GitHub']];
+  return opts.map(([v,l]) => `<option value="${v}"${v===sel?' selected':''}>${l}${(v!=='oshal-local'&&!CONNECTED.includes(v))?' (not connected)':''}</option>`).join('');
+}
+
+function bucketCard(id, titleTxt, hint, t){
+  return `<div class="card">
+    <h2>${titleTxt}</h2><div class="hint">${hint}</div>
+    <label>Backend</label>
+    <select id="${id}-provider">${providerOpts(t.provider)}</select>
+    <div class="det" id="${id}-dropbox"><label>Dropbox folder</label><select id="${id}-dbxfolder"></select></div>
+    <div class="det" id="${id}-github">
+      <label>GitHub repo</label>
+      <select id="${id}-ghrepo"></select>
+      <button class="btn" id="${id}-newrepo-btn" type="button" style="margin-top:7px;background:var(--panel2);border:1px solid var(--line);color:var(--text);" onclick="toggleNewRepo('${id}',true)">+ New repo</button>
+      <div id="${id}-newrepo-row" style="display:none; gap:7px; margin-top:7px;">
+        <input id="${id}-newrepo-name" placeholder="new-repo-name" style="flex:1" onkeydown="if(event.key==='Enter')createRepo('${id}')" />
+        <button class="btn" type="button" style="background:var(--accent);color:#fff;" onclick="createRepo('${id}')">Create</button>
+        <button class="btn" type="button" style="background:var(--panel2);border:1px solid var(--line);color:var(--text);" onclick="toggleNewRepo('${id}',false)">Cancel</button>
+      </div>
+      <label>Folder in repo (optional)</label><input id="${id}-ghfolder" placeholder="e.g. decks  (blank = repo root)" />
+    </div>
+  </div>`;
+}
+
+function syncDetails(id, t){
+  const prov = $(`${id}-provider`).value;
+  $(`${id}-dropbox`).className = 'det' + (prov==='dropbox'?'':' hide');
+  $(`${id}-github`).className = 'det' + (prov==='github'?'':' hide');
+  if (prov==='dropbox') loadDropbox(id, t);
+  if (prov==='github') loadGithub(id, t);
+}
+
+async function loadDropbox(id, t){
+  const sel = $(`${id}-dbxfolder`);
+  if (!DBX_FOLDERS){ const r=await fetch('/api/storage/dropbox/folders'); DBX_FOLDERS = r.ok ? (await r.json()).folders : []; }
+  const cur = (t && t.provider==='dropbox' && t.folder) ? t.folder : '/';
+  sel.innerHTML = `<option value="/">/ (root)</option>` + DBX_FOLDERS.map(f=>`<option value="${esc(f.path)}"${f.path===cur?' selected':''}>${esc(f.name)}</option>`).join('');
+}
+async function loadGithub(id, t){
+  const sel = $(`${id}-ghrepo`);
+  if (!GH_REPOS){ const r=await fetch('/api/storage/github/repos'); GH_REPOS = r.ok ? (await r.json()).repos : []; }
+  const cur = (t && t.provider==='github' && t.repo) ? t.repo : '';
+  sel.innerHTML = `<option value="">— pick a repo —</option>` + GH_REPOS.map(rp=>`<option value="${esc(rp.name)}"${rp.name===cur?' selected':''}>${esc(rp.fullName)}${rp.private?' 🔒':''}</option>`).join('');
+  if (t && t.provider==='github' && t.folder) $(`${id}-ghfolder`).value = t.folder;
+}
+
+// Inline new-repo flow (no prompt() — modal dialogs are unreliable inside the
+// sandboxed cockpit iframe). Reveal an input row, create on Create/Enter.
+function toggleNewRepo(id, show){
+  const row = $(`${id}-newrepo-row`), btn = $(`${id}-newrepo-btn`);
+  if (!row || !btn) return;
+  row.style.display = show ? 'flex' : 'none';
+  btn.style.display = show ? 'none' : 'inline-block';
+  if (show) $(`${id}-newrepo-name`).focus();
+}
+async function createRepo(id){
+  const name = ($(`${id}-newrepo-name`).value || '').trim();
+  if (!name){ $(`${id}-newrepo-name`).focus(); return; }
+  toast('Creating repo “'+name+'”…', true);
+  const r = await fetch('/api/storage/github/repos', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ name }) });
+  const j = await r.json().catch(()=>({}));
+  if (r.ok && j.ok){
+    toast('Created '+j.fullName, true);
+    GH_REPOS = null; // force reload so the new repo appears + is selectable
+    $(`${id}-newrepo-name`).value = '';
+    toggleNewRepo(id, false);
+    await loadGithub(id, { provider:'github', repo:j.name });
+  } else { toast('Create failed: '+((j&&j.error)||('HTTP '+r.status)), false); }
+}
+
+function readTarget(id){
+  const provider = $(`${id}-provider`).value;
+  if (provider==='dropbox') return { provider, folder: $(`${id}-dbxfolder`).value };
+  if (provider==='github') return { provider, repo: $(`${id}-ghrepo`).value, folder: ($(`${id}-ghfolder`).value||'').trim() };
+  return { provider };
+}
+
+async function load(){
+  const r = await fetch('/api/storage/prefs'); const j = await r.json().catch(()=>({}));
+  if (!r.ok){ $('body').innerHTML = '<div class="card">Couldn’t load storage prefs.</div>'; return; }
+  CONNECTED = j.connected || []; const prefs = j.prefs;
+  $('body').innerHTML =
+    bucketCard('code', '💻 Generated code', 'Code &amp; dev work — version control fits best (GitHub).', prefs.code)
+    + bucketCard('files', '📄 Generated files', 'PowerPoints, drafts, exports — a document store (Dropbox or local).', prefs.files)
+    + '<div class="note">Not connected to a backend? <a href="/utilities" target="_top">Open the connectors hub →</a></div>';
+  for (const id of ['code','files']){
+    $(`${id}-provider`).addEventListener('change', ()=> syncDetails(id, null));
+    syncDetails(id, prefs[id]);
+  }
+  $('saveBtn').disabled = false;
+}
+
+$('saveBtn').addEventListener('click', async ()=>{
+  $('saveBtn').disabled = true;
+  const payload = { code: readTarget('code'), files: readTarget('files') };
+  const r = await fetch('/api/storage/prefs', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+  const j = await r.json().catch(()=>({}));
+  $('saveBtn').disabled = false;
+  if (r.ok && j.ok) toast('Saved. Generated content will route here.', true);
+  else toast('Save failed: '+((j&&j.error)||('HTTP '+r.status)), false);
+});
+
+load();
+</script>
+</body>
+</html>

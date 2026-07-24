@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Sources{% endblock %}
+{% block body %}
+<div class="stats">
+  <div><b>{{ "{:,}".format(total_jobs) }}</b> jobs</div>
+  <div><b>{{ platforms|length }}</b> working platforms</div>
+  <div><b>{{ broken|length }}</b> broken sources</div>
+  <div><b>{{ unresolved }}</b> no connector yet</div>
+</div>
+
+<h3 class="srch">Connector health — which sources are pulling well</h3>
+<table class="jobs">
+  <thead><tr><th>Platform</th><th>Companies</th><th>Jobs</th><th>Avg / co.</th><th>Health</th></tr></thead>
+  <tbody>
+  {% for name, p in platforms %}
+    <tr>
+      <td class="co">{{ name }}</td>
+      <td>{{ p.companies }}</td>
+      <td class="sal">{{ "{:,}".format(p.jobs) }}</td>
+      <td>{{ (p.jobs // p.companies) if p.companies else 0 }}</td>
+      <td>
+        {% if p.jobs == 0 %}<span class="score s0">DEAD</span>
+        {% elif p.broken %}<span class="score s2">{{ p.broken }} broken</span>
+        {% else %}<span class="score s4">good</span>{% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h3 class="srch">⚠ Broken sources — connector assigned but returning 0 jobs (token drift / change)</h3>
+{% if broken %}
+<table class="jobs">
+  <thead><tr><th>Company</th><th>Platform</th><th>Token</th><th>Careers page</th></tr></thead>
+  <tbody>
+  {% for c in broken %}
+    <tr>
+      <td class="co">{{ c.name }}</td>
+      <td><span class="pill">{{ c.ats_type }}</span></td>
+      <td class="loc">{{ c.ats_token or '—' }}</td>
+      <td>{% if c.careers_url %}<a href="{{ c.careers_url }}" target="_blank">{{ c.careers_url[:55] }}</a>{% else %}—{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p class="note">These had a working connector but now return nothing — usually the employer changed their board token. Re-run <code>discover --company "Name"</code> or tell me and I'll re-resolve.</p>
+{% else %}
+<p class="note">No broken sources — every assigned connector is pulling jobs. 👍</p>
+{% endif %}
+{% endblock %}

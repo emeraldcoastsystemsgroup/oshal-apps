@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Milkshake Maker</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;min-height:100vh;background:#120a26;color:#fdeaf6;font-family:system-ui,'Inter',sans-serif;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:14px;}
+  h1{margin:0;font-size:20px;font-weight:800;}
+  .hud{font-weight:800;font-size:15px;}
+  .status{font-size:14px;color:#b98cc8;min-height:20px;font-weight:700;}
+  .pad{display:grid;grid-template-columns:1fr 1fr;gap:14px;width:min(86vw,320px);}
+  .ing{aspect-ratio:1;border:none;border-radius:20px;font-size:46px;cursor:pointer;opacity:.82;transition:transform .1s,opacity .1s,box-shadow .1s;}
+  .ing:active,.ing.lit{opacity:1;transform:scale(1.05);box-shadow:0 0 26px -4px #fff;}
+  .ing[data-i="0"]{background:#ec4faa;} .ing[data-i="1"]{background:#f6c945;} .ing[data-i="2"]{background:#7a4a2a;} .ing[data-i="3"]{background:#5b8def;}
+  .btn{background:#ec4faa;color:#fff;border:none;border-radius:12px;padding:12px 26px;font-weight:800;font-size:16px;cursor:pointer;}
+  .over{position:fixed;inset:0;background:rgba(10,6,24,.88);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;}
+  .over.on{display:flex;}.over h2{font-size:26px;margin:0;}
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+  <h1>🥤 Milkshake Maker</h1>
+  <div class="hud">Recipe length <span id="score">0</span></div>
+  <div class="status" id="status">Watch the recipe…</div>
+  <div class="pad" id="pad">
+    <button class="ing" data-i="0">🍓</button>
+    <button class="ing" data-i="1">🍌</button>
+    <button class="ing" data-i="2">🍫</button>
+    <button class="ing" data-i="3">🥛</button>
+  </div>
+  <button class="btn" id="startBtn" onclick="start()">Start</button>
+  <div class="over" id="over"><h2 id="overTitle">Oops!</h2><div id="overScore"></div><button class="btn" onclick="start()">Try again</button>
+    <button class="btn" style="background:transparent;border:1px solid #5b8def;color:#cfe0ff;margin-left:8px;" onclick="if(window.parent!==window)window.parent.postMessage({type:'lm-exit'},'*')">I'm done</button></div>
+<script>
+var seq=[], step=0, playing=false, accepting=false;
+var btns=[].slice.call(document.querySelectorAll('.ing'));
+btns.forEach(function(b){ b.addEventListener('pointerdown',function(){ tap(+b.getAttribute('data-i')); }); });
+function light(i){ return new Promise(function(res){ btns[i].classList.add('lit'); setTimeout(function(){ btns[i].classList.remove('lit'); setTimeout(res,140); },360); }); }
+function start(){ seq=[]; step=0; playing=true; document.getElementById('over').classList.remove('on'); document.getElementById('startBtn').style.display='none'; nextRound(); }
+async function nextRound(){
+  accepting=false; seq.push(Math.random()*4|0); step=0;
+  document.getElementById('score').textContent=seq.length;
+  document.getElementById('status').textContent='Watch the recipe…';
+  await new Promise(function(r){setTimeout(r,500);});
+  for(var i=0;i<seq.length;i++){ await light(seq[i]); }
+  document.getElementById('status').textContent='Your turn — make it!';
+  accepting=true;
+}
+function tap(i){
+  if(!playing||!accepting) return;
+  btns[i].classList.add('lit'); setTimeout(function(){btns[i].classList.remove('lit');},150);
+  if(i===seq[step]){ step++;
+    if(step===seq.length){ accepting=false; document.getElementById('status').textContent='Perfect! 🎉'; setTimeout(nextRound,650); } }
+  else { end(); }
+}
+function end(){ playing=false; accepting=false;
+  var sc=Math.max(0,seq.length-1);
+  document.getElementById('overScore').textContent='You made a '+sc+'-scoop shake!';
+  document.getElementById('over').classList.add('on');
+  try{ if(window.parent!==window) window.parent.postMessage({type:'lm-game',game:'milkshake',score:sc*10},'*'); }catch(e){}
+}
+</script>
+</body>
+</html>

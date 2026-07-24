@@ -1,0 +1,185 @@
+/*
+ * Game Show — studio surface styles. Committed to a single dark TV-studio look
+ * (this is a broadcast, not an office). Class prefix: gs-.
+ * (.css is exempt from the repo line cap; no change-log block required.)
+ */
+
+:root {
+  --gs-navy: #0a1030;
+  --gs-navy-2: #12193f;
+  --gs-blue: #1d4ed8;
+  --gs-cyan: #38bdf8;
+  --gs-gold: #fbbf24;
+  --gs-gold-2: #f59e0b;
+  --gs-red: #ef4444;
+  --gs-green: #22c55e;
+  --gs-ink: #f8fafc;
+  --gs-dim: #94a3b8;
+  --gs-teamA: #38bdf8;
+  --gs-teamB: #f472b6;
+  --gs-radius: 16px;
+  --gs-shadow: 0 10px 40px rgba(0, 0, 0, .5);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+  color: var(--gs-ink);
+  background:
+    radial-gradient(1200px 700px at 50% -10%, rgba(56, 189, 248, .18), transparent 60%),
+    radial-gradient(900px 600px at 50% 120%, rgba(251, 191, 36, .12), transparent 60%),
+    linear-gradient(160deg, var(--gs-navy), #05081c 70%);
+  overflow-x: hidden;
+}
+#gs-root { min-height: 100vh; display: flex; flex-direction: column; }
+
+/* Stage lights sweeping the top of the broadcast */
+.gs-lights { position: fixed; inset: 0 0 auto 0; height: 40vh; pointer-events: none; opacity: .5;
+  background: conic-gradient(from 90deg at 20% 0, transparent 0 30deg, rgba(56,189,248,.10) 40deg, transparent 55deg),
+              conic-gradient(from 90deg at 80% 0, transparent 0 30deg, rgba(251,191,36,.10) 40deg, transparent 55deg); }
+
+/* Header / brand */
+.gs-top { display: flex; align-items: center; gap: 14px; padding: 14px 20px; }
+.gs-brand { font-weight: 800; letter-spacing: .5px; font-size: 20px;
+  background: linear-gradient(90deg, var(--gs-gold), #fff 60%, var(--gs-cyan)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.gs-chip { font-size: 12px; color: var(--gs-dim); border: 1px solid rgba(255,255,255,.14); padding: 3px 10px; border-radius: 999px; }
+.gs-grow { flex: 1; }
+
+/* Cards / panels */
+.gs-panel { background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+  border: 1px solid rgba(255,255,255,.10); border-radius: var(--gs-radius); box-shadow: var(--gs-shadow); }
+.gs-wrap { width: min(1100px, 94vw); margin: 0 auto; padding: 16px; }
+
+/* Buttons */
+.gs-btn { font: inherit; font-weight: 700; cursor: pointer; border: 0; border-radius: 12px; padding: 12px 18px;
+  color: #06122b; background: linear-gradient(180deg, #fff, #d7e3ff); transition: transform .06s ease, filter .2s; }
+.gs-btn:hover { filter: brightness(1.05); } .gs-btn:active { transform: translateY(1px); }
+.gs-btn.gold { background: linear-gradient(180deg, var(--gs-gold), var(--gs-gold-2)); color: #26180a; }
+.gs-btn.blue { background: linear-gradient(180deg, #60a5fa, var(--gs-blue)); color: #fff; }
+.gs-btn.ghost { background: transparent; border: 1px solid rgba(255,255,255,.22); color: var(--gs-ink); }
+.gs-btn:disabled { opacity: .4; cursor: not-allowed; }
+.gs-input { font: inherit; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.18);
+  background: rgba(0,0,0,.28); color: var(--gs-ink); width: 100%; }
+.gs-input::placeholder { color: #6b7a99; }
+
+/* ── The BOARD (Family Feud answer slots) ─────────────────────────────────── */
+.gs-question { text-align: center; font-size: clamp(18px, 3.4vw, 34px); font-weight: 800; margin: 8px 0 16px; text-shadow: 0 2px 10px rgba(0,0,0,.5); }
+.gs-board { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.gs-board.one-col { grid-template-columns: 1fr; }
+.gs-slot { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 0 14px; border-radius: 12px;
+  background: linear-gradient(180deg, #17235c, #0e1741); border: 1px solid rgba(56,189,248,.25); box-shadow: inset 0 0 18px rgba(56,189,248,.10); }
+.gs-slot .num { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 800;
+  background: radial-gradient(circle at 40% 30%, #fff, #9db6ff); color: #0a1030; }
+.gs-slot .txt { flex: 1; font-weight: 700; font-size: clamp(15px, 2.2vw, 22px); text-transform: uppercase; letter-spacing: .5px; }
+.gs-slot .pts { font-weight: 800; font-size: 20px; color: var(--gs-gold); min-width: 42px; text-align: right; }
+.gs-slot.hidden { background: linear-gradient(180deg, #101a45, #0a1234); color: var(--gs-cyan); justify-content: center; }
+.gs-slot.hidden .txt, .gs-slot.hidden .pts, .gs-slot.hidden .num { display: none; }
+.gs-slot.hidden::after { content: attr(data-n); font-size: 26px; font-weight: 800; color: #4f6bd6; }
+.gs-slot.revealed { animation: gs-flip .4s ease; }
+.gs-slot.byA { border-color: var(--gs-teamA); } .gs-slot.byB { border-color: var(--gs-teamB); }
+@keyframes gs-flip { from { transform: rotateX(90deg); opacity: 0; } to { transform: rotateX(0); opacity: 1; } }
+
+/* Jeopardy category board */
+.gs-jgrid { display: grid; gap: 6px; }
+.gs-jcat { background: linear-gradient(180deg, #1d2a6b, #132052); border-radius: 8px; padding: 10px 6px; text-align: center;
+  font-weight: 800; text-transform: uppercase; font-size: clamp(11px, 1.4vw, 15px); letter-spacing: .5px; }
+.gs-jcell { background: linear-gradient(180deg, #17235c, #0e1741); border: 1px solid rgba(56,189,248,.25); border-radius: 8px;
+  min-height: 56px; display: grid; place-items: center; font-weight: 900; font-size: clamp(16px, 2.4vw, 26px);
+  color: var(--gs-gold); cursor: pointer; transition: filter .15s ease, transform .06s ease; }
+.gs-jcell:hover { filter: brightness(1.35); }
+.gs-jcell:active { transform: translateY(1px); }
+.gs-jcell.used { background: #0a1030; color: transparent; cursor: default; border-color: rgba(255,255,255,.06); }
+.gs-jcell.locked { cursor: default; }
+
+/* Strikes */
+.gs-strikes { display: flex; gap: 10px; justify-content: center; margin: 14px 0; min-height: 40px; }
+.gs-x { font-size: 40px; font-weight: 900; color: var(--gs-red); text-shadow: 0 0 18px rgba(239,68,68,.7); animation: gs-pop .3s ease; }
+@keyframes gs-pop { from { transform: scale(0); } to { transform: scale(1); } }
+
+/* Scores + bank */
+.gs-scores { display: flex; gap: 12px; justify-content: center; align-items: stretch; margin: 6px 0 14px; }
+.gs-team { flex: 1; max-width: 260px; text-align: center; padding: 10px; border-radius: 12px; border: 2px solid transparent; }
+.gs-team.A { border-color: var(--gs-teamA); } .gs-team.B { border-color: var(--gs-teamB); }
+.gs-team.control { box-shadow: 0 0 24px rgba(56,189,248,.5); }
+.gs-team .name { font-weight: 800; letter-spacing: .5px; } .gs-team .score { font-size: 34px; font-weight: 900; color: var(--gs-gold); }
+.gs-bank { text-align: center; font-weight: 800; color: var(--gs-gold); }
+.gs-bank .n { font-size: 30px; }
+
+/* ── PODIUMS / presence tiles (the swappable video-frame module) ──────────── */
+.gs-podiums { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin: 12px 0; }
+.gs-podium { width: 150px; text-align: center; }
+.gs-tile { position: relative; width: 150px; height: 150px; border-radius: 14px; overflow: hidden;
+  border: 3px solid rgba(255,255,255,.14); background: linear-gradient(180deg, #1a2450, #0c1030); display: grid; place-items: center; }
+.gs-tile img { width: 100%; height: 100%; object-fit: cover; }
+.gs-tile .avatar { font-size: 64px; }
+.gs-tile.teamA { border-color: var(--gs-teamA); } .gs-tile.teamB { border-color: var(--gs-teamB); }
+.gs-tile.buzzed { border-color: var(--gs-gold); box-shadow: 0 0 26px var(--gs-gold); }
+.gs-tile.active { box-shadow: 0 0 26px var(--gs-cyan); }
+.gs-podium .plabel { margin-top: 6px; font-weight: 700; font-size: 14px; }
+.gs-podium .pscore { font-size: 12px; color: var(--gs-dim); }
+.gs-tile .badge { position: absolute; top: 6px; left: 6px; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 999px; background: rgba(0,0,0,.55); }
+/* cutaway animations driven by the director's shot */
+.gs-podiums.huddle .gs-podium { animation: gs-lean .8s ease infinite alternate; }
+@keyframes gs-lean { to { transform: translateY(-6px) scale(1.03); } }
+.gs-podiums.dance .gs-tile { animation: gs-dance .6s ease infinite alternate; }
+@keyframes gs-dance { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
+.gs-podiums.pan { animation: gs-pan 6s linear infinite alternate; }
+@keyframes gs-pan { from { transform: translateX(-4%); } to { transform: translateX(4%); } }
+
+/* Host caption bar */
+.gs-caption { margin: 10px auto; max-width: 900px; text-align: center; font-size: clamp(15px, 2.4vw, 22px); font-weight: 600;
+  padding: 12px 18px; border-radius: 14px; background: linear-gradient(180deg, rgba(251,191,36,.14), rgba(251,191,36,.05)); border: 1px solid rgba(251,191,36,.3); min-height: 24px; }
+.gs-caption .mc { color: var(--gs-gold); font-weight: 800; margin-right: 8px; }
+
+/* Big buzzer (clicker) */
+.gs-buzzer { display: grid; place-items: center; gap: 18px; padding: 24px; }
+.gs-buzz-btn { width: min(72vw, 320px); height: min(72vw, 320px); border-radius: 50%; border: 0; cursor: pointer;
+  font-size: 40px; font-weight: 900; letter-spacing: 2px; color: #3a0b0b;
+  background: radial-gradient(circle at 40% 30%, #ff8a8a, var(--gs-red) 70%); box-shadow: 0 14px 0 #7f1d1d, 0 20px 40px rgba(0,0,0,.5);
+  transition: transform .05s ease, box-shadow .05s ease; }
+.gs-buzz-btn:active { transform: translateY(10px); box-shadow: 0 4px 0 #7f1d1d, 0 8px 20px rgba(0,0,0,.5); }
+.gs-buzz-btn:disabled { filter: grayscale(.6) brightness(.7); box-shadow: 0 8px 0 #3f1414; cursor: not-allowed; }
+.gs-buzz-btn.locked { background: radial-gradient(circle at 40% 30%, #fff0b0, var(--gs-gold) 70%); color: #3a2a06; box-shadow: 0 10px 0 #b45309; }
+
+/* Shot stage (TV center) */
+.gs-shot { min-height: 46vh; display: grid; place-items: center; }
+.gs-shot .headline { font-size: clamp(28px, 8vw, 90px); font-weight: 900; text-align: center;
+  background: linear-gradient(90deg, var(--gs-gold), #fff, var(--gs-cyan)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.gs-confetti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+.gs-confetti i { position: absolute; top: -10px; width: 9px; height: 14px; opacity: .9; animation: gs-fall linear infinite; }
+@keyframes gs-fall { to { transform: translateY(110vh) rotate(540deg); } }
+
+/* Layout helpers */
+.gs-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.gs-col { display: flex; flex-direction: column; gap: 12px; }
+.gs-center { text-align: center; }
+.gs-muted { color: var(--gs-dim); }
+.gs-hostlist { display: grid; gap: 6px; }
+.gs-hostlist .a { display: flex; justify-content: space-between; padding: 8px 12px; border-radius: 10px; background: rgba(0,0,0,.3); }
+.gs-hostlist .a.up { background: rgba(34,197,94,.18); }
+.gs-pill { display:inline-block; font-size: 12px; padding: 2px 10px; border-radius: 999px; background: rgba(255,255,255,.1); }
+.gs-reacts { position: fixed; right: 14px; bottom: 14px; display: flex; gap: 8px; }
+.gs-reacts button { font-size: 22px; background: rgba(0,0,0,.4); border: 1px solid rgba(255,255,255,.15); border-radius: 12px; cursor: pointer; padding: 6px 10px; }
+.gs-float { position: fixed; font-size: 30px; pointer-events: none; animation: gs-rise 2.4s ease-out forwards; }
+@keyframes gs-rise { to { transform: translateY(-160px); opacity: 0; } }
+video.gs-cam-src { display: none; }
+
+/* ── round clock (server deadline, rendered on every surface) ─────────────── */
+.gs-clock { color: var(--gs-ink); border-color: rgba(255,255,255,.28); font-variant-numeric: tabular-nums; }
+.gs-clock.warn { color: var(--gs-gold); border-color: var(--gs-gold); }
+.gs-clock.danger { color: #fff; background: var(--gs-red); border-color: var(--gs-red); animation: gs-pulse .8s ease-in-out infinite; }
+.gs-clock.paused { color: var(--gs-dim); border-style: dashed; animation: none; }
+.gs-bigclock {
+  margin: 10px auto 0; width: 104px; height: 104px; display: grid; place-items: center;
+  font-size: 46px; font-weight: 900; font-variant-numeric: tabular-nums; color: var(--gs-ink);
+  border: 4px solid rgba(255,255,255,.22); border-radius: 50%; background: rgba(0,0,0,.35);
+}
+.gs-bigclock.warn { color: var(--gs-gold); border-color: var(--gs-gold); }
+.gs-bigclock.danger { color: #fff; border-color: var(--gs-red); background: rgba(239,68,68,.28); animation: gs-pulse .8s ease-in-out infinite; }
+@keyframes gs-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+
+/* ── host override panel (the fire exit, visually quieter than the show) ──── */
+.gs-override { margin: 12px 0; border-color: rgba(251,191,36,.28); }
+.gs-override .gs-row { margin: 6px 0; flex-wrap: wrap; gap: 6px; }
+.gs-override .gs-btn { font-size: 13px; padding: 6px 10px; }

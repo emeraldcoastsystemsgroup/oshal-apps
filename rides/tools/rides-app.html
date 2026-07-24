@@ -1,0 +1,1146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OSHAL Rides</title>
+<style>
+  :root {
+    --bg: #0d0f14;
+    --panel: #171923;
+    --panel-2: #202330;
+    --line: rgba(255, 255, 255, 0.1);
+    --text: #f7f7fb;
+    --muted: #a8adbd;
+    --dim: #747b8d;
+    --accent: #8b7cf6;
+    --accent-2: #6f5ce8;
+    --ok: #30c48d;
+    --warn: #f4b64a;
+    --bad: #f06278;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    min-height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  button, input { font: inherit; }
+  button { cursor: pointer; }
+  .app {
+    height: 100vh;
+    display: grid;
+    grid-template-rows: auto 1fr;
+  }
+  .topbar {
+    min-height: 58px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(13, 15, 20, 0.96);
+  }
+  .mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+    font-weight: 800;
+  }
+  .brand { font-weight: 800; line-height: 1.05; }
+  .brand small {
+    display: block;
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 650;
+    text-transform: uppercase;
+  }
+  .status-pill {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--dim);
+  }
+  .dot.on { background: var(--ok); }
+  .content {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(300px, 390px) minmax(520px, 1fr) minmax(300px, 390px);
+    gap: 10px;
+    padding: 10px;
+  }
+  .panel {
+    min-height: 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    overflow: hidden;
+  }
+  .panel-head {
+    padding: 13px 14px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .panel-head h1, .panel-head h2 {
+    margin: 0;
+    font-size: 18px;
+    line-height: 1.1;
+  }
+  .panel-head p {
+    margin: 5px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .builder,
+  .order {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+  }
+  .search-stack {
+    min-height: 0;
+    overflow: auto;
+    padding: 12px;
+  }
+  .field {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    gap: 9px;
+    align-items: center;
+    padding: 9px 0;
+  }
+  .pin {
+    width: 12px;
+    height: 12px;
+    margin: auto;
+    border-radius: 999px;
+    background: var(--accent);
+  }
+  .pin.drop { background: var(--ok); border-radius: 3px; }
+  .field input {
+    width: 100%;
+    min-height: 42px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #0a0c11;
+    color: var(--text);
+    padding: 0 12px;
+    outline: 0;
+    font-size: 16px;
+  }
+  .field input:focus { border-color: var(--accent); }
+  .field-line {
+    height: 16px;
+    margin-left: 8px;
+    border-left: 2px solid rgba(255, 255, 255, 0.18);
+  }
+  .action-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 10px 0 6px;
+  }
+  .btn {
+    min-height: 38px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel-2);
+    color: var(--text);
+    font-weight: 750;
+  }
+  .btn.primary {
+    border-color: transparent;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+  }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .section-title {
+    margin: 16px 0 8px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  .suggestions {
+    display: grid;
+    gap: 8px;
+  }
+  .suggestion {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+    min-height: 52px;
+    padding: 9px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.035);
+    color: var(--text);
+    text-align: left;
+  }
+  .suggestion:hover { border-color: rgba(139, 124, 246, .55); }
+  .suggestion-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    background: rgba(139, 124, 246, .16);
+    color: #d8d3ff;
+    font-weight: 800;
+  }
+  .suggestion strong {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+  }
+  .suggestion span {
+    display: block;
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .recent-link {
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 800;
+  }
+  .map-panel {
+    position: relative;
+    overflow: hidden;
+    background: #11141a;
+  }
+  .google-map {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
+  .google-map[hidden] { display: none; }
+  .map {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(90deg, transparent 0 47%, rgba(255,255,255,.08) 48% 52%, transparent 53%),
+      linear-gradient(0deg, transparent 0 47%, rgba(255,255,255,.07) 48% 52%, transparent 53%),
+      repeating-linear-gradient(22deg, transparent 0 62px, rgba(255,255,255,.06) 63px 68px, transparent 69px 132px),
+      repeating-linear-gradient(112deg, transparent 0 92px, rgba(255,255,255,.04) 93px 99px, transparent 100px 185px),
+      #11141a;
+  }
+  .map::before {
+    content: "";
+    position: absolute;
+    inset: 13% 8% 10% 12%;
+    border: 2px solid rgba(139, 124, 246, .2);
+    border-radius: 45% 55% 48% 52%;
+  }
+  .route {
+    position: absolute;
+    left: 28%;
+    top: 25%;
+    width: 48%;
+    height: 46%;
+    border-left: 5px solid var(--accent);
+    border-bottom: 5px solid var(--accent);
+    border-radius: 0 0 0 48px;
+    filter: drop-shadow(0 0 12px rgba(139,124,246,.35));
+  }
+  .map-point {
+    position: absolute;
+    display: grid;
+    gap: 5px;
+    transform: translate(-50%, -50%);
+    min-width: 150px;
+  }
+  .map-point.pickup { left: 28%; top: 25%; }
+  .map-point.dropoff { left: 76%; top: 71%; }
+  .point-dot {
+    width: 18px;
+    height: 18px;
+    border: 4px solid #11141a;
+    border-radius: 999px;
+    background: var(--accent);
+    box-shadow: 0 0 0 2px rgba(255,255,255,.2);
+  }
+  .dropoff .point-dot { background: var(--ok); border-radius: 5px; }
+  .point-card {
+    max-width: 240px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(18, 20, 27, .88);
+    backdrop-filter: blur(10px);
+    font-size: 12px;
+  }
+  .point-card b { display: block; margin-bottom: 2px; }
+  .point-card span {
+    color: var(--muted);
+    overflow: hidden;
+    display: block;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .map-toolbar {
+    position: absolute;
+    left: 14px;
+    top: 14px;
+    display: flex;
+    gap: 8px;
+    z-index: 3;
+  }
+  .map-chip {
+    min-height: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(18, 20, 27, .86);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 750;
+  }
+  .map-help {
+    position: absolute;
+    right: 14px;
+    bottom: 14px;
+    max-width: 330px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(18, 20, 27, .9);
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .option-list {
+    min-height: 0;
+    overflow: auto;
+    padding: 12px;
+    display: grid;
+    align-content: start;
+    gap: 10px;
+  }
+  .ride-card {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    gap: 11px;
+    align-items: center;
+    min-height: 76px;
+    padding: 11px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .035);
+  }
+  .ride-card.is-selected { border-color: rgba(139,124,246,.75); background: rgba(139,124,246,.12); }
+  .car {
+    width: 48px;
+    height: 48px;
+    display: grid;
+    place-items: center;
+    border-radius: 8px;
+    background: rgba(255,255,255,.08);
+    color: #fff;
+    font-weight: 900;
+  }
+  .ride-card h3 { margin: 0; font-size: 15px; }
+  .ride-card p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    white-space: normal;
+  }
+  .fare {
+    text-align: right;
+    white-space: nowrap;
+  }
+  .fare strong { display: block; font-size: 15px; }
+  .fare span { display: block; margin-top: 2px; color: var(--dim); font-size: 11px; }
+  .empty {
+    color: var(--muted);
+    padding: 22px 10px;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .order-footer {
+    display: grid;
+    gap: 8px;
+    padding: 12px;
+    border-top: 1px solid var(--line);
+  }
+  .note {
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.35;
+  }
+  .assistant {
+    border-top: 1px solid var(--line);
+    padding: 12px;
+  }
+  .messages {
+    max-height: 180px;
+    overflow: auto;
+    display: grid;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .msg {
+    max-width: 88%;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.42;
+    white-space: pre-wrap;
+  }
+  .msg.bot {
+    justify-self: start;
+    background: rgba(255,255,255,.05);
+    border: 1px solid var(--line);
+  }
+  .msg.me {
+    justify-self: end;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+  }
+  .chat-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 72px;
+    gap: 8px;
+  }
+  .chat-row input {
+    min-height: 38px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #0a0c11;
+    color: var(--text);
+    padding: 0 11px;
+    outline: 0;
+    font-size: 16px;
+  }
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 22px;
+    transform: translateX(-50%);
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 800;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease;
+    z-index: 10;
+  }
+  .toast.show { opacity: 1; }
+  @media (max-width: 1180px) {
+    .content { grid-template-columns: minmax(300px, 360px) minmax(0, 1fr); }
+    .order { grid-column: 1 / -1; min-height: 360px; }
+    .option-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 760px) {
+    body { overflow: auto; }
+    .app { min-height: 100vh; height: auto; }
+    .content { display: block; padding: 8px; }
+    .panel { margin-bottom: 8px; }
+    .builder, .order { display: block; }
+    .map-panel { height: 48vh; min-height: 380px; }
+    .option-list { grid-template-columns: 1fr; max-height: none; }
+    .topbar { padding: 9px 12px; }
+    .status-pill { display: none; }
+  }
+
+  /* Theme-aware polish layer. Rides runs inside Cockpit, so the embedded app
+     must follow the parent light/dark tokens instead of the original dark mockup. */
+  :root {
+    --rides-control: color-mix(in srgb, var(--panel-2) 70%, var(--bg));
+    --rides-control-strong: color-mix(in srgb, var(--panel-2) 88%, var(--text) 4%);
+    --rides-surface: color-mix(in srgb, var(--panel) 92%, transparent);
+    --rides-map: color-mix(in srgb, var(--panel) 84%, var(--bg));
+    --rides-map-line: color-mix(in srgb, var(--text) 10%, transparent);
+    --rides-shadow: 0 18px 48px rgba(15, 23, 42, .12);
+    --rides-shadow-strong: 0 22px 70px rgba(15, 23, 42, .18);
+  }
+
+  body {
+    background:
+      radial-gradient(circle at 12% 12%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 34rem),
+      linear-gradient(135deg, var(--bg), color-mix(in srgb, var(--bg) 68%, var(--panel)));
+  }
+
+  .topbar {
+    background: color-mix(in srgb, var(--panel) 86%, transparent);
+    box-shadow: var(--rides-shadow);
+    backdrop-filter: blur(18px) saturate(130%);
+    -webkit-backdrop-filter: blur(18px) saturate(130%);
+  }
+
+  .panel,
+  .suggestion,
+  .ride-card,
+  .msg.bot,
+  .point-card,
+  .map-chip,
+  .map-help {
+    background: var(--rides-surface);
+    box-shadow: var(--rides-shadow);
+  }
+
+  .panel {
+    border-radius: 14px;
+  }
+
+  .panel-head,
+  .order-footer,
+  .assistant {
+    background: color-mix(in srgb, var(--panel) 70%, transparent);
+  }
+
+  .field input,
+  .chat-row input,
+  .btn,
+  .map-chip {
+    border-color: color-mix(in srgb, var(--line) 86%, transparent);
+    background: var(--rides-control);
+    color: var(--text);
+    box-shadow: none;
+  }
+
+  .field input::placeholder,
+  .chat-row input::placeholder {
+    color: color-mix(in srgb, var(--muted) 80%, transparent);
+  }
+
+  .field input:focus,
+  .chat-row input:focus,
+  .btn:hover,
+  .map-chip:hover,
+  .suggestion:hover,
+  .ride-card:hover {
+    border-color: color-mix(in srgb, var(--accent) 56%, var(--line));
+    background: var(--rides-control-strong);
+  }
+
+  .btn.primary,
+  .msg.me,
+  .toast {
+    border-color: transparent;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+  }
+
+  .map-panel {
+    background: var(--rides-map);
+  }
+
+  .map-panel.has-google-map .map,
+  .map-panel.has-google-map .route,
+  .map-panel.has-google-map .map-point {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .map {
+    background:
+      linear-gradient(90deg, transparent 0 47%, var(--rides-map-line) 48% 52%, transparent 53%),
+      linear-gradient(0deg, transparent 0 47%, var(--rides-map-line) 48% 52%, transparent 53%),
+      repeating-linear-gradient(22deg, transparent 0 62px, var(--rides-map-line) 63px 68px, transparent 69px 132px),
+      repeating-linear-gradient(112deg, transparent 0 92px, color-mix(in srgb, var(--text) 7%, transparent) 93px 99px, transparent 100px 185px),
+      var(--rides-map);
+  }
+
+  .map::before {
+    border-color: color-mix(in srgb, var(--accent) 24%, transparent);
+  }
+
+  .route {
+    border-color: var(--accent);
+    filter: drop-shadow(0 0 12px color-mix(in srgb, var(--accent) 35%, transparent));
+  }
+
+  .point-dot {
+    border-color: var(--rides-map);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 20%, transparent);
+  }
+
+  .map-toolbar,
+  .map-help {
+    z-index: 3;
+  }
+
+  .suggestion-icon,
+  .car {
+    background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+    color: var(--accent);
+  }
+
+  .ride-card {
+    transition: transform .14s ease, border-color .14s ease, box-shadow .14s ease;
+  }
+
+  .ride-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--rides-shadow-strong);
+  }
+
+  .ride-card.is-selected {
+    border-color: color-mix(in srgb, var(--accent) 72%, var(--line));
+    background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  }
+</style>
+<script>
+(function(){
+  const map = {
+    '--bg':'--bg-primary',
+    '--panel':'--bg-card',
+    '--panel-2':'--bg-secondary',
+    '--line':'--border-color',
+    '--text':'--text-primary',
+    '--muted':'--text-secondary',
+    '--dim':'--text-muted',
+    '--accent':'--accent-primary',
+    '--accent-2':'--accent-primary-hover',
+    '--ok':'--status-success',
+    '--warn':'--status-warning',
+    '--bad':'--status-error'
+  };
+  function sync(){
+    try {
+      const parentWindow = window.parent && window.parent !== window ? window.parent : null;
+      if (!parentWindow) return;
+      const computed = parentWindow.getComputedStyle(parentWindow.document.documentElement);
+      for (const localName in map) {
+        const value = computed.getPropertyValue(map[localName]).trim();
+        if (value) document.documentElement.style.setProperty(localName, value);
+      }
+    } catch {}
+  }
+  sync();
+  document.addEventListener('DOMContentLoaded', sync);
+})();
+</script>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="mark">R</div>
+    <div class="brand">OSHAL Rides<small>Map first ride concierge</small></div>
+    <div class="status-pill"><span class="dot" id="connDot"></span><span id="connTxt">Checking Uber mode</span></div>
+  </header>
+
+  <div class="content">
+    <section class="panel builder">
+      <div class="panel-head">
+        <h1>Where are you going?</h1>
+        <p>Use your current location, search a destination, or tell the concierge what you want.</p>
+      </div>
+      <div class="search-stack">
+        <div class="field">
+          <span class="pin"></span>
+          <input id="pickup" autocomplete="street-address" placeholder="Pickup: use my current location" />
+        </div>
+        <div class="field-line"></div>
+        <div class="field">
+          <span class="pin drop"></span>
+          <input id="dropoff" autocomplete="off" placeholder="Search destination" />
+        </div>
+        <div class="action-row">
+          <button class="btn" id="locBtn" type="button">Use location</button>
+          <button class="btn primary" id="estimateBtn" type="button">Show rides</button>
+        </div>
+
+        <div class="section-title">Search</div>
+        <div class="suggestions" id="suggestions"></div>
+
+        <div class="section-title">Recent trips</div>
+        <div class="suggestions" id="recentTrips"></div>
+      </div>
+      <div class="assistant">
+        <div class="messages" id="messages">
+          <div class="msg bot">Tell me the trip in plain English. Try "take me to the airport" or "cheapest ride to Walmart".</div>
+        </div>
+        <div class="chat-row">
+          <input id="chatInput" placeholder="Talk to build the ride" />
+          <button class="btn primary" id="chatSend" type="button">Send</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel map-panel" aria-label="Ride map">
+      <div class="google-map" id="googleMap" hidden></div>
+      <div class="map"></div>
+      <div class="route" id="routeLine"></div>
+      <div class="map-toolbar">
+        <button class="map-chip" id="centerBtn" type="button">Center route</button>
+        <button class="map-chip" id="swapBtn" type="button">Swap</button>
+      </div>
+      <div class="map-point pickup">
+        <span class="point-dot"></span>
+        <div class="point-card"><b>Pickup</b><span id="pickupLabel">Waiting for location</span></div>
+      </div>
+      <div class="map-point dropoff">
+        <span class="point-dot"></span>
+        <div class="point-card"><b>Dropoff</b><span id="dropoffLabel">Choose a destination</span></div>
+      </div>
+      <div class="map-help" id="mapHelp">Location stays in your browser unless you search or request estimates. Uber opens separately for final price, pickup confirmation, and payment.</div>
+    </section>
+
+    <section class="panel order">
+      <div class="panel-head">
+        <h2>Ride options</h2>
+        <p id="orderSubtitle">Search a destination to compare estimates.</p>
+      </div>
+      <div class="option-list" id="options">
+        <div class="empty">No route yet. Search, scroll results, or ask the concierge to generate the ride.</div>
+      </div>
+      <div class="order-footer">
+        <button class="btn primary" id="requestBtn" type="button" disabled>Open Uber handoff</button>
+        <div class="note">OSHAL does not request the ride or take payment. The Uber page shows the live price and asks you to confirm.</div>
+      </div>
+    </section>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '/api/rides';
+const $ = (selector) => document.querySelector(selector);
+const state = {
+  pickup: 'my location',
+  dropoff: '',
+  coords: null,
+  options: [],
+  selected: null,
+  conversationId: localStorage.getItem('oshalRidesConv') || '',
+  trips: []
+};
+const googleMapState = {
+  enabled: false,
+  map: null,
+  directionsService: null,
+  directionsRenderer: null,
+  autocomplete: null
+};
+
+const baseSuggestions = [
+  { label: 'Airport', detail: 'Nearest airport or terminal', value: 'airport', code: 'AIR' },
+  { label: 'Home', detail: 'Use saved home if configured', value: 'home', code: 'H' },
+  { label: 'Work', detail: 'Use saved work if configured', value: 'work', code: 'W' },
+  { label: 'Downtown', detail: 'Restaurants, nightlife, hotels', value: 'downtown', code: 'DT' },
+  { label: 'Grocery store', detail: 'Food run or pickup', value: 'grocery store', code: 'GR' },
+  { label: 'Walmart', detail: 'Shopping trip', value: 'Walmart', code: 'WM' },
+  { label: 'Hospital', detail: 'Medical campus or ER', value: 'hospital', code: 'MED' },
+  { label: 'Hotel', detail: 'Hotel, resort, or lobby pickup', value: 'hotel', code: 'HT' }
+];
+
+function toast(message) {
+  const node = $('#toast');
+  node.textContent = message;
+  node.classList.add('show');
+  setTimeout(() => node.classList.remove('show'), 1800);
+}
+
+async function getJson(url) {
+  const response = await fetch(url, { credentials: 'same-origin' });
+  return response.json();
+}
+
+async function postJson(url, body) {
+  const response = await fetch(url, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {})
+  });
+  return response.json();
+}
+
+function loadGoogleMapsScript(key) {
+  if (window.google && window.google.maps) return Promise.resolve();
+  const existing = document.querySelector('script[data-oshal-google-maps]');
+  if (existing) {
+    return new Promise((resolve, reject) => {
+      existing.addEventListener('load', resolve, { once: true });
+      existing.addEventListener('error', reject, { once: true });
+    });
+  }
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.dataset.oshalGoogleMaps = 'true';
+    script.async = true;
+    script.defer = true;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places&v=weekly`;
+    script.addEventListener('load', resolve, { once: true });
+    script.addEventListener('error', reject, { once: true });
+    document.head.appendChild(script);
+  });
+}
+
+function getGoogleRouteOrigin() {
+  if (state.coords) {
+    return { lat: state.coords.latitude, lng: state.coords.longitude };
+  }
+  const pickup = $('#pickup')?.value.trim();
+  if (pickup && !/^my location$/i.test(pickup)) return pickup;
+  return null;
+}
+
+function refreshGoogleRoute() {
+  if (!googleMapState.enabled || !googleMapState.directionsService || !googleMapState.directionsRenderer) return;
+  const destination = $('#dropoff')?.value.trim();
+  const origin = getGoogleRouteOrigin();
+  if (!destination || !origin || !window.google?.maps) return;
+  googleMapState.directionsService.route({
+    origin,
+    destination,
+    travelMode: window.google.maps.TravelMode.DRIVING
+  }, (result, status) => {
+    if (status === 'OK' && result) {
+      googleMapState.directionsRenderer.setDirections(result);
+      $('#mapHelp').textContent = 'Live map route preview. Uber still opens separately for final price, pickup confirmation, and payment.';
+    }
+  });
+}
+
+async function enableGoogleMaps(mapsConfig) {
+  const key = mapsConfig?.googleMapsBrowserKey;
+  if (!key) return;
+  try {
+    await loadGoogleMapsScript(key);
+    const mapNode = $('#googleMap');
+    if (!mapNode || !window.google?.maps) return;
+    mapNode.hidden = false;
+    document.querySelector('.map-panel')?.classList.add('has-google-map');
+    const center = state.coords
+      ? { lat: state.coords.latitude, lng: state.coords.longitude }
+      : { lat: 30.3935, lng: -86.4958 };
+    googleMapState.map = new window.google.maps.Map(mapNode, {
+      center,
+      zoom: state.coords ? 13 : 12,
+      mapId: mapsConfig.googleMapsMapId || undefined,
+      clickableIcons: false,
+      fullscreenControl: false,
+      mapTypeControl: false,
+      streetViewControl: false
+    });
+    googleMapState.directionsService = new window.google.maps.DirectionsService();
+    googleMapState.directionsRenderer = new window.google.maps.DirectionsRenderer({
+      map: googleMapState.map,
+      suppressMarkers: false,
+      polylineOptions: { strokeColor: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#8b7cf6', strokeWeight: 5 }
+    });
+    if (window.google.maps.places?.Autocomplete) {
+      googleMapState.autocomplete = new window.google.maps.places.Autocomplete($('#dropoff'), {
+        fields: ['formatted_address', 'geometry', 'name']
+      });
+      googleMapState.autocomplete.addListener('place_changed', () => {
+        const place = googleMapState.autocomplete.getPlace();
+        if (place?.formatted_address || place?.name) {
+          $('#dropoff').value = place.formatted_address || place.name;
+          updateLabels();
+        }
+        if (place?.geometry?.viewport) googleMapState.map.fitBounds(place.geometry.viewport);
+        else if (place?.geometry?.location) googleMapState.map.panTo(place.geometry.location);
+        refreshGoogleRoute();
+      });
+    }
+    googleMapState.enabled = true;
+    $('#mapHelp').textContent = 'Google Maps is enabled. Search a destination to preview the route before opening Uber.';
+    refreshGoogleRoute();
+  } catch {
+    $('#mapHelp').textContent = 'Map provider did not load, so OSHAL is showing the built-in fallback route preview.';
+  }
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function updateLabels() {
+  state.pickup = $('#pickup').value.trim() || state.pickup || 'my location';
+  state.dropoff = $('#dropoff').value.trim();
+  $('#pickupLabel').textContent = state.pickup || 'Waiting for location';
+  $('#dropoffLabel').textContent = state.dropoff || 'Choose a destination';
+  $('#orderSubtitle').textContent = state.dropoff
+    ? `${state.pickup || 'my location'} to ${state.dropoff}`
+    : 'Search a destination to compare estimates.';
+}
+
+function renderSuggestions() {
+  const query = $('#dropoff').value.trim().toLowerCase();
+  const recent = state.trips.map((trip) => ({
+    label: trip.dropoff || 'Recent destination',
+    detail: trip.pickup || 'Recent trip',
+    value: trip.dropoff || '',
+    code: 'RE'
+  }));
+  const items = [...recent, ...baseSuggestions]
+    .filter((item) => !query || `${item.label} ${item.detail} ${item.value}`.toLowerCase().includes(query))
+    .slice(0, 10);
+  $('#suggestions').innerHTML = items.map(renderSuggestion).join('') || '<div class="empty">No matching destinations.</div>';
+  document.querySelectorAll('[data-suggestion]').forEach((button) => {
+    button.addEventListener('click', () => {
+      $('#dropoff').value = button.dataset.suggestion || '';
+      updateLabels();
+      estimate();
+    });
+  });
+}
+
+function renderRecentTrips() {
+  const trips = state.trips.slice(0, 5).map((trip) => ({
+    label: trip.dropoff || 'Recent destination',
+    detail: trip.pickup || '',
+    value: trip.dropoff || '',
+    code: 'RE',
+    href: trip.deep_link || ''
+  }));
+  $('#recentTrips').innerHTML = trips.map(renderSuggestion).join('') || '<div class="empty">No recent trips yet.</div>';
+  document.querySelectorAll('[data-suggestion]').forEach((button) => {
+    if (button.dataset.bound) return;
+    button.dataset.bound = 'true';
+    button.addEventListener('click', () => {
+      $('#dropoff').value = button.dataset.suggestion || '';
+      updateLabels();
+      estimate();
+    });
+  });
+}
+
+function renderSuggestion(item) {
+  return `<button class="suggestion" type="button" data-suggestion="${escapeHtml(item.value)}">
+    <span class="suggestion-icon">${escapeHtml(item.code || 'GO')}</span>
+    <span><strong>${escapeHtml(item.label)}</strong><span>${escapeHtml(item.detail)}</span></span>
+    <span class="recent-link">Select</span>
+  </button>`;
+}
+
+function renderOptions(options) {
+  state.options = options || [];
+  state.selected = state.options[0] || null;
+  const target = $('#options');
+  if (!state.options.length) {
+    target.innerHTML = '<div class="empty">No ride estimates came back for this route.</div>';
+    $('#requestBtn').disabled = true;
+    return;
+  }
+  target.innerHTML = state.options.map((option, index) => {
+    const selected = index === 0 ? ' is-selected' : '';
+    return `<article class="ride-card${selected}" data-ride-index="${index}">
+      <div class="car">${escapeHtml(shortRideName(option.label))}</div>
+      <div>
+        <h3>${escapeHtml(option.label || option.type || 'Ride')}</h3>
+        <p>${escapeHtml(option.seats ?? 4)} seats · ${escapeHtml(option.etaPickupMin ?? '?')} min away · ${escapeHtml(option.tripMin ?? '?')} min trip</p>
+      </div>
+      <div class="fare"><strong>$${escapeHtml(option.fareLow ?? '?')}-${escapeHtml(option.fareHigh ?? '?')}</strong><span>estimate</span></div>
+    </article>`;
+  }).join('');
+  document.querySelectorAll('[data-ride-index]').forEach((card) => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.ride-card').forEach((node) => node.classList.remove('is-selected'));
+      card.classList.add('is-selected');
+      state.selected = state.options[Number(card.dataset.rideIndex)] || null;
+      $('#requestBtn').disabled = !state.selected;
+    });
+  });
+  $('#requestBtn').disabled = !state.selected;
+}
+
+function shortRideName(label) {
+  const text = String(label || 'Ride').replace(/^Uber/i, '').trim();
+  if (/comfort/i.test(text)) return 'C';
+  if (/black/i.test(text)) return 'B';
+  if (/xl/i.test(text)) return 'XL';
+  return 'X';
+}
+
+async function requestLocation() {
+  if (!navigator.geolocation) {
+    toast('Browser location is not available');
+    return;
+  }
+  $('#locBtn').disabled = true;
+  $('#locBtn').textContent = 'Locating';
+  navigator.geolocation.getCurrentPosition((position) => {
+    state.coords = position.coords;
+    state.pickup = `Current location (${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)})`;
+    $('#pickup').value = state.pickup;
+    $('#mapHelp').textContent = 'Location found. Search where you want to go, then compare ride estimates.';
+    $('#locBtn').disabled = false;
+    $('#locBtn').textContent = 'Use location';
+    updateLabels();
+    if (googleMapState.map) {
+      googleMapState.map.panTo({ lat: position.coords.latitude, lng: position.coords.longitude });
+      googleMapState.map.setZoom(13);
+    }
+    refreshGoogleRoute();
+  }, () => {
+    toast('Location permission was not granted');
+    $('#locBtn').disabled = false;
+    $('#locBtn').textContent = 'Use location';
+  }, { enableHighAccuracy: true, timeout: 9000, maximumAge: 60000 });
+}
+
+async function estimate() {
+  updateLabels();
+  if (!state.dropoff) {
+    toast('Search a destination first');
+    return;
+  }
+  refreshGoogleRoute();
+  $('#options').innerHTML = '<div class="empty">Estimating rides for this route...</div>';
+  $('#requestBtn').disabled = true;
+  try {
+    const result = await getJson(`${API}/estimate?pickup=${encodeURIComponent(state.pickup || 'my location')}&dropoff=${encodeURIComponent(state.dropoff)}`);
+    if (result.error) toast(result.error);
+    renderOptions(result.options || []);
+  } catch {
+    $('#options').innerHTML = '<div class="empty">Could not estimate rides right now.</div>';
+  }
+}
+
+async function requestRide() {
+  updateLabels();
+  const option = state.selected;
+  if (!option || !state.dropoff) return;
+  $('#requestBtn').disabled = true;
+  $('#requestBtn').textContent = 'Opening Uber';
+  const result = await postJson(`${API}/request`, {
+    pickup: state.pickup || 'my location',
+    dropoff: state.dropoff,
+    rideType: option.type,
+    fareLow: option.fareLow,
+    fareHigh: option.fareHigh
+  });
+  $('#requestBtn').disabled = false;
+  $('#requestBtn').textContent = 'Open Uber handoff';
+  if (result.rideUrl) {
+    toast('Opening Uber');
+    window.open(result.rideUrl, '_blank');
+    loadTrips();
+  } else {
+    toast(result.error || 'Could not build Uber handoff');
+  }
+}
+
+function addMessage(role, text) {
+  const node = document.createElement('div');
+  node.className = `msg ${role === 'me' ? 'me' : 'bot'}`;
+  node.textContent = text;
+  $('#messages').appendChild(node);
+  $('#messages').scrollTop = $('#messages').scrollHeight;
+  return node;
+}
+
+async function sendChat() {
+  const input = $('#chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  addMessage('me', text);
+  const pending = addMessage('bot', 'Working on the ride...');
+  try {
+    const result = await postJson(`${API}/chat`, {
+      message: text,
+      conversationId: state.conversationId,
+      pickup: $('#pickup').value.trim(),
+      dropoff: $('#dropoff').value.trim()
+    });
+    state.conversationId = result.conversationId || state.conversationId;
+    if (state.conversationId) localStorage.setItem('oshalRidesConv', state.conversationId);
+    pending.textContent = result.reply || 'I could not build that ride yet.';
+    if (result.trip?.pickup) $('#pickup').value = result.trip.pickup;
+    if (result.trip?.dropoff) $('#dropoff').value = result.trip.dropoff;
+    updateLabels();
+    refreshGoogleRoute();
+    if (Array.isArray(result.options) && result.options.length) renderOptions(result.options);
+    if (result.ride?.rideUrl) {
+      toast('Opening Uber');
+      window.open(result.ride.rideUrl, '_blank');
+      loadTrips();
+    }
+  } catch {
+    pending.textContent = 'I hit an error building that ride. Try searching the destination directly.';
+  }
+}
+
+async function loadTrips() {
+  try {
+    const result = await getJson(`${API}/history`);
+    state.trips = result.trips || [];
+  } catch {
+    state.trips = [];
+  }
+  renderSuggestions();
+  renderRecentTrips();
+}
+
+async function boot() {
+  $('#pickup').value = 'my location';
+  updateLabels();
+  $('#locBtn').addEventListener('click', requestLocation);
+  $('#estimateBtn').addEventListener('click', estimate);
+  $('#requestBtn').addEventListener('click', requestRide);
+  $('#centerBtn').addEventListener('click', () => {
+    refreshGoogleRoute();
+    toast(googleMapState.enabled ? 'Route updated' : 'Route centered');
+  });
+  $('#swapBtn').addEventListener('click', () => {
+    const pickup = $('#pickup').value;
+    $('#pickup').value = $('#dropoff').value;
+    $('#dropoff').value = pickup;
+    updateLabels();
+    refreshGoogleRoute();
+  });
+  $('#dropoff').addEventListener('input', () => { updateLabels(); renderSuggestions(); });
+  $('#dropoff').addEventListener('keydown', (event) => { if (event.key === 'Enter') estimate(); });
+  $('#pickup').addEventListener('input', updateLabels);
+  $('#chatSend').addEventListener('click', sendChat);
+  $('#chatInput').addEventListener('keydown', (event) => { if (event.key === 'Enter') sendChat(); });
+  renderSuggestions();
+  await loadTrips();
+  try {
+    const config = await getJson(`${API}/config`);
+    $('#connDot').classList.toggle('on', Boolean(config.uberRidesConnected));
+    $('#connTxt').textContent = config.uberRidesConnected ? 'Uber connected' : 'Estimate mode';
+    await enableGoogleMaps(config.maps || {});
+  } catch {
+    $('#connTxt').textContent = 'Estimate mode';
+  }
+}
+
+boot();
+</script>
+</body>
+</html>

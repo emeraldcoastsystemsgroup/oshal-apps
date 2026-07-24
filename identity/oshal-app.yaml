@@ -1,0 +1,130 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — identity ("Identity Hub")
+# Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
+# ADR-093). This package is the app: the /api/identity routes + the hub surface +
+# the manifest (ticketType `identity-review` + the access-review workflow) + a
+# package COPY of the identity-advisor persona for the registrar.
+#
+# A click-to-access launcher over the accounts the user has ALREADY authorized on
+# the Connections page (/utilities). It is a VIEW: one grid of every connected
+# account, grouped by purpose, with three actions per account —
+#   • Open    — deep-link straight into that provider (Gmail, LinkedIn, the
+#               SmartThings app, …) so the hub is a one-click launcher.
+#   • Reconnect — re-run the existing consent flow when a login's stored
+#               authorization has expired (reuses /api/connect/:provider/start).
+#   • Connect — start the consent flow for a provider not yet connected.
+#
+# It does NOT change the security posture: it never shows, copies, or hands back a
+# secret. OSHAL stores OAuth tokens / API PATs so BOTS can act for the user; this
+# surface only deep-links into already-authorized accounts and re-runs consent.
+# (A plaintext "password wallet" is a SEPARATE, explicitly-approved future step.)
+#
+# What STAYS framework-resident per ADR-093 (this package ships none of it):
+#   - the identity-advisor INLINE node (container: identity-bot per the local
+#     registry / inline claude-code per the echo registry — registered in BOTH
+#     swarm-bot-registry blocks) — the app's reasoning owner; the persona here is
+#     a package COPY for the registrar;
+#   - the connector hub itself: /api/connect/list (the catalog + connection-state
+#     single source of truth this surface reads) + /api/connect/:provider/start
+#     (the consent flow it re-runs) + the /utilities Connections page;
+#   - connector-tenancy (accessibleConnections) + inline-bot-execution
+#     (executeBotOrInline), imported via @/ aliases.
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: identity
+suite: ai-productivity   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Identity Hub
+description: >-
+  Every account you've connected, in one place — click to jump straight into Gmail,
+  LinkedIn, your smart-home app, and more, reconnect a login that's expired, or connect
+  a new one. Plus an optional access review that flags what needs attention. OSHAL never
+  shows or hands back a password — this launches accounts you've already authorized.
+version: 1.0.0
+status: active
+
+# Trustworthy blue skin for the keys/identity surface.
+theme: ocean
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: identity
+  ref: main
+
+# No connector allow-list of its own: the hub is a launcher over EVERY provider the
+# user has connected at /utilities — the catalog comes from /api/connect/list at
+# request time, never from a static list here.
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+ticketType: identity-review
+
+workflow:
+  name: Identity Access Review
+  # No `pipeline:` — single-bot worker dispatch. The interactive access review uses the
+  # direct BotNodeClient path in identity-routes; a ticketType=identity-review ticket
+  # (e.g. a future scheduled "what needs reconnecting" check) routes to the same bot.
+  workerBot: identity-advisor
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — the identity-advisor (reason-only; runs inline on the api container,
+# registered in BOTH swarm-bot-registry blocks — framework-resident). The persona
+# here is a package COPY for the registrar; the node keeps using /app/ai-lab (core).
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: a0000000-0000-0000-0000-000000000045
+    name: identity-advisor
+    persona: personas/identity-advisor.yaml
+    role: identity/access-advisor
+    capabilities:
+      - connection-inventory-review
+      - access-health-review
+      - expired-login-detection
+      - duplicate-account-detection
+      - stale-connection-detection
+      - missing-connector-suggestion
+      - default-account-check
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon icon opens the Identity Hub (served by this
+# package's routes at /api/identity/). The page lists the signed-in user's
+# connected accounts and handles open / reconnect / connect + the access review.
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: identity-home
+      label: Identity Hub
+      icon: codicon codicon-key
+      iframeUrl: /api/identity/
+      section: top
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — the packaged surface router, mounted /api/identity on activation. (In
+# core server.ts this was createIdentityRoutes behind requiresAuth; it now mounts
+# from this package.)
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - module: routes/identity-routes.js
+    factory: createIdentityRoutes
+    mountPath: /api/identity
+    auth: oidc   # what core server.ts mounted (requiresAuth — ADR-085 D2)
+    requiresAuth: true
+    requiresContext: true
+
+# No migrations: the hub reads the existing connector store via /api/connect/list +
+# connector-tenancy — no tables of its own.
+
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  defaultView: identity-home

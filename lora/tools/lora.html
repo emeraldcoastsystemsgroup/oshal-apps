@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LoRA Studio — OSHAL</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  /* Keep the surface's short alias names, but DERIVE each from a framework theme token so all eleven
+     themes work — not just the dark one whose hex this used to hardcode. Chrome aliases map straight
+     through; accent/status aliases keep the old hex as a fallback so they stay legible if a theme
+     omits the token. */
+  :root { --bg:var(--bg-primary); --panel:var(--bg-card); --panel2:var(--bg-tertiary); --line:var(--border-color); --text:var(--text-primary); --muted:var(--text-muted); --accent:var(--accent-primary,#6c7bff); --accent2:var(--status-success,#00d3a7); }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family: system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  .top { padding:16px 22px 12px; border-bottom:1px solid var(--line); }
+  .top h1 { font-size:19px; margin:0 0 2px; } .top .sub { color:var(--muted); font-size:12.5px; }
+  .split { display:flex; height:calc(100vh - 64px); }
+  .pane { overflow-y:auto; padding:18px 20px; }
+  .left { flex:0 0 38%; border-right:1px solid var(--line); }
+  .right { flex:1; }
+  .lbl { font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin:0 0 10px; }
+  .btn { border:none; border-radius:9px; padding:10px 15px; font-size:13.5px; font-weight:600; cursor:pointer; background:var(--accent); color:#fff; }
+  .btn.ghost { background:var(--panel2); border:1px solid var(--line); color:var(--text); }
+  .btn.sm { padding:6px 11px; font-size:12px; }
+  .btn:disabled { opacity:.5; cursor:default; }
+  .bar { display:flex; align-items:center; gap:10px; margin-top:14px; flex-wrap:wrap; }
+  .hint { color:var(--muted); font-size:12px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:13px 14px; margin-bottom:11px; cursor:pointer; }
+  .card.sel { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+  .card .ch { display:flex; align-items:center; gap:10px; }
+  .card .avatar { flex:0 0 auto; width:40px; height:40px; border-radius:9px; background:linear-gradient(135deg,var(--panel2),var(--accent)); display:flex; align-items:center; justify-content:center; font-size:20px; }
+  .card .nm { font-weight:600; font-size:14px; } .card .tg { color:var(--muted); font-size:11.5px; }
+  .card .meta { color:var(--muted); font-size:11.5px; margin-top:8px; display:flex; gap:14px; flex-wrap:wrap; }
+  .card .meta b { color:var(--text); }
+  .toggle { display:flex; align-items:center; gap:7px; margin-top:9px; font-size:12.5px; color:var(--text); }
+  .toggle input { width:auto; }
+  .ver { background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:12px 14px; margin-bottom:10px; }
+  .ver .vh { display:flex; align-items:center; gap:10px; }
+  .ver .vn { font-weight:700; font-size:14px; }
+  .badge { font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; padding:2px 8px; border-radius:20px; border:1px solid var(--line); color:var(--muted); }
+  .badge.scored { color:var(--accent2); border-color:var(--accent2); }
+  .badge.training { color:var(--status-warning,#ffcf5a); border-color:var(--status-warning,#ffcf5a); }
+  .badge.failed { color:var(--status-error,#ff8a8a); border-color:var(--status-error,#ff5a5a); }
+  .badge.active { color:#fff; background:var(--accent); border-color:var(--accent); }
+  .scores { display:flex; gap:16px; margin:10px 0 4px; }
+  .score { text-align:center; } .score .n { font-size:18px; font-weight:700; } .score .k { color:var(--muted); font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; }
+  .weak { color:var(--muted); font-size:11.5px; margin-top:6px; } .weak span { color:var(--status-warning,#ffb15a); }
+  .cells { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:9px; margin-top:12px; }
+  .cell { background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:8px; font-size:11px; }
+  .cell .cs { font-weight:700; font-size:13px; } .cell .cm { color:var(--muted); margin-top:2px; }
+  .cell img { width:100%; border-radius:6px; margin-bottom:6px; background:var(--bg-tertiary,#000); }
+  .result { margin-top:14px; padding:12px 14px; border-radius:10px; font-size:13px; display:none; }
+  .result.ok { background:rgba(0,211,167,.1); border:1px solid var(--accent2); color:var(--accent2); display:block; }
+  .result.err { background:rgba(255,90,90,.1); border:1px solid var(--status-error,#ff5a5a); color:var(--status-error,#ff9a9a); display:block; }
+  .result.warn { background:rgba(255,180,80,.1); border:1px solid var(--status-warning,#ffb15a); color:var(--status-warning,#ffd29a); display:block; }
+  .empty { background:var(--panel); border:1px dashed var(--line); border-radius:12px; padding:22px; text-align:center; color:var(--muted); font-size:13px; }
+  .spin { color:var(--muted); font-size:13px; }
+  ::-webkit-scrollbar{width:10px;height:10px} ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px}
+  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
+  @media (max-width: 640px){ .split{flex-direction:column;height:auto} .left{flex:none;width:100%;border-right:none;border-bottom:1px solid var(--line)} }
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+  <div class="top">
+    <h1>🧬 LoRA Studio</h1>
+    <div class="sub">Train a reusable character → validate it on a fixed matrix → improve the weak spots and retrain. Every version scored, so "better" is a number.</div>
+  </div>
+  <div class="split">
+    <div class="pane left">
+      <div class="lbl">Characters</div>
+      <div id="chars"><div class="spin">Loading…</div></div>
+      <div id="actions" style="display:none">
+        <div class="lbl" style="margin-top:20px">Actions · <span id="actName"></span></div>
+        <div class="bar">
+          <button class="btn" id="trainBtn" onclick="act('train')">⚙️ Train new version</button>
+          <button class="btn ghost" id="valBtn" onclick="act('validate')">📊 Validate latest</button>
+          <button class="btn ghost" id="impBtn" onclick="act('improve')">🎯 Improve</button>
+        </div>
+        <label class="toggle"><input type="checkbox" id="autoTog" onchange="setAuto()" /> Improve overnight (autonomous, gated review)</label>
+        <div class="bar"><button class="btn ghost sm" id="overnightBtn" onclick="act('improve-overnight')">🌙 Run overnight now</button></div>
+        <div class="result" id="result"></div>
+      </div>
+    </div>
+    <div class="pane right">
+      <div class="lbl">Versions <span class="hint" id="verMeta"></span></div>
+      <div id="vers"><div class="empty">Select a character to see its trained versions and scorecards.</div></div>
+      <div id="gallery"></div>
+    </div>
+  </div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let CHARS = [], SEL = null;
+
+async function api(path, opts){ const r = await fetch('/api/lora'+path, opts); const j = await r.json().catch(()=>({})); return { ok:r.ok, status:r.status, j }; }
+function fmt(n){ return (n==null||n==='')?'—':Number(n).toFixed(2); }
+function showResult(kind, msg){ const e=$('result'); e.className='result '+kind; e.innerHTML=msg; }
+
+async function loadChars(){
+  const { ok, j } = await api('/characters');
+  if(!ok){ $('chars').innerHTML='<div class="empty">'+(j.error||'Failed to load')+'</div>'; return; }
+  CHARS = j.characters||[];
+  if(!CHARS.length){ $('chars').innerHTML='<div class="empty">No characters yet.</div>'; return; }
+  $('chars').innerHTML = CHARS.map(c=>`
+    <div class="card ${SEL===c.subject?'sel':''}" onclick="select('${c.subject}')">
+      <div class="ch">
+        <div class="avatar">🧿</div>
+        <div><div class="nm">${c.display_name}</div><div class="tg">trigger: <b>${c.trigger_word}</b></div></div>
+      </div>
+      <div class="meta">
+        <span><b>${c.version_count||0}</b> versions</span>
+        <span>latest <b>v${c.latest_version??'—'}</b></span>
+        <span>active <b>v${c.active_version??'—'}</b></span>
+        <span>best score <b>${fmt(c.latest_score)}</b></span>
+      </div>
+    </div>`).join('');
+}
+
+async function select(subject){
+  SEL = subject; const c = CHARS.find(x=>x.subject===subject);
+  await loadChars();
+  $('actions').style.display='block';
+  $('actName').textContent = c.display_name;
+  $('autoTog').checked = !!c.autonomous;
+  $('result').className='result'; $('result').style.display='none';
+  await loadVersions(subject);
+}
+
+async function loadVersions(subject){
+  $('verMeta').textContent = '· '+subject;
+  $('gallery').innerHTML='';
+  const { ok, j } = await api('/models?subject='+encodeURIComponent(subject));
+  if(!ok){ $('vers').innerHTML='<div class="empty">'+(j.error||'Failed')+'</div>'; return; }
+  const models = j.models||[];
+  const c = CHARS.find(x=>x.subject===subject);
+  if(!models.length){ $('vers').innerHTML='<div class="empty">No trained versions yet. Train the first version from the existing dataset to start the loop.</div>'; return; }
+  $('vers').innerHTML = models.map(m=>{
+    const active = c && c.active_version===m.version;
+    const weak = (m.weak_cells||[]).slice(0,3).map(w=>`<span>${w.value}</span>`).join(', ');
+    return `<div class="ver">
+      <div class="vh">
+        <span class="vn">v${m.version}</span>
+        <span class="badge ${m.status}">${m.status}</span>
+        ${active?'<span class="badge active">active</span>':''}
+        ${m.parent_version!=null?`<span class="hint">from v${m.parent_version}</span>`:''}
+        <span class="hint" style="margin-left:auto">${m.network_dim?('rank '+m.network_dim+' · '):''}${m.epochs?(m.epochs+' epochs · '):''}${m.final_loss!=null?('loss '+fmt(m.final_loss)):''}</span>
+      </div>
+      ${m.overall!=null?`<div class="scores">
+        <div class="score"><div class="n">${fmt(m.overall)}</div><div class="k">overall</div></div>
+        <div class="score"><div class="n">${fmt(m.identity_mean)}</div><div class="k">identity</div></div>
+        <div class="score"><div class="n">${fmt(m.quality_mean)}</div><div class="k">quality</div></div>
+        <div class="score"><div class="n">${fmt(m.min_cell)}</div><div class="k">worst cell</div></div>
+      </div>`:'<div class="hint" style="margin-top:8px">Not scored yet.</div>'}
+      ${weak?`<div class="weak">weak: ${weak}</div>`:''}
+      <div class="bar">
+        ${m.overall!=null?`<button class="btn ghost sm" onclick="event.stopPropagation();gallery('${subject}',${m.version})">View scorecard</button>`:''}
+        ${(m.status==='scored'&&!active)?`<button class="btn sm" onclick="event.stopPropagation();keepBest('${subject}',${m.version})">Keep as active</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function gallery(subject, version){
+  $('gallery').innerHTML='<div class="spin">Loading scorecard…</div>';
+  const { ok, j } = await api('/scorecard?subject='+encodeURIComponent(subject)+'&version='+version);
+  if(!ok){ $('gallery').innerHTML='<div class="empty">'+(j.error||'No scorecard')+'</div>'; return; }
+  const cells = (j.scorecard&&j.scorecard.cells)||[];
+  $('gallery').innerHTML = `<div class="lbl" style="margin-top:18px">Scorecard · v${version} · ${cells.length} cells</div>
+    <div class="cells">${cells.map(c=>`
+      <div class="cell">
+        ${(c.image&&/^https?:/.test(c.image))?`<img src="${c.image}" loading="lazy" />`:''}
+        <div class="cs">${fmt(c.score!=null?c.score:(0.6*c.identity+0.4*c.quality))}</div>
+        <div class="cm">${(c.cell||'').replace(/\|/g,' · ')}</div>
+        <div class="cm">id ${fmt(c.identity)} · q ${fmt(c.quality)}</div>
+      </div>`).join('')}</div>`;
+}
+
+async function keepBest(subject, version){
+  const { ok, j } = await api('/characters/'+encodeURIComponent(subject)+'/active', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({version}) });
+  if(ok){ showResult('ok','Set <b>v'+version+'</b> as the active character version.'); await loadChars(); await loadVersions(subject); }
+  else showResult('err', j.error||'Failed');
+}
+
+async function setAuto(){
+  if(!SEL) return;
+  const enabled = $('autoTog').checked;
+  const { ok, j } = await api('/characters/'+encodeURIComponent(SEL)+'/autonomous', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({enabled}) });
+  if(ok) showResult('ok', 'Improve-overnight '+(enabled?'enabled':'disabled')+' for this character (runs gated — parks a morning review).');
+  else { showResult('err', j.error||'Failed'); $('autoTog').checked=!enabled; }
+}
+
+async function act(kind){
+  if(!SEL) return;
+  showResult('warn','Dispatching '+kind+'…');
+  const { ok, status, j } = await api('/'+kind, { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({subject:SEL}) });
+  if(ok){ showResult('ok', j.message||(kind+' started.')); await loadVersions(SEL); }
+  else if(status===503 && j.status==='box_required'){ showResult('warn', '⏳ '+j.message); }
+  else showResult('err', j.error||(kind+' failed'));
+}
+
+loadChars();
+</script>
+</body>
+</html>

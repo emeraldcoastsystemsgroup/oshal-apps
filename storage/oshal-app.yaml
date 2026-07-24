@@ -1,0 +1,96 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — storage (Storage hub: targets + assistant)
+# Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 2). "Skills with a surface":
+# ONLY the surface carves — the storage-target/storage-browse kernel skill layer
+# (ADR-041), the oshal_storage_prefs schema chokepoint, and the unified file
+# browser at /api/files (a FRAMEWORK surface: default-ribbon Files tile, career
+# provider, kernel downloadUrl contract) all STAY core. The storage-assistant
+# REAL bot node (storage-bot container, registry block a0…041, core persona)
+# stays in the framework repo per ADR-093 interim — this manifest re-declares
+# the bot with a package persona COPY (career-hunter precedent) so the app keeps
+# its right-rail agent + agent_ids wiring.
+# Framework: OSHAL (see docs/build-your-own-swarm-app.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: storage
+suite: ai-productivity   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Storage
+description: >-
+  Your storage hub: choose where OSHAL saves generated code vs files (GitHub / Dropbox /
+  OSHAL-local), and browse your files. Generators (e.g. Presentations) save to the target you
+  set here.
+version: 1.1.0
+status: active
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: storage
+  ref: main
+
+# Runtime connector allow-list — the storage surfaces drive Dropbox + GitHub via the
+# per-user broker; the Files tile (core /api/files) also browses Google Drive.
+dependencies:
+  apps: []
+  tools: []
+  connectors: [dropbox, github, google-drive]
+
+# Per-app skin (approved palette) — graphite so the storage hub reads distinct.
+theme: graphite
+
+# The app's right-rail chat agent. The storage-assistant NODE (storage-bot container +
+# static registry block) is framework-resident (ADR-093); the persona here is a package
+# COPY for the registrar — the container keeps using /app/ai-lab. The Storage Assistant
+# *surface* NLU runs on the comms bot via executeBotOrInline (see routes).
+bots:
+  - agentId: a0000000-0000-0000-0000-000000000041
+    name: storage-assistant
+    persona: personas/storage-assistant.yaml
+    role: storage/operations-assistant
+    capabilities:
+      - storage-target-config
+      - github-repo-create
+      - file-store-listing
+      - storage-backend-routing
+      - storage-management
+
+ui:
+  static:
+    - toolName: storage-assistant
+      label: Assistant
+      icon: codicon codicon-comment-discussion
+      iframeUrl: /api/storage/assistant/ui
+      section: top
+    - toolName: storage-settings
+      label: Storage Settings
+      icon: codicon codicon-settings-gear
+      iframeUrl: /api/storage
+      section: top
+    - toolName: storage-files
+      label: Files
+      icon: codicon codicon-folder
+      iframeUrl: /api/files   # core framework surface — stays kernel-mounted
+      section: top
+
+routes:
+  - module: routes/storage-routes.js
+    factory: createStorageRoutes
+    mountPath: /api/storage
+    auth: oidc   # what core server.ts mounted (requiresAuth — ADR-085 D2)
+    requiresAuth: true
+    requiresContext: true
+
+# No migrations: oshal_storage_prefs is kernel-owned lazy DDL — ensureStoragePrefsSchema
+# lives in the storage-target kernel skill (owner RLS at that chokepoint) and the packaged
+# route calls it through the @/ alias.
+
+# Trim the ribbon to the storage surfaces + settings/logs. Hide the rest.
+ribbon:
+  hideFrameworkItems:
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - operations
+  defaultView: storage-assistant

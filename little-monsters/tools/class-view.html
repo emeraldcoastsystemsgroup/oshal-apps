@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Little Monsters — Class</title>
+<!--
+  CHANGE LOG
+  ---------------------------------------------------------------------------
+  DATE           | AUTHOR                    | DESCRIPTION
+  ---------------------------------------------------------------------------
+  2026-04-19     | roger.murphy@emeraldcoastsystemsgroup.com    | Initial creation — class-centric view
+  2026-04-22     | roger.murphy@agenticfederal.us   | Follow parent cockpit theme via theme-sync.js so the iframe recolors when the operator cycles themes instead of being pinned to midnight
+  ---------------------------------------------------------------------------
+-->
+<script>
+// Sync iframe theme to parent cockpit's data-theme. Storage events don't fire
+// in the writing window, so a MutationObserver on the parent <html> is the
+// reliable path for live same-tab updates when the operator cycles themes.
+(function(){
+  function applyTheme(n){
+    if(!n)return;
+    document.documentElement.setAttribute('data-theme',n);
+    var href='/cockpit/css/themes/'+n+'.css';
+    var link=document.querySelector('link[data-lm-theme-link="1"]');
+    if(link){if(link.getAttribute('href')!==href)link.setAttribute('href',href);return;}
+    link=document.createElement('link');link.rel='stylesheet';link.href=href;
+    link.setAttribute('data-lm-theme-link','1');document.head.appendChild(link);
+  }
+  function initial(){
+    try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(_e){}
+    try{var s=window.localStorage.getItem('cockpit-theme');if(s)return s;}catch(_e){}
+    return 'midnight';
+  }
+  applyTheme(initial());
+  try{if(window.parent&&window.parent!==window){
+    var ph=window.parent.document.documentElement;
+    new MutationObserver(function(ms){for(var i=0;i<ms.length;i++){if(ms[i].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)applyTheme(t);}}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});
+  }}catch(_e){}
+})();
+</script>
+<link rel="stylesheet" href="/api/education/education.css">
+<style>
+  /* Uses education.css for all base variables and reset.
+     Only page-specific overrides below. */
+  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
+
+  /* ── Header ── */
+  .class-header {
+    padding: 20px 24px; background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+  }
+  .class-header h1 { font-size: 20px; font-weight: 700; }
+  .class-meta { font-size: 12px; color: var(--text-muted); margin-top: 4px; display: flex; gap: 16px; }
+
+  /* ── Tabs ── */
+  .tabs {
+    display: flex; gap: 0; background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color); padding: 0 24px;
+    overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; } /* tabs scroll horizontally on mobile */
+  .tab {
+    padding: 12px 18px; font-size: 13px; font-weight: 500; cursor: pointer;
+    color: var(--text-muted); border-bottom: 2px solid transparent;
+    transition: color 0.2s, border-color 0.2s; white-space: nowrap; flex-shrink: 0;
+  }
+  .tab:hover { color: var(--text-primary); }
+  .tab.active { color: var(--accent-primary); border-color: var(--accent-primary); }
+  .tab .badge {
+    display: inline-block; min-width: 18px; height: 18px; line-height: 18px;
+    text-align: center; border-radius: 9px; font-size: 10px; font-weight: 700;
+    background: rgba(139,92,246,0.2); color: var(--accent-primary); margin-left: 6px;
+  }
+
+  /* ── Content ── */
+  .content { padding: 20px 24px; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── Lecture List ── */
+  .lecture-card {
+    background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius);
+    padding: 16px 20px; margin-bottom: 10px; cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .lecture-card:hover { background: var(--bg-card-hover); border-color: rgba(139,92,246,0.2); }
+  .lecture-date { font-size: 12px; color: var(--accent-primary); font-weight: 600; }
+  .lecture-title { font-size: 14px; font-weight: 500; margin-top: 4px; }
+  .lecture-status { font-size: 11px; margin-top: 6px; display: flex; gap: 12px; color: var(--text-muted); }
+  .lecture-status .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+  .dot-complete { background: var(--status-success); }
+  .dot-processing { background: var(--yellow); }
+  .dot-pending { background: var(--text-muted); }
+
+  /* ── Lecture Detail ── */
+  .lecture-detail { display: none; }
+  .lecture-detail.active { display: block; }
+  .detail-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .detail-tab {
+    padding: 6px 14px; border-radius: 8px; font-size: 12px; cursor: pointer;
+    background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-muted);
+  }
+  .detail-tab.active { color: var(--text-primary); border-color: var(--accent-primary); background: rgba(139,92,246,0.1); }
+  .detail-content {
+    background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius);
+    padding: 20px; max-height: 500px; overflow-y: auto;
+    font-size: 13px; line-height: 1.7; white-space: pre-wrap;
+  }
+
+  /* ── Assignment List ── */
+  .assignment-item {
+    display: flex; align-items: center; gap: 14px; padding: 12px 16px;
+    background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px;
+    margin-bottom: 8px;
+  }
+  .assign-date { min-width: 56px; text-align: center; }
+  .assign-date .day { font-size: 18px; font-weight: 700; display: block; color: var(--accent-primary); }
+  .assign-date .month { font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
+  .assign-title { font-size: 14px; font-weight: 500; }
+  .assign-type { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .assign-type .tag {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    background: rgba(139,92,246,0.1); color: var(--accent-primary); font-size: 10px;
+  }
+
+  /* ── Flashcard Grid ── */
+  .fc-sets { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .fc-set-card {
+    background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius);
+    padding: 18px; cursor: pointer; transition: border-color 0.2s, transform 0.15s;
+  }
+  .fc-set-card:hover { border-color: rgba(6,182,212,0.3); transform: translateY(-2px); }
+  .fc-set-title { font-size: 14px; font-weight: 600; }
+  .fc-set-meta { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+
+  /* ── Record Button ── */
+  .record-float {
+    position: fixed; bottom: 24px; right: 24px; z-index: 100;
+    width: 56px; height: 56px; border-radius: 50%; border: none;
+    background: var(--status-error); color: #fff; font-size: 24px; cursor: pointer;
+    box-shadow: 0 4px 16px rgba(239,68,68,0.4); transition: transform 0.15s;
+  }
+  .record-float:hover { transform: scale(1.1); }
+
+  /* ── Empty ── */
+  .empty { text-align: center; padding: 40px; color: var(--text-muted); font-size: 14px; }
+  .section-title { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
+  .back-btn { font-size: 12px; color: var(--accent-primary); cursor: pointer; margin-bottom: 12px; display: inline-block; }
+  .back-btn:hover { text-decoration: underline; }
+
+  /* ── Manage panel ── */
+  .manage-card { background: var(--bg-card, #1a2238); border: 1px solid var(--border-color, #2a3350); border-radius: var(--radius, 14px); padding: 18px 20px; margin-bottom: 16px; }
+  .manage-h { font-size: 15px; font-weight: 700; margin: 0 0 4px; color: var(--text-primary, #e8ecf5); }
+  .manage-sub { font-size: 12.5px; color: var(--text-muted, #9aa4bf); margin: 0 0 14px; line-height: 1.45; }
+  .manage-field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 600; color: var(--text-muted, #9aa4bf); margin-bottom: 12px; flex: 1; }
+  .manage-field input, .manage-field textarea { font: inherit; font-weight: 400; font-size: 14px; color: var(--text-primary, #e8ecf5); background: var(--bg-secondary, #141a2e); border: 1px solid var(--border-color, #2a3350); border-radius: var(--radius-sm, 8px); padding: 9px 11px; outline: none; }
+  .manage-field input:focus, .manage-field textarea:focus { border-color: var(--accent-primary, #8b5cf6); }
+  .manage-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .manage-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .manage-status { font-size: 12.5px; color: var(--text-muted, #9aa4bf); }
+  .btn-primary { font: inherit; font-weight: 700; font-size: 13.5px; color: #fff; background: var(--accent-primary, #8b5cf6); border: none; border-radius: var(--radius-sm, 8px); padding: 9px 18px; cursor: pointer; }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-ghost { font: inherit; font-weight: 600; font-size: 13px; color: var(--text-primary, #e8ecf5); background: transparent; border: 1px solid var(--border-color, #2a3350); border-radius: var(--radius-sm, 8px); padding: 8px 16px; cursor: pointer; }
+  .btn-ghost:hover { background: var(--bg-secondary, #141a2e); }
+  .btn-danger { font: inherit; font-weight: 700; font-size: 13px; color: #fff; background: var(--status-error, #ef4444); border: none; border-radius: var(--radius-sm, 8px); padding: 9px 16px; cursor: pointer; }
+  .btn-danger:hover { filter: brightness(1.08); }
+  .manage-danger { border-color: var(--status-error, #ef4444); }
+  .manage-roster { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .roster-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; background: var(--bg-secondary, #141a2e); border-radius: var(--radius-sm, 8px); font-size: 13px; }
+  .roster-row .roster-x { cursor: pointer; color: var(--status-error, #ef4444); font-weight: 700; padding: 0 4px; }
+
+  /* ── Materials ── */
+  .mat-uploadbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; background: var(--bg-card, #1a2238); border: 1px dashed var(--border-color, #2a3350); border-radius: var(--radius, 14px); padding: 16px 18px; margin-bottom: 14px; }
+  .mat-uploadtitle { font-size: 14px; font-weight: 700; color: var(--text-primary, #e8ecf5); }
+  .mat-uploadsub { font-size: 12px; color: var(--text-muted, #9aa4bf); margin-top: 2px; max-width: 460px; }
+  .mat-uploadbtns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .mat-row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; background: var(--bg-secondary, #141a2e); border: 1px solid var(--border-color, #2a3350); border-radius: 12px; margin-bottom: 8px; }
+  .mat-icon { flex: 0 0 auto; font-size: 20px; }
+  .mat-info { flex: 1; min-width: 0; }
+  .mat-name { font-size: 13.5px; font-weight: 600; color: var(--text-primary, #e8ecf5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mat-meta { font-size: 11px; color: var(--text-muted, #9aa4bf); margin-top: 2px; }
+  .mat-open { flex: 0 0 auto; font-size: 12.5px; font-weight: 600; color: var(--accent-primary, #8b5cf6); text-decoration: none; border: 1px solid var(--border-color, #2a3350); border-radius: 8px; padding: 6px 12px; }
+  .mat-act { flex: 0 0 auto; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--text-primary, #e8ecf5); background: transparent; border: 1px solid var(--border-color, #2a3350); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  .mat-act:hover { background: var(--bg-card, #1a2238); }
+  .mat-tag { flex: 0 0 auto; font-size: 11.5px; color: var(--text-muted, #9aa4bf); padding: 6px 4px; }
+  .mat-x { flex: 0 0 auto; font-size: 16px; line-height: 1; color: var(--status-error, #ef4444); background: transparent; border: none; cursor: pointer; padding: 4px 8px; }
+  /* On wider screens the camera button is a nicety; keep it but it shines on mobile. */
+  @media (max-width: 600px) { .mat-uploadbar { flex-direction: column; align-items: stretch; } .mat-uploadbtns { width: 100%; } .mat-uploadbtns button { flex: 1; } }
+
+  /* ── Presentations surface (in the Lectures tab) ── */
+  .gen-banner { background: var(--bg-card, #1a2238); border: 1px solid var(--border-color, #2a3350); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; font-size: 12.5px; color: var(--text-muted, #9aa4bf); line-height: 1.5; }
+  .lec-pres { margin-top: 10px; font: inherit; font-size: 12.5px; font-weight: 700; color: #fff; background: var(--accent-primary, #8b5cf6); border: none; border-radius: 8px; padding: 7px 14px; cursor: pointer; }
+  .lec-pres:hover { filter: brightness(1.08); }
+
+  /* ── Mobile ── */
+  @media (max-width: 640px) {
+    .class-header { padding: 14px 16px; }
+    .class-header h1 { font-size: 18px; }
+    .class-meta { gap: 10px; flex-wrap: wrap; }
+    .tabs { padding: 0 12px; }
+    .tab { padding: 11px 13px; font-size: 12.5px; }
+    .content { padding: 14px 14px 80px; }
+    .manage-row { flex-direction: column; gap: 0; }
+    .mat-row, .catalog-row, .roster-row { flex-wrap: wrap; }
+    /* assignment rows: allow buttons to wrap below the title on narrow screens */
+    .assignment-item { flex-wrap: wrap; }
+    /* detail lecture header: stack the tab row and read-aloud button vertically */
+    .detail-tabs { flex-wrap: wrap; }
+    /* class info bar: tighten horizontal padding */
+    #classInfoBar { padding: 8px 16px; }
+    /* manage students: let the email input fill the row then the button wraps below */
+    #mStudentEmail { width: 100%; min-width: 0; }
+    /* manage actions: ensure buttons are comfortable tap targets */
+    .manage-actions { flex-wrap: wrap; }
+    .btn-primary, .btn-ghost, .btn-danger { padding: 10px 16px; }
+  }
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+
+<!-- ── Class Header ── -->
+<div class="class-header">
+  <div>
+    <h1 id="className">Loading...</h1>
+    <div class="class-meta">
+      <span id="classTeacher"></span>
+      <span id="classGrade"></span>
+      <span id="classSubject"></span>
+    </div>
+  </div>
+  <div class="class-actions" style="display:flex;gap:8px;margin-top:8px;">
+    <button class="lm-btn lm-btn-primary" onclick="showTab('flashcards')" style="font-size:12px;padding:6px 14px;">&#9733; Study</button>
+    <button class="lm-btn lm-btn-ghost" onclick="showTab('tutor')" style="font-size:12px;padding:6px 14px;">&#128172; Tutor</button>
+  </div>
+</div>
+
+<!-- ── Class Info Bar ── -->
+<div id="classInfoBar" style="padding:8px 24px;background:var(--bg-card);border-bottom:1px solid var(--border-color);display:flex;gap:20px;font-size:11px;color:var(--text-muted);flex-wrap:wrap;">
+  <span id="infoSchedule"></span>
+  <span id="infoRoom"></span>
+  <a id="infoWebsite" href="#" target="_blank" style="color:var(--status-active);text-decoration:none;display:none;">Class Website</a>
+</div>
+
+<!-- ── Upcoming Reminders Banner ── -->
+<div id="reminderBanner" style="display:none;padding:10px 24px;background:rgba(251,191,36,0.08);border-bottom:1px solid rgba(251,191,36,0.15);font-size:12px;color:#fbbf24;"></div>
+
+<!-- ── Tabs ── -->
+<div class="tabs">
+  <div class="tab active" onclick="showTab('lectures')">Lectures <span class="badge" id="lectureCount">0</span></div>
+  <div class="tab" onclick="showTab('assignments')">Assignments <span class="badge" id="assignCount">0</span></div>
+  <div class="tab" onclick="showTab('flashcards')">Flashcards <span class="badge" id="fcCount">0</span></div>
+  <div class="tab" onclick="showTab('calendar')">Calendar <span class="badge" id="calCount">0</span></div>
+  <div class="tab" onclick="showTab('materials')">Tools <span class="badge" id="matCount">0</span></div>
+  <div class="tab" onclick="showTab('tutor')">Ask Tutor</div>
+  <div class="tab" id="manageTab" onclick="showTab('manage')" style="display:none;">&#9881; Manage</div>
+</div>
+
+<!-- ── Tab Panels ── -->
+<div class="content">
+  <!-- Lectures -->
+  <div class="tab-panel active" id="panel-lectures">
+    <div id="lectureList"><div class="empty">No lectures yet! Tap the red button below to record your first one. &#127908;</div></div>
+    <div class="lecture-detail" id="lectureDetail">
+      <div class="back-btn" onclick="closeLectureDetail()">&larr; Back to lectures</div>
+      <h3 id="detailTitle" style="margin-bottom: 12px;"></h3>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <div class="detail-tabs" style="flex:1;margin-bottom:0;">
+          <div class="detail-tab active" onclick="showDetailTab('transcript')">Transcript</div>
+          <div class="detail-tab" onclick="showDetailTab('notes')">Study Notes</div>
+        </div>
+        <button class="lm-read-btn" onclick="speakDetail()">&#128264; Read aloud</button>
+      </div>
+      <div class="detail-content" id="detailContent">Loading...</div>
+    </div>
+  </div>
+
+  <!-- Assignments -->
+  <div class="tab-panel" id="panel-assignments">
+    <div id="assignmentList"><div class="empty">No assignments yet.</div></div>
+  </div>
+
+  <!-- Flashcards -->
+  <div class="tab-panel" id="panel-flashcards">
+    <div class="fc-sets" id="flashcardSets"><div class="empty">No flashcards yet! Record a lecture and they will be created for you automatically. &#9733;</div></div>
+  </div>
+
+  <!-- Calendar -->
+  <div class="tab-panel" id="panel-calendar">
+    <div id="calendarList"><div class="empty">No upcoming events.</div></div>
+  </div>
+
+  <!-- Materials (any enrolled member can upload; private by default) -->
+  <div class="tab-panel" id="panel-materials">
+    <div class="mat-uploadbar">
+      <div>
+        <div class="mat-uploadtitle">My documents <span style="font-weight:600;font-size:11px;color:var(--text-muted);">· private to you</span></div>
+        <div class="mat-uploadsub">Saved just for you. Upload a textbook, handout, or assignment — any file. On a phone, snap a photo and we'll read the text so the tutor can use it.</div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);margin-top:8px;cursor:pointer;">
+          <input type="checkbox" id="matShare"> <span id="matShareLabel">Also share with the class (asks the teacher to approve)</span>
+        </label>
+      </div>
+      <div class="mat-uploadbtns">
+        <input id="matFile" type="file" style="display:none;" onchange="uploadDoc(this,'document')">
+        <input id="matPhoto" type="file" accept="image/*" capture="environment" style="display:none;" onchange="uploadDoc(this,'handout')">
+        <button class="btn-primary" onclick="document.getElementById('matFile').click()">&#128206; Upload a file</button>
+        <button class="btn-ghost mat-photobtn" onclick="document.getElementById('matPhoto').click()">&#128247; Take a photo</button>
+      </div>
+    </div>
+    <div id="matStatus" class="manage-status" style="margin:8px 0;"></div>
+    <div id="materialsList"><div class="empty">No documents yet. Upload your textbook or snap a photo of today's handout. &#128206;</div></div>
+
+    <div id="shareRequestsWrap" style="display:none;margin-top:18px;">
+      <h3 class="manage-h">Pending share requests</h3>
+      <p class="manage-sub">Students asked to share these with the class. Approve to let everyone use them.</p>
+      <div id="shareRequestsList"></div>
+    </div>
+
+    <h3 class="manage-h" style="margin-top:18px;">Shared with the class</h3>
+    <p class="manage-sub">Documents your teacher has shared — everyone in the class can open these.</p>
+    <div id="sharedMaterialsList"><div class="empty">Nothing shared with the class yet.</div></div>
+  </div>
+
+  <!-- Tutor (embedded) -->
+  <div class="tab-panel" id="panel-tutor">
+    <iframe id="tutorFrame" src="" style="width:100%;height:calc(100vh - 160px);border:none;border-radius:var(--radius);"></iframe>
+  </div>
+
+  <!-- Manage (owner only) -->
+  <div class="tab-panel" id="panel-manage">
+    <div class="manage-card">
+      <h3 class="manage-h">Class settings</h3>
+      <p class="manage-sub">Edit anything here and hit Save — changes show up for every enrolled student.</p>
+      <label class="manage-field">Class name<input id="mName" type="text" placeholder="e.g. Algebra I"></label>
+      <div class="manage-row">
+        <label class="manage-field">Teacher<input id="mTeacher" type="text" placeholder="e.g. Ms. Rivera"></label>
+        <label class="manage-field">Subject<input id="mSubject" type="text" placeholder="e.g. Math"></label>
+      </div>
+      <div class="manage-row">
+        <label class="manage-field">Grade level<input id="mGrade" type="text" placeholder="e.g. 9th"></label>
+        <label class="manage-field">Room<input id="mRoom" type="text" placeholder="e.g. 214"></label>
+      </div>
+      <div class="manage-row">
+        <label class="manage-field">Schedule<input id="mSchedule" type="text" placeholder="e.g. MWF 10:00"></label>
+        <label class="manage-field">Class website<input id="mWebsite" type="text" placeholder="https://..."></label>
+      </div>
+      <label class="manage-field">Notes / description<textarea id="mDescription" rows="2" placeholder="Anything students should know"></textarea></label>
+      <div class="manage-actions">
+        <button class="btn-primary" onclick="saveSettings()">Save changes</button>
+        <span id="mSaveStatus" class="manage-status"></span>
+      </div>
+    </div>
+
+    <div class="manage-card">
+      <h3 class="manage-h">Textbook &amp; tools</h3>
+      <p class="manage-sub">Upload documents on the <strong>Tools</strong> tab. For now every upload is private to whoever added it — class-wide sharing is coming soon.</p>
+    </div>
+
+    <div class="manage-card">
+      <h3 class="manage-h">Students</h3>
+      <p class="manage-sub">Share this class by adding a student's email. They'll see it as soon as they sign in.</p>
+      <div class="manage-actions">
+        <input id="mStudentEmail" type="email" placeholder="student@school.org" style="flex:1;min-width:180px;">
+        <button class="btn-ghost" onclick="addStudent()">Add student</button>
+      </div>
+      <div id="mStudentList" class="manage-roster"><div class="empty">No one enrolled yet.</div></div>
+    </div>
+
+    <div class="manage-card">
+      <h3 class="manage-h">Class bank</h3>
+      <p class="manage-sub">Publishing puts this class in your school's <strong>Class Bank</strong> so any student can find it and join. Unpublished classes are private to you and the people you've added. <span id="mPublishState"></span></p>
+      <div class="manage-actions">
+        <button class="btn-ghost" id="mPublishBtn" onclick="togglePublish()">Publish to class bank</button>
+      </div>
+    </div>
+
+    <div class="manage-card manage-danger">
+      <h3 class="manage-h">Hide or delete</h3>
+      <p class="manage-sub"><strong>Archive</strong> hides the class but keeps every lecture, note and flashcard — you can bring it back any time. <strong>Delete</strong> removes it permanently.</p>
+      <div class="manage-actions">
+        <button class="btn-ghost" id="mArchiveBtn" onclick="toggleArchive()">Archive class</button>
+        <button class="btn-danger" onclick="deleteClass()">Delete permanently</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Record FAB ── -->
+<button class="record-float" onclick="openRecorder()" title="Record a lecture">&#9679;</button>
+
+<div id="mascot-container"></div>
+<script src="/api/education/mascot.js?v=3"></script>
+<script src="/api/education/lm-voice.js"></script>
+<script>
+/**
+ * Class View — single class page with lectures, assignments, flashcards, tutor.
+ */
+var classId = new URLSearchParams(window.location.search).get('classId');
+var classData = null;
+var currentLecture = null;
+
+async function init() {
+  if (typeof LMMascot !== 'undefined') {
+    new LMMascot(document.getElementById('mascot-container'));
+  }
+
+  if (!classId) {
+    document.getElementById('className').textContent = 'No class selected';
+    return;
+  }
+
+  // Load class info
+  try {
+    var resp = await fetch('/api/education/classes');
+    if (resp.ok) {
+      var data = await resp.json();
+      classData = (data.classes || []).find(function(c) { return c.class_id === classId; });
+      if (classData) {
+        document.getElementById('className').textContent = classData.name;
+        document.getElementById('classTeacher').textContent = classData.teacher_name || '';
+        document.getElementById('classGrade').textContent = classData.grade_level || '';
+        document.getElementById('classSubject').textContent = classData.subject || '';
+        document.title = 'LM — ' + classData.name;
+      }
+    }
+  } catch (e) { console.warn('Failed to load class info:', e); }
+
+  // Set tutor iframe with classId
+  document.getElementById('tutorFrame').src = '/api/education/tutor?classId=' + classId;
+
+  // Load all data
+  await Promise.all([loadLectures(), loadAssignments(), loadFlashcardSets(), loadCalendarEvents(), loadClassInfo(), loadMaterials(), loadMe()]);
+}
+
+/** Load the class's documents (any enrolled member can see + add them). */
+var IS_TEACHER_HERE = false; // caller is the class teacher/admin (can share + approve)
+
+async function loadMaterials() {
+  try {
+    var resp = await fetch('/api/education/classes/' + classId + '/materials');
+    renderMaterials(resp.ok ? ((await resp.json()).materials || []) : []);
+  } catch (e) { renderMaterials([]); }
+  loadSharedMaterials();
+  if (IS_TEACHER_HERE) loadShareRequests();
+}
+
+function matIcon(mime, kind) {
+  if (mime && mime.indexOf('image/') === 0) return '🖼️';      // framed picture
+  if (mime === 'application/pdf') return '📕';                       // book
+  if (kind === 'textbook' || kind === 'syllabus') return '📚';       // books
+  return '📄';                                                       // page
+}
+
+function matOpen(id) {
+  return '<a class="mat-open" href="/api/education/materials/' + id + '/file" target="_blank" rel="noopener">Open</a>';
+}
+
+function renderMaterials(materials) {
+  var badge = document.getElementById('matCount');
+  if (badge) badge.textContent = materials.length;
+  var container = document.getElementById('materialsList');
+  if (!materials.length) {
+    container.innerHTML = '<div class="empty">No documents yet. Upload your textbook or snap a photo of today\'s handout. &#128206;</div>';
+    return;
+  }
+  container.innerHTML = materials.map(function(m) {
+    var when = m.created_at ? new Date(m.created_at).toLocaleDateString() : '';
+    var kb = m.size_bytes ? Math.max(1, Math.round(m.size_bytes / 1024)) + ' KB' : '';
+    var shareCtrl;
+    if (m.share_status === 'approved') shareCtrl = '<span class="mat-tag">Shared ✓</span>';
+    else if (m.share_status === 'requested') shareCtrl = '<span class="mat-tag">Pending</span>';
+    else shareCtrl = '<button class="mat-act" onclick="requestOrShare(\'' + m.material_id + '\')">' + (IS_TEACHER_HERE ? 'Share' : 'Request share') + '</button>';
+    return '<div class="mat-row">' +
+      '<div class="mat-icon">' + matIcon(m.mime_type, m.kind) + '</div>' +
+      '<div class="mat-info">' +
+        '<div class="mat-name">' + esc(m.title || m.original_name) + '</div>' +
+        '<div class="mat-meta">' + esc(m.kind || 'document') + (kb ? ' • ' + kb : '') + ' • ' + when + '</div>' +
+      '</div>' + matOpen(m.material_id) + shareCtrl +
+      '<button class="mat-x" title="Delete" onclick="deleteDoc(\'' + m.material_id + '\')">×</button>' +
+    '</div>';
+  }).join('');
+}
+
+async function loadSharedMaterials() {
+  var container = document.getElementById('sharedMaterialsList');
+  try {
+    var data = await (await fetch('/api/education/classes/' + classId + '/shared-materials')).json();
+    var rows = data.materials || [];
+    if (!rows.length) { container.innerHTML = '<div class="empty">Nothing shared with the class yet.</div>'; return; }
+    container.innerHTML = rows.map(function(m) {
+      var by = m.shared_by_name ? ' • ' + esc(m.shared_by_name) : '';
+      return '<div class="mat-row"><div class="mat-icon">' + matIcon(m.mime_type, m.kind) + '</div>' +
+        '<div class="mat-info"><div class="mat-name">' + esc(m.title || m.original_name) + '</div>' +
+        '<div class="mat-meta">shared' + by + '</div></div>' + matOpen(m.material_id) + '</div>';
+    }).join('');
+  } catch (e) { container.innerHTML = '<div class="empty">Could not load shared documents.</div>'; }
+}
+
+async function loadShareRequests() {
+  var wrap = document.getElementById('shareRequestsWrap');
+  var list = document.getElementById('shareRequestsList');
+  try {
+    var data = await (await fetch('/api/education/classes/' + classId + '/share-requests')).json();
+    var rows = data.requests || [];
+    if (!rows.length) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'block';
+    list.innerHTML = rows.map(function(m) {
+      var by = m.requested_by_name ? ' • ' + esc(m.requested_by_name) : '';
+      return '<div class="mat-row"><div class="mat-icon">' + matIcon('', m.kind) + '</div>' +
+        '<div class="mat-info"><div class="mat-name">' + esc(m.title || m.original_name) + '</div>' +
+        '<div class="mat-meta">requested' + by + '</div></div>' + matOpen(m.material_id) +
+        '<button class="mat-act" onclick="approveShare(\'' + m.material_id + '\')">Approve</button>' +
+        '<button class="mat-x" title="Deny" onclick="denyShare(\'' + m.material_id + '\')">×</button></div>';
+    }).join('');
+  } catch (e) { wrap.style.display = 'none'; }
+}
+
+/** Share (teacher) or request-to-share (student) a private document. */
+async function requestOrShare(id) {
+  try {
+    var resp = await fetch('/api/education/materials/' + id + '/share-request', { method: 'POST' });
+    if (!resp.ok) throw new Error((await resp.json().catch(function(){return{};})).error || 'failed');
+    loadMaterials();
+  } catch (e) { alert('Could not share: ' + e.message); }
+}
+
+async function deleteDoc(id) {
+  if (!confirm('Delete this document? This removes it for good.')) return;
+  try {
+    var resp = await fetch('/api/education/materials/' + id, { method: 'DELETE' });
+    if (!resp.ok) throw new Error((await resp.json().catch(function(){return{};})).error || 'failed');
+    loadMaterials();
+  } catch (e) { alert('Could not delete: ' + e.message); }
+}
+
+async function approveShare(id) {
+  try { await fetch('/api/education/materials/' + id + '/approve', { method: 'POST' }); loadMaterials(); }
+  catch (e) { alert('Could not approve: ' + e.message); }
+}
+async function denyShare(id) {
+  try { await fetch('/api/education/materials/' + id + '/deny', { method: 'POST' }); loadMaterials(); }
+  catch (e) { alert('Could not deny: ' + e.message); }
+}
+
+/** Upload a document (or phone photo) to this class, then refresh the list. */
+async function uploadDoc(input, kind) {
+  if (!input.files || !input.files[0]) return;
+  var file = input.files[0];
+  var status = document.getElementById('matStatus');
+  status.textContent = 'Uploading ' + file.name + '…';
+  var fd = new FormData();
+  fd.append('file', file);
+  fd.append('classId', classId);
+  fd.append('kind', kind);
+  fd.append('title', file.name);
+  var share = document.getElementById('matShare');
+  if (share && share.checked) fd.append('share', 'true');
+  try {
+    var resp = await fetch('/api/education/materials', { method: 'POST', body: fd });
+    if (!resp.ok) throw new Error((await resp.json().catch(function(){return{};})).error || 'upload failed');
+    var out = await resp.json();
+    var shareMsg = out.shareStatus === 'approved' ? ' — shared with the class.'
+      : out.shareStatus === 'requested' ? ' — share request sent to your teacher.'
+      : (out.grounded ? ' — the tutor can now use it.' : '');
+    status.textContent = file.name + ' added ✓' + shareMsg;
+    loadMaterials();
+  } catch (e) { status.textContent = 'Upload failed: ' + e.message; }
+  input.value = '';
+}
+
+/** Resolve identity: reveal the owner-only Manage tab + teacher share controls. */
+async function loadMe() {
+  try {
+    var me = await (await fetch('/api/education/me')).json();
+    var isOwner = classData && (me.role === 'admin' || classData.teacher_student_id === me.studentId);
+    if (isOwner) {
+      IS_TEACHER_HERE = true;
+      document.getElementById('manageTab').style.display = '';
+      var lbl = document.getElementById('matShareLabel');
+      if (lbl) lbl.textContent = 'Also share with the whole class';
+      populateManage();
+      loadStudents();
+      loadMaterials(); // re-render so teacher share/approve controls appear
+    }
+  } catch (e) { /* not owner / not signed in — leave Manage hidden */ }
+}
+
+/** Fill the settings form from the already-loaded classData + /info metadata. */
+function populateManage() {
+  if (!classData) return;
+  var meta = classData.metadata || {};
+  document.getElementById('mName').value = classData.name || '';
+  document.getElementById('mTeacher').value = classData.teacher_name || '';
+  document.getElementById('mSubject').value = classData.subject || '';
+  document.getElementById('mGrade').value = classData.grade_level || '';
+  document.getElementById('mRoom').value = meta.room || '';
+  document.getElementById('mSchedule').value = meta.schedule || '';
+  document.getElementById('mWebsite').value = meta.website || '';
+  document.getElementById('mDescription').value = classData.description || '';
+  document.getElementById('mArchiveBtn').textContent = classData.status === 'archived' ? 'Unarchive (show again)' : 'Archive class';
+  renderPublishState();
+}
+
+/** Reflect published state on the Class Bank control. */
+function renderPublishState() {
+  var published = classData && classData.published;
+  var btn = document.getElementById('mPublishBtn');
+  var state = document.getElementById('mPublishState');
+  if (btn) btn.textContent = published ? 'Remove from class bank' : 'Publish to class bank';
+  if (state) state.textContent = published ? 'Currently published — students can find and join it.' : 'Currently private.';
+}
+
+/** Publish/unpublish this class to the school-wide bank (teacher only; a
+ *  non-teacher owner gets a clear message). */
+async function togglePublish() {
+  var next = !(classData && classData.published);
+  try {
+    var resp = await fetch('/api/education/classes/' + classId, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ published: next })
+    });
+    if (resp.status === 403) { alert('Only teachers can publish a class to the school bank.'); return; }
+    if (!resp.ok) throw new Error((await resp.json().catch(function(){return{};})).error || 'failed');
+    classData.published = next;
+    renderPublishState();
+    alert(next ? 'Published — students can now find this class in the Class Bank.' : 'Removed from the Class Bank — this class is private again.');
+  } catch (e) { alert('Could not change publish state: ' + e.message); }
+}
+
+async function saveSettings() {
+  var status = document.getElementById('mSaveStatus');
+  status.textContent = 'Saving…';
+  var body = {
+    name: document.getElementById('mName').value.trim(),
+    teacherName: document.getElementById('mTeacher').value.trim(),
+    subject: document.getElementById('mSubject').value.trim(),
+    gradeLevel: document.getElementById('mGrade').value.trim(),
+    room: document.getElementById('mRoom').value.trim(),
+    schedule: document.getElementById('mSchedule').value.trim(),
+    website: document.getElementById('mWebsite').value.trim(),
+    description: document.getElementById('mDescription').value.trim()
+  };
+  try {
+    var resp = await fetch('/api/education/classes/' + classId, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    if (!resp.ok) throw new Error((await resp.json().catch(function(){return{};})).error || 'save failed');
+    status.textContent = 'Saved ✓';
+    // Reflect changes in the header without a full reload
+    classData.name = body.name; classData.teacher_name = body.teacherName;
+    classData.subject = body.subject; classData.grade_level = body.gradeLevel;
+    classData.description = body.description;
+    classData.metadata = Object.assign({}, classData.metadata, { room: body.room, schedule: body.schedule, website: body.website });
+    document.getElementById('className').textContent = body.name;
+    document.getElementById('classTeacher').textContent = body.teacherName;
+    document.getElementById('classGrade').textContent = body.gradeLevel;
+    document.getElementById('classSubject').textContent = body.subject;
+    setTimeout(function(){ status.textContent = ''; }, 2500);
+  } catch (e) { status.textContent = 'Could not save: ' + e.message; }
+}
+
+async function loadStudents() {
+  try {
+    var data = await (await fetch('/api/education/classes/' + classId + '/students')).json();
+    var list = document.getElementById('mStudentList');
+    var rows = data.students || [];
+    if (!rows.length) { list.innerHTML = '<div class="empty">No one enrolled yet.</div>'; return; }
+    list.innerHTML = rows.map(function(s) {
+      return '<div class="roster-row"><span>' + esc(s.name || s.email) + ' <span style="color:var(--text-muted);font-size:11px;">' + esc(s.email || '') + '</span></span>' +
+        '<span class="roster-x" title="Remove" onclick="removeStudent(\'' + s.student_id + '\')">×</span></div>';
+    }).join('');
+  } catch (e) { /* silent */ }
+}
+
+async function addStudent() {
+  var email = document.getElementById('mStudentEmail').value.trim();
+  if (!email) return;
+  try {
+    var resp = await fetch('/api/education/classes/' + classId + '/students', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email })
+    });
+    if (!resp.ok) throw new Error((await resp.json().catch(function(){return{};})).error || 'failed');
+    document.getElementById('mStudentEmail').value = '';
+    loadStudents();
+  } catch (e) { alert('Could not add student: ' + e.message); }
+}
+
+async function removeStudent(studentId) {
+  if (!confirm('Remove this student from the class? Their own notes stay private to them.')) return;
+  try {
+    await fetch('/api/education/classes/' + classId + '/students/' + studentId, { method: 'DELETE' });
+    loadStudents();
+  } catch (e) { alert('Could not remove student: ' + e.message); }
+}
+
+async function toggleArchive() {
+  var archiving = classData.status !== 'archived';
+  var next = archiving ? 'archived' : 'active';
+  try {
+    var resp = await fetch('/api/education/classes/' + classId, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: next })
+    });
+    if (!resp.ok) throw new Error('failed');
+    classData.status = next;
+    document.getElementById('mArchiveBtn').textContent = archiving ? 'Unarchive (show again)' : 'Archive class';
+    alert(archiving ? 'Class archived — hidden from the class list, but all history is kept.' : 'Class is active again.');
+  } catch (e) { alert('Could not change visibility: ' + e.message); }
+}
+
+async function deleteClass() {
+  if (!confirm('Delete "' + (classData.name || 'this class') + '" permanently? This removes the class and its shared materials for everyone. This cannot be undone.\n\nTip: choose Archive instead if you only want to hide it.')) return;
+  try {
+    var resp = await fetch('/api/education/classes/' + classId, { method: 'DELETE' });
+    if (!resp.ok) throw new Error((await resp.json().catch(function(){return{};})).error || 'failed');
+    window.location.href = '/api/education/dashboard';
+  } catch (e) { alert('Could not delete class: ' + e.message); }
+}
+
+async function loadLectures() {
+  try {
+    var resp = await fetch('/api/education/lectures?classId=' + classId);
+    if (!resp.ok) { renderLectures([]); return; }
+    var data = await resp.json();
+    renderLectures(data.lectures || []);
+  } catch (e) { renderLectures([]); }
+}
+
+function renderLectures(lectures) {
+  document.getElementById('lectureCount').textContent = lectures.length;
+  var container = document.getElementById('lectureList');
+  if (lectures.length === 0) {
+    container.innerHTML = '<div class="empty">No lectures or presentations yet!<br>Tap the red &#9679; button below to record a lecture — you\'ll get a replay <b>presentation</b>, flashcards &amp; notes automatically. &#127908;</div>';
+    return;
+  }
+  var withDeck = lectures.filter(function(l){ return l.slides_path; }).length;
+  var banner = '<div class="gen-banner">&#127908; Record a lecture (red &#9679; button) and a replay <b>presentation</b> is generated automatically.' +
+    (withDeck ? ' Tap <b>&#9654; Presentation</b> on any lecture below to play it.' : '') + '</div>';
+  container.innerHTML = banner + lectures.map(function(l) {
+    var date = new Date(l.lecture_date);
+    var dateStr = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    var dotClass = l.status === 'complete' ? 'dot-complete' : l.status === 'processing' ? 'dot-processing' : 'dot-pending';
+    var presBtn = l.slides_path ? '<button class="lec-pres" onclick="event.stopPropagation(); openPresentation(\'' + l.lecture_id + '\')">&#9654; Presentation</button>' : '';
+    return '<div class="lecture-card" onclick="openLecture(\'' + l.lecture_id + '\')">' +
+      '<div class="lecture-date">' + dateStr + '</div>' +
+      '<div class="lecture-title">Lecture — ' + (l.lecture_date || 'Unknown date') + '</div>' +
+      '<div class="lecture-status"><span><span class="dot ' + dotClass + '"></span>' + l.status + '</span>' +
+      (l.duration_seconds ? '<span>' + Math.floor(l.duration_seconds / 60) + ' min</span>' : '') +
+      '</div>' + presBtn + '</div>';
+  }).join('');
+}
+
+/** Open a lecture's generated presentation (replay deck) in a new tab. */
+function openPresentation(lectureId) {
+  window.open('/api/education/presentation?lectureId=' + encodeURIComponent(lectureId) + '&classId=' + encodeURIComponent(classId), '_blank', 'noopener');
+}
+
+async function openLecture(lectureId) {
+  document.getElementById('lectureList').style.display = 'none';
+  var detail = document.getElementById('lectureDetail');
+  detail.classList.add('active');
+  document.getElementById('detailContent').textContent = 'Loading...';
+
+  try {
+    var resp = await fetch('/api/education/lectures/' + lectureId);
+    if (!resp.ok) throw new Error('Failed to load');
+    currentLecture = await resp.json();
+    document.getElementById('detailTitle').textContent = 'Lecture — ' + (currentLecture.lecture_date || '');
+    showDetailTab('transcript');
+  } catch (e) {
+    document.getElementById('detailContent').textContent = 'Failed to load lecture: ' + e.message;
+  }
+}
+
+function closeLectureDetail() {
+  document.getElementById('lectureDetail').classList.remove('active');
+  document.getElementById('lectureList').style.display = '';
+  currentLecture = null;
+}
+
+function showDetailTab(tab) {
+  document.querySelectorAll('.detail-tab').forEach(function(t) {
+    t.classList.toggle('active', t.textContent.toLowerCase().includes(tab));
+  });
+  var content = document.getElementById('detailContent');
+  if (!currentLecture) { content.textContent = 'No data'; return; }
+  switch (tab) {
+    case 'transcript': content.textContent = currentLecture.transcript || 'Transcript not available yet. Processing may still be in progress.'; break;
+    case 'notes': content.textContent = currentLecture.notes || 'Notes not generated yet.'; break;
+  }
+}
+
+async function loadAssignments() {
+  try {
+    var resp = await fetch('/api/education/assignments?classId=' + classId);
+    if (!resp.ok) { renderAssignments([]); return; }
+    var data = await resp.json();
+    renderAssignments(data.assignments || []);
+  } catch (e) { renderAssignments([]); }
+}
+
+function renderAssignments(assignments) {
+  document.getElementById('assignCount').textContent = assignments.length;
+  var container = document.getElementById('assignmentList');
+  if (assignments.length === 0) {
+    container.innerHTML = '<div class="empty">No assignments yet.</div>';
+    return;
+  }
+  container.innerHTML = assignments.map(function(a) {
+    var dateHtml = '';
+    if (a.due_date) {
+      var d = new Date(a.due_date);
+      dateHtml = '<div class="assign-date"><span class="day">' + d.getDate() + '</span><span class="month">' +
+        d.toLocaleString('en-US', { month: 'short' }) + '</span></div>';
+    }
+    return '<div class="assignment-item">' + dateHtml +
+      '<div style="flex:1"><div class="assign-title">' + esc(a.title) + '</div>' +
+      '<div class="assign-type"><span class="tag">' + (a.assignment_type || 'homework') + '</span>' +
+      (a.description ? ' ' + esc(a.description.substring(0, 80)) : '') + '</div></div>' +
+      '<button class="lm-read-btn" onclick="event.stopPropagation();breakDown(\'' + escAttr(a.title) + '\')">Break it down</button>' +
+      '<button class="lm-read-btn" onclick="speak(\'' + escAttr(a.title + '. ' + (a.description || '')) + '\')">&#128264;</button></div>';
+  }).join('');
+}
+
+async function loadFlashcardSets() {
+  try {
+    var resp = await fetch('/api/education/flashcards/sets?classId=' + classId);
+    if (!resp.ok) { renderFcSets([]); return; }
+    var data = await resp.json();
+    renderFcSets(data.sets || []);
+  } catch (e) { renderFcSets([]); }
+}
+
+function renderFcSets(sets) {
+  document.getElementById('fcCount').textContent = sets.length;
+  var container = document.getElementById('flashcardSets');
+  if (sets.length === 0) {
+    container.innerHTML = '<div class="empty">No flashcards yet! Record a lecture and they will be created for you automatically. &#9733;</div>';
+    return;
+  }
+  container.innerHTML = sets.map(function(s) {
+    return '<div class="fc-set-card" onclick="studySet(\'' + s.set_id + '\')">' +
+      '<div class="fc-set-title">' + esc(s.title) + '</div>' +
+      '<div class="fc-set-meta">' + (s.card_count || 0) + ' cards' +
+      (s.topic ? ' &middot; ' + esc(s.topic) : '') + '</div></div>';
+  }).join('');
+}
+
+function studySet(setId) {
+  // Open flashcard study in the same iframe area
+  window.location.href = '/api/education/flashcards?setId=' + setId + '&classId=' + classId;
+}
+
+function openRecorder() {
+  window.location.href = '/api/education/recorder?classId=' + classId;
+}
+
+async function loadCalendarEvents() {
+  try {
+    var resp = await fetch('/api/education/calendar?classId=' + classId);
+    if (!resp.ok) return;
+    var data = await resp.json();
+    var events = data.events || [];
+    document.getElementById('calCount').textContent = events.length;
+
+    var container = document.getElementById('calendarList');
+    if (events.length === 0) {
+      container.innerHTML = '<div class="empty">No upcoming events.</div>';
+      return;
+    }
+
+    container.innerHTML = events.map(function(e) {
+      var urgencyColor = e.urgency === 'Due Today' ? '#f87171' : e.urgency === 'Due Tomorrow' ? '#fbbf24' : 'var(--accent-primary)';
+      return '<div class="assignment-item">' +
+        '<div class="assign-date"><span class="day" style="color:' + urgencyColor + '">' + new Date(e.event_date).getDate() + '</span>' +
+        '<span class="month">' + new Date(e.event_date).toLocaleString('en-US', {month:'short'}) + '</span></div>' +
+        '<div><div class="assign-title">' + esc(e.title) + '</div>' +
+        '<div class="assign-type"><span class="tag">' + e.event_type + '</span> ' +
+        '<span style="color:' + urgencyColor + ';font-weight:600;">' + (e.urgency || '') + '</span></div></div></div>';
+    }).join('');
+
+    // Show reminder banner for Due Today / Due Tomorrow items
+    var urgent = events.filter(function(e) { return e.urgency === 'Due Today' || e.urgency === 'Due Tomorrow'; });
+    if (urgent.length > 0) {
+      var banner = document.getElementById('reminderBanner');
+      banner.style.display = 'block';
+      banner.innerHTML = urgent.map(function(e) {
+        return '<strong>' + e.urgency + ':</strong> ' + esc(e.title);
+      }).join(' &nbsp;|&nbsp; ');
+    }
+  } catch (e) { /* silent */ }
+}
+
+async function loadClassInfo() {
+  try {
+    var resp = await fetch('/api/education/classes/' + classId + '/info');
+    if (!resp.ok) return;
+    var info = await resp.json();
+    var meta = info.metadata || {};
+
+    if (meta.schedule) document.getElementById('infoSchedule').textContent = meta.schedule;
+    if (meta.room) document.getElementById('infoRoom').textContent = meta.room;
+    if (meta.website) {
+      var link = document.getElementById('infoWebsite');
+      link.href = meta.website;
+      link.style.display = 'inline';
+    }
+
+    // Hide info bar if nothing to show
+    if (!meta.schedule && !meta.room && !meta.website) {
+      document.getElementById('classInfoBar').style.display = 'none';
+    }
+  } catch (e) { /* silent */ }
+}
+
+function showTab(tabName) {
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.toggle('active', t.textContent.toLowerCase().includes(tabName)); });
+  document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.toggle('active', p.id === 'panel-' + tabName); });
+  // Hide record FAB on tutor tab (it blocks the chat input)
+  var fab = document.querySelector('.record-float');
+  if (fab) fab.style.display = tabName === 'tutor' ? 'none' : '';
+}
+
+function breakDown(assignmentTitle) {
+  // Switch to tutor tab and pre-fill a "break this down" request
+  showTab('tutor');
+  var frame = document.getElementById('tutorFrame');
+  if (frame && frame.contentWindow) {
+    // Wait for iframe to load, then send the message
+    setTimeout(function() {
+      try {
+        var input = frame.contentDocument.getElementById('input');
+        if (input) {
+          input.value = 'I need help breaking down this assignment into smaller steps: ' + assignmentTitle;
+          var sendBtn = frame.contentDocument.getElementById('sendBtn');
+          if (sendBtn) sendBtn.click();
+        }
+      } catch (e) {
+        // Cross-origin — fall back to URL param
+        frame.src = '/api/education/tutor?classId=' + classId + '&prefill=' + encodeURIComponent('Help me break down this assignment into smaller steps: ' + assignmentTitle);
+      }
+    }, 1000);
+  }
+}
+
+function speak(text) {
+  if (window.lmSpeak) { window.lmSpeak(text); return; } // neural voice + fallback
+  if ('speechSynthesis' in window && text) {
+    speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.rate = 0.9;
+    speechSynthesis.speak(u);
+  }
+}
+
+function speakDetail() {
+  var content = document.getElementById('detailContent').textContent || '';
+  // TTS has limits — read first 2000 chars
+  speak(content.substring(0, 2000));
+}
+function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function escAttr(s) { return (s || '').replace(/'/g, "\\'").replace(/\n/g, ' ').substring(0, 300); }
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — lora ("LoRA Studio")
+# Carved out of OSHAL core 2026-07-17 (ADR-085 Wave 1 carve #3).
+#
+# Train and iteratively improve a REUSABLE CHARACTER (a "sprite") so it stays
+# consistent across many generated images and short videos for building stories.
+#
+# The lora-director bot reasons over the pipeline (explains scorecards, recommends
+# which weak poses/angles to target next). The actual work runs off the api:
+# dataset generation + validation go over the GPU box's ComfyUI HTTP API (free),
+# and LoRA training (kohya) runs on the GPU box ONLY via the worker node's gated
+# shell.exec (ADR-070 privilege rule), dispatched through the shared remote-client
+# registry. The controller stores version + score metadata (oshal_lora_*); the box
+# keeps the heavy artifacts (.safetensors / datasets / samples).
+#
+# AUTH SHAPE (first package to exercise the D2 split-mountPath pattern): the
+# box→controller callback mounts at /api/lora/ingest with auth: public and
+# self-guards on x-service-secret (exactly core's posture — the mount was public,
+# the router checked the secret); the studio mounts at /api/lora with auth: oidc.
+# The loader forbids mixing modes on ONE mountPath — splitting is the sanctioned
+# carve shape (see swarm-app-loader.ts's own /api/lora comment).
+#
+# Box-side scripts (train-lora.py / validate-lora.py / make-targeted-batch.py /
+# overnight-loop.py) stay in the FRAMEWORK repo's scripts/comfyui-edge/ (a dir
+# shared with Video Studio, deployed to the box's repo clone) — the dispatch
+# references them by name on the box, not by package path.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: lora
+suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: LoRA Studio
+description: >-
+  Train a reusable character (a "sprite") from images and captions, validate it on a fixed held-out
+  matrix, and improve it by regenerating data aimed at its weak spots and retraining — with every
+  version scored objectively so "better" is a number. Generation/validation run free on your GPU box;
+  paid escalation never happens without an approval gate.
+version: 1.0.0
+status: active
+
+# Per-app skin — indigo so the model-lab reads distinct from the sakura Video Studio.
+theme: indigo
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: lora
+  ref: main
+
+# Kernel skills only (logger, database bootstrap, authz, remote-client registry via
+# @/app alias) — no app, tool, or connector dependencies.
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+# Guests never reach the studio (was hardcoded core Tier-C pre-carve). Declaring it
+# here is a REQUEST (ADR-085 D4) — unapproved default already blocks guest writes.
+guestTier: blocked
+
+# Server-side TTS defers to the swarm default (the studio is text/visual, no narration of its own).
+voice:
+  tts:
+    provider: swarm-default
+
+# The LoRA Studio's bot — reason-only, inline on the api (claude-code), own agent_id
+# (own cost line), registered by the loader from this manifest (zero core-registry edits).
+bots:
+  - agentId: a0000000-0000-0000-0000-000000000049
+    name: lora-director
+    persona: personas/lora-director.yaml
+    role: lora/model-trainer
+    capabilities:
+      - lora-training-direction
+      - dataset-curation
+      - validation-analysis
+      - character-consistency
+
+# Compiled-JS routes (built from src-routes/ by `oshal-app build`). Split mounts —
+# see the AUTH SHAPE note in the header.
+routes:
+  - module: routes/bot-lora-routes.js
+    factory: createLoraIngestRoutes
+    mountPath: /api/lora/ingest
+    auth: public          # box→controller callback; router self-guards on x-service-secret
+    requiresContext: true
+  - module: routes/bot-lora-routes.js
+    factory: createBotLoraRoutes
+    mountPath: /api/lora
+    auth: oidc
+    requiresContext: true
+
+ui:
+  static:
+    - toolName: lora-studio
+      label: LoRA Studio
+      icon: codicon codicon-circuit-board
+      iframeUrl: /api/lora/ui
+      section: top
+
+# Trim the ribbon to the studio + the essentials. Hide the generic framework items.
+ribbon:
+  hideFrameworkItems:
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - operations
+  defaultView: lora-studio
+
+# DATABASE MIGRATIONS — applied idempotently on install/activation
+# (app_package_migrations tracks them). The route ALSO carries the identical lazy
+# ensureLoraSchema as belt-and-braces, matching core behavior.
+migrations:
+  - migrations/058-lora-studio.sql
+
+# WORKFLOW — training tickets of type 'lora-train' route to the director, which authorizes the
+# box-side kohya run via the worker node's gated shell.exec (lora-train-dispatch, vendored).
+ticketType: lora-train
+workflow:
+  name: LoRA Training Pipeline
+  workerBot: lora-director

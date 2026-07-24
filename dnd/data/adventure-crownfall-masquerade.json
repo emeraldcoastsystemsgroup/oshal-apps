@@ -1,0 +1,143 @@
+{
+  "_license": "Original adventure and setting by Emerald Coast Systems Group. Rules references use SRD 5.1 under CC-BY-4.0.",
+  "id": "crownfall-masquerade",
+  "title": "The Crownfall Masquerade",
+  "summary": "A day at Queen Candelle's midsummer joust becomes a royal poisoning, and the evidence points neatly—far too neatly—at the heroes. A princess buys them one night to find the hand behind the pageantry.",
+  "theme": {
+    "id": "crownfall",
+    "label": "Tournament Intrigue",
+    "narration": "Begin warm, colorful, and funny enough that the players care about Crownfall. Let suspicion tighten gradually. Keep named townspeople human and distinctive; make the climax feel like the answer to evidence the party earned."
+  },
+  "scenes": [
+    {
+      "id": "crownfall-joust",
+      "kind": "exploration",
+      "act": "beginning",
+      "title": "The Midsummer Lists",
+      "objective": "Enjoy the royal tournament, meet Crownfall's people, and discover why a celebration has turned into an accusation.",
+      "storyAnchor": "The party came as honored guests, not hired swords. Queen Candelle collapses after drinking spiced pear cordial. A black-plume dart is found beneath the heroes' bench, but Princess Maelin noticed the royal taster switch cups and secretly gives the party until midnight to prove who staged the poisoning.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "Crownfall smells of trampled grass, sugared almonds, horse sweat, and summer rain. Queen Candelle waves from a pavilion striped in gold while Sir Odo Thimble—three feet of confidence in a helmet twice too large—loses his lance, catches it by accident, and receives the loudest cheer of the day. You are not here to save the realm; you are here because, for once, someone remembered to invite you before the disaster. Then the queen drinks, the silver cup rings against the boards, and she falls. Guards find a black-feathered dart beneath your bench. Before the captain can clap you in irons, Princess Maelin leans close and whispers: \"I saw the cups changed. Let them think you escaped. Find who did this before midnight, or my mother dies and you hang for it.\"",
+      "openingChoices": ["Check the queen's abandoned cup", "Find the royal taster", "Ask Sir Odo what he saw"],
+      "exploration": {
+        "required": 4,
+        "guidance": "You may investigate these in any order. Some people become useful only after another clue gives you the right question.",
+        "leads": [
+          { "id": "cup", "name": "The Queen's Silver Cup", "type": "object", "prompt": "Examine the cordial, rim, and serving tray.", "reveal": "The cordial is harmless. A tacky resin beneath the rim smells of bitter moonseed: the poison was painted onto the queen's cup after the drink was poured." },
+          { "id": "odo", "name": "Sir Odo Thimble", "type": "person", "prompt": "Ask the tiny knight what he noticed from the lists.", "reveal": "Odo proudly recalls every cheer but admits one odd detail: a tournament marshal in a black-plumed cap crossed the royal platform twice, although marshals wear white during midsummer." },
+          { "id": "pella", "name": "Pella Two-Pies", "type": "person", "prompt": "Question the pie seller who served the pavilion.", "reveal": "Pella talks to everyone and remembers a nervous page buying juniper soap to scrub purple dye from his fingers. She kept the bent silver he paid with because it bears the royal mint's old raven mark." },
+          { "id": "stable", "name": "The Royal Stable", "type": "place", "prompt": "Search tack rooms, feed bins, and borrowed livery.", "reveal": "Behind a feed chest lies a white marshal's sash stained with purple dye and snagged by a black feather. Someone changed disguises here after crossing the pavilion." },
+          { "id": "taster", "name": "Missing Royal Taster", "type": "person", "prompt": "Trace where the royal taster went after the toast.", "requires": ["pella"], "reveal": "The taster, Brindle Voss, is found unconscious in a laundry cart. He was struck before the toast. In his fist is a button carved like a closed eye—the badge of Chancellor Veer's private clerks." },
+          { "id": "dart", "name": "The Planted Dart", "type": "object", "prompt": "Study the evidence placed beneath your bench.", "requires": ["cup"], "reveal": "The dart never carried poison; its feathers are stage fletching used by the tournament's mock assassins. It was planted to make the accusation immediate and theatrical." }
+        ]
+      },
+      "terrain": { "blocking": [{ "x": 8, "y": 4, "kind": "cart" }, { "x": 9, "y": 4, "kind": "cart" }, { "x": 14, "y": 2, "kind": "tree" }], "difficult": [{ "x": 4, "y": 7, "kind": "brush" }] },
+      "partyStart": [{ "x": 5, "y": 6 }, { "x": 6, "y": 6 }, { "x": 5, "y": 7 }, { "x": 6, "y": 7 }],
+      "props": [
+        { "id": "princess-maelin", "name": "Princess Maelin", "role": "Royal Heir and Secret Ally", "personality": "Dry-witted, observant, and furious at being treated like ceremonial furniture.", "storyHook": "She risks the throne by trusting the party.", "x": 10, "y": 3, "glyph": "♛", "color": "#f9a8d4" },
+        { "id": "sir-odo", "name": "Sir Odo Thimble", "role": "Small Knight, Enormous Reputation", "personality": "Earnest, theatrical, and accidentally perceptive.", "storyHook": "Odo saw the false marshal cross the pavilion.", "x": 4, "y": 4, "glyph": "♞", "color": "#fbbf24" },
+        { "id": "pella", "name": "Pella Two-Pies", "role": "Pastry Seller and Relentless Gossip", "personality": "Warm, shrewd, and offended by anyone who buys only one pie.", "storyHook": "Pella remembers the page and the bent raven coin.", "x": 3, "y": 8, "glyph": "●", "color": "#fb7185" }
+      ],
+      "monsters": [],
+      "xpReward": 0,
+      "storyAward": 400,
+      "afterword": "The clues agree: the poisoning was staged inside the royal household, and the false marshal fled toward Lantern Ward. Princess Maelin sends a kitchen boy with one sentence: \"The queen still breathes. Do not trust the Chancellor's bells.\"",
+      "next": "crownfall-lantern-ward"
+    },
+    {
+      "id": "crownfall-lantern-ward",
+      "kind": "exploration",
+      "act": "middle",
+      "title": "Lantern Ward After Curfew",
+      "objective": "Follow the false marshal through Crownfall, test competing suspects, and learn what the poison is meant to conceal.",
+      "storyAnchor": "Chancellor Veer's clerks purchased moonseed and old mint coins, but Veer may be a convenient shield. The real plot is to force a succession vote while Queen Candelle is unconscious and steal the Dawn Charter from the bell tower archive.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "Lantern Ward should be roaring after a royal joust. Instead, shutters are drawn and every bell in Crownfall is ringing one minute late. The false marshal's trail divides at a rain barrel: purple dye toward the apothecary, black feathers toward the old mint, and a single muddy boot print toward the bell tower. A watchman named Moss insists nobody passed him, though Moss is wearing two different boots and speaking to a pigeon he calls Deputy.",
+      "openingChoices": ["Visit Mother Wren's apothecary", "Search the abandoned mint", "Question Moss and Deputy"],
+      "exploration": {
+        "required": 4,
+        "guidance": "The conspiracy has layers. Learn motive, route, and identity before confronting anyone.",
+        "leads": [
+          { "id": "wren", "name": "Mother Wren's Apothecary", "type": "person", "prompt": "Ask who bought moonseed resin and why.", "reveal": "Mother Wren sold sleeping draught, not poison, to Chancellor Veer's clerk. A second buyer stole moonseed resin and left a glove scented with cedar ink—the perfume of Royal Archivist Sable Marr." },
+          { "id": "mint", "name": "The Abandoned Royal Mint", "type": "place", "prompt": "Search presses, ledgers, and hidden exits.", "reveal": "The old raven coins are being used as counters in a conspiracy ledger. Payments mark guards, a clerk, and four black-plume agents—but Chancellor Veer's name appears under \"to be blamed.\"" },
+          { "id": "moss", "name": "Watchman Moss and Deputy", "type": "person", "prompt": "Separate Moss's nerves from what his pigeon actually saw.", "reveal": "Moss admits Sable Marr ordered him away from the bell tower. Deputy returns carrying a strip of archive ribbon and a tiny brass key tied to its leg." },
+          { "id": "clerk", "name": "Chancellor Veer's Clerk", "type": "person", "prompt": "Find the clerk connected to Brindle's button.", "requires": ["mint"], "reveal": "The terrified clerk confesses he bought a legal sleeping draught for Veer's insomnia. Sable stole his coat and button, then threatened his family to make the trail point toward the Chancellor." },
+          { "id": "charter", "name": "The Dawn Charter", "type": "object", "prompt": "Learn why the bell tower archive matters.", "requires": ["moss"], "reveal": "The archive ribbon's seal identifies the Dawn Charter: whoever presents it while the monarch cannot rule may call an immediate succession vote. Sable needs the queen alive but silent until dawn." },
+          { "id": "plume", "name": "Black-Plume Safehouse", "type": "place", "prompt": "Follow the feather trail to the hired agents.", "requires": ["wren"], "reveal": "The safehouse is empty except for tower diagrams and a note: \"Hold the stair until Marr has the Charter. At the third late bell, burn the rope.\"" }
+        ]
+      },
+      "terrain": { "blocking": [{ "x": 2, "y": 2, "kind": "cart" }, { "x": 10, "y": 5, "kind": "rock" }, { "x": 15, "y": 8, "kind": "tree" }], "difficult": [{ "x": 7, "y": 6, "kind": "brush" }, { "x": 8, "y": 6, "kind": "brush" }] },
+      "partyStart": [{ "x": 2, "y": 8 }, { "x": 3, "y": 8 }, { "x": 2, "y": 9 }, { "x": 3, "y": 9 }],
+      "props": [
+        { "id": "mother-wren", "name": "Mother Wren", "role": "Apothecary and Former Field Surgeon", "personality": "Sharp as vinegar, kind in secret, and incapable of answering without assigning a chore.", "storyHook": "She can prepare the queen's antidote if given the truth.", "x": 12, "y": 3, "glyph": "✚", "color": "#86efac" },
+        { "id": "watchman-moss", "name": "Watchman Moss", "role": "Night Watchman", "personality": "Honest, anxious, and convinced his pigeon outranks him.", "storyHook": "Deputy saw Sable enter the tower.", "x": 6, "y": 4, "glyph": "♟", "color": "#93c5fd" }
+      ],
+      "monsters": [],
+      "xpReward": 0,
+      "storyAward": 500,
+      "afterword": "The mystery has a name and a clock. Sable Marr is climbing the royal bell tower with the Dawn Charter, black-plume blades are waiting on the stairs, and the third late bell has begun to move.",
+      "next": "crownfall-bell-tower"
+    },
+    {
+      "id": "crownfall-bell-tower",
+      "kind": "combat",
+      "act": "climax",
+      "title": "The Third Late Bell",
+      "objective": "Break through the black-plume agents, stop Sable Marr from burning the bell rope, and recover the Dawn Charter.",
+      "storyAnchor": "The party's evidence exposed Sable Marr as the architect. She is above the battlefield with the Charter; her agents are buying time, not fighting for honor. The queen's survival and the heroes' names depend on reaching the archive before the third bell.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "The bell tower stair is a spiral of wet stone, archive shelves, and swinging lamplight. Above, Sable Marr reads the Dawn Charter aloud while sawing through the tarred bell rope. Four black-plume agents step from behind the shelves, their tournament masks still smiling. Below, Crownfall's guards hammer at a barred door. The second late bell shakes dust from the rafters. There will not be a fourth chance.",
+      "openingChoices": ["Rush the archive stair", "Protect the Charter cabinet", "Call Sable's conspiracy by name"],
+      "terrain": {
+        "blocking": [{ "x": 8, "y": 1, "kind": "rock" }, { "x": 8, "y": 2, "kind": "rock" }, { "x": 8, "y": 3, "kind": "rock" }, { "x": 8, "y": 8, "kind": "rock" }, { "x": 8, "y": 9, "kind": "rock" }, { "x": 8, "y": 10, "kind": "rock" }, { "x": 4, "y": 5, "kind": "cart" }, { "x": 12, "y": 6, "kind": "cart" }],
+        "difficult": [{ "x": 6, "y": 4, "kind": "scree" }, { "x": 10, "y": 7, "kind": "scree" }]
+      },
+      "partyStart": [{ "x": 2, "y": 5 }, { "x": 2, "y": 6 }, { "x": 3, "y": 5 }, { "x": 3, "y": 6 }],
+      "props": [
+        { "id": "sable-marr", "name": "Sable Marr", "role": "Royal Archivist and Architect of the Coup", "personality": "Controlled, brilliant, and contemptuous of rulers chosen by blood instead of merit.", "storyHook": "She believes Crownfall needs her coup and may confess if defeated by evidence as well as steel.", "x": 16, "y": 5, "glyph": "♜", "color": "#c084fc" }
+      ],
+      "monsters": [
+        { "ref": "black-plume", "instanceId": "plume-1", "name": "Iven Glass", "role": "Masked Duelist", "personality": "Precise and joyless.", "storyHook": "Iven was paid to delay, not die.", "x": 11, "y": 3, "hidden": false },
+        { "ref": "black-plume", "instanceId": "plume-2", "name": "Marra Coil", "role": "Charter Thief", "personality": "Mocking and impatient.", "storyHook": "Marra carries the cabinet key.", "x": 12, "y": 8, "hidden": false },
+        { "ref": "lantern-cultist", "instanceId": "plume-3", "name": "Nibs", "role": "Reluctant Lookout", "personality": "Young, terrified, and plainly regretting every choice.", "storyHook": "Nibs may surrender when isolated.", "x": 14, "y": 3, "hidden": false },
+        { "ref": "black-plume", "instanceId": "plume-4", "name": "Captain Rusk", "role": "Black-Plume Captain", "personality": "Professional, bitter, and protective of Nibs.", "storyHook": "Rusk knows Sable never planned to pay survivors.", "x": 14, "y": 7, "hidden": false }
+      ],
+      "xpReward": 700,
+      "storyAward": 600,
+      "afterword": "The third bell never rings. The Dawn Charter is safe, Sable Marr's conspiracy is exposed, and Mother Wren's antidote reaches Queen Candelle before midnight. Yet victory still has witnesses to hear and names to clear.",
+      "next": "crownfall-dawn-court"
+    },
+    {
+      "id": "crownfall-dawn-court",
+      "kind": "exploration",
+      "act": "falling-action",
+      "title": "Court at Sunrise",
+      "objective": "Choose how the truth is told, clear the party's name, and decide what Crownfall remembers.",
+      "storyAnchor": "The danger has passed. The falling action belongs to consequences: the queen wakes, Maelin presents the evidence, and recurring people react to what the heroes protected.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "Sunrise turns the tournament silk translucent. Queen Candelle, pale but upright, holds court from the same pavilion where she fell. Princess Maelin has arranged the cup, the false sash, Deputy's brass key, and the recovered Charter in a line no courtier can misunderstand. Sir Odo has polished his helmet for testimony. Pella has brought two pies—one for justice and one in case justice takes too long. The queen looks to you before she looks to her judges.",
+      "openingChoices": ["Let Princess Maelin present the case", "Ask the frightened agents to testify", "Tell Crownfall what the people did"],
+      "exploration": {
+        "required": 2,
+        "guidance": "These are consequences, not traps. Choose whose courage and whose guilt the court will remember.",
+        "leads": [
+          { "id": "maelin-testimony", "name": "Princess Maelin's Testimony", "type": "person", "prompt": "Stand beside Maelin while she names the conspiracy.", "reveal": "Maelin presents each clue in the order the party found it. Queen Candelle sees not only the culprit but the judgment of the daughter she has too often kept outside council." },
+          { "id": "agents-testimony", "name": "The Surviving Black-Plumes", "type": "person", "prompt": "Offer mercy in exchange for the complete truth.", "reveal": "The surviving agents confirm Sable planned to abandon them after the Charter burned. Their testimony clears Chancellor Veer and every member of the party." },
+          { "id": "people-credit", "name": "Crownfall's Unlikely Heroes", "type": "person", "prompt": "Credit Odo, Pella, Moss, Deputy, and Mother Wren.", "reveal": "The pavilion erupts when Sir Odo, Pella, Moss, Deputy, and Mother Wren are named. For one morning, history records the people who noticed small things instead of only the nobles who survived them." },
+          { "id": "sable-fate", "name": "Sable Marr's Fate", "type": "person", "prompt": "Recommend judgment, exile, or a public trial.", "reveal": "Queen Candelle accepts that punishment must expose the system Sable exploited. Sable will face a public trial, and the archives she guarded will be opened to Crownfall's citizens." }
+        ]
+      },
+      "terrain": { "blocking": [{ "x": 8, "y": 4, "kind": "cart" }, { "x": 9, "y": 4, "kind": "cart" }], "difficult": [] },
+      "partyStart": [{ "x": 5, "y": 7 }, { "x": 6, "y": 7 }, { "x": 7, "y": 7 }, { "x": 8, "y": 7 }],
+      "props": [
+        { "id": "queen-candelle", "name": "Queen Candelle", "role": "Monarch of Crownfall", "personality": "Formidable, newly humbled, and unwilling to waste a second chance.", "storyHook": "She owes the party their lives and her realm.", "x": 9, "y": 3, "glyph": "♛", "color": "#fcd34d" },
+        { "id": "deputy", "name": "Deputy", "role": "Pigeon, Allegedly Senior Watch Officer", "personality": "Food-motivated and impeccable under cross-examination.", "storyHook": "Deputy carries the final archive ribbon.", "x": 4, "y": 5, "glyph": "◆", "color": "#d1d5db" }
+      ],
+      "monsters": [],
+      "xpReward": 0,
+      "storyAward": 500,
+      "afterword": "The party's names are cleared before all Crownfall. Queen Candelle lives, Princess Maelin takes a seat on the royal council, and the Midsummer Joust resumes three days later with Sir Odo ceremonially promoted by Deputy. The heroes leave with royal favor, two pies, and the knowledge that they saved a kingdom by noticing who changed a cup.",
+      "next": null
+    }
+  ]
+}

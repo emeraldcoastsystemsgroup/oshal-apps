@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="stats">
+  <div><b>{{ stats.total }}</b> open roles</div>
+  <div><b>{{ stats.scored }}</b> AI-scored</div>
+  <div><b>{{ stats.companies }}</b> companies</div>
+  <div><b>{{ stats.promoted }}</b> promoted/generated</div>
+</div>
+
+<form class="filters" method="get">
+  <input type="text" name="q" placeholder="search title/description" value="{{ args.get('q','') }}">
+  <input type="text" name="company" placeholder="company (type or pick ▾)" value="{{ args.get('company','') }}" list="companylist" autocomplete="off">
+  <datalist id="companylist">
+    {% for co in companies %}<option value="{{ co.name }}">{{ co.name }} ({{ co.n }})</option>{% endfor %}
+  </datalist>
+  <input type="number" name="min_score" placeholder="min fit" value="{{ args.get('min_score','') }}" style="width:80px">
+  <select name="days" title="posted within">
+    <option value="">posted: any</option>
+    {% for d,l in [('7','last 7 days'),('14','last 14 days'),('30','last 30 days'),('60','last 60 days'),('90','last 90 days')] %}
+      <option value="{{ d }}" {{ 'selected' if args.get('days')==d }}>{{ l }}</option>
+    {% endfor %}
+  </select>
+  <select name="min_pay" title="minimum pay">
+    <option value="">pay: any</option>
+    {% for p,l in [('120000','$120K+'),('150000','$150K+'),('175000','$175K+'),('200000','$200K+'),('250000','$250K+')] %}
+      <option value="{{ p }}" {{ 'selected' if args.get('min_pay')==p }}>{{ l }}</option>
+    {% endfor %}
+  </select>
+  <select name="type" title="employment type">
+    <option value="">type: any</option>
+    {% for v,l in [('fte','full-time'),('contract','contract'),('intern','intern/grad'),('parttime','part-time')] %}
+      <option value="{{ v }}" {{ 'selected' if args.get('type')==v }}>{{ l }}</option>
+    {% endfor %}
+  </select>
+  <select name="remote">
+    <option value="">remote?</option>
+    <option value="1" {{ 'selected' if args.get('remote')=='1' }}>remote</option>
+    <option value="0" {{ 'selected' if args.get('remote')=='0' }}>on-site</option>
+  </select>
+  <select name="source">
+    <option value="">any list</option>
+    {% for s in ['govcon','midsize','bigtech','fortune_best','dow30','sp500','nasdaq100','curated'] %}
+      <option value="{{ s }}" {{ 'selected' if args.get('source')==s }}>{{ s }}</option>
+    {% endfor %}
+  </select>
+  <select name="status">
+    <option value="">any status</option>
+    {% for s in ['new','promoted','generated','applied','dismissed'] %}
+      <option value="{{ s }}" {{ 'selected' if args.get('status')==s }}>{{ s }}</option>
+    {% endfor %}
+  </select>
+  <select name="sort">
+    {% for v,l in [('ai','AI fit'),('prob','P(land)'),('highwin','High-Win'),('keyword','keyword fit'),('posted','posting date'),('salary','salary'),('company','company'),('recent','newest found'),('generated','recently generated'),('applied','recently applied')] %}
+      <option value="{{ v }}" {{ 'selected' if args.get('sort')==v }}>{{ l }}</option>
+    {% endfor %}
+  </select>
+  <button>Filter</button>
+  <a class="clear" href="{{ url_for('index') }}">reset</a>
+</form>
+
+<div class="presets" style="margin:-4px 0 8px; font-size:9pt;">
+  <span style="color:#5a6675;">quick:</span>
+  <a href="?days=7&min_pay=200000&sort=highwin">★ Top fresh $200K+ (last 7 days)</a> ·
+  <a href="?status=generated&sort=generated">recently generated</a> ·
+  <a href="?status=applied&sort=applied">my applications</a> ·
+  <a href="?days=7&sort=ai">fresh, best fit</a>
+</div>
+
+<div class="resultbar">
+  <b>{{ "{:,}".format(matching) }}</b> jobs match{% if matching != stats.total %} (of {{ "{:,}".format(stats.total) }} total){% endif %}
+  · showing {{ ((page-1)*per)+1 }}–{{ [page*per, matching]|min }} · page {{ page }}/{{ pages }}
+</div>
+
+{# Constant contact fields, dropped on the clipboard by each Apply ↗ click. #}
+<textarea id="fieldpack" hidden>{{ field_pack() }}</textarea>
+<table class="jobs">
+  {% set sb = [] %}{% for k,v in args.items() if k not in ('sort','page') and v %}{% set _ = sb.append(k ~ '=' ~ v) %}{% endfor %}
+  {% set sq = sb|join('&') %}
+  {% macro slink(key, label) -%}
+    <a class="sorth{{ ' on' if args.get('sort')==key }}" href="?{{ sq }}{{ '&' if sq }}sort={{ key }}">{{ label }}{% if args.get('sort')==key %} ↓{% endif %}</a>
+  {%- endmacro %}
+  <thead><tr>
+    <th>{{ slink('ai','Fit') }}</th>
+    <th>{{ slink('prob','P(land)') }}</th>
+    <th>{{ slink('highwin','High-Win') }}</th>
+    <th>{{ slink('company','Company') }}</th>
+    <th>Title</th>
+    <th>Location</th>
+    <th>{{ slink('posted','Posted') }}</th>
+    <th>{{ slink('salary','Salary') }}</th>
+    <th>Co.</th>
+    <th>Downloads</th>
+  </tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr class="{{ 'dim' if r.status=='dismissed' else 'applied' if r.status=='applied' else '' }}">
+      <td>{% set f = r.ai_fit_score if r.ai_fit_score is not none else r.fit_score %}
+        <span class="score s{{ ((f or 0)//20) }}">{{ f if f is not none else '–' }}</span></td>
+      <td><span class="score s{{ ((r.land_prob or 0)//20) }}" title="P(land) = fit × recency × referral">{{ r.land_prob if r.land_prob is not none else '–' }}</span>{% if r.referral %}<span class="pill" title="you have a contact here">★ref</span>{% endif %}</td>
+      <td><span class="score s{{ ((r.high_win or 0)//20) }}" title="High-Win = fit + clearance + AI/DevOps + gov/defense (set-aside leverage)">{{ r.high_win if r.high_win is not none else '–' }}</span></td>
+      <td class="co">{{ r.company }}</td>
+      <td><a href="{{ url_for('job', pid=r.id) }}">{{ r.title }}</a>
+          {% if r.remote %}<span class="pill">remote</span>{% endif %}
+          {% if r.job_type and r.job_type != 'fte' %}<span class="pill ptype">{{ r.job_type }}</span>{% endif %}
+          {% if r.status=='applied' %}<span class="pill" style="background:#1f7a3f;color:#fff" title="applied {{ fmt_date(r.applied_at) }}">applied {{ fmt_date(r.applied_at) }}</span>{% endif %}</td>
+      <td class="loc">{{ r.location or '—' }}</td>
+      <td class="posted">{{ r.posted_date or fmt_date(r.posted_at) }}</td>
+      <td class="sal">{{ fmt_salary(r) }}</td>
+      <td>{{ r.company_score if r.company_score is not none else '' }}</td>
+      <td class="dl">
+        {% if r.resume_path %}
+          {% if r.url %}<a href="{{ r.url }}" target="_blank" rel="noopener" data-copy-target="#fieldpack" data-copied-label="↗ details copied" title="Open the posting and copy your contact details to paste"><b>Apply ↗</b></a>{% endif %}
+          <a href="{{ url_for('file', path=r.resume_path) }}" target="_blank" title="ATS resume">Resume</a>
+          <a href="{{ url_for('file', path=r.resume_path.replace('Resume_ATS','Resume_Premium')) }}" target="_blank" title="Premium resume">★</a>
+          <a href="{{ url_for('file', path=r.cover_path) }}" target="_blank" title="Cover letter">Cover</a>
+          <form method="post" action="{{ url_for('act', pid=r.id, action='generate') }}" style="display:inline;margin:0">
+            <button class="mini" title="rebuild résumé + cover on the current pipeline">regen</button></form>
+          <span class="genmark" title="generated {{ fmt_date(r.generated_at) }}" style="font-size:9px;color:#8a96a3">{{ fmt_date(r.generated_at) }}</span>
+        {% else %}
+          <form method="post" action="{{ url_for('act', pid=r.id, action='generate') }}" style="margin:0">
+            <button class="mini">Generate</button></form>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% if not rows %}<p class="empty">No matching jobs. Have you run <code>scrape</code> and <code>score</code>?</p>{% endif %}
+
+{% if pages > 1 %}
+{% set base = [] %}
+{% for k,v in args.items() if k != 'page' and v %}{% set _ = base.append(k ~ '=' ~ v) %}{% endfor %}
+{% set q = base|join('&') %}
+<div class="pager">
+  {% if page > 1 %}<a href="?{{ q }}&page={{ page-1 }}">← prev</a>{% else %}<span class="off">← prev</span>{% endif %}
+  <span class="pgnum">page {{ page }} of {{ pages }}</span>
+  {% if page < pages %}<a href="?{{ q }}&page={{ page+1 }}">next →</a>{% else %}<span class="off">next →</span>{% endif %}
+</div>
+{% endif %}
+<p class="note">Pay: plain = employer-listed · <b>*</b> = AI estimate (from the match algorithm) · <b>~</b> = rough title-based estimate (refines as the algorithm scores it).</p>
+{% endblock %}

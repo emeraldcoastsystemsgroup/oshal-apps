@@ -1,0 +1,94 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — payments ("Payments")
+# Carved out of OSHAL core 2026-07-17 (ADR-085 Wave 1 carve #4).
+#
+# Take payments through a connected merchant account. The user connects their own
+# Square and/or PayPal account on /utilities (the 'payments' connector category);
+# this app charges ON THEIR BEHALF using their per-user brokered token. Pluggable:
+# each provider is a connector + a MerchantPaymentAdapter — adding another rail is
+# one connector + one adapter, no app change.
+#
+# Each rail charges the way its API supports: Square = a direct card charge (a
+# Web Payments SDK card token; Sandbox test token cnon:card-nonce-ok); PayPal =
+# create + send an invoice the customer pays (the hosted invoice URL is returned).
+#
+# Deterministic I/O — no LLM, no bot. The surface calls /api/payments directly.
+# Sandbox by default (SQUARE_ENV / PAYPAL_ENV) so the whole flow is testable.
+#
+# KERNEL DEPENDENCY NOTE: the MerchantPaymentAdapter registry lives in the CORE
+# feature slice @/features/payments (a documented kernel skill — finance imports
+# its Stripe half, this app its merchant half). The packaged route imports it
+# from core; the Square/PayPal OAuth connectors are core connector-catalog infra.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: payments
+suite: ai-productivity   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Payments
+description: >-
+  Take payments through your own Square or PayPal account. Pick a provider, enter the
+  amount, and charge — Square runs a card payment, PayPal sends the customer an invoice.
+  Pluggable across providers; sandbox by default for safe testing.
+version: 1.0.0
+status: active
+
+theme: ocean
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: payments
+  ref: main
+
+# Kernel skills + core connector infra only — no app, tool, or connector-install deps.
+# (dependencies.connectors is the runtime connector ALLOW-LIST: this app's surfaces
+# offer the two merchant rails.)
+dependencies:
+  apps: []
+  tools: []
+  connectors: [square, paypal]
+
+# Guests never reach the charge surface (was hardcoded core Tier-C pre-carve).
+# Declaring it here is a REQUEST (ADR-085 D4) — the unapproved default already
+# blocks guest writes.
+guestTier: blocked
+
+# Compiled-JS route (built from src-routes/ by `oshal-app build`). One OIDC mount;
+# every route also self-checks callerSub, and POST /charge additionally requires
+# the explicit write confirmation (428 without it).
+routes:
+  - module: routes/payments-routes.js
+    factory: createPaymentsRoutes
+    mountPath: /api/payments
+    auth: oidc
+    requiresContext: true
+
+# No ticketType / bots — payments is a deterministic controller-side app (the charge
+# runs on the merchant's brokered token), not an LLM workflow.
+
+# No migrations: the owner-scoped audit table (oshal_merchant_payments) is created
+# lazily by the route at first use, with tier-1 owner RLS applied at the chokepoint.
+migrations: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon icon opens the Payments page (served by
+# createPaymentsRoutes from this package's tools/).
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: payments-home
+      label: Payments
+      icon: codicon codicon-credit-card
+      iframeUrl: /api/payments/
+      section: top
+
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  defaultView: payments-home

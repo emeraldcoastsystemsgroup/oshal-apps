@@ -1,0 +1,10 @@
+requests>=2.31
+tenacity>=8.0
+beautifulsoup4>=4.12
+lxml>=5.0
+Flask>=3.0          # dashboard
+Jinja2>=3.1         # resume/cover/dashboard templates
+playwright>=1.40    # HTML -> PDF  (run once: playwright install chromium)
+# optional — only needed for AI steps (enrich / score / apply):
+# anthropic>=0.40   (if using ANTHROPIC_API_KEY)
+# openai>=1.40      (if using OPENAI_API_KEY)

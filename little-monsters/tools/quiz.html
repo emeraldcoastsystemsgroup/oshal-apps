@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<!--
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  2026-06-09 | roger.murphy@agenticfederal.us | Little Monsters quiz page — grounded auto-quiz (RAG)
+-->
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Practice Quiz — Little Monsters</title>
+<link rel="stylesheet" href="/api/education/education.css" />
+<style>
+  :root { --bg:#0a0e1a; --panel:#141a2e; --panel2:#1b2540; --txt:#e6edf6; --mut:#9fb3c8;
+          --acc:#7c5cff; --acc2:#5fdcc0; --ok:#34d399; --bad:#f87171; --warn:#fbbf24; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:'Segoe UI',system-ui,Arial,sans-serif; background:var(--bg); color:var(--txt); }
+  .top { display:flex; align-items:center; gap:12px; padding:16px 22px; border-bottom:1px solid #1f2c4a; }
+  .logo { width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--acc2));
+          display:flex;align-items:center;justify-content:center;font-weight:800;color:#0a0e1a; }
+  .top h1 { font-size:18px;margin:0; } .top .sub { font-size:12px;color:var(--mut); }
+  .wrap { max-width:760px; margin:30px auto; padding:0 18px; }
+  .card { background:var(--panel); border:1px solid #243154; border-radius:16px; padding:26px; }
+  .bar { height:8px;background:var(--panel2);border-radius:99px;overflow:hidden;margin-bottom:20px; }
+  .bar > i { display:block;height:100%;background:linear-gradient(90deg,var(--acc),var(--acc2));width:0;transition:width .3s; }
+  .q { font-size:20px;font-weight:700;margin:6px 0 20px;line-height:1.4; }
+  .opt { display:block;width:100%;text-align:left;background:var(--panel2);border:1px solid #2b3a63;color:var(--txt);
+         border-radius:12px;padding:14px 16px;margin-bottom:11px;font-size:15px;cursor:pointer;transition:.15s; }
+  .opt:hover { border-color:var(--acc); transform:translateY(-1px); }
+  .opt.correct { border-color:var(--ok); background:rgba(52,211,153,.16); }
+  .opt.wrong { border-color:var(--bad); background:rgba(248,113,113,.16); }
+  .opt:disabled { cursor:default; }
+  .explain { margin-top:12px;font-size:14px;color:var(--mut);background:var(--panel2);border-radius:10px;padding:12px 14px;display:none; }
+  .next { margin-top:18px;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#0a0e1a;border:0;border-radius:12px;
+          padding:12px 22px;font-weight:700;font-size:15px;cursor:pointer;float:right;display:none; }
+  .pill { display:inline-flex;align-items:center;gap:6px;background:rgba(94,220,192,.14);color:var(--acc2);
+          border:1px solid rgba(94,220,192,.4);border-radius:999px;padding:3px 11px;font-size:12px;font-weight:600; }
+  .muted { color:var(--mut); } .center { text-align:center; }
+  .score { font-size:54px;font-weight:800;background:linear-gradient(135deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent; }
+  .btn { background:linear-gradient(135deg,var(--acc),var(--acc2));color:#0a0e1a;border:0;border-radius:12px;padding:12px 24px;font-weight:700;cursor:pointer;font-size:15px; }
+  .rev { text-align:left;background:var(--panel2);border-radius:10px;padding:12px 14px;margin-bottom:10px;font-size:14px; }
+  .rev .badge { font-weight:700; } .rev .ok { color:var(--ok); } .rev .bad { color:var(--bad); }
+  .dots span { display:inline-block;width:8px;height:8px;margin:0 3px;border-radius:50%;background:var(--acc2);animation:b 1s infinite; }
+  .dots span:nth-child(2){animation-delay:.2s} .dots span:nth-child(3){animation-delay:.4s}
+  @keyframes b { 0%,80%,100%{opacity:.3} 40%{opacity:1} }
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<div class="top">
+  <div class="logo">LM</div>
+  <div><h1>Practice Quiz</h1><div class="sub" id="sub">Grounded in your class materials</div></div>
+</div>
+<div class="wrap">
+  <div class="card" id="loadCard">
+    <div class="center"><div class="dots"><span></span><span></span><span></span></div>
+    <p class="muted" id="loadMsg">Generating your quiz from your textbook…</p></div>
+  </div>
+  <div class="card" id="quizCard" style="display:none">
+    <div class="bar"><i id="prog"></i></div>
+    <div class="muted" id="counter" style="font-size:13px;margin-bottom:6px"></div>
+    <div class="q" id="qText"></div>
+    <div id="opts"></div>
+    <div class="explain" id="explain"></div>
+    <button class="next" id="nextBtn" onclick="next()">Next →</button>
+    <div style="clear:both"></div>
+  </div>
+  <div class="card center" id="resultCard" style="display:none">
+    <div class="score" id="scoreVal"></div>
+    <p class="muted" id="scoreMsg"></p>
+    <div id="review" style="margin:18px 0"></div>
+    <button class="btn" onclick="location.reload()">Try another quiz</button>
+  </div>
+</div>
+<script>
+var classId = new URLSearchParams(location.search).get('classId') || '';
+var questions = [], idx = 0, correct = 0, answered = false, results = [];
+
+async function start() {
+  if (!classId) { document.getElementById('loadMsg').textContent = 'Open a class to take a quiz.'; return; }
+  try {
+    var resp = await fetch('/api/education/quiz/generate', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ classId: classId, count: 5 })
+    });
+    var data = await resp.json();
+    if (!resp.ok || data.error) { document.getElementById('loadMsg').textContent = data.reason || data.error || 'Could not build a quiz.'; return; }
+    questions = data.questions || [];
+    document.getElementById('sub').innerHTML = (data.className ? data.className + ' · ' : '') + '<span class="pill"><span class="codicon codicon-book"></span> Grounded in your textbook</span>';
+    document.getElementById('loadCard').style.display = 'none';
+    document.getElementById('quizCard').style.display = 'block';
+    render();
+  } catch (e) { document.getElementById('loadMsg').textContent = 'Error: ' + e.message; }
+}
+
+function render() {
+  answered = false;
+  var q = questions[idx];
+  document.getElementById('counter').textContent = 'Question ' + (idx+1) + ' of ' + questions.length;
+  document.getElementById('prog').style.width = ((idx)/questions.length*100) + '%';
+  document.getElementById('qText').textContent = q.question;
+  var opts = document.getElementById('opts'); opts.innerHTML = '';
+  q.options.forEach(function(o, i) {
+    var b = document.createElement('button');
+    b.className = 'opt'; b.textContent = o;
+    b.onclick = function(){ choose(i, b); };
+    opts.appendChild(b);
+  });
+  document.getElementById('explain').style.display = 'none';
+  document.getElementById('nextBtn').style.display = 'none';
+}
+
+function choose(i, btn) {
+  if (answered) return;
+  answered = true;
+  var q = questions[idx];
+  var buttons = document.querySelectorAll('#opts .opt');
+  buttons.forEach(function(b, bi){ b.disabled = true; if (bi === q.correctIndex) b.classList.add('correct'); });
+  var isRight = i === q.correctIndex;
+  if (!isRight) btn.classList.add('wrong');
+  if (isRight) correct++;
+  results.push({ q: q.question, your: q.options[i], correct: q.options[q.correctIndex], right: isRight, explanation: q.explanation, topic: q.topic });
+  if (q.explanation) { var ex = document.getElementById('explain'); ex.textContent = (isRight ? 'Correct! ' : 'Not quite. ') + q.explanation; ex.style.display = 'block'; }
+  document.getElementById('nextBtn').textContent = idx + 1 < questions.length ? 'Next →' : 'See results →';
+  document.getElementById('nextBtn').style.display = 'inline-block';
+}
+
+function next() {
+  idx++;
+  if (idx < questions.length) { render(); } else { finish(); }
+}
+
+async function finish() {
+  document.getElementById('quizCard').style.display = 'none';
+  var pct = Math.round(correct / questions.length * 100);
+  document.getElementById('scoreVal').textContent = pct + '%';
+  document.getElementById('scoreMsg').textContent = correct + ' of ' + questions.length + ' correct — ' +
+    (pct >= 80 ? 'Monster Win! 🎉' : pct >= 50 ? 'Solid effort — review the misses below.' : "Let's review these together.");
+  var rev = document.getElementById('review');
+  rev.innerHTML = results.map(function(r){
+    return '<div class="rev"><div class="badge ' + (r.right?'ok':'bad') + '">' + (r.right?'✓':'✗') + ' ' + escapeHtml(r.q) + '</div>'
+      + (r.right ? '' : '<div class="muted" style="margin-top:4px">Your answer: ' + escapeHtml(r.your) + ' · Correct: ' + escapeHtml(r.correct) + '</div>')
+      + (r.explanation ? '<div class="muted" style="margin-top:4px">' + escapeHtml(r.explanation) + '</div>' : '') + '</div>';
+  }).join('');
+  document.getElementById('resultCard').style.display = 'block';
+  try {
+    await fetch('/api/education/quiz-results', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ studentId: null, classId: classId, scorePercent: pct, totalQuestions: questions.length, correctAnswers: correct, topics: [], missedQuestions: results.filter(function(r){return !r.right}).map(function(r){return r.q;}) })
+    });
+  } catch (e) { /* non-fatal */ }
+}
+
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+start();
+</script>
+</body>
+</html>

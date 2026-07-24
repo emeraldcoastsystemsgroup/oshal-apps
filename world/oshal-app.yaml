@@ -1,0 +1,348 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — world ("World Intelligence", ADR-061)
+#
+# Layer B: the swarm's SHARED world-intelligence layer. Multi-source news feeds
+# (Google/Bing News, Reddit, ...) are fetched, classified, and bias-rated into a
+# shared ArangoDB graph + TimescaleDB series + classified archive. This manifest
+# REGISTERS that capability with the framework so bots + Jarvis can actually use
+# it (tools), and gives it a cockpit surface.
+#
+# Carved out of OSHAL core 2026-07-20 (ADR-085 Wave 3, "skill with a surface" —
+# ADR-093: ONLY the surface carves). What STAYS framework-resident:
+#   - the Layer-B ENGINE (src/features/world-data: the World-Intelligence
+#     Service, contribution schemas, outlet bias/reliability ratings, the
+#     news fetcher/classifier/backtester, feed registries, and the
+#     WORLD_APP_HTML surface module) — it keeps real kernel importers
+#     (jarvis-brief-sections, the trading assess/research/schedule dispatchers,
+#     the strategy-lab sim, world-schedule-dispatch), so the packaged route
+#     imports it back via the preserved @/ aliases (D8 verified NOT orphaned);
+#   - src/app/world-schedule-dispatch.ts + its schedule-runtime branch — the
+#     DETERMINISTIC world-refresh / ticker-pulse dispatch (the schedules below
+#     only fire through it when this app is installed + the scheduler is on);
+#   - scripts/oshal-world.js (the world_* CLI the tools below invoke — it calls
+#     the local /api/world, injecting WORLD_INGEST_TOKEN for ingest);
+#   - the world-analyst registry entry (swarm-bot-registry-local.ts) + the
+#     ai-lab personas — the personas/ here are package COPIES for the registrar;
+#   - the WORLD_INGEST_TOKEN compose env and the tool-world-dashboard default
+#     tile in config-seed/profiles/oshal-framework.json (carved apps keep
+#     their default tiles);
+#   - weather-bot and every trading consumer of the world layer.
+# This package is the app: the /api/world routes (token-guarded machine writes,
+# open reads, the /app surface shell) + the manifest (schedules, bot, tools,
+# surface, workflow).
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: world
+suite: ai-knowledge   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: World Intelligence
+description: >-
+  Shared world intelligence — multi-source news feeds classified into a bias-aware
+  sentiment graph (political + economic + outlet-kind axes), entity co-mention graph,
+  and historical series. Ask the analyst "what's the press saying about X" and get a
+  structured, bias-contextualized read, not a misleading average.
+version: 1.0.0
+status: active
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: world
+  ref: main
+
+# No connector allow-list: the world layer is machine-fed from public feed
+# registries + the shared swarm creds — no per-user OAuth connector involved.
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+theme: midnight
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SCHEDULES — the always-on framework intelligence loop. The loader registers this
+# default "poll" when the app is enabled; it only EXECUTES when the agent scheduler
+# is on (ENABLE_AGENT_SCHEDULER=true). scope: framework = system-wide (not per-user).
+# Both fire through the kernel's deterministic world-schedule-dispatch.
+# ─────────────────────────────────────────────────────────────────────────────
+schedules:
+  - id: world-refresh
+    cron: "0 */6 * * *"
+    scope: framework
+    targetAgent: b00d0000-0000-0000-0000-000000000001
+    description: Framework intelligence — 6-hourly DEPTH sensing (topics + macro + full stock-universe fan-out).
+    prompt: >-
+      Refresh the shared world-intelligence layer: pull the latest multi-source
+      signals (world_pulls / world_ingest), classify them, and summarize what
+      materially changed in the last 6 hours.
+  # TICKER PULSE — matches the every-5-min autopilot loop so the influence gate never reads stale
+  # sentiment. Every 5 min, hours 8-23 on weekdays. The window is deliberately WIDE (not a tight UTC
+  # market box) because cron-parser fires in the PROCESS timezone — 8-23 covers US pre/post-market
+  # whether the container runs UTC or ET. Lean 3-source plan (1 freshest request per source) + the
+  # universe refreshed concurrently, so 100 names land inside the 5-min window. Dispatched
+  # deterministically by world-schedule-dispatch (isTickerPulse) — trading universe only.
+  - id: ticker-pulse
+    cron: "*/5 8-23 * * 1-5"
+    scope: framework
+    targetAgent: b00d0000-0000-0000-0000-000000000001
+    description: Trading-universe sentiment pulse — 5-min market-hours freshness for the autopilot gate.
+    prompt: >-
+      Pulse the trading universe: pull the freshest finance signals for each monitored ticker so the
+      autopilot influence gate reads current sentiment.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — one analyst that reads + freshens the shared world layer (upserted by the
+# loader from this manifest; no migration needed). The persona here is a package
+# COPY for the registrar; the kernel registry entry + ai-lab persona stay
+# framework-resident (drone/email precedent).
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: b00d0000-0000-0000-0000-000000000001
+    name: world-analyst
+    persona: personas/world-analyst.yaml
+    role: intelligence/world-analyst
+    capabilities:
+      - world-query
+      - sentiment-analysis
+      - news-ingestion
+      - entity-extraction
+      - bias-analysis
+
+foundation:
+  persona: personas/world-foundation.yaml
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TOOLS — the world_* capability set. Each is a thin cli over the local /api/world
+# (scripts/oshal-world.js <verb> {input} — kernel-resident); reads are open,
+# ingest injects the token.
+# ─────────────────────────────────────────────────────────────────────────────
+tools:
+  - name: world_sentiment
+    displayName: World Sentiment (bias-aware)
+    type: cli
+    category: intelligence
+    description: >-
+      Bias-aware sentiment for a world subject. Returns the structure a naive average
+      destroys: the POLITICAL axis (byLean left/center/right), the ECONOMIC axis
+      (byEcon pro-labor/neutral/pro-market), by outlet KIND (wire/financial/partisan/
+      tech/...), consensus, and per-outlet values. Input: {entity, days?}.
+    executor:
+      executorType: cli
+      cliCommand: node /app/scripts/oshal-world.js sentiment {input}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        entity: { type: string, description: "world:<type>:<key>, e.g. world:company:nvidia" }
+        days: { type: integer, description: "lookback window (default 90)" }
+      required: [entity]
+    usageInstructions: >-
+      Call with {entity, days?}. Read political vs econ vs byKind separately — they
+      often disagree (the whole point). Never report `naive` as "the sentiment".
+    routingTags: [world, sentiment, bias, news]
+    skills: [world-graph, sentiment, bias-analysis]
+    tags: [world-intelligence]
+
+  - name: world_ingest
+    displayName: Ingest World News
+    type: cli
+    category: intelligence
+    description: >-
+      Fetch, classify (Claude via the swarm's creds), bias-rate, and ingest current
+      news for a subject across the registered feeds into the shared graph + series.
+      Use to create or freshen a subject before reading it. Input: {q, entity, label?,
+      sources?, limit?}.
+    executor:
+      executorType: cli
+      cliCommand: node /app/scripts/oshal-world.js ingest {input}
+    defaultAuthMode: auto
+    requiresApproval: false
+    timeoutMs: 120000
+    inputSchema:
+      type: object
+      properties:
+        q: { type: string, description: "search query, e.g. 'Nvidia earnings'" }
+        entity: { type: string, description: "world:<type>:<key> to attach results to" }
+        label: { type: string, description: "display label (default = q)" }
+        sources: { type: array, items: { type: string }, description: "feed ids (default google-news,bing-news)" }
+        limit: { type: integer, description: "items per feed variant (default 10)" }
+      required: [q, entity]
+    usageInstructions: >-
+      Call with {q, entity, label?}. Returns per-source fetched/unique/new counts and
+      usedLlm. After ingesting, read with world_sentiment / world_neighbors.
+    routingTags: [world, news, ingest, feeds]
+    skills: [world-graph, news-aggregation]
+    tags: [world-intelligence]
+
+  - name: world_neighbors
+    displayName: World Entity Graph
+    type: cli
+    category: intelligence
+    description: >-
+      Graph neighbourhood of a world entity — the people, orgs, tickers, places, and
+      outlets co-mentioned with it. Input: {id (or entity), depth?}.
+    executor:
+      executorType: cli
+      cliCommand: node /app/scripts/oshal-world.js neighbors {input}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string, description: "world entity id" }
+        depth: { type: integer, description: "traversal depth (default 1)" }
+      required: [id]
+    routingTags: [world, graph, entities]
+    skills: [world-graph, entity-extraction]
+    tags: [world-intelligence]
+
+  - name: world_metric
+    displayName: World Metric Trend
+    type: cli
+    category: intelligence
+    description: >-
+      Historical average of a world metric (sentiment, *_mention) for an entity over N
+      days — the time-series the reasoner joins against. Input: {entity, metric?, days?}.
+    executor:
+      executorType: cli
+      cliCommand: node /app/scripts/oshal-world.js metric {input}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        entity: { type: string }
+        metric: { type: string, description: "default 'sentiment'" }
+        days: { type: integer }
+      required: [entity]
+    routingTags: [world, metric, trend]
+    skills: [world-graph, time-series]
+    tags: [world-intelligence]
+
+  - name: world_pulls
+    displayName: World Pull-Rate
+    type: cli
+    category: intelligence
+    description: >-
+      Pull-rate accounting for a subject — per source: fetched vs unique vs new, and
+      freshness. Input: {entity, days?}.
+    executor:
+      executorType: cli
+      cliCommand: node /app/scripts/oshal-world.js pulls {input}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        entity: { type: string }
+        days: { type: integer }
+      required: [entity]
+    routingTags: [world, pulls, freshness]
+    skills: [world-graph]
+    tags: [world-intelligence]
+
+  - name: world_entities
+    displayName: World Subjects
+    type: cli
+    category: intelligence
+    description: >-
+      List the world subjects already tracked (ingested) with their item counts — so you
+      know what coverage exists before reading or ingesting. Input: {limit?}.
+    executor:
+      executorType: cli
+      cliCommand: node /app/scripts/oshal-world.js entities {input}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        limit: { type: integer, description: "max subjects (default 50)" }
+    routingTags: [world, entities, catalog]
+    skills: [world-graph]
+    tags: [world-intelligence]
+
+  - name: world_contribute
+    displayName: Contribute to World Knowledge
+    type: cli
+    category: intelligence
+    description: >-
+      WORLD KNOWLEDGE — the universal inbound. Push structured knowledge (entities + edges + facts, with
+      provenance) into the SHARED world graph that the whole swarm reads. Any bot, app, or external source
+      contributes here — not just news; this is where everyone sends their data. Input: a WorldContribution
+      {source, entities:[{id,type,label,props?}], edges?:[{from,to,type,props?}], facts?:[{entity,metric,value,at}]}.
+    executor:
+      executorType: cli
+      cliCommand: node /app/scripts/oshal-world.js contribute {input}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        source: { type: string, description: "provenance — who is contributing (bot/app/source id)" }
+        entities: { type: array, items: { type: object }, description: "nodes to upsert" }
+        edges: { type: array, items: { type: object }, description: "relationships (optional)" }
+        facts: { type: array, items: { type: object }, description: "time-series points (optional)" }
+      required: [source, entities]
+    usageInstructions: >-
+      Use to write durable knowledge other bots can query — facts, relationships, observations. Always set
+      `source` so the contribution is attributable. Reads come back via world_sentiment/_metric/_neighbors.
+    routingTags: [world, knowledge, contribute, ingest]
+    skills: [world-graph]
+    tags: [world-intelligence, world-knowledge]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon icon opens the World Intelligence dashboard
+# (served by the packaged route at /api/world/app; the HTML itself is the kernel
+# slice's WORLD_APP_HTML module, imported via @/features/world-data).
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: world-dashboard
+      label: World Intelligence
+      icon: codicon codicon-globe
+      iframeUrl: /api/world/app
+      section: top
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — the packaged surface router, mounted /api/world on activation. (In
+# core server.ts this was createWorldRoutes mounted WITHOUT auth middleware —
+# ADR-085 D2: auth: public is EXACTLY what the kernel mounted.) requiresAuth
+# false: machine feeders post with WORLD_INGEST_TOKEN (fail-closed — an unset
+# token rejects every write); reads + the surface shell are open by design
+# (shared world feed, no per-user data); the whole surface 503s unless
+# ENABLE_WORLD_INTELLIGENCE is configured.
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - module: routes/world-routes.js
+    factory: createWorldRoutes
+    mountPath: /api/world
+    auth: public   # what core server.ts ACTUALLY mounted (ADR-085 D2)
+    requiresAuth: false
+    requiresContext: false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WORKFLOW — tickets of type 'world' route to the analyst (queue == app name).
+# ─────────────────────────────────────────────────────────────────────────────
+ticketType: world
+workflow:
+  name: World Intelligence Pipeline
+  pipeline: world
+  workerBot: world-analyst
+  phases:
+    - intake     # scope the subject to a world entity id
+    - gather     # ingest/freshen news if needed
+    - analyze    # bias-aware sentiment + entity graph + trend
+    - deliver    # signal-first, bias-contextualized answer
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RIBBON VISIBILITY — focus mode for /cockpit?app=world. Keep the chat panel so you
+# can ask the analyst directly.
+# ─────────────────────────────────────────────────────────────────────────────
+ribbon:
+  hideFrameworkItems:
+    - addressbook
+    - echo
+    - logs
+    - operations
+  defaultView: world-dashboard

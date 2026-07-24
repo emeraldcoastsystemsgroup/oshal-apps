@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Little Monsters - My Day</title>
+<!--
+  CHANGE LOG
+  ---------------------------------------------------------------------------
+  DATE           | AUTHOR                    | DESCRIPTION
+  ---------------------------------------------------------------------------
+  2026-04-20     | roger.murphy@emeraldcoastsystemsgroup.com    | ADHD-friendly daily view — uses shared education.css
+  2026-04-22     | roger.murphy@agenticfederal.us   | Follow parent cockpit theme via theme-sync.js so the iframe recolors when the operator cycles themes instead of being pinned to midnight
+  2026-06-12     | roger.murphy@agenticfederal.us   | Google Calendar card: connection status + one-tap "Sync my assignments to Google" (push) via the new /calendar/google/* routes; honest not-connected state with CLI login hint
+  ---------------------------------------------------------------------------
+-->
+<script>
+// Sync iframe theme to parent cockpit's data-theme. Storage events don't fire
+// in the writing window, so a MutationObserver on the parent <html> is the
+// reliable path for live same-tab updates when the operator cycles themes.
+(function(){
+  function applyTheme(n){
+    if(!n)return;
+    document.documentElement.setAttribute('data-theme',n);
+    var href='/cockpit/css/themes/'+n+'.css';
+    var link=document.querySelector('link[data-lm-theme-link="1"]');
+    if(link){if(link.getAttribute('href')!==href)link.setAttribute('href',href);return;}
+    link=document.createElement('link');link.rel='stylesheet';link.href=href;
+    link.setAttribute('data-lm-theme-link','1');document.head.appendChild(link);
+  }
+  function initial(){
+    try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(_e){}
+    try{var s=window.localStorage.getItem('cockpit-theme');if(s)return s;}catch(_e){}
+    return 'midnight';
+  }
+  applyTheme(initial());
+  try{if(window.parent&&window.parent!==window){
+    var ph=window.parent.document.documentElement;
+    new MutationObserver(function(ms){for(var i=0;i<ms.length;i++){if(ms[i].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)applyTheme(t);}}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});
+  }}catch(_e){}
+})();
+</script>
+<link rel="stylesheet" href="/api/education/education.css">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
+
+  body { padding: var(--space-lg); }
+
+  /* ── Greeting ── */
+  .greeting { text-align: center; margin-bottom: var(--space-lg); }
+  .greeting h1 { font-size: var(--font-size-2xl); font-weight: 800; }
+  .greeting .wave { display: inline-block; animation: wave 1.5s ease-in-out infinite; transform-origin: 70% 70%; }
+  @keyframes wave { 0%,100%{transform:rotate(0)} 25%{transform:rotate(20deg)} 75%{transform:rotate(15deg)} }
+  .greeting .date { color: var(--text-muted); font-size: var(--font-size-md); margin-top: var(--space-xs); font-weight: 600; }
+  .streak-badge {
+    display: inline-block; background: rgba(249,115,22,0.12); color: var(--lm-streak-color);
+    padding: var(--space-xs) var(--space-md); border-radius: var(--radius-pill);
+    font-size: var(--font-size-sm); font-weight: 700; margin-top: var(--space-sm);
+  }
+
+  /* ── Due Cards ── */
+  .due-section { margin-bottom: var(--space-lg); }
+  .due-card {
+    display: flex; align-items: center; gap: var(--space-md);
+    margin-bottom: var(--space-sm); cursor: pointer;
+  }
+  .due-card.urgent { border-left: 4px solid var(--lm-urgent); }
+  .due-card.soon { border-left: 4px solid var(--lm-soon); }
+  .due-card.chill { border-left: 4px solid var(--lm-chill); }
+  .due-icon {
+    width: 44px; height: 44px; border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    font-size: var(--font-size-lg); flex-shrink: 0;
+  }
+  .due-title { font-size: var(--font-size-md); font-weight: 700; }
+  .due-class { font-size: var(--font-size-sm); color: var(--text-muted); margin-top: 2px; }
+  .due-right { margin-left: auto; display: flex; align-items: center; gap: var(--space-sm); }
+
+  /* ── Quick Actions ── */
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm); margin-bottom: var(--space-lg); }
+  .action-card { text-align: center; padding: var(--space-lg) var(--space-md); font-weight: 700; font-size: var(--font-size-md); }
+  .action-card .icon { font-size: 28px; margin-bottom: var(--space-sm); display: block; }
+  .action-card:nth-child(1) { border-color: var(--accent-primary); color: var(--accent-primary); }
+  .action-card:nth-child(2) { border-color: var(--status-active); color: var(--status-active); }
+  .action-card:nth-child(3) { border-color: var(--status-success); color: var(--status-success); }
+  .action-card:nth-child(4) { border-color: #ec4899; color: #ec4899; }
+
+  /* ── Pomodoro Timer ── */
+  .timer-section { text-align: center; margin-bottom: var(--space-lg); }
+  .timer-ring {
+    width: 140px; height: 140px; border-radius: 50%;
+    border: 6px solid rgba(139,92,246,0.15); margin: 0 auto var(--space-md);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .timer-ring.active { border-color: var(--status-success); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(52,211,153,0.3)} 50%{box-shadow:0 0 0 12px rgba(52,211,153,0)} }
+  .timer-time { font-size: 36px; font-weight: 800; }
+  .timer-label { font-size: var(--font-size-sm); color: var(--text-muted); font-weight: 600; }
+  .timer-btns { display: flex; gap: var(--space-sm); justify-content: center; margin-top: var(--space-sm); }
+
+  /* ── Celebrate Overlay ── */
+  .celebrate {
+    position: fixed; inset: 0; z-index: 9999; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(26,16,53,0.92);
+  }
+  .celebrate.show { display: flex; }
+  .celebrate-inner { text-align: center; animation: bounceIn 0.5s ease; }
+  @keyframes bounceIn { 0%{transform:scale(0.3);opacity:0} 60%{transform:scale(1.1)} 100%{transform:scale(1);opacity:1} }
+  .celebrate .big { font-size: 72px; }
+  .celebrate h2 { font-size: var(--font-size-xl); font-weight: 800; color: var(--accent-primary); margin-top: var(--space-md); }
+  .celebrate p { color: var(--text-muted); margin-top: var(--space-sm); }
+
+  /* ── Mobile ── */
+  @media (max-width: 640px) {
+    body { padding: var(--space-sm, 8px); }
+
+    /* Quick actions: collapse 2-col grid to 1 col */
+    .actions { grid-template-columns: 1fr; }
+
+    /* Due cards: allow right-side content to wrap below title */
+    .due-card { flex-wrap: wrap; }
+    .due-right { margin-left: 0; width: 100%; justify-content: flex-start; margin-top: 4px; }
+
+    /* GCal sync row: stack message below button */
+    #gcalActions { display: flex; flex-direction: column; gap: 6px; }
+    #gcalSyncMsg { margin-left: 0; }
+
+    /* Ensure form inputs don't trigger iOS zoom */
+    #reflectionText { font-size: 16px; }
+
+    /* Timer ring: already centered/fixed-size, just ensure it doesn't overflow */
+    .timer-ring { width: 120px; height: 120px; }
+    .timer-time { font-size: 28px; }
+
+    /* Timer buttons: comfortable tap targets */
+    .timer-btns .lm-btn { padding: 10px 20px; }
+  }
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+
+<div class="greeting lm-animate-in">
+  <h1><span class="wave">&#128075;</span> Hi there!</h1>
+  <div class="date" id="todayDate"></div>
+  <div class="streak-badge" id="streakBadge" style="display:none;"></div>
+</div>
+
+<!-- Study Time Today -->
+<div class="lm-card lm-animate-in" style="text-align:center;padding:14px;margin-bottom:var(--space-lg);">
+  <div style="font-size:var(--font-size-xs);color:var(--text-muted);font-weight:600;text-transform:uppercase;">Study time today</div>
+  <div id="studyTimeDisplay" style="font-size:var(--font-size-xl);font-weight:800;color:var(--accent-primary);margin-top:4px;">0 min</div>
+</div>
+
+<!-- My Classes — big, bold, color-coded primary tiles -->
+<div class="lm-section-label lm-animate-in">MY CLASSES</div>
+<div id="classTiles" class="class-tiles lm-animate-in"><div class="lm-empty">Loading classes…</div></div>
+
+<!-- Master Calendar — every class + every assignment, color-coded by class & task type -->
+<div class="lm-section-label lm-animate-in">MY CALENDAR</div>
+<div class="cal-wrap lm-animate-in" id="calWrap">
+  <div class="cal-head">
+    <button class="cal-nav" onclick="calMove(-1)" aria-label="Previous month">&#8249;</button>
+    <div class="cal-title" id="calTitle">—</div>
+    <button class="cal-nav" onclick="calMove(1)" aria-label="Next month">&#8250;</button>
+  </div>
+  <div class="cal-filters" id="calFilters"></div>
+  <div class="cal-dow"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
+  <div class="cal-grid" id="calGrid"></div>
+  <div class="cal-legend" id="calLegend"></div>
+  <div class="cal-day" id="calDay"></div>
+</div>
+<style>
+  .class-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:var(--space-lg);}
+  .class-tile{cursor:pointer;border-radius:16px;padding:16px;color:#fff;font-weight:800;font-size:16px;min-height:78px;
+    display:flex;flex-direction:column;justify-content:space-between;border:none;text-align:left;box-shadow:0 6px 18px -10px rgba(0,0,0,.5);transition:.15s;}
+  .class-tile:hover{transform:translateY(-3px);filter:brightness(1.06);}
+  .class-tile .subj{font-size:11px;font-weight:700;opacity:.9;text-transform:uppercase;letter-spacing:.06em;}
+  .cal-wrap{background:var(--bg-card,rgba(44,26,78,.6));border:1px solid var(--border-color);border-radius:16px;padding:14px;margin-bottom:var(--space-lg);}
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  .cal-title{font-weight:800;font-size:16px;}
+  .cal-nav{background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text-primary);border-radius:8px;
+    width:32px;height:32px;cursor:pointer;font-size:16px;}
+  .cal-filters{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+  .cal-chip{font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;cursor:pointer;border:1px solid var(--border-color);
+    background:var(--bg-secondary);color:var(--text-secondary);display:inline-flex;align-items:center;gap:6px;}
+  .cal-chip.off{opacity:.4;}
+  .cal-chip .dot{width:9px;height:9px;border-radius:50%;}
+  .cal-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font-size:10px;color:var(--text-muted);text-align:center;margin-bottom:4px;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+  .cal-cell{min-height:46px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-secondary);
+    padding:4px;font-size:11px;cursor:pointer;position:relative;}
+  .cal-cell.empty{background:transparent;border-color:transparent;cursor:default;}
+  .cal-cell.today{outline:2px solid var(--accent-primary,#ec4faa);}
+  .cal-cell.sel{background:var(--bg-card-hover,rgba(64,38,110,.7));}
+  .cal-cell .num{color:var(--text-muted);}
+  .cal-dots{display:flex;flex-wrap:wrap;gap:2px;margin-top:3px;}
+  .cal-dots .d{width:7px;height:7px;border-radius:50%;}
+  .cal-legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;font-size:11px;color:var(--text-muted);}
+  .cal-legend span{display:inline-flex;align-items:center;gap:5px;}
+  .cal-day{margin-top:12px;}
+  .cal-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;background:var(--bg-secondary);
+    border-left:4px solid #888;margin-bottom:6px;}
+  .cal-item .ti{font-weight:700;font-size:13px;}
+  .cal-item .me{font-size:11px;color:var(--text-muted);}
+  .cal-item .tt{margin-left:auto;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--bg-card);}
+</style>
+
+<!-- Due Today -->
+<div class="due-section lm-animate-in" id="dueTodaySection">
+  <div class="lm-section-label">DUE TODAY</div>
+  <div id="dueToday"><div class="lm-empty">Nothing due today! You're all caught up. &#127881;</div></div>
+</div>
+
+<!-- Coming Up -->
+<div class="due-section lm-animate-in" id="dueSoonSection">
+  <div class="lm-section-label">COMING UP</div>
+  <div id="dueSoon"></div>
+</div>
+
+<!-- Google Calendar sync -->
+<div class="due-section lm-animate-in" id="gcalSection">
+  <div class="lm-section-label">&#128197; GOOGLE CALENDAR</div>
+  <div class="lm-card" id="gcalCard" style="padding:14px 16px;">
+    <div id="gcalStatus" style="font-size:13px;color:var(--text-muted,#9fb3c8);">Checking connection…</div>
+    <div id="gcalActions" style="margin-top:10px;display:none;">
+      <button class="lm-btn lm-btn-primary" id="gcalSyncBtn" onclick="syncToGoogle()" style="font-size:13px;">&#11014; Sync my assignments to Google</button>
+      <span id="gcalSyncMsg" style="margin-left:10px;font-size:12px;color:var(--text-muted,#9fb3c8);"></span>
+    </div>
+    <div id="gcalConnect" style="margin-top:8px;display:none;font-size:12px;color:var(--text-muted,#9fb3c8);"></div>
+  </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="lm-section-label lm-animate-in">QUICK ACTIONS</div>
+<div class="actions lm-animate-in">
+  <div class="lm-card clickable action-card" onclick="navigate('recorder')"><span class="icon">&#127908;</span>Record Lecture</div>
+  <div class="lm-card clickable action-card" onclick="navigate('flashcards')"><span class="icon">&#9733;</span>Flashcards</div>
+  <div class="lm-card clickable action-card" onclick="startTimer()"><span class="icon">&#9201;</span>Focus Timer</div>
+  <div class="lm-card clickable action-card" onclick="navigate('tutor')"><span class="icon">&#128172;</span>Ask Tutor</div>
+</div>
+
+<!-- Quick Voice Note -->
+<div class="due-section" id="voiceNoteSection" style="margin-bottom:16px;">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <button class="lm-btn lm-btn-ghost" id="voiceNoteBtn" onclick="toggleVoiceNote()" style="border-color:rgba(139,92,246,0.3);">
+      &#127908; Quick voice note
+    </button>
+    <span class="voice-note-status" id="voiceNoteStatus" style="font-size:12px;color:var(--text-muted);"></span>
+  </div>
+  <div class="lm-card lm-hide" id="voiceNoteResult" style="margin-top:8px;padding:12px 16px;">
+    <div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;margin-bottom:4px;">You said:</div>
+    <div id="voiceNoteText" style="font-size:14px;line-height:1.5;"></div>
+    <button class="lm-read-btn" style="margin-top:8px;" onclick="speak(document.getElementById('voiceNoteText').textContent)">&#128264; Replay</button>
+  </div>
+</div>
+
+<!-- Notifications -->
+<div class="due-section lm-hide" id="notifSection">
+  <div class="lm-section-label">NOTIFICATIONS</div>
+  <div id="notifList"></div>
+</div>
+
+<!-- Daily Reflection -->
+<div class="due-section lm-animate-in" style="margin-top:var(--space-lg);">
+  <div class="lm-section-label">WHAT I LEARNED TODAY</div>
+  <div class="lm-card" style="padding:14px 16px;">
+    <textarea id="reflectionText" rows="3" placeholder="What did you learn today? What was interesting? What was hard?"
+      style="width:100%;padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border-color);background:rgba(255,255,255,0.04);color:var(--text-primary);font-size:var(--font-size-sm);font-family:var(--font-family);resize:vertical;outline:none;"
+      oninput="saveReflection()"></textarea>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="lm-btn lm-btn-ghost" onclick="speakReflectionPrompt()" style="font-size:11px;padding:6px 12px;">&#128264; Read prompt</button>
+      <button class="lm-btn lm-btn-ghost" id="reflectionMicBtn" onclick="voiceReflection()" style="font-size:11px;padding:6px 12px;">&#127908; Speak</button>
+      <span id="reflectionSaved" style="margin-left:auto;font-size:11px;color:var(--status-success);opacity:0;transition:opacity 0.3s;">Saved</span>
+    </div>
+  </div>
+</div>
+
+<!-- Pomodoro Timer -->
+<div class="timer-section lm-hide" id="timerSection">
+  <div class="lm-section-label">FOCUS TIME</div>
+  <div class="timer-ring" id="timerRing">
+    <div>
+      <div class="timer-time" id="timerDisplay">25:00</div>
+      <div class="timer-label" id="timerStatus">Ready</div>
+    </div>
+  </div>
+  <div class="timer-btns">
+    <button class="lm-btn lm-btn-primary" id="timerStartBtn" onclick="toggleTimer()">Start</button>
+    <button class="lm-btn lm-btn-ghost" onclick="resetTimer()">Reset</button>
+  </div>
+</div>
+
+<!-- Celebrate -->
+<div class="celebrate" id="celebrateOverlay">
+  <div class="celebrate-inner">
+    <div class="big">&#127881;</div>
+    <h2 id="celebrateTitle">Great job!</h2>
+    <p id="celebrateMsg">You completed a focus session!</p>
+  </div>
+</div>
+
+<div id="mascot-container"></div>
+<script src="/api/education/mascot.js?v=3"></script>
+<script src="/api/education/lm-voice.js"></script>
+<script>
+var today = new Date();
+document.getElementById('todayDate').textContent =
+  today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
+if (typeof LMMascot !== 'undefined') {
+  new LMMascot(document.getElementById('mascot-container'), { initialMood: 'happy' });
+}
+
+function navigate(view) {
+  if (window.parent !== window) window.parent.postMessage({ type: 'lm-navigate', view: view }, '*');
+}
+
+function speak(text) {
+  if (window.lmSpeak) { window.lmSpeak(text); return; } // neural voice + fallback
+  if ('speechSynthesis' in window) {
+    speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.rate = 0.9;
+    speechSynthesis.speak(u);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MASTER CALENDAR — every class + every assignment, color-coded by class & task type.
+// Same idea as the ticket calendar: one real agenda, filterable.
+// ─────────────────────────────────────────────────────────────────────────────
+var CLASS_COLORS = ['#ec4faa','#5b8def','#46d39a','#f6a93b','#a855f7','#37c6d0','#ff6b8b','#9acd32'];
+var classColor = {};            // class name -> color
+function colorFor(name){ name = name || 'General';
+  if(!classColor[name]){ classColor[name] = CLASS_COLORS[Object.keys(classColor).length % CLASS_COLORS.length]; }
+  return classColor[name]; }
+var TYPE_META = {
+  homework:{i:'📝',l:'Homework'}, quiz:{i:'❓',l:'Quiz'}, test:{i:'🧪',l:'Test'}, exam:{i:'🧪',l:'Exam'},
+  project:{i:'📦',l:'Project'}, reading:{i:'📖',l:'Reading'}, essay:{i:'✍️',l:'Essay'}, lecture:{i:'🎤',l:'Lecture'},
+  event:{i:'📅',l:'Event'}, lab:{i:'🔬',l:'Lab'}
+};
+function typeMeta(t){ return TYPE_META[(t||'').toLowerCase()] || {i:'•',l:(t||'Task')}; }
+var calState = { events:[], hiddenClasses:{}, sel:null };
+var calCursor = new Date(today.getFullYear(), today.getMonth(), 1);
+
+async function loadClassesAndCalendar(){
+  // Classes → big tiles + seed colors
+  var classes = [];
+  try { var r = await fetch('/api/education/classes'); if(r.ok){ classes = (await r.json()).classes || []; } } catch(e){}
+  var tiles = document.getElementById('classTiles');
+  if(!classes.length){ tiles.innerHTML = '<div class="lm-empty">No classes yet — join or create one to see it here.</div>'; }
+  else {
+    tiles.innerHTML = '';
+    classes.forEach(function(c){
+      var col = colorFor(c.name);
+      var b = document.createElement('button'); b.className='class-tile'; b.style.background=col;
+      b.innerHTML = '<span class="subj">'+escapeHtml(c.subject||'')+'</span><span>'+escapeHtml(c.name||'Class')+'</span>';
+      b.onclick = function(){ if(window.parent!==window){ window.parent.postMessage({type:'lm-open-class', classId:c.class_id}, '*'); } };
+      tiles.appendChild(b);
+    });
+  }
+  // Merge assignments + calendar events
+  var events = [];
+  try {
+    var ar = await fetch('/api/education/assignments?status=active');
+    if(ar.ok){ (((await ar.json()).assignments)||[]).forEach(function(a){ if(a.due_date) events.push({
+      date:String(a.due_date).substring(0,10), title:a.title, cls:a.class_name||'General', type:a.assignment_type||'homework', time:'' }); }); }
+  } catch(e){}
+  try {
+    var cr = await fetch('/api/education/calendar');
+    if(cr.ok){ (((await cr.json()).events)||[]).forEach(function(ev){ if(ev.event_date) events.push({
+      date:String(ev.event_date).substring(0,10), title:ev.title, cls:ev.class_name||'General', type:ev.event_type||'event', time:ev.event_time||'' }); }); }
+  } catch(e){}
+  events.forEach(function(e){ colorFor(e.cls); }); // seed colors for any class only seen in events
+  calState.events = events;
+  renderFilters();
+  calRender();
+}
+
+function renderFilters(){
+  var box = document.getElementById('calFilters'); box.innerHTML='';
+  Object.keys(classColor).forEach(function(name){
+    var chip = document.createElement('button');
+    chip.className = 'cal-chip' + (calState.hiddenClasses[name]?' off':'');
+    chip.innerHTML = '<span class="dot" style="background:'+classColor[name]+'"></span>'+escapeHtml(name);
+    chip.onclick = function(){ calState.hiddenClasses[name] = !calState.hiddenClasses[name];
+      chip.classList.toggle('off'); calRender(); };
+    box.appendChild(chip);
+  });
+}
+
+function visibleEvents(){ return calState.events.filter(function(e){ return !calState.hiddenClasses[e.cls]; }); }
+
+function calRender(){
+  var y = calCursor.getFullYear(), m = calCursor.getMonth();
+  document.getElementById('calTitle').textContent = calCursor.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  var first = new Date(y,m,1).getDay(), days = new Date(y,m+1,0).getDate();
+  var byDay = {}; visibleEvents().forEach(function(e){ if(e.date.indexOf(y+'-'+String(m+1).padStart(2,'0'))===0){ (byDay[e.date]=byDay[e.date]||[]).push(e); } });
+  var grid = document.getElementById('calGrid'); grid.innerHTML='';
+  var todayStr = today.toISOString().split('T')[0];
+  for(var i=0;i<first;i++){ var x=document.createElement('div'); x.className='cal-cell empty'; grid.appendChild(x); }
+  for(var d=1; d<=days; d++){
+    var ds = y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    var cell=document.createElement('div'); cell.className='cal-cell'+(ds===todayStr?' today':'')+(ds===calState.sel?' sel':'');
+    var dots = (byDay[ds]||[]).slice(0,6).map(function(e){ return '<span class="d" style="background:'+colorFor(e.cls)+'"></span>'; }).join('');
+    cell.innerHTML = '<div class="num">'+d+'</div><div class="cal-dots">'+dots+'</div>';
+    (function(ds){ cell.onclick=function(){ calState.sel=ds; calRender(); showDay(ds); }; })(ds);
+    grid.appendChild(cell);
+  }
+  // legend
+  var types={}; visibleEvents().forEach(function(e){ types[(e.type||'').toLowerCase()]=true; });
+  document.getElementById('calLegend').innerHTML = Object.keys(types).map(function(t){ var mt=typeMeta(t); return '<span>'+mt.i+' '+escapeHtml(mt.l)+'</span>'; }).join('');
+  if(calState.sel) showDay(calState.sel); else document.getElementById('calDay').innerHTML='';
+}
+
+function showDay(ds){
+  var items = visibleEvents().filter(function(e){ return e.date===ds; });
+  var box = document.getElementById('calDay');
+  var label = new Date(ds+'T00:00:00').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+  if(!items.length){ box.innerHTML='<div class="lm-empty" style="padding:10px;">Nothing on '+label+'.</div>'; return; }
+  box.innerHTML = '<div class="lm-section-label">'+label.toUpperCase()+'</div>' + items.map(function(e){ var mt=typeMeta(e.type);
+    return '<div class="cal-item" style="border-left-color:'+colorFor(e.cls)+'">'
+      +'<div><div class="ti">'+escapeHtml(e.title||'Untitled')+'</div>'
+      +'<div class="me">'+escapeHtml(e.cls)+(e.time?' • '+escapeHtml(e.time):'')+'</div></div>'
+      +'<span class="tt">'+mt.i+' '+escapeHtml(mt.l)+'</span></div>'; }).join('');
+}
+function calMove(delta){ calCursor.setMonth(calCursor.getMonth()+delta); calState.sel=null; calRender(); }
+function escapeHtml(s){ var d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
+
+async function loadDueItems() {
+  var items = [];
+  try {
+    var resp = await fetch('/api/education/assignments?status=active');
+    if (resp.ok) {
+      var data = await resp.json();
+      items = (data.assignments || []).filter(function(a) { return a.due_date; });
+      items.sort(function(a, b) { return (a.due_date || '').localeCompare(b.due_date || ''); });
+    }
+  } catch (e) { /* silent */ }
+
+  var todayStr = today.toISOString().split('T')[0];
+  var tomorrowStr = new Date(today.getTime() + 86400000).toISOString().split('T')[0];
+  var todayItems = [], soonItems = [];
+
+  items.forEach(function(a) {
+    var d = (a.due_date || '').substring(0, 10);
+    var item = { title: a.title, className: a.class_name || '', dueDate: a.due_date, type: a.assignment_type || 'homework' };
+    item.urgency = getUrgency(d);
+    if (d <= todayStr) todayItems.push(item);
+    else soonItems.push(item);
+  });
+
+  renderDueCards('dueToday', todayItems, 'urgent');
+  renderDueCards('dueSoon', soonItems.slice(0, 6), 'soon');
+  if (todayItems.length === 0) {
+    document.getElementById('dueToday').innerHTML = '<div class="lm-empty">Nothing due today! You\'re all caught up. &#127881;</div>';
+  }
+  if (soonItems.length === 0) {
+    document.getElementById('dueSoon').innerHTML = '<div class="lm-empty">Nothing coming up this week. &#127775;</div>';
+  }
+
+  // Daily briefing — speak the summary aloud
+  speakBriefing(todayItems, soonItems);
+}
+
+function speakBriefing(todayItems, soonItems) {
+  var parts = ['Good ' + getTimeOfDay() + '!'];
+  if (todayItems.length === 0) {
+    parts.push('Nothing due today. You are all caught up!');
+  } else if (todayItems.length === 1) {
+    parts.push('You have 1 thing due today: ' + todayItems[0].title + '.');
+  } else {
+    parts.push('You have ' + todayItems.length + ' things due today.');
+  }
+  if (soonItems.length > 0) {
+    var tomorrow = soonItems.filter(function(i) { return i.urgency === 'Due Tomorrow'; });
+    if (tomorrow.length > 0) {
+      parts.push(tomorrow.length + ' due tomorrow.');
+    }
+  }
+  // Small delay so page renders first
+  setTimeout(function() { speak(parts.join(' ')); }, 500);
+}
+
+function getTimeOfDay() {
+  var h = new Date().getHours();
+  if (h < 12) return 'morning';
+  if (h < 17) return 'afternoon';
+  return 'evening';
+}
+
+function getUrgency(dateStr) {
+  var d = new Date(dateStr);
+  var now = new Date();
+  var diffMs = d.getTime() - now.getTime();
+  var diffHours = Math.round(diffMs / 3600000);
+  var diff = Math.round((d - new Date(today.getFullYear(), today.getMonth(), today.getDate())) / 86400000);
+  if (diff <= 0 && diffHours <= 0) return 'Overdue!';
+  if (diff <= 0) return 'Due Today (' + diffHours + 'h left)';
+  if (diff === 1) return 'Due Tomorrow (' + (diffHours) + 'h)';
+  if (diff <= 7) return 'Due in ' + diff + ' days';
+  return 'Due ' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function renderDueCards(containerId, items, defaultUrgency) {
+  var container = document.getElementById(containerId);
+  if (!items || items.length === 0) return;
+
+  var icons = { homework: '&#128221;', test: '&#128203;', quiz: '&#10004;', reading: '&#128214;' };
+  var bgs = { homework: 'rgba(139,92,246,0.12)', test: 'rgba(239,68,68,0.12)', quiz: 'rgba(251,191,36,0.12)', reading: 'rgba(6,182,212,0.12)' };
+
+  container.innerHTML = items.map(function(item) {
+    var icon = icons[item.type] || icons.homework;
+    var bg = bgs[item.type] || bgs.homework;
+    var urgency = item.urgency || '';
+    var badgeClass = urgency.includes('Today') ? 'lm-badge-urgent' : urgency.includes('Tomorrow') ? 'lm-badge-soon' : 'lm-badge-chill';
+    var cardClass = urgency.includes('Today') ? 'urgent' : urgency.includes('Tomorrow') ? 'soon' : 'chill';
+
+    return '<div class="lm-card due-card ' + cardClass + '">' +
+      '<div class="due-icon" style="background:' + bg + '">' + icon + '</div>' +
+      '<div><div class="due-title">' + esc(item.title) + '</div>' +
+      '<div class="due-class">' + esc(item.className) + '</div></div>' +
+      '<div class="due-right"><span class="lm-badge ' + badgeClass + '">' + urgency + '</span>' +
+      '<button class="lm-read-btn" onclick="event.stopPropagation();speak(\'' + escA(item.title + '. ' + urgency) + '\')">&#128264;</button></div></div>';
+  }).join('');
+}
+
+// ── Pomodoro ──
+var timerSeconds = 25 * 60, timerRunning = false, timerInterval = null;
+
+function startTimer() {
+  document.getElementById('timerSection').classList.remove('lm-hide');
+  document.getElementById('timerSection').scrollIntoView({ behavior: 'smooth' });
+}
+
+function toggleTimer() {
+  if (timerRunning) { pauseTimer(); return; }
+  timerRunning = true;
+  document.getElementById('timerRing').classList.add('active');
+  document.getElementById('timerStartBtn').textContent = 'Pause';
+  document.getElementById('timerStatus').textContent = 'Focus!';
+  timerInterval = setInterval(tickTimer, 1000);
+}
+
+function pauseTimer() {
+  timerRunning = false; clearInterval(timerInterval);
+  document.getElementById('timerRing').classList.remove('active');
+  document.getElementById('timerStartBtn').textContent = 'Resume';
+  document.getElementById('timerStatus').textContent = 'Paused';
+}
+
+function resetTimer() {
+  pauseTimer(); timerSeconds = 25 * 60; updateTimerDisplay();
+  document.getElementById('timerStartBtn').textContent = 'Start';
+  document.getElementById('timerStatus').textContent = 'Ready';
+}
+
+function tickTimer() {
+  timerSeconds--;
+  updateTimerDisplay();
+  if (timerSeconds <= 0) {
+    clearInterval(timerInterval); timerRunning = false;
+    document.getElementById('timerRing').classList.remove('active');
+    document.getElementById('timerStatus').textContent = 'Done!';
+    timerSeconds = 25 * 60;
+    var breaks = [
+      'Stand up and stretch your arms above your head for 10 seconds!',
+      'Walk to the kitchen, get some water, and come back.',
+      'Do 5 jumping jacks! Seriously, it helps your brain reset.',
+      'Close your eyes and take 3 deep breaths. In through your nose, out through your mouth.',
+      'Look out the window for 30 seconds. Give your eyes a rest from the screen.',
+      'Roll your shoulders back 5 times. Release the tension!',
+      'Dance to one song. Just one. You earned it!',
+    ];
+    var breakMsg = breaks[Math.floor(Math.random() * breaks.length)];
+    celebrate('Focus session complete!', breakMsg);
+    if (typeof lmConfetti === 'function') lmConfetti();
+    speak('Great job! You finished a focus session. ' + breakMsg);
+  }
+}
+
+function updateTimerDisplay() {
+  var m = Math.floor(timerSeconds / 60), s = timerSeconds % 60;
+  document.getElementById('timerDisplay').textContent = String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+}
+
+function celebrate(title, msg) {
+  document.getElementById('celebrateTitle').textContent = title;
+  document.getElementById('celebrateMsg').textContent = msg;
+  document.getElementById('celebrateOverlay').classList.add('show');
+  setTimeout(function() { document.getElementById('celebrateOverlay').classList.remove('show'); }, 3000);
+}
+
+function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function escA(s) { return (s || '').replace(/'/g, "\\'").replace(/\n/g, ' ').substring(0, 200); }
+
+// ── Voice Note ──
+var vnRecognition = null;
+var vnListening = false;
+
+function toggleVoiceNote() {
+  if (vnListening) { stopVoiceNote(); return; }
+
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { alert('Voice not supported — try Chrome.'); return; }
+
+  vnRecognition = new SR();
+  vnRecognition.continuous = false;
+  vnRecognition.interimResults = true;
+  vnRecognition.lang = 'en-US';
+
+  vnRecognition.onstart = function() {
+    vnListening = true;
+    document.getElementById('voiceNoteBtn').innerHTML = '&#128308; Listening...';
+    document.getElementById('voiceNoteStatus').textContent = 'Speak now...';
+    document.getElementById('voiceNoteResult').classList.remove('lm-hide');
+    document.getElementById('voiceNoteText').textContent = '...';
+  };
+
+  vnRecognition.onresult = function(e) {
+    var t = '';
+    for (var i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
+    document.getElementById('voiceNoteText').textContent = t;
+  };
+
+  vnRecognition.onend = function() {
+    stopVoiceNote();
+    var text = document.getElementById('voiceNoteText').textContent;
+    if (text && text !== '...') {
+      document.getElementById('voiceNoteStatus').textContent = 'Saved!';
+    }
+  };
+
+  vnRecognition.onerror = function(e) {
+    stopVoiceNote();
+    if (e.error !== 'no-speech') document.getElementById('voiceNoteStatus').textContent = 'Could not hear — try again.';
+  };
+
+  vnRecognition.start();
+}
+
+function stopVoiceNote() {
+  vnListening = false;
+  document.getElementById('voiceNoteBtn').innerHTML = '&#127908; Quick voice note';
+  if (vnRecognition) { try { vnRecognition.stop(); } catch(e) {} }
+}
+
+async function loadNotifications() {
+  var studentId = localStorage.getItem('lm-student-id');
+  if (!studentId) return;
+  try {
+    var resp = await fetch('/api/education/notifications?studentId=' + studentId);
+    if (!resp.ok) return;
+    var data = await resp.json();
+    if (!data.notifications || data.notifications.length === 0) return;
+
+    document.getElementById('notifSection').classList.remove('lm-hide');
+    document.getElementById('notifList').innerHTML = data.notifications.slice(0, 5).map(function(n) {
+      return '<div class="lm-card due-card soon" style="margin-bottom:8px">' +
+        '<div class="due-icon" style="background:rgba(251,191,36,0.12);font-size:18px">&#128276;</div>' +
+        '<div><div class="due-title">' + esc(n.title) + '</div>' +
+        '<div class="due-class">' + esc(n.body.substring(0, 80)) + '</div></div>' +
+        '<button class="lm-read-btn" onclick="event.stopPropagation();speak(\'' + escA(n.title + '. ' + n.body) + '\')">&#128264;</button></div>';
+    }).join('');
+
+    // Show streak badge
+    var streak = document.getElementById('streakBadge');
+    streak.textContent = data.unreadCount + ' notification' + (data.unreadCount !== 1 ? 's' : '');
+    streak.style.display = 'inline-block';
+  } catch (e) { /* silent */ }
+}
+
+async function loadStudentStreak() {
+  var studentId = localStorage.getItem('lm-student-id');
+  if (!studentId) return;
+  try {
+    var resp = await fetch('/api/education/student/' + studentId + '/dashboard');
+    if (!resp.ok) return;
+    var data = await resp.json();
+    if (data.student && data.student.streak_days > 0) {
+      var badge = document.getElementById('streakBadge');
+      badge.textContent = data.student.streak_days + ' day streak &#128293;';
+      badge.style.display = 'inline-block';
+    }
+  } catch (e) { /* silent */ }
+}
+
+// ── Daily Reflection ──
+function saveReflection() {
+  var key = 'lm-reflection-' + today.toISOString().split('T')[0];
+  var text = document.getElementById('reflectionText').value;
+  localStorage.setItem(key, text);
+  var saved = document.getElementById('reflectionSaved');
+  saved.style.opacity = '1';
+  setTimeout(function() { saved.style.opacity = '0'; }, 1500);
+}
+
+function loadReflection() {
+  var key = 'lm-reflection-' + today.toISOString().split('T')[0];
+  var saved = localStorage.getItem(key);
+  if (saved) document.getElementById('reflectionText').value = saved;
+}
+
+function speakReflectionPrompt() {
+  speak('What did you learn today? Tell me something interesting from class, or something you found hard.');
+}
+
+function voiceReflection() {
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { alert('Voice not supported — try Chrome.'); return; }
+  var r = new SR();
+  r.continuous = false; r.interimResults = true; r.lang = 'en-US';
+  r.onstart = function() { document.getElementById('reflectionMicBtn').innerHTML = '&#128308; Listening...'; };
+  r.onresult = function(e) {
+    var t = '';
+    for (var i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
+    var el = document.getElementById('reflectionText');
+    el.value = (el.value ? el.value + ' ' : '') + t;
+  };
+  r.onend = function() {
+    document.getElementById('reflectionMicBtn').innerHTML = '&#127908; Speak';
+    saveReflection();
+  };
+  r.onerror = function() { document.getElementById('reflectionMicBtn').innerHTML = '&#127908; Speak'; };
+  r.start();
+}
+
+// ── Study Time Tracker ──
+(function() {
+  var key = 'lm-study-time-' + today.toISOString().split('T')[0];
+  var stored = parseInt(localStorage.getItem(key) || '0');
+  var startedAt = Date.now();
+
+  function updateDisplay() {
+    var elapsed = Math.floor((Date.now() - startedAt) / 60000);
+    var total = stored + elapsed;
+    var hours = Math.floor(total / 60);
+    var mins = total % 60;
+    var display = hours > 0 ? hours + 'h ' + mins + 'min' : total + ' min';
+    document.getElementById('studyTimeDisplay').textContent = display;
+  }
+
+  // Update every minute
+  setInterval(function() {
+    var elapsed = Math.floor((Date.now() - startedAt) / 60000);
+    localStorage.setItem(key, String(stored + elapsed));
+    updateDisplay();
+  }, 60000);
+
+  updateDisplay();
+})();
+
+loadDueItems();
+loadClassesAndCalendar();
+loadNotifications();
+loadStudentStreak();
+loadReflection();
+loadGoogleCalendar();
+
+/** Show the Google Calendar connection state + sync affordance. */
+async function loadGoogleCalendar() {
+  var statusEl = document.getElementById('gcalStatus');
+  var actions = document.getElementById('gcalActions');
+  var connect = document.getElementById('gcalConnect');
+  try {
+    var resp = await fetch('/api/education/calendar/google/status');
+    var data = await resp.json();
+    if (data.connected) {
+      statusEl.innerHTML = '&#9989; Connected' + (data.accountEmail ? ' as <strong>' + escH(data.accountEmail) + '</strong>' : '');
+      actions.style.display = '';
+      connect.style.display = 'none';
+    } else {
+      statusEl.innerHTML = '&#128274; Not connected';
+      actions.style.display = 'none';
+      connect.style.display = '';
+      connect.textContent = data.howToConnect || 'Connect a Google account to sync your assignments.';
+    }
+  } catch (e) {
+    statusEl.textContent = 'Calendar status unavailable.';
+  }
+}
+
+/** Push the student's due assignments to their Google Calendar. */
+async function syncToGoogle() {
+  var btn = document.getElementById('gcalSyncBtn');
+  var msg = document.getElementById('gcalSyncMsg');
+  btn.disabled = true;
+  msg.textContent = 'Syncing…';
+  try {
+    var resp = await fetch('/api/education/calendar/google/push', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
+    });
+    var data = await resp.json();
+    if (!resp.ok) { msg.textContent = data.error || 'Sync failed.'; }
+    else if (data.pushed > 0) { msg.innerHTML = '&#9989; Added ' + data.pushed + ' event' + (data.pushed === 1 ? '' : 's') + ' to Google Calendar.'; }
+    else { msg.textContent = data.note || 'Already up to date.'; }
+  } catch (e) {
+    msg.textContent = 'Error: ' + e.message;
+  }
+  btn.disabled = false;
+}
+
+/** Minimal HTML escape (distinct from escA, which escapes JS-string contexts). */
+function escH(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,97 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — kalshi ("Kalshi Prediction Markets", ADR-094)
+#
+# Predictive edge over CFTC-regulated event contracts. The engine treats every open
+# contract like a poker hand: hand strength = calibrated true probability learned from
+# Kalshi's OWN settled-market tape (price→outcome buckets per category/horizon, beta-shrunk
+# toward price so no history ⇒ no edge); pot odds = the ask plus Kalshi's quadratic taker
+# fee; sizing = quarter-Kelly discounted per risk flag (wide spread / thin book / thin
+# evidence / long-dated), capped at 5% bankroll.
+#
+# Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
+# ONLY the surface carves). What STAYS framework-resident per ADR-093:
+#   - the prediction-markets ENGINE (src/features/prediction-markets: public client,
+#     fee math, calibration, bet evaluator, RSA-PSS auth, portfolio, strategy
+#     scorecard) — imported via @/ aliases; connector-account-lookup real-imports
+#     probeKalshiAccount, so the slice is NOT orphaned (D8 verified);
+#   - the kalshi connector card + OSHAL_CRED_KALSHI broker key (two-value paste:
+#     API Key ID + RSA private-key PEM, stored keyId:PEM — BYO, never a platform key);
+#   - scripts/oshal-kalshi-{scan,calibration,grade,forward,arb}.ts (the calibration
+#     study + forward-test/grading CLIs) + config-seed/kalshi-calibration.json;
+#   - migrations 074/075 (kernel-owned history; this package ships migrations/
+#     COPIES so fresh installs create kalshi_orders + the forward-test ledger);
+#   - the tool-kalshi-home default tile in config-seed/profiles/oshal-framework.json.
+# This package is the app: the /api/kalshi routes (surface + scan/scorecard/
+# calibration/status + Phase-2 portfolio and CONFIRM-GATED orders — demo exchange
+# unless KALSHI_LIVE_ENABLED, every order/refusal audited to kalshi_orders) + the
+# ranked-hand surface HTML. ADR-094 Phase 2 remains blocked on the operator's
+# Kalshi account; the fail-closed posture ships byte-identical to the kernel original.
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: kalshi
+suite: ai-finance   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Kalshi Prediction Markets
+description: >-
+  Find mispriced event contracts on Kalshi. Every open market is evaluated like a poker hand —
+  calibrated true probability (from settled-market history) versus price plus fees — and the
+  playable hands are ranked with Kelly-sized stakes and explicit risk flags. Portfolio view and
+  order placement ride the per-user connector, confirm-gated and demo-exchange-first
+  (KALSHI_LIVE_ENABLED gates live money; every order and refusal is audited).
+version: 1.0.0
+status: active
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: kalshi
+  ref: main
+
+# Runtime connector allow-list — the per-user Kalshi API key (keyId:PEM) the
+# broker resolves for portfolio reads + order placement (BYO, never platform).
+dependencies:
+  apps: []
+  tools: []
+  connectors: [kalshi]
+
+theme: midnight
+
+# ROUTES — the packaged surface router, mounted /api/kalshi on activation. (In
+# core server.ts this was createKalshiRoutes behind serviceSecretOr(requiresAuth),
+# same as /api/trading. Handlers also self-gate via callerSub.)
+routes:
+  - module: routes/kalshi-routes.js
+    factory: createKalshiRoutes
+    mountPath: /api/kalshi
+    auth: service-or-oidc   # what core server.ts mounted (ADR-085 D2)
+    requiresAuth: true
+    requiresContext: true
+
+# DATABASE MIGRATIONS — applied idempotently on load. Package COPIES of the
+# kernel's 074 (order audit trail) + 075 (forward-test prediction ledger +
+# forecast log); the route's lazy ensureKalshiSchema also self-heals kalshi_orders.
+migrations:
+  - migrations/074-kalshi-orders.sql
+  - migrations/075-kalshi-forward-test.sql
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon icon opens the edge-scan page served by
+# createKalshiRoutes at /api/kalshi/ (ranked hands, calibration freshness, filters).
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: kalshi-home
+      label: Kalshi Edge
+      icon: codicon codicon-graph-scatter
+      iframeUrl: /api/kalshi/
+      section: top
+
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - calendar
+    - addressbook
+    - echo
+    - logs
+    - operations
+  defaultView: kalshi-home

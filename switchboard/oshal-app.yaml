@@ -1,0 +1,139 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — switchboard (the merged comms + social command center)
+#
+# Operator decision (2026-07-23): Social + Intelligent Communication + Feeds
+# collapse into ONE app — one ribbon, one design language, one board. Switchboard
+# is that app. The identity is the telephone switchboard: every line, from every
+# platform, routed onto one board by one operator.
+#
+# This package is being built pane-by-pane. SHIPPED here: the **Today** pane — a
+# single, prioritized, time-ordered stream of everything that needs the signed-in
+# user, pulled from the stores the kernel already fills and normalized onto one
+# board. Threads (person-centric unified timeline) and Stage (broadcast composer)
+# are the next slices; the retire/carve of the three predecessor packages (social,
+# email-summarizer, feeds) happens once those land and Today is signed off.
+#
+# What STAYS framework-resident (reused, not rebuilt — ADR-093):
+#   - the communications-bot REAL node (comms container + registry block b0…0001 +
+#     the core persona) — the app's chat/right-rail agent; the persona here is a
+#     package COPY for the registrar (the container keeps using /app/ai-lab);
+#   - the inbox-ingest **Signals engine** (oshal_inbox_messages, category='social')
+#     that this board reads from — Switchboard's Today feed is a VIEW over it;
+#   - the per-user connector broker + the google/outlook/twilio/linkedin/twitter/
+#     meta-business/facebook connectors the board's reads ride on.
+# Framework: OSHAL (see docs/build-your-own-swarm-app.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: switchboard
+suite: ai-productivity   # ADR-097: primary catalog shelf (who it serves — the operator's day)
+displayName: Switchboard
+description: >-
+  Every line, one board. Switchboard pulls your mail, DMs, texts, calls, and social
+  mentions into a single prioritized stream — the Today board — so you triage your
+  whole day in one place instead of app-hopping. Reads run on your own connector
+  tokens; ranking and drafting run on the communications bot with cost captured
+  per user. Nothing is sent or posted without your say-so.
+version: 0.1.0
+status: active
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: switchboard
+  ref: main
+
+# Runtime connector allow-list — the mailbox/calendar the board reads, the phone leg,
+# and the social platforms whose inbox-fed notifications feed the stream. All via the
+# per-user broker; the board never holds raw creds.
+dependencies:
+  apps: []
+  tools: []
+  connectors: [google, outlook, twilio, linkedin, twitter, meta-business, facebook, slack]
+
+# Per-app skin (approved palette) — graphite reads as the calm, neutral "board".
+# Every colour in the surface is derived from the framework theme tokens, so this
+# is just the default; the operator's chosen theme always wins.
+theme: graphite
+
+# Switchboard's chat agent IS the communications-bot — the real, secure node (own
+# container, NO master key) that owns the inbox-fed signals. The node (container +
+# static registry block) is framework-resident (ADR-093); the persona here is a
+# package COPY for the registrar. ADR-083: social's + email-summarizer's manifests
+# ALSO declare communications-bot, and manifest bot upserts clobber base_capabilities
+# whole-array — keep this list the SAME UNION as theirs or load order decides identity.
+bots:
+  - agentId: b0000000-0000-0000-0000-000000000001
+    name: communications-bot
+    persona: personas/email-summarizer.yaml
+    role: comms/email-calendar-social
+    capabilities:
+      - email-summarization
+      - gmail-triage
+      - outlook-mail
+      - calendar-digest
+      - meeting-agenda
+      - reply-drafting
+      - inbox-triage
+      - social-signals-feed
+      - social-publishing
+      - sms-texting
+      - voice-calls
+
+# Cockpit surface. This slice ships ONE view — the Today board. Threads + Stage are
+# added as their routes land (this list grows; it never fakes a view that isn't built).
+ui:
+  static:
+    - toolName: switchboard-today
+      label: Today
+      icon: codicon codicon-inbox
+      iframeUrl: /api/switchboard/today
+      section: top
+    # Portal sections (ADR-113): unified Inbox, content Calendar, and the Compose desk.
+    - toolName: switchboard-inbox
+      label: Inbox
+      icon: codicon codicon-mail
+      iframeUrl: /api/switchboard/inbox
+      section: top
+    - toolName: switchboard-calendar
+      label: Calendar
+      icon: codicon codicon-calendar
+      iframeUrl: /api/switchboard/calendar
+      section: top
+    - toolName: switchboard-compose
+      label: Compose
+      icon: codicon codicon-edit
+      iframeUrl: /api/switchboard/compose
+      section: top
+    # The professional multi-workspace model (ADR-113): organize connected accounts
+    # into named brand/identity desks. Sits in the bottom section like a settings view.
+    - toolName: switchboard-workspaces
+      label: Workspaces
+      icon: codicon codicon-organization
+      iframeUrl: /api/switchboard/organize
+      section: bottom
+
+routes:
+  - module: routes/switchboard-routes.js
+    factory: createSwitchboardRoutes
+    mountPath: /api/switchboard
+    auth: oidc   # requiresAuth — the board exposes the caller's own mail/signals (ADR-085 D2)
+    requiresAuth: true
+    requiresContext: true
+
+# No migrations: the Today board reads the shared oshal_inbox_messages store (filled by
+# the framework inbox-ingest cron) plus the caller's live Gmail/Calendar — no app-owned
+# Postgres tables in this slice.
+
+# When /cockpit?app=switchboard is requested, show this app's board and hide the generic
+# framework tabs (settings stays reachable). defaultView is the Today board.
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  defaultView: switchboard-today

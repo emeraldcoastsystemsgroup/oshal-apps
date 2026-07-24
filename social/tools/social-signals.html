@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Social Signals — OSHAL</title>
+<!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
+     Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
+     matters — without it the surface would have no colors at all. -->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<style>
+  /* Own short alias names, DERIVED from framework theme tokens (was literal hex, so it only looked
+     right in a dark theme). Semantic accents keep the old hex as a fallback. */
+  :root { --bg:var(--bg-primary); --panel:var(--bg-card); --panel2:var(--bg-tertiary); --line:var(--border-color); --text:var(--text-primary); --muted:var(--text-muted); --accent:var(--accent-primary,#7c6cff); --accent2:var(--status-success,#00d3a7); }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family: system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  .page { max-width:720px; margin:0 auto; padding:28px 26px 60px; }
+  h1 { font-size:22px; margin:0 0 4px; } .sub { color:var(--muted); font-size:13px; margin-bottom:16px; }
+  .bar { display:flex; gap:10px; align-items:center; margin-bottom:16px; }
+  .btn { border:none; border-radius:8px; padding:9px 15px; font-size:13px; font-weight:600; cursor:pointer; }
+  .btn.primary { background:var(--accent); color:#fff; } .btn.ghost { background:var(--panel2); border:1px solid var(--line); color:var(--text); }
+  .btn:disabled { opacity:.5; cursor:default; }
+  .organized { background:var(--panel); border:1px solid var(--accent); border-radius:12px; padding:16px 18px; margin-bottom:18px; white-space:pre-wrap; font-size:13.5px; line-height:1.55; display:none; }
+  .organized.show { display:block; } .organized h3 { margin:0 0 8px; font-size:13px; color:var(--accent); }
+  .sig { display:flex; gap:12px; padding:12px 14px; background:var(--panel); border:1px solid var(--line); border-radius:11px; margin-bottom:9px; }
+  .sig .src { font-size:11px; color:var(--muted); } .sig .subj { font-weight:600; font-size:13.5px; margin:2px 0; }
+  .sig .snip { color:var(--muted); font-size:12.5px; line-height:1.45; }
+  .sig .when { color:var(--muted); font-size:11px; white-space:nowrap; }
+  .empty { background:var(--panel); border:1px dashed var(--line); border-radius:12px; padding:24px; text-align:center; color:var(--muted); }
+  .empty a { color:var(--accent); } .spin { color:var(--muted); font-size:13px; }
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--muted,rgba(255,255,255,.28))}
+  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
+</style>
+</head>
+<body>
+  <div class="page">
+    <h1>📡 Social Signals</h1>
+    <div class="sub">Your social-media notifications, pulled from your inbox (the free feed). Captured on a 15-min cron — nothing missed.</div>
+    <div class="bar">
+      <button class="btn primary" id="organizeBtn">✨ Organize with AI</button>
+      <button class="btn ghost" id="refreshBtn">↻ Refresh</button>
+    </div>
+    <div class="organized" id="organized"></div>
+    <div id="feed"><span class="spin">Loading…</span></div>
+  </div>
+<script>
+const $ = (id) => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function srcName(from){ const m=String(from||'').match(/<([^>]+)>/); const a=m?m[1]:from; return String(a).replace(/.*@/,'').replace(/\.(com|net|org)$/,''); }
+function when(iso){ try { return new Date(iso).toLocaleDateString(undefined,{month:'short',day:'numeric'}); } catch(e){ return ''; } }
+
+async function load(){
+  $('feed').innerHTML = '<span class="spin">Loading…</span>';
+  const r = await fetch('/api/social/signals'); const j = await r.json().catch(()=>({}));
+  if (!r.ok){ $('feed').innerHTML = '<div class="empty">Couldn’t load signals: '+esc((j&&j.error)||('HTTP '+r.status))+'</div>'; return; }
+  const sigs = j.signals || [];
+  if (!sigs.length){ $('feed').innerHTML = '<div class="empty">'+esc(j.note||'No social notifications captured yet.')+'</div>'; return; }
+  $('feed').innerHTML = sigs.map(s =>
+    `<div class="sig"><div style="flex:1">
+       <div class="src">${esc(srcName(s.from))}</div>
+       <div class="subj">${esc(s.subject)||'(no subject)'}</div>
+       <div class="snip">${esc(s.snippet)}</div>
+     </div><div class="when">${esc(when(s.receivedAt))}</div></div>`
+  ).join('');
+}
+
+$('organizeBtn').addEventListener('click', async ()=>{
+  $('organizeBtn').disabled = true; const o=$('organized'); o.className='organized show'; o.innerHTML='<h3>Organizing…</h3>The comms bot is reading your signals (~20s).';
+  try {
+    const r = await fetch('/api/social/signals/organize', { method:'POST' });
+    const j = await r.json().catch(()=>({}));
+    if (r.ok && j.organized){ o.innerHTML = '<h3>📋 Your social briefing ('+(j.count||0)+' signals)</h3>'+esc(j.organized); }
+    else { o.innerHTML = '<h3>Couldn’t organize</h3>'+esc((j&&j.error)||('HTTP '+r.status)); }
+  } catch(e){ o.innerHTML='<h3>Error</h3>'+esc(e.message); }
+  $('organizeBtn').disabled = false;
+});
+$('refreshBtn').addEventListener('click', load);
+load();
+</script>
+</body>
+</html>

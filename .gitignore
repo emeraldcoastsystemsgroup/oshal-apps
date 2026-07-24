@@ -1,0 +1,86 @@
+# =============================================================================
+# oshal-applications — app-package store.
+#
+# This repo ships PRODUCT CODE only. User data (career_db.json, resumes, crm.db,
+# generated application packets) is per-user runtime state and lives outside git,
+# in the per-user encrypted store / persistent volume. Nothing here should ever
+# capture a real person's profile, documents, or credentials.
+# =============================================================================
+
+# Compiled Python bytecode — build artifacts, regenerated on every run.
+__pycache__/
+*.pyc
+*.pyo
+
+# Node / build output
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Secrets and environment. Never commit a real .env; ship .env.example instead.
+.env
+.env.*
+!.env.example
+!**/.env.example
+**/.env
+**/.env.*
+secrets.json
+**/secrets.json
+*service-account*.json
+google-credentials*.json
+
+# Local databases and generated user state. career_db.json is a REAL PERSON'S
+# profile (built from their uploaded resume) and crm.db holds their pipeline —
+# both are runtime data, never product code.
+*.db
+*.sqlite
+*.sqlite3
+career_db.json
+**/career_db.json
+_career-db/
+**/_career-db/
+applications/
+**/applications/
+
+# Generated application packets (resumes/cover letters carry PII)
+*.pdf.tmp
+.apply-work/
+
+# Cert/key material
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Screenshots and local capture debris — these have repeatedly turned out to contain
+# real faces, real account balances, and filled-in application forms.
+#
+# Deliberately matched by NAME, not by extension. A blanket `*.png` would also have
+# swallowed 21 legitimate product assets (dnd/data/maps + dnd/data/tokens), which is
+# the same over-broad-rule mistake that would have broken TTS in the core scrub:
+# ignore what the debris IS called, not every file of that type.
+Screenshot*.png
+Screenshot*.jpg
+Screen?Shot*.png
+screenshot-*.png
+screen-capture-*.png
+*-capture-*.png
+_walkthrough-shots/
+_screenshots/
+
+# Logs, temp, OS/editor junk
+*.log
+logs/
+tmp/
+temp/
+.DS_Store
+**/.DS_Store
+.vscode/
+.idea/
+*.swp
+*~
+
+# Local handover / session notes
+**/HANDOVER.md

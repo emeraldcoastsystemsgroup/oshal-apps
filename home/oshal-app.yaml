@@ -1,0 +1,114 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — home (Smart Home bundle, ADR-038)
+# Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 2). The home-bot REAL bot
+# node (home-bot container, BOTH registry blocks d0…0001, core persona,
+# scripts/oshal-smartthings.js + the smart-home toolkit), the shared home-data
+# volume (bot :rw / api :ro), the smartthings + google-home platform connectors,
+# the manifest-worker connector scope, and the kernel scheduler's home-control
+# branch (home-schedule-dispatch — fires with NO user session, so it lives with
+# the scheduler) ALL stay framework-resident per ADR-093 interim. This package
+# is the app: the dashboard surface + /api/home routes + workflow + a package
+# persona COPY for the registrar.
+#
+# Coverage: SmartThings is the broad hub (lights/locks/plugs/switches/sensors/
+# scenes). Nest covers thermostat/camera/doorbell. Alexa is staged (no public
+# third-party device API) — see docs/partner-app-registration.md.
+# Framework: OSHAL (see docs/build-your-own-swarm-app.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: home
+suite: ai-home   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Smart Home
+description: >-
+  Control your smart home by chat. Connect a hub at /utilities (SmartThings or
+  Google Nest); the home-bot reads your real devices + scenes via your connector
+  token and turns "turn off the living room lights" into the right commands.
+  Destructive actions (locks, garage, thermostat) are confirmed first.
+version: 1.0.0
+status: active
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: home
+  ref: main
+
+# Runtime connector allow-list — the hubs this app drives via the per-user broker.
+dependencies:
+  apps: []
+  tools: []
+  connectors: [smartthings, google-home]
+
+# Per-app skin (approved palette). The core manifest said `green`, which is not in
+# COCKPIT_THEMES — forest is the green the theme engine actually ships (finance
+# carve precedent: evergreen→forest).
+theme: forest
+
+# Scheduled / swarm-initiated home control (e.g. a cron "morning routine") routes a
+# ticketType=home-control ticket via the generic single-bot worker dispatch straight
+# to the home-bot over the mesh. Interactive control uses chat (no ticket). Same bot.
+ticketType: home-control
+
+workflow:
+  name: Home Control
+  workerBot: home-bot
+  # One-and-done: the persona is its own quality gate (device resolution + the
+  # confirm-before-destructive rule are baked in). No reviewer.
+
+# The home-bot NODE (home-bot container + static registry blocks) is framework-
+# resident (ADR-093); the persona here is a package COPY for the registrar — the
+# container keeps using /app/ai-lab.
+bots:
+  - agentId: d0000000-0000-0000-0000-000000000001
+    name: home-bot
+    persona: personas/home-bot.yaml
+    role: smart-home/device-control
+    capabilities:
+      - smart-home-control
+      - smartthings
+      - device-control
+      - scene-execution
+      - home-automation
+
+# (toolsDir dropped at the carve: the field is inert — D12 — and the smart-home
+#  toolkit stays framework-resident with the home-bot's chain.)
+
+# Cockpit surface. The home-bot is a CHAT bot — talk to it to control devices.
+# Accounts opens the connectors hub to connect/disconnect a hub.
+ui:
+  static:
+    # Primary surface: the device dashboard (devices + status + scenes + a chat bar).
+    # A VIEW over the home-bot's store (GET /api/home/devices, cheap; no LLM). Reasoning
+    # and scene creation go through the chat bar → the bot (fast loop, cost-tracked).
+    - toolName: home-dashboard
+      label: Home
+      icon: codicon codicon-home
+      iframeUrl: /api/home/ui
+      section: top
+    - toolName: home-accounts
+      label: Hubs
+      icon: codicon codicon-plug
+      iframeUrl: /utilities   # core framework surface — stays kernel-mounted
+      section: bottom
+
+routes:
+  - module: routes/home-routes.js
+    factory: createHomeRoutes
+    mountPath: /api/home
+    auth: oidc   # what core server.ts mounted (requiresAuth — ADR-085 D2)
+    requiresAuth: true
+    requiresContext: true
+
+# No migrations: the per-user store is FILES on the shared home-data volume
+# (bot :rw, api :ro) — no Postgres tables; the store stays in place across the carve.
+
+ribbon:
+  # Keep the dashboard (default), Tickets (home-control, user-scoped), Calendar
+  # (scheduled timers — when devices turn on/off), and Chat. Hide the rest.
+  hideFrameworkItems:
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  defaultView: home-dashboard

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Little Monsters - Monster Arcade</title>
+<script>
+// Follow the parent cockpit theme (data-theme) so the arcade recolors with the swarm.
+(function(){
+  function applyTheme(n){ if(!n)return; document.documentElement.setAttribute('data-theme',n);
+    var href='/cockpit/css/themes/'+n+'.css', l=document.querySelector('link[data-lm-theme-link]');
+    if(l){ if(l.getAttribute('href')!==href) l.setAttribute('href',href); return; }
+    l=document.createElement('link'); l.rel='stylesheet'; l.href=href; l.setAttribute('data-lm-theme-link','1'); document.head.appendChild(l); }
+  function initial(){ try{ if(window.parent&&window.parent!==window){ var p=window.parent.document.documentElement.getAttribute('data-theme'); if(p)return p; } }catch(e){}
+    try{ var s=localStorage.getItem('cockpit-theme'); if(s)return s; }catch(e){} return 'little-monsters'; }
+  applyTheme(initial());
+  try{ if(window.parent&&window.parent!==window){ var ph=window.parent.document.documentElement;
+    new MutationObserver(function(m){ for(var i=0;i<m.length;i++) if(m[i].attributeName==='data-theme'){ var t=ph.getAttribute('data-theme'); if(t)applyTheme(t);} }).observe(ph,{attributes:true,attributeFilter:['data-theme']}); } }catch(e){}
+})();
+</script>
+<link rel="stylesheet" href="/api/education/education.css">
+<style>
+  body { margin:0; min-height:100vh; color:var(--text-primary,#fdeaf6); font-family:system-ui,-apple-system,'Inter',sans-serif; }
+  .wrap { padding: 22px clamp(14px,4vw,40px) 60px; }
+  .head { display:flex; align-items:center; gap:14px; margin-bottom:6px; }
+  .head img { width:54px; height:54px; border-radius:14px; border:3px solid var(--accent-primary,#ec4faa); background:var(--bg-card); }
+  .head h1 { margin:0; font-size:clamp(22px,3vw,30px); }
+  .sub { color:var(--text-muted,#b98cc8); margin:0 0 22px; font-size:14px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:16px; }
+  .game { cursor:pointer; text-align:left; border:1px solid var(--border-color); border-radius:18px;
+    background:var(--bg-card); padding:18px; transition:.15s; color:inherit; }
+  .game:hover { transform:translateY(-3px); border-color:var(--accent-primary,#ec4faa);
+    box-shadow:0 12px 30px -14px var(--accent-glow,rgba(236,79,170,.4)); }
+  .game .emoji { font-size:34px; }
+  .game .name { font-weight:800; font-size:17px; margin-top:8px; }
+  .game .tag { display:inline-block; margin-top:8px; font-size:11px; font-weight:700; padding:3px 10px;
+    border-radius:999px; background:var(--lm-mascot-bg,rgba(236,79,170,.14)); color:var(--accent-primary,#ec4faa); }
+  /* Gate modal */
+  .ov { position:fixed; inset:0; background:rgba(10,6,24,.72); display:none; align-items:center; justify-content:center; z-index:30; padding:16px; }
+  .ov.open { display:flex; }
+  .gate { width:min(440px,100%); background:var(--bg-secondary); border:1px solid var(--border-color);
+    border-radius:18px; padding:22px; }
+  .gate h2 { margin:0 0 4px; font-size:18px; }
+  .gate p { color:var(--text-muted); font-size:13px; margin:0 0 14px; }
+  .gate .q { font-weight:700; margin-bottom:12px; }
+  .gate .opt { display:block; width:100%; text-align:left; margin-bottom:8px; padding:11px 14px; border-radius:12px;
+    border:1px solid var(--border-color); background:var(--bg-card); color:inherit; cursor:pointer; font-size:14px; }
+  .gate .opt:hover { border-color:var(--accent-primary,#ec4faa); }
+  .gate .opt.wrong { border-color:var(--status-error,#ff6b8b); }
+  .gate .msg { font-size:13px; min-height:18px; margin-top:4px; }
+  .gate .cancel { background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:13px; margin-top:6px; }
+  /* Play stage */
+  .stage { position:fixed; inset:0; background:var(--bg-primary,#1a1030); display:none; flex-direction:column; z-index:40; }
+  .stage.open { display:flex; }
+  .stage .bar { display:flex; align-items:center; gap:10px; padding:8px 12px; background:var(--bg-secondary); border-bottom:1px solid var(--border-color); }
+  .stage .bar b { font-size:14px; }
+  .stage .bar button { margin-left:auto; background:var(--bg-card); border:1px solid var(--border-color); color:inherit;
+    border-radius:10px; padding:8px 14px; font-weight:700; cursor:pointer; }
+  .stage iframe { flex:1; width:100%; border:0; background:#fff; }
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <img src="/api/education/mascot.png" alt="">
+    <div><h1>Monster Arcade</h1></div>
+  </div>
+  <p class="sub">Beat a quick brain warm-up, then play. Win points and your monster grows! &#128293;</p>
+  <div class="grid" id="grid"></div>
+</div>
+
+<!-- Study gate -->
+<div class="ov" id="ov">
+  <div class="gate">
+    <h2>Brain warm-up &#129504;</h2>
+    <p>Answer to unlock <strong id="gateGame">the game</strong>.</p>
+    <div class="q" id="gateQ"></div>
+    <div id="gateOpts"></div>
+    <div class="msg" id="gateMsg"></div>
+    <button class="cancel" id="gateCancel">Maybe later</button>
+  </div>
+</div>
+
+<!-- Play stage -->
+<div class="stage" id="stage">
+  <div class="bar"><b id="stageTitle">Game</b><button id="stageBack">&#8592; Back to arcade</button></div>
+  <iframe id="stageFrame" title="game" allow="autoplay; fullscreen"></iframe>
+</div>
+
+<script>
+// Bundled games (served from /api/education/games/<id>/index.html).
+var GAMES = [
+  { id:'milkshake-maker', name:'Milkshake Maker', emoji:'🥤' },
+  { id:'quiz-arena',      name:'Quiz Arena',      emoji:'⚔️' },
+  { id:'snake',           name:'Snake',           emoji:'🐍' },
+  { id:'2048',            name:'2048',            emoji:'🔢' },
+  { id:'school-dash',     name:'School Dash',     emoji:'🏃' },
+  { id:'flashcards',      name:'Flashcard Blitz', emoji:'🃏' },
+];
+// Warm-up question bank (the study gate). TODO: pull from the student's current
+// class flashcards via /api/education so questions track their real curriculum.
+var WARMUPS = [
+  { q:'What is 7 × 8?', a:'56', opts:['54','56','48','63'] },
+  { q:'Which planet is known as the Red Planet?', a:'Mars', opts:['Venus','Mars','Jupiter','Mercury'] },
+  { q:'What is H2O commonly called?', a:'Water', opts:['Salt','Air','Water','Acid'] },
+  { q:'A noun is a person, place, or …?', a:'Thing', opts:['Action','Thing','Color','Sound'] },
+  { q:'What is 12 + 19?', a:'31', opts:['29','31','32','41'] },
+  { q:'The powerhouse of the cell is the …?', a:'Mitochondria', opts:['Nucleus','Ribosome','Mitochondria','Membrane'] },
+];
+
+// Curriculum-linked warm-up: pull the student's REAL flashcards so the gate quizzes
+// what they're actually studying. Falls back to WARMUPS if they have no cards yet.
+var CURR = []; // [{q, a}]
+(async function loadCurriculum(){
+  try{
+    var sr = await fetch('/api/education/flashcards/sets'); if(!sr.ok) return;
+    var sets = (await sr.json()).sets || [];
+    for(var i=0;i<Math.min(sets.length,4);i++){
+      try{
+        var cr = await fetch('/api/education/flashcards/sets/'+sets[i].set_id+'/cards');
+        if(!cr.ok) continue;
+        (((await cr.json()).cards)||[]).forEach(function(c){ if(c.front&&c.back) CURR.push({q:String(c.front), a:String(c.back)}); });
+      }catch(e){}
+    }
+  }catch(e){}
+})();
+function buildWarmup(){
+  // Use a real flashcard if we have at least 4 (need 3 distractors); else the bank.
+  if(CURR.length>=4){
+    var card=CURR[Math.floor(Math.random()*CURR.length)];
+    var pool=CURR.filter(function(c){return c.a!==card.a;});
+    var opts=[card.a];
+    for(var k=0;k<3 && pool.length;k++){ var j=Math.floor(Math.random()*pool.length); opts.push(pool[j].a); pool.splice(j,1); }
+    return { q:card.q, a:card.a, opts:opts };
+  }
+  return WARMUPS[Math.floor(Math.random()*WARMUPS.length)];
+}
+
+var grid = document.getElementById('grid');
+GAMES.forEach(function(g){
+  var b = document.createElement('button'); b.className='game';
+  b.innerHTML = '<div class="emoji">'+g.emoji+'</div><div class="name">'+g.name+'</div><div class="tag">Study-gated</div>';
+  b.onclick = function(){ openGate(g); };
+  grid.appendChild(b);
+});
+
+// Feed the real scoring module: POST /api/education/xp (awardXP → lm_xp_events + level).
+function awardXp(eventType, meta){
+  try{
+    fetch('/api/education/xp',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({eventType:eventType,metadata:meta||{}})})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d&&d.xpAwarded){ toast('+'+d.xpAwarded+' XP'+(d.level?'  •  Level '+d.level:'')); }
+        if(d&&d.boxesGranted>0){ setTimeout(function(){ toast('🎁 Mystery box earned! Open it in My Monsters'); },1600); }
+      })
+      .catch(function(){});
+  }catch(e){}
+}
+function toast(msg){
+  var t=document.createElement('div'); t.textContent=msg;
+  t.style.cssText='position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:50;'
+    +'background:var(--accent-primary,#ec4faa);color:#fff;font-weight:800;padding:10px 18px;'
+    +'border-radius:999px;box-shadow:0 8px 24px -8px rgba(0,0,0,.5);font-size:14px;';
+  document.body.appendChild(t); setTimeout(function(){ t.style.transition='opacity .4s'; t.style.opacity='0'; },1400);
+  setTimeout(function(){ t.remove(); },1900);
+}
+
+var pending = null;
+function openGate(g){
+  pending = g;
+  document.getElementById('gateGame').textContent = g.name;
+  var w = buildWarmup();
+  document.getElementById('gateQ').textContent = w.q;
+  var box = document.getElementById('gateOpts'); box.innerHTML='';
+  document.getElementById('gateMsg').textContent='';
+  // shuffle options
+  var opts = w.opts.slice(); for(var i=opts.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=opts[i]; opts[i]=opts[j]; opts[j]=t; }
+  opts.forEach(function(o){
+    var ob=document.createElement('button'); ob.className='opt'; ob.textContent=o;
+    ob.onclick=function(){
+      if(o===w.a){ awardXp('game_warmup',{game:g.id}); play(g); }
+      else { ob.classList.add('wrong'); document.getElementById('gateMsg').textContent='Not quite — try again!'; }
+    };
+    box.appendChild(ob);
+  });
+  document.getElementById('ov').classList.add('open');
+}
+document.getElementById('gateCancel').onclick=function(){ document.getElementById('ov').classList.remove('open'); };
+
+var bonusedThisGame=false;
+function play(g){
+  bonusedThisGame=false;
+  document.getElementById('ov').classList.remove('open');
+  document.getElementById('stageTitle').textContent = g.name;
+  document.getElementById('stageFrame').src = '/api/education/games/'+g.id+'/index.html?v=3';
+  document.getElementById('stage').classList.add('open');
+}
+// Games postMessage their score on game-over; reward a one-time skill bonus per play.
+// Only trust the message if it came from OUR game iframe (same-origin) — otherwise any
+// other window could post a fake score to farm XP.
+window.addEventListener('message', function(e){
+  var frame=document.getElementById('stageFrame');
+  if(!frame || e.source!==frame.contentWindow) return;
+  var d=e.data; if(!d) return;
+  // A game's "I'm done" button asks the arcade to return to the grid.
+  if(d.type==='lm-exit'){ exitStage(); return; }
+  if(d.type!=='lm-game') return;
+  if(!bonusedThisGame && (d.score||0) >= 20){ bonusedThisGame=true; awardXp('game_played',{game:d.game,score:d.score}); toast('🔥 Nice game!'); }
+});
+function exitStage(){
+  // Award a play-session XP when the student finishes a game and returns to the arcade.
+  var title = document.getElementById('stageTitle').textContent;
+  awardXp('game_played',{game:title});
+  document.getElementById('stage').classList.remove('open');
+  document.getElementById('stageFrame').src='about:blank';
+}
+document.getElementById('stageBack').onclick=exitStage;
+</script>
+</body>
+</html>

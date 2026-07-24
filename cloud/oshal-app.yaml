@@ -1,0 +1,108 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — cloud (DevOps/Cloud bundle, ADR-038)
+# Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
+# ADR-093). A THIN carve: this package is the app manifest (ticketType `cloud-op` +
+# the Cloud Op workflow + the /utilities accounts tile) + a package COPY of the
+# cloud-ops-bot persona for the registrar. There was NO app-owned route or html in
+# the kernel — the app's only surface tile points at the core /utilities connectors
+# hub, which STAYS framework-resident.
+#
+# What STAYS framework-resident per ADR-093 (this package ships none of it):
+#   - the cloud-ops-bot NODE (own container, registered in BOTH swarm-bot-registry
+#     blocks; CODEX so its sandbox can shell out) — the app's reasoning owner; the
+#     persona here is a package COPY for the registrar, the container keeps /app/ai-lab;
+#   - the GCP tool chain: scripts/oshal-gcp.js + the private scripts/oshal-gcp-diag.js
+#     and the gcp toolkit (any-bot/server/services/tools/gcp/) the bot runs in its
+#     sandbox — kernel-owned, like every provider CLI (ADR-038);
+#   - the `gcp` platform connector + the per-user token broker (OSHAL_CRED_GCP) that
+#     hands the bot the signed-in user's web-OAuth token;
+#   - the /utilities connectors hub this app's tile opens.
+#
+# Connect Google Cloud (GCP) at /utilities (web OAuth, cloud-platform scope), then
+# chat with the cloud-ops-bot to inspect/operate your GCP — the API-based path that
+# works for a REMOTE user (no interactive gcloud login on the host). The bot owns the
+# domain (ADR-036): it runs scripts/oshal-gcp.js with the user's connector token and
+# reasons over the real Cloud REST API responses.
+#
+# Adding another cloud provider = a connector + a scripts/oshal-<cloud>.js CLI + a tool
+# kit, never a new app (ADR-038). gcloud is just a wrapper over these REST APIs.
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: cloud
+suite: ai-engineering   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Cloud
+description: >-
+  Inspect and operate your Google Cloud by chat. Connect GCP at /utilities; the
+  cloud-ops-bot reads your projects/services/instances via your connector token and
+  acts on your behalf (read-only by default). The API-based replacement for gcloud.
+version: 1.0.0
+status: active
+
+# (theme dropped at the carve: core declared `theme: blue`, which is NOT a known
+#  cockpit skin — the cockpit already fell back to the default; same render, clean
+#  validate.)
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: cloud
+  ref: main
+
+# Runtime connector allow-list — the cloud platform the bot drives via the per-user
+# broker (web OAuth at /utilities, cloud-platform scope).
+dependencies:
+  apps: []
+  tools: []
+  connectors: [gcp]
+
+ticketType: cloud-op
+
+workflow:
+  name: Cloud Op
+  workerBot: cloud-ops-bot
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — the cloud-ops-bot (dedicated any-bot node; container + BOTH registry
+# entries stay framework-resident). The persona here is a package COPY for the
+# registrar; the running node keeps using /app/ai-lab (core).
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: d0000000-0000-0000-0000-000000000002
+    name: cloud-ops-bot
+    persona: personas/cloud-ops-bot.yaml
+    role: devops/cloud
+    capabilities:
+      - gcp-inventory
+      - gcp-projects
+      - gcp-compute
+      - gcp-enabled-apis
+      - gcp-cost-optimization
+      - gcp-health-audit
+      - gcp-iam-audit
+
+# (toolsDir dropped at the carve: the field is inert — D12 — and the gcp toolkit
+#  (any-bot/server/services/tools/gcp/ over scripts/oshal-gcp.js) stays
+#  framework-resident with the cloud-ops-bot's chain.)
+
+ui:
+  static:
+    - toolName: cloud-accounts
+      label: Cloud Accounts
+      icon: codicon codicon-cloud
+      iframeUrl: /utilities   # core framework surface — stays kernel-mounted
+      section: bottom
+
+# No routes and no migrations: the app has no surface of its own — the tile opens
+# the kernel /utilities hub, and the bot's store is its own node-side state.
+
+ribbon:
+  # Keep Chat (the interface) + Tickets (scheduled cloud ops); hide the rest.
+  hideFrameworkItems:
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  defaultView: chat

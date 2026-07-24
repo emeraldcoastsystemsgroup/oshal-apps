@@ -1,0 +1,308 @@
+{
+  "_license": "SRD 5.1 creatures are CC-BY-4.0; additional adversaries are original Emerald Coast Systems Group content. See LICENSE-SRD.md.",
+  "monsters": {
+    "goblin": {
+      "id": "goblin",
+      "name": "Goblin",
+      "size": "Small",
+      "type": "humanoid (goblinoid)",
+      "ac": 15,
+      "maxHp": 7,
+      "hpDice": "2d6",
+      "speed": 30,
+      "abilities": {
+        "str": 8,
+        "dex": 14,
+        "con": 10,
+        "int": 10,
+        "wis": 8,
+        "cha": 8
+      },
+      "mods": {
+        "str": -1,
+        "dex": 2,
+        "con": 0,
+        "int": 0,
+        "wis": -1,
+        "cha": -1
+      },
+      "initiative": 2,
+      "cr": "1/4",
+      "xp": 50,
+      "traits": [
+        "Nimble Escape: can Disengage or Hide as a bonus action.",
+        "Darkvision 60 ft."
+      ],
+      "actions": [
+        {
+          "id": "scimitar",
+          "name": "Scimitar",
+          "type": "weapon",
+          "mode": "attack",
+          "delivery": "melee",
+          "reach": 5,
+          "toHit": 4,
+          "damage": {
+            "dice": "1d6",
+            "bonus": 2,
+            "type": "slashing"
+          },
+          "text": "A wicked curved blade."
+        },
+        {
+          "id": "shortbow",
+          "name": "Shortbow",
+          "type": "weapon",
+          "mode": "attack",
+          "delivery": "ranged",
+          "range": 80,
+          "toHit": 4,
+          "damage": {
+            "dice": "1d6",
+            "bonus": 2,
+            "type": "piercing"
+          },
+          "text": "Fires from cover."
+        }
+      ],
+      "tactics": "cowardly opportunist: shoots from cover, ganks the wounded, and runs when the boss falls",
+      "epithet": "They are never alone."
+    },
+    "goblin-boss": {
+      "id": "goblin-boss",
+      "name": "Goblin Boss",
+      "size": "Small",
+      "type": "humanoid (goblinoid)",
+      "ac": 17,
+      "maxHp": 21,
+      "hpDice": "6d6",
+      "speed": 30,
+      "abilities": {
+        "str": 10,
+        "dex": 14,
+        "con": 10,
+        "int": 10,
+        "wis": 8,
+        "cha": 10
+      },
+      "mods": {
+        "str": 0,
+        "dex": 2,
+        "con": 0,
+        "int": 0,
+        "wis": -1,
+        "cha": 0
+      },
+      "initiative": 2,
+      "cr": "1",
+      "xp": 200,
+      "traits": [
+        "Nimble Escape: can Disengage or Hide as a bonus action.",
+        "Multiattack: makes two scimitar attacks.",
+        "Darkvision 60 ft."
+      ],
+      "actions": [
+        {
+          "id": "scimitar",
+          "name": "Scimitar",
+          "type": "weapon",
+          "mode": "attack",
+          "delivery": "melee",
+          "reach": 5,
+          "toHit": 4,
+          "damage": {
+            "dice": "1d6",
+            "bonus": 2,
+            "type": "slashing"
+          },
+          "multiattack": 2,
+          "text": "Two swift cuts (Multiattack)."
+        },
+        {
+          "id": "javelin",
+          "name": "Javelin",
+          "type": "weapon",
+          "mode": "attack",
+          "delivery": "ranged",
+          "range": 30,
+          "toHit": 2,
+          "damage": {
+            "dice": "1d6",
+            "bonus": 0,
+            "type": "piercing"
+          },
+          "text": "Hurled when out of reach."
+        }
+      ],
+      "tactics": "brags before he bleeds; drives the goblins forward, then bolts to warn the warren once bloodied",
+      "epithet": "Snaggletooth. He brags before he bleeds."
+    },
+    "wolf": {
+      "id": "wolf",
+      "name": "Wolf",
+      "size": "Medium",
+      "type": "beast",
+      "ac": 13,
+      "maxHp": 11,
+      "hpDice": "2d8+2",
+      "speed": 40,
+      "abilities": {
+        "str": 12,
+        "dex": 15,
+        "con": 12,
+        "int": 3,
+        "wis": 12,
+        "cha": 6
+      },
+      "mods": {
+        "str": 1,
+        "dex": 2,
+        "con": 1,
+        "int": -4,
+        "wis": 1,
+        "cha": -2
+      },
+      "initiative": 2,
+      "cr": "1/4",
+      "xp": 50,
+      "traits": [
+        "Pack Tactics: advantage on attacks against a creature if an ally is within 5 ft of it.",
+        "Keen Hearing and Smell."
+      ],
+      "actions": [
+        {
+          "id": "bite",
+          "name": "Bite",
+          "type": "weapon",
+          "mode": "attack",
+          "delivery": "melee",
+          "reach": 5,
+          "toHit": 4,
+          "damage": {
+            "dice": "2d4",
+            "bonus": 2,
+            "type": "piercing"
+          },
+          "rider": {
+            "save": {
+              "ability": "STR",
+              "dc": 11
+            },
+            "onFail": "knocked prone"
+          },
+          "text": "Lunges for the legs; a hit may knock the target prone (DC 11 STR)."
+        }
+      ],
+      "tactics": "hunts in a pack, flanks with the goblins, and pulls down the isolated",
+      "epithet": "The pack is patient."
+    },
+    "lantern-cultist": {
+      "id": "lantern-cultist",
+      "name": "Lantern Cultist",
+      "size": "Medium",
+      "type": "humanoid",
+      "ac": 12,
+      "maxHp": 9,
+      "hpDice": "2d8",
+      "speed": 30,
+      "abilities": { "str": 11, "dex": 12, "con": 10, "int": 10, "wis": 11, "cha": 10 },
+      "mods": { "str": 0, "dex": 1, "con": 0, "int": 0, "wis": 0, "cha": 0 },
+      "initiative": 1,
+      "cr": "1/8",
+      "xp": 25,
+      "traits": ["Fanatical Resolve: holds position while a named leader remains standing."],
+      "actions": [
+        { "id": "hooked-knife", "name": "Hooked Knife", "type": "weapon", "mode": "attack", "delivery": "melee", "reach": 5, "toHit": 3, "damage": { "dice": "1d6", "bonus": 1, "type": "slashing" }, "text": "A ritual blade meant to catch cloaks and straps." },
+        { "id": "sling", "name": "Lead Sling", "type": "weapon", "mode": "attack", "delivery": "ranged", "range": 30, "toHit": 3, "damage": { "dice": "1d4", "bonus": 1, "type": "bludgeoning" }, "text": "A stone loosed from behind cover." }
+      ],
+      "tactics": "surrounds isolated heroes and protects the ritual leader",
+      "epithet": "Their lamps burn with no visible oil."
+    },
+    "tidebound": {
+      "id": "tidebound",
+      "name": "Tidebound",
+      "size": "Medium",
+      "type": "aberration",
+      "ac": 13,
+      "maxHp": 15,
+      "hpDice": "3d8+2",
+      "speed": 30,
+      "abilities": { "str": 14, "dex": 12, "con": 13, "int": 7, "wis": 10, "cha": 6 },
+      "mods": { "str": 2, "dex": 1, "con": 1, "int": -2, "wis": 0, "cha": -2 },
+      "initiative": 1,
+      "cr": "1/2",
+      "xp": 100,
+      "traits": ["Amphibious: breathes air and water.", "Salt-Slick Hide: ignores wet difficult terrain."],
+      "actions": [
+        { "id": "brine-claw", "name": "Brine Claw", "type": "weapon", "mode": "attack", "delivery": "melee", "reach": 5, "toHit": 4, "damage": { "dice": "1d8", "bonus": 2, "type": "slashing" }, "text": "A barnacled hand lashes through the spray." }
+      ],
+      "tactics": "emerges from water, divides the party, and drags the wounded toward the tide",
+      "epithet": "The drowned came home changed."
+    },
+    "starved-husk": {
+      "id": "starved-husk",
+      "name": "Starved Husk",
+      "size": "Medium",
+      "type": "undead",
+      "ac": 13,
+      "maxHp": 13,
+      "hpDice": "3d8",
+      "speed": 30,
+      "abilities": { "str": 12, "dex": 14, "con": 10, "int": 6, "wis": 10, "cha": 5 },
+      "mods": { "str": 1, "dex": 2, "con": 0, "int": -2, "wis": 0, "cha": -3 },
+      "initiative": 2,
+      "cr": "1/4",
+      "xp": 50,
+      "traits": ["Unblinking: cannot be surprised while beneath open sky."],
+      "actions": [
+        { "id": "cold-grasp", "name": "Cold Grasp", "type": "weapon", "mode": "attack", "delivery": "melee", "reach": 5, "toHit": 4, "damage": { "dice": "1d6", "bonus": 2, "type": "necrotic" }, "text": "Fingers rimed with impossible starlight close around living warmth." }
+      ],
+      "tactics": "moves beneath sight lines and converges on the brightest spellcaster",
+      "epithet": "They watched the wrong star."
+    },
+    "ash-raider": {
+      "id": "ash-raider",
+      "name": "Ash Raider",
+      "size": "Medium",
+      "type": "humanoid",
+      "ac": 13,
+      "maxHp": 15,
+      "hpDice": "2d8+6",
+      "speed": 30,
+      "abilities": { "str": 15, "dex": 12, "con": 16, "int": 8, "wis": 10, "cha": 9 },
+      "mods": { "str": 2, "dex": 1, "con": 3, "int": -1, "wis": 0, "cha": -1 },
+      "initiative": 1,
+      "cr": "1/2",
+      "xp": 100,
+      "traits": ["Mountain Born: ignores scree difficult terrain."],
+      "actions": [
+        { "id": "bearded-axe", "name": "Bearded Axe", "type": "weapon", "mode": "attack", "delivery": "melee", "reach": 5, "toHit": 4, "damage": { "dice": "1d8", "bonus": 2, "type": "slashing" }, "text": "A heavy hooked axe strikes around shields." },
+        { "id": "black-javelin", "name": "Black Javelin", "type": "weapon", "mode": "attack", "delivery": "ranged", "range": 30, "toHit": 4, "damage": { "dice": "1d6", "bonus": 2, "type": "piercing" }, "text": "A soot-dark spear arcs over the stones." }
+      ],
+      "tactics": "holds narrow ground, pins the front line, and contests the beacon",
+      "epithet": "They mean to put out the last light."
+    },
+    "black-plume": {
+      "id": "black-plume",
+      "name": "Black-Plume Agent",
+      "size": "Medium",
+      "type": "humanoid",
+      "ac": 15,
+      "maxHp": 18,
+      "hpDice": "4d8",
+      "speed": 30,
+      "abilities": { "str": 12, "dex": 16, "con": 11, "int": 13, "wis": 12, "cha": 14 },
+      "mods": { "str": 1, "dex": 3, "con": 0, "int": 1, "wis": 1, "cha": 2 },
+      "initiative": 3,
+      "cr": "1",
+      "xp": 200,
+      "traits": ["Cunning Footwork: seeks cover after a ranged attack."],
+      "actions": [
+        { "id": "dueling-blade", "name": "Dueling Blade", "type": "weapon", "mode": "attack", "delivery": "melee", "reach": 5, "toHit": 5, "damage": { "dice": "1d8", "bonus": 3, "type": "piercing" }, "text": "A courtly fencing form stripped of every courtesy." },
+        { "id": "hand-crossbow", "name": "Hand Crossbow", "type": "weapon", "mode": "attack", "delivery": "ranged", "range": 30, "toHit": 5, "damage": { "dice": "1d6", "bonus": 3, "type": "piercing" }, "text": "A compact bow hidden beneath tournament colors." }
+      ],
+      "tactics": "uses cover, targets witnesses, and retreats toward prepared exits",
+      "epithet": "The court smiles while the knife is drawn."
+    }
+  }
+}

@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Travel</title>
+<style>
+  /* Local tokens — defaults for the standalone view; inside the cockpit the theme-sync script
+     below overrides them from the active light/dark theme (per the surface-theme-bridge rule:
+     FOLLOW the selected swarm theme, never hardcode a palette). */
+  :root {
+    --bg:#0e0e16; --panel:#15151f; --panel2:#1b1b27; --line:#272735;
+    --text:#e6e6f0; --muted:#8b8ba3; --accent:#3b82f6; --accent2:#00d3a7;
+    --scrollbar-thumb:rgba(255,255,255,.14);
+    --good:#00d3a7; --typical:#ffb454; --high:#ff6b6b;
+    --radius:14px;
+    --font:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--text); font-family:var(--font); }
+  body { display:flex; flex-direction:column; }
+  header { padding:16px 20px 10px; border-bottom:1px solid var(--line); }
+  h1 { font-size:18px; margin:0 0 2px; letter-spacing:.2px; }
+  .sub { color:var(--muted); font-size:12px; }
+  .badge { font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid var(--line); color:var(--muted); margin-left:8px; }
+  .badge.live { color:var(--good); border-color:var(--good); }
+  .tabs { display:flex; gap:6px; padding:10px 20px 0; }
+  .tab { padding:8px 14px; border-radius:10px 10px 0 0; cursor:pointer; color:var(--muted); border:1px solid transparent; }
+  .tab.on { color:var(--text); background:var(--panel); border-color:var(--line); border-bottom-color:var(--panel); }
+  main { flex:1; display:grid; grid-template-columns:1.4fr 1fr; gap:0; min-height:0; }
+  .left { padding:16px 20px; overflow:auto; }
+  .right { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  form { display:flex; flex-wrap:wrap; gap:8px; align-items:end; background:var(--panel); padding:12px; border-radius:var(--radius); border:1px solid var(--line); }
+  .field { display:flex; flex-direction:column; gap:3px; }
+  .field label { font-size:11px; color:var(--muted); }
+  input,select { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:9px; padding:8px 10px; font-size:13px; }
+  input.iata { width:70px; text-transform:uppercase; }
+  button { background:var(--accent); color:#fff; border:none; border-radius:9px; padding:9px 16px; font-size:13px; cursor:pointer; font-weight:600; }
+  button.ghost { background:transparent; color:var(--text); border:1px solid var(--line); font-weight:500; }
+  button.ghost:hover { border-color:var(--accent); }
+  .priceband { margin:14px 0 6px; padding:10px 14px; border-radius:12px; border:1px solid var(--line); background:var(--panel); font-size:13px; display:none; }
+  .priceband b { text-transform:uppercase; font-size:11px; letter-spacing:.5px; padding:2px 8px; border-radius:999px; }
+  .priceband.good b { color:var(--good); border:1px solid var(--good); }
+  .priceband.typical b { color:var(--typical); border:1px solid var(--typical); }
+  .priceband.high b { color:var(--high); border:1px solid var(--high); }
+  .priceband.unknown b { color:var(--muted); border:1px solid var(--line); }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin:10px 0; display:flex; justify-content:space-between; gap:12px; align-items:center; }
+  .card .meta { font-size:12px; color:var(--muted); margin-top:3px; }
+  .card .price { font-size:18px; font-weight:700; white-space:nowrap; }
+  .card .acts { display:flex; flex-direction:column; gap:6px; }
+  .demoflag { font-size:11px; color:var(--typical); margin:6px 0; }
+  .empty { color:var(--muted); padding:30px 0; text-align:center; }
+  /* chat */
+  .chatlog { flex:1; overflow:auto; padding:14px 16px; display:flex; flex-direction:column; gap:10px; }
+  .bubble { max-width:85%; padding:9px 12px; border-radius:14px; font-size:13px; line-height:1.4; }
+  .bubble.you { align-self:flex-end; background:var(--accent); color:#fff; border-bottom-right-radius:4px; }
+  .bubble.bot { align-self:flex-start; background:var(--panel2); border:1px solid var(--line); border-bottom-left-radius:4px; }
+  .chatin { display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--line); }
+  .chatin input { flex:1; }
+  .chathead { padding:12px 16px; border-bottom:1px solid var(--line); font-size:13px; font-weight:600; }
+  ::-webkit-scrollbar { width:10px; height:10px; } ::-webkit-scrollbar-thumb { background:var(--scrollbar-thumb); border-radius:8px; }
+  @media (max-width:820px){ main{grid-template-columns:1fr;} .right{border-left:none;border-top:1px solid var(--line);} }
+  @media (max-width:640px){
+    header { padding:12px 14px 8px; }
+    .tabs { padding:8px 14px 0; gap:4px; overflow-x:auto; flex-wrap:nowrap; }
+    .tab { padding:7px 12px; font-size:13px; white-space:nowrap; }
+    .left { padding:12px 14px; }
+    form { padding:10px; gap:8px; }
+    .field { width:100%; }
+    .field input, .field select { width:100%; font-size:16px; }
+    input.iata { width:100%; }
+    input, select { font-size:16px; }
+    button { font-size:14px; padding:10px 14px; width:100%; }
+    .chatin button { width:auto; }
+    .card { flex-direction:column; align-items:flex-start; gap:10px; }
+    .card .acts { flex-direction:row; align-items:center; flex-wrap:wrap; gap:8px; width:100%; }
+    .card .price { font-size:16px; }
+    .card .acts button { width:auto; flex:1; min-width:80px; }
+    .chathead { padding:10px 14px; }
+    .chatlog { padding:10px 12px; }
+    .chatin { padding:10px 12px; }
+    .chatin input { font-size:16px; }
+  }
+</style>
+<!-- Framework theme-sync: copy the cockpit's active theme tokens onto our locals (light/dark
+     aware, reacts to data-theme + cockpit-theme). Same script every in-cockpit surface uses. -->
+<script>(function(){const M={'--bg':'--bg-primary','--panel':'--bg-secondary','--panel2':'--bg-tertiary','--line':'--border-color','--text':'--text-primary','--muted':'--text-secondary','--accent':'--accent-primary','--accent2':'--status-success','--scrollbar-thumb':'--scrollbar-thumb'};function m(){try{const p=(window.parent&&window.parent!==window)?window.parent:null;if(!p)return;const cs=p.getComputedStyle(p.document.documentElement);for(const k in M){const v=cs.getPropertyValue(M[k]).trim();if(v)document.documentElement.style.setProperty(k,v);}}catch(e){}}m();window.addEventListener('storage',e=>{if(e.key==='cockpit-theme')setTimeout(m,30);});try{const p=window.parent;if(p&&p!==window)new MutationObserver(m).observe(p.document.documentElement,{attributes:true,attributeFilter:['data-theme']});}catch(e){}document.addEventListener('DOMContentLoaded',m);})();</script>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<header>
+  <h1>Travel <span id="mode" class="badge">demo</span></h1>
+  <div class="sub">Real flight search, an honest price read from the swarm, and a one-click booking handoff.</div>
+</header>
+<div class="tabs">
+  <div class="tab on" data-kind="flight" onclick="switchTab('flight')">Flights</div>
+  <div class="tab" data-kind="hotel" onclick="switchTab('hotel')">Hotels</div>
+  <div class="tab" data-kind="car" onclick="switchTab('car')">Cars</div>
+</div>
+<main>
+  <div class="left">
+    <form id="searchForm" onsubmit="return doSearch(event)"></form>
+    <div id="priceband" class="priceband"></div>
+    <div id="demoflag" class="demoflag" style="display:none">Showing demo data — connect a Duffel token on the Connections page for live prices.</div>
+    <div id="results"><div class="empty">Search to see options.</div></div>
+  </div>
+  <div class="right">
+    <div class="chathead">Travel concierge</div>
+    <div id="chatlog" class="chatlog">
+      <div class="bubble bot">Hi — tell me where and when you want to go (e.g. "VPS to DCA on 2026-08-01"), or ask me to find a good fare. I'll tell you honestly if the price is good and can watch a route for a drop.</div>
+    </div>
+    <div class="chatin">
+      <input id="chatbox" placeholder="Ask the concierge…" onkeydown="if(event.key==='Enter')sendChat()" />
+      <button onclick="sendChat()">Send</button>
+    </div>
+  </div>
+</main>
+<script>
+const API = '/api/travel';
+let KIND = 'flight';
+let LAST = { search:null, items:[], deepLink:null };
+let convId = null;
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+async function api(path, opts){ const r = await fetch(API+path, opts); if(!r.ok && r.status!==409) throw new Error('HTTP '+r.status); return r.json(); }
+
+function todayPlus(days){ const d=new Date(); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); }
+
+const FORMS = {
+  flight: () => `
+    <div class="field"><label>From</label><input class="iata" id="f_origin" placeholder="JFK" value="JFK"></div>
+    <div class="field"><label>To</label><input class="iata" id="f_dest" placeholder="LHR" value="LHR"></div>
+    <div class="field"><label>Depart</label><input type="date" id="f_depart" value="${todayPlus(30)}"></div>
+    <div class="field"><label>Return (opt)</label><input type="date" id="f_return"></div>
+    <div class="field"><label>Cabin</label><select id="f_cabin"><option>economy</option><option>premium_economy</option><option>business</option><option>first</option></select></div>
+    <div class="field"><label>&nbsp;</label><button type="submit">Search flights</button></div>`,
+  hotel: () => `
+    <div class="field"><label>City</label><input id="h_city" placeholder="Paris" value="Paris"></div>
+    <div class="field"><label>Check-in</label><input type="date" id="h_in" value="${todayPlus(30)}"></div>
+    <div class="field"><label>Check-out</label><input type="date" id="h_out" value="${todayPlus(33)}"></div>
+    <div class="field"><label>&nbsp;</label><button type="submit">Search hotels</button></div>`,
+  car: () => `
+    <div class="field"><label>City</label><input id="c_city" placeholder="Miami" value="Miami"></div>
+    <div class="field"><label>Pickup</label><input type="date" id="c_in" value="${todayPlus(30)}"></div>
+    <div class="field"><label>Dropoff</label><input type="date" id="c_out" value="${todayPlus(33)}"></div>
+    <div class="field"><label>Class</label><select id="c_class"><option>economy</option><option>midsize</option><option>suv</option><option>luxury</option></select></div>
+    <div class="field"><label>&nbsp;</label><button type="submit">Search cars</button></div>`,
+};
+
+function switchTab(kind){
+  KIND = kind;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on', t.dataset.kind===kind));
+  document.getElementById('searchForm').innerHTML = FORMS[kind]();
+  document.getElementById('results').innerHTML = '<div class="empty">Search to see options.</div>';
+  document.getElementById('priceband').style.display='none';
+}
+
+function priceBand(price){
+  const el = document.getElementById('priceband');
+  if(!price || price.verdict==='unknown'){ el.style.display='none'; return; }
+  el.className = 'priceband '+price.verdict;
+  el.style.display='block';
+  el.innerHTML = `<b>${esc(price.verdict)} price</b> &nbsp; ${esc(price.advice)}`;
+}
+
+function flightCard(it){
+  const slice = (it.slices||[])[0]||{};
+  const route = (it.slices||[]).map(s=>`${esc(s.origin)}→${esc(s.destination)} ${s.stops===0?'nonstop':s.stops+' stop'} ${esc(s.duration||'')}`).join(' · ');
+  return `<div class="card"><div>
+      <div><b>${esc(it.airline)}</b> · ${esc(it.cabin||'economy')}</div>
+      <div class="meta">${route}${slice.departAt?(' · dep '+esc(slice.departAt.slice(0,16).replace('T',' '))):''}</div>
+    </div><div class="acts">
+      <div class="price">$${esc(it.price)} <span style="font-size:11px;color:var(--muted)">${esc(it.currency)}</span></div>
+      <button class="ghost" onclick='watchThis("${esc(it.id)}", ${it.price})'>Watch</button>
+      <button onclick="book()">Book →</button>
+    </div></div>`;
+}
+function simpleCard(it){
+  return `<div class="card"><div>
+      <div><b>${esc(it.name||it.brand)}</b> ${esc(it.carClass||it.brand&&it.name?('· '+it.brand):'')}</div>
+      <div class="meta">${it.rating?('★ '+esc(it.rating)):''} ${esc(it.city||'')}</div>
+    </div><div class="acts">
+      <div class="price">$${esc(it.price)} <span style="font-size:11px;color:var(--muted)">${esc(it.currency)}</span></div>
+      <button onclick="book()">Book →</button>
+    </div></div>`;
+}
+
+function render(data){
+  LAST.items = data.items||[]; LAST.deepLink = data.deepLink;
+  document.getElementById('demoflag').style.display = (data.source==='demo') ? 'block' : 'none';
+  document.getElementById('mode').textContent = data.source==='demo' ? 'demo' : 'live';
+  document.getElementById('mode').className = 'badge '+(data.source==='demo'?'':'live');
+  priceBand(data.price);
+  const res = document.getElementById('results');
+  if(!LAST.items.length){ res.innerHTML = '<div class="empty">No options found — try different dates.</div>'; return; }
+  res.innerHTML = LAST.items.map(KIND==='flight'?flightCard:simpleCard).join('');
+}
+
+async function doSearch(e){
+  if(e) e.preventDefault();
+  document.getElementById('results').innerHTML = '<div class="empty">Searching…</div>';
+  try {
+    let data;
+    if(KIND==='flight'){
+      const s = { origin:val('f_origin'), destination:val('f_dest'), departDate:val('f_depart'), returnDate:val('f_return')||undefined, cabin:val('f_cabin') };
+      LAST.search = s;
+      const qs = new URLSearchParams({origin:s.origin,destination:s.destination,departDate:s.departDate,cabin:s.cabin});
+      if(s.returnDate) qs.set('returnDate', s.returnDate);
+      data = await api('/flights?'+qs.toString());
+    } else if(KIND==='hotel'){
+      const qs = new URLSearchParams({city:val('h_city'),checkIn:val('h_in'),checkOut:val('h_out')});
+      data = await api('/hotels?'+qs.toString());
+    } else {
+      const qs = new URLSearchParams({city:val('c_city'),pickupDate:val('c_in'),dropoffDate:val('c_out'),carClass:val('c_class')});
+      data = await api('/cars?'+qs.toString());
+    }
+    render(data);
+  } catch(err){ document.getElementById('results').innerHTML = '<div class="empty">'+esc(err.message)+'</div>'; }
+  return false;
+}
+function val(id){ const el=document.getElementById(id); return el?el.value.trim():''; }
+function book(){ if(LAST.deepLink) window.open(LAST.deepLink,'_blank','noopener'); }
+
+async function watchThis(id, price){
+  if(KIND!=='flight'||!LAST.search) return;
+  await api('/watches', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ kind:'flight', ...LAST.search, lastPrice:price }) });
+  addBubble('bot', "Watching that route — I'll flag it if the fare drops.");
+}
+
+function addBubble(who, text){
+  const log = document.getElementById('chatlog');
+  const b = document.createElement('div'); b.className = 'bubble '+(who==='you'?'you':'bot'); b.textContent = text;
+  log.appendChild(b); log.scrollTop = log.scrollHeight;
+}
+async function sendChat(){
+  const box = document.getElementById('chatbox'); const msg = box.value.trim(); if(!msg) return;
+  box.value=''; addBubble('you', msg);
+  try {
+    const body = { message: msg, conversationId: convId, kind: KIND };
+    if(KIND==='flight' && LAST.search) body.search = LAST.search;
+    const r = await api('/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    convId = r.conversationId; addBubble('bot', r.reply || '…');
+    if((r.cards||[]).length){ LAST.items = r.cards; document.getElementById('results').innerHTML = r.cards.map(KIND==='flight'?flightCard:simpleCard).join(''); if(r.price) priceBand(r.price); }
+  } catch(err){ addBubble('bot', 'Sorry — '+esc(err.message)); }
+}
+
+(async function init(){
+  switchTab('flight');
+  try { const c = await api('/config'); document.getElementById('mode').textContent = c.mode||'demo'; document.getElementById('mode').className='badge '+(c.connected&&c.live?'live':''); } catch(e){}
+})();
+</script>
+</body>
+</html>

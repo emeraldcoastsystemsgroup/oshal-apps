@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Office — OSHAL</title>
+<!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
+     Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
+     matters — without it the surface would have no colors at all. -->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  /* This surface keeps its own short alias names, but DERIVES them from the framework theme rather
+     than hardcoding hex — so all eleven themes work, not just the dark ones. The palette used to be
+     literal (#0e0e16 …), which is why it only ever looked right in midnight. The colored accents
+     keep the old hex as a fallback after the comma so the surface stays legible if a theme omits one.
+     NOTE: these are the COCKPIT's theme tokens (the chrome around the studio) — entirely separate
+     from the DECK themes below, which style the generated .pptx and come from /themes. */
+  :root {
+    --bg: var(--bg-primary);
+    --panel: var(--bg-secondary);
+    --panel2: var(--bg-tertiary);
+    --line: var(--border-color);
+    --text: var(--text-primary);
+    --muted: var(--text-secondary);
+    --accent: var(--accent-primary, #7c6cff);
+    --accent2: var(--status-success, #00d3a7);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family: system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  .top { padding:16px 22px 12px; border-bottom:1px solid var(--line); }
+  .top h1 { font-size:19px; margin:0 0 2px; } .top .sub { color:var(--muted); font-size:12.5px; }
+  .split { display:flex; height:calc(100vh - 64px); }
+  .pane { overflow-y:auto; padding:18px 20px; }
+  .left { flex:1; border-right:1px solid var(--line); }
+  .right { flex:0 0 34%; }
+  .lbl { font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin:0 0 10px; display:flex; align-items:center; gap:8px; }
+  .lbl .ref { margin-left:auto; cursor:pointer; color:var(--accent); font-size:11px; text-transform:none; letter-spacing:0; }
+
+  /* ── Artifact type cards (what are you making?) ────────────────────────── */
+  .kinds { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:18px; }
+  .kind { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:13px 14px; cursor:pointer; transition:border-color .12s, transform .12s; }
+  .kind:hover { border-color:var(--accent); transform:translateY(-1px); }
+  .kind.sel { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; background:var(--panel2); }
+  .kind .ki { font-size:22px; }
+  .kind .kn { font-weight:700; font-size:13.5px; margin-top:4px; }
+  .kind .kd { color:var(--muted); font-size:11px; margin-top:2px; line-height:1.4; }
+  @media (max-width:640px){ .kinds { grid-template-columns:1fr; } }
+
+  /* ── Deck theme picker ─────────────────────────────────────────────────── */
+  .themes { display:grid; grid-template-columns:repeat(auto-fill,minmax(168px,1fr)); gap:10px; margin-bottom:8px; }
+  .th { background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:7px; cursor:pointer; transition:border-color .12s, transform .12s; }
+  .th:hover { border-color:var(--accent); transform:translateY(-1px); }
+  .th.sel { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; background:var(--panel2); }
+  .th svg { display:block; width:100%; height:auto; border-radius:6px; }
+  .th .tn { font-weight:700; font-size:12.5px; margin:7px 2px 1px; display:flex; align-items:center; gap:5px; }
+  .th .tn .dot { width:7px; height:7px; border-radius:50%; flex:0 0 auto; }
+  .th .tm { color:var(--muted); font-size:10.5px; margin:0 2px 3px; line-height:1.35; }
+  .themeNote { color:var(--muted); font-size:11.5px; margin:0 0 18px; }
+
+  /* ── Starter outlines ──────────────────────────────────────────────────── */
+  .tpls { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+  .tpl { background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:7px 11px; cursor:pointer; font-size:12.5px; transition:border-color .12s; }
+  .tpl:hover { border-color:var(--accent); }
+  .tpl.sel { border-color:var(--accent); background:var(--panel2); }
+  .tpl b { font-weight:600; }
+  .tpl .d { color:var(--muted); font-size:11px; margin-left:5px; }
+
+  label { display:block; font-size:12px; color:var(--muted); margin:12px 0 5px; }
+  input, textarea, select { width:100%; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:14px; font-family:inherit; }
+  textarea { min-height:230px; resize:vertical; line-height:1.5; font-size:13.5px; font-family:ui-monospace,Consolas,monospace; }
+  .aibar { display:flex; gap:9px; align-items:flex-end; background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:12px 13px; margin-bottom:14px; }
+  .aibar .grow { flex:1; } .aibar .grow label { margin-top:0; }
+  .btn { border:none; border-radius:9px; padding:11px 18px; font-size:14px; font-weight:600; cursor:pointer; background:var(--accent); color:#fff; }
+  .btn.ghost { background:var(--panel2); border:1px solid var(--line); color:var(--text); }
+  .btn:disabled { opacity:.5; cursor:default; }
+  .bar { display:flex; align-items:center; gap:12px; margin-top:14px; flex-wrap:wrap; }
+  .hint { color:var(--muted); font-size:12px; }
+  .opts { display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+  .opts label { display:flex; align-items:center; gap:6px; margin:0; font-size:12px; cursor:pointer; }
+  .opts input[type=checkbox] { width:auto; }
+  .opts .in { width:190px; }
+
+  /* ── Syntax / layout reference ─────────────────────────────────────────── */
+  details.syn { margin-top:10px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 13px; }
+  details.syn summary { cursor:pointer; font-size:12.5px; font-weight:600; color:var(--accent); }
+  details.syn .grid { display:grid; grid-template-columns:auto 1fr; gap:5px 12px; margin-top:10px; font-size:12px; }
+  details.syn code { font-family:ui-monospace,Consolas,monospace; background:var(--panel2); border:1px solid var(--line); border-radius:5px; padding:1px 6px; white-space:nowrap; color:var(--text); }
+  details.syn .g { color:var(--muted); line-height:1.5; }
+  /* Progressive disclosure for the optional steps (theme, options) so the default view stays
+     focused on: pick type → topic/outline → generate. Collapsed by default; open to customize. */
+  details.fold { margin:0 0 18px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 13px; }
+  details.fold > summary { cursor:pointer; font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); font-weight:600; list-style:none; }
+  details.fold > summary::-webkit-details-marker { display:none; }
+  details.fold[open] > summary { margin-bottom:14px; }
+  .lay { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:7px; margin-top:12px; }
+  .lay .l { border:1px solid var(--line); border-radius:8px; padding:7px 9px; background:var(--bg); }
+  .lay .l .n { font-size:11.5px; font-weight:700; }
+  .lay .l .n code { font-size:10px; margin-left:5px; }
+  .lay .l .b { color:var(--muted); font-size:10.5px; line-height:1.4; margin-top:2px; }
+
+  /* ── Live preview pane (a themed approximation rendered from the outline model) ── */
+  .pvSlide { border:1px solid var(--line); border-radius:10px; margin:0 2px 12px; overflow:hidden; }
+  .pvSlide .body { padding:14px 16px 16px; }
+  .pvSlide .ttl { font-weight:800; font-size:15px; margin:0 0 8px; }
+  .pvSlide .kick { font-size:9px; letter-spacing:1.2px; text-transform:uppercase; font-weight:700; display:inline-block; padding:2px 8px; border-radius:9px; margin-bottom:8px; }
+  .pvSlide ul { margin:0; padding-left:18px; } .pvSlide li { font-size:12px; line-height:1.55; margin:3px 0; }
+  .pvSlide table { border-collapse:collapse; width:100%; font-size:11.5px; margin:6px 0; }
+  .pvSlide th, .pvSlide td { border:1px solid; padding:4px 8px; text-align:left; }
+  .pvSlide .q { font-size:14px; font-style:italic; line-height:1.5; margin:8px 0 4px; }
+  .pvSlide .qa { font-size:10px; letter-spacing:1px; text-transform:uppercase; opacity:.7; }
+  .pvSlide .kpis { display:flex; gap:8px; flex-wrap:wrap; margin:6px 0; }
+  .pvSlide .kpi { border-radius:8px; padding:8px 12px; min-width:84px; }
+  .pvSlide .kpi .v { font-weight:800; font-size:17px; } .pvSlide .kpi .c { font-size:10px; opacity:.75; margin-top:2px; }
+  .pvSlide .barrow { display:flex; align-items:center; gap:8px; font-size:11px; margin:3px 0; }
+  .pvSlide .barrow .bl { flex:0 0 84px; text-align:right; opacity:.8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pvSlide .barrow .bar { height:12px; border-radius:3px; }
+  .pvSlide .cols { display:flex; gap:12px; } .pvSlide .col { flex:1; }
+  .pvSlide .colh { font-weight:700; font-size:11.5px; margin-bottom:4px; }
+  .pvNote { color:var(--muted); font-size:11px; margin:2px 2px 10px; }
+
+  .result { margin-top:14px; padding:12px 14px; border-radius:10px; font-size:13.5px; display:none; }
+  .result.ok { background:rgba(0,211,167,.1); border:1px solid var(--accent2); color:var(--accent2); display:block; }
+  .result.err { background:rgba(255,90,90,.1); border:1px solid #ff5a5a; color:#ff9a9a; display:block; }
+  .result a { color:inherit; font-weight:700; }
+  .deck { background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:12px 14px; margin-bottom:10px; }
+  .deck .dt { font-weight:600; font-size:13.5px; word-break:break-word; }
+  .deck .dm { color:var(--muted); font-size:11.5px; margin:3px 0 8px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .deck .badge { border:1px solid var(--line); border-radius:20px; padding:1px 8px; font-size:10.5px; display:inline-flex; align-items:center; gap:5px; }
+  .deck .badge .dot { width:7px; height:7px; border-radius:50%; }
+  .deck a { color:var(--accent); text-decoration:none; font-size:12.5px; font-weight:600; }
+  .pv { margin:4px 0 10px; border-left:2px solid var(--line); padding-left:10px; max-height:170px; overflow-y:auto; }
+  .pvs { display:flex; gap:8px; align-items:flex-start; margin:0 0 7px; }
+  .pvn { flex:0 0 18px; height:18px; border-radius:5px; background:var(--panel2); color:var(--muted); font-size:10.5px; text-align:center; line-height:18px; margin-top:1px; }
+  .pvt { font-size:12px; font-weight:600; line-height:1.3; }
+  .pvb { margin:2px 0 0; padding-left:15px; } .pvb li { color:var(--muted); font-size:11px; line-height:1.4; }
+  .empty { background:var(--panel); border:1px dashed var(--line); border-radius:12px; padding:22px; text-align:center; color:var(--muted); font-size:13px; }
+  .spin { color:var(--muted); font-size:13px; }
+  .pane.right { overflow:hidden; display:flex; flex-direction:column; }
+  .tabs { display:flex; gap:8px; margin-bottom:14px; flex:0 0 auto; }
+  .tab { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--muted); border-radius:9px; padding:8px; font-size:12.5px; font-weight:600; cursor:pointer; }
+  .tab.sel { color:var(--text); border-color:var(--accent); background:var(--panel2); }
+  #paneGuide { flex:1; min-height:0; flex-direction:column; }
+  #paneDecks { flex:1; min-height:0; overflow-y:auto; }
+  .chat { flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:9px; padding-right:4px; }
+  .msg { padding:9px 12px; border-radius:11px; font-size:13px; line-height:1.45; max-width:90%; word-break:break-word; white-space:pre-wrap; }
+  .msg.bot { background:var(--panel); border:1px solid var(--line); align-self:flex-start; border-bottom-left-radius:3px; }
+  .msg.you { background:var(--accent); color:#fff; align-self:flex-end; border-bottom-right-radius:3px; }
+  .msg.note { background:rgba(0,211,167,.1); border:1px solid var(--accent2); color:var(--accent2); align-self:center; font-size:11.5px; max-width:100%; text-align:center; padding:6px 10px; }
+  .chatbar { display:flex; gap:8px; align-items:flex-end; margin-top:12px; flex:0 0 auto; }
+  .chatbar textarea { min-height:0; height:44px; max-height:120px; resize:none; font-family:inherit; }
+  ::-webkit-scrollbar{width:10px;height:10px} ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--muted,rgba(255,255,255,.28))}
+  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
+  @media (max-width: 640px) {
+    .split { flex-direction: column; height: auto; }
+    .left { border-right: none; border-bottom: 1px solid var(--line); }
+    .right { flex: none; width: 100%; }
+    .pane.right { overflow: visible; }
+    #paneGuide { min-height: 380px; }
+    .chat { max-height: 260px; }
+    .themes { grid-template-columns: 1fr 1fr; }
+    .lay { grid-template-columns: 1fr; }
+    .aibar { flex-direction: column; align-items: stretch; }
+    .aibar .btn { width: 100%; }
+    .bar { flex-wrap: wrap; }
+    .opts .in { width: 100%; }
+    input, textarea, .chatbar textarea { font-size: 16px; }
+    .btn { padding: 13px 16px; }
+    .chatbar { flex-direction: row; }
+    .top { padding: 12px 14px 10px; }
+  }
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+  <div class="top">
+    <h1>🏢 AI Office</h1>
+    <div class="sub">Type a topic — AI drafts a themed <b>deck</b>, <b>document</b> or <b>spreadsheet</b> you can edit in Office, Google Workspace or LibreOffice.</div>
+  </div>
+  <div class="split">
+    <div class="pane left">
+      <div class="lbl">1 · What are you making?</div>
+      <div class="kinds" id="kinds"></div>
+
+      <details class="fold">
+        <summary>2 · Choose a look — a theme is auto-picked; open to change it ▸</summary>
+        <div class="themes" id="themes"><span class="spin">Loading themes…</span></div>
+        <div class="themeNote" id="themeNote"></div>
+      </details>
+
+      <div class="lbl">3 · Start from a shape <span class="ref" id="clearTpl">clear</span></div>
+      <div class="tpls" id="tpls"></div>
+
+      <div class="aibar">
+        <div class="grow"><label>…or start from a topic (AI drafts the whole outline)</label>
+          <input id="topic" placeholder="e.g. Our 2026 go-to-market for agentic automation" /></div>
+        <button class="btn ghost" id="aiBtn">✨ AI draft</button>
+        <button class="btn ghost" id="openBtn" title="Open an existing .docx / .pptx / .xlsx — its content loads into the editor for AI edits, then regenerate in any format">📂 Open a file</button>
+        <input type="file" id="openFile" accept=".docx,.pptx,.xlsx" style="display:none" />
+      </div>
+
+      <div class="lbl">4 · Title + outline</div>
+      <input id="title" data-bridge-field="title" placeholder="Deck title (e.g. Q3 Strategy Review)" />
+      <label>Slides — one block each: first line = slide title, following lines = the body, blank line between slides</label>
+      <textarea id="outline" data-bridge-region="outline" placeholder="Pick a shape above, or write your own…"></textarea>
+
+      <details class="syn">
+        <summary>Slide syntax + the 20 layouts ▸</summary>
+        <div class="grid">
+          <code>plain lines</code><span class="g">Bullets — the default.</span>
+          <code>## Heading</code><span class="g">A column heading; lines under it are its bullets. Two groups → comparison, four → quadrant.</span>
+          <code>| A | B |</code><span class="g">A table row (first row is the header). Renders as a real, editable PowerPoint table.</span>
+          <code>&gt; quoted line</code><span class="g">A pull quote. Follow it with <code>— Attribution</code>.</span>
+          <code>94% :: uptime</code><span class="g">A value + caption pair. One → big number, two to four → KPI tiles.</span>
+          <code>Q1 2026 :: Beta</code><span class="g">Date-like labels make a timeline.</span>
+          <code>Q3: 240</code><span class="g">Numbers make a real chart. Time labels → line, a share/mix → pie, otherwise bar.</span>
+          <code>#layout: kpi-grid</code><span class="g">Force a specific layout by id.</span>
+          <code>#image: https://…</code><span class="g">Attach an image (full-bleed, or beside the text).</span>
+        </div>
+        <div class="lay" id="lay"></div>
+      </details>
+
+      <details class="fold">
+        <summary>Options — cover byline, save location, layouts ▸</summary>
+        <div class="opts">
+          <input class="in" id="byline" placeholder="Cover byline (optional)" />
+          <label>Save to
+            <select id="saveTo" style="width:auto;padding:7px 10px;">
+              <option value="">My default</option>
+              <option value="google-drive">Google Drive</option>
+              <option value="dropbox">Dropbox</option>
+              <option value="onedrive">OneDrive (Microsoft 365)</option>
+              <option value="oshal-local">OSHAL local</option>
+            </select>
+          </label>
+          <label><input type="checkbox" id="autoLayout" checked /> Auto-pick layouts</label>
+          <label><input type="checkbox" id="slideNumbers" checked /> Slide numbers</label>
+        </div>
+      </details>
+
+      <div class="bar">
+        <button class="btn" id="genBtn">Generate .pptx ▸</button>
+        <button class="btn ghost" id="genAlt1"></button>
+        <button class="btn ghost" id="genAlt2"></button>
+        <button class="btn ghost" id="emailBtn" title="Email the current outline as a rendered attachment — sent from your own mailbox, only when you click Send">✉ Email</button>
+        <span class="hint" id="status"></span>
+      </div>
+      <div class="bar" id="emailRow" style="display:none">
+        <input id="emailTo" type="email" placeholder="recipient@example.com" style="flex:1;min-width:180px" />
+        <input id="emailNote" type="text" placeholder="Optional message…" style="flex:2;min-width:200px" />
+        <button class="btn" id="emailSend">Send .pptx ✉</button>
+        <button class="btn ghost" id="emailCancel">Cancel</button>
+      </div>
+      <div class="result" id="result"></div>
+    </div>
+    <div class="pane right">
+      <div class="tabs">
+        <button class="tab sel" id="tabGuide" data-t="guide">💬 Guide</button>
+        <button class="tab" id="tabPreview" data-t="preview">👁 Preview</button>
+        <button class="tab" id="tabDecks" data-t="decks">📁 My files</button>
+      </div>
+
+      <div class="tabpane" id="panePreview" style="display:none; flex:1; min-height:0; overflow-y:auto;">
+        <div id="pvHost"></div>
+      </div>
+
+      <div class="tabpane" id="paneGuide">
+        <div id="chat" class="chat"><div class="msg bot">Hi — I’m your AI Office guide. Tell me what you’re making and who it’s for, and I’ll build the outline with you — then generate it as a deck, document or spreadsheet. I can pick the look or tweak any slide directly. ✨</div></div>
+        <div class="chatbar">
+          <textarea id="chatIn" rows="1" placeholder="e.g. A pitch for our agentic-automation platform to enterprise buyers"></textarea>
+          <button class="btn" id="chatSend">Send</button>
+        </div>
+      </div>
+
+      <div class="tabpane" id="paneDecks" style="display:none">
+        <div class="lbl">📁 My files <span class="ref" id="refreshDecks">↻ refresh</span></div>
+        <div id="decks"><span class="spin">Loading…</span></div>
+      </div>
+    </div>
+  </div>
+<script>
+const $ = (id) => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function when(iso){ try { return new Date(iso).toLocaleDateString(undefined,{month:'short',day:'numeric'}); } catch(e){ return ''; } }
+
+// ── Artifact kinds (the "what are you making?" choice) ─────────────────────
+const KINDS = [
+  { id:'pptx', icon:'📊', name:'Deck', desc:'A themed presentation — real slide masters, native charts. PowerPoint / Slides / Impress.' },
+  { id:'docx', icon:'📄', name:'Document', desc:'A themed report — real heading styles, tables, page numbers. Word / Docs / Writer.' },
+  { id:'xlsx', icon:'📈', name:'Spreadsheet', desc:'A live workbook — typed cells, real formulas, frozen headers. Excel / Sheets / Calc.' },
+];
+let KIND = 'pptx';
+function renderKinds(){
+  $('kinds').innerHTML = KINDS.map(k =>
+    `<div class="kind${KIND===k.id?' sel':''}" data-id="${k.id}" role="button" tabindex="0" aria-pressed="${KIND===k.id}">
+       <span class="ki">${k.icon}</span><div class="kn">${esc(k.name)} <code style="font-size:10px;color:var(--muted)">.${k.id}</code></div>
+       <div class="kd">${esc(k.desc)}</div></div>`).join('');
+  $('kinds').querySelectorAll('.kind').forEach(el => {
+    el.onclick = () => pickKind(el.dataset.id);
+    el.onkeydown = (e) => { if (e.key==='Enter'||e.key===' '){ e.preventDefault(); pickKind(el.dataset.id); } };
+  });
+  const others = KINDS.filter(k => k.id !== KIND);
+  $('genBtn').textContent = 'Generate .' + KIND + ' ▸';
+  $('genAlt1').textContent = others[0].icon + ' .' + others[0].id; $('genAlt1').dataset.fmt = others[0].id;
+  $('genAlt2').textContent = others[1].icon + ' .' + others[1].id; $('genAlt2').dataset.fmt = others[1].id;
+  $('emailSend').textContent = 'Send .' + KIND + ' ✉';
+}
+function pickKind(id){ KIND = id; renderKinds(); pvKick(); }
+
+// ── Deck themes ────────────────────────────────────────────────────────────
+// Served by GET /themes — the SAME catalog the renderer uses, so a theme added server-side
+// shows up here with no front-end change. Never hardcode the list.
+let THEMES = [], LAYOUTS = [], THEME = null;
+
+/** Scale from deck inches (13.333 x 7.5) to the thumbnail's viewBox. */
+const TW = 160, TH = 90, SC = TW / 13.333;
+const hx = (c) => '#' + c;
+
+/** The theme's cover-style chrome, drawn to match `featureDecor`/`paintWash` in the renderer. */
+function coverChrome(t){
+  const c = t.colors;
+  switch (t.cover) {
+    case 'wash': return `<ellipse cx="${-2.2*SC+4.8*SC}" cy="${-2.6*SC+4.1*SC}" rx="${4.8*SC}" ry="${4.1*SC}" fill="${hx(c.accent)}" opacity=".24"/>
+      <ellipse cx="${6.4*SC+4.7*SC}" cy="${2.4*SC+4*SC}" rx="${4.7*SC}" ry="${4*SC}" fill="${hx(c.accent2)}" opacity=".18"/>`;
+    case 'block': return `<rect x="0" y="0" width="${0.46*SC}" height="${TH}" fill="${hx(c.accent)}"/>`;
+    case 'rule': return `<rect x="${0.72*SC}" y="${2.42*SC}" width="${2.1*SC}" height="${Math.max(1,0.045*SC)}" fill="${hx(c.accent)}"/>`;
+    case 'band': return `<rect x="0" y="${2.72*SC}" width="${TW}" height="${Math.max(1.5,0.09*SC)}" fill="${hx(c.accent)}"/>`;
+    case 'split': return `<rect x="0" y="0" width="${4.5*SC}" height="${TH}" fill="${hx(c.accent)}" opacity=".16"/>
+      <rect x="${4.5*SC}" y="0" width="1" height="${TH}" fill="${hx(c.accent)}"/>`;
+    case 'grid': return gridSvg(c.accent, .12) + `<rect x="${0.72*SC}" y="${2.5*SC}" width="${1.5*SC}" height="1" fill="${hx(c.accent)}"/>`;
+    default: return '';
+  }
+}
+/** The blueprint rule grid. */
+function gridSvg(color, op){
+  let s = '';
+  for (let x = 0.5*SC; x < TW; x += 0.5*SC) s += `<rect x="${x.toFixed(1)}" y="0" width=".4" height="${TH}" fill="${hx(color)}" opacity="${op}"/>`;
+  for (let y = 0.5*SC; y < TH; y += 0.5*SC) s += `<rect x="0" y="${y.toFixed(1)}" width="${TW}" height=".4" fill="${hx(color)}" opacity="${op}"/>`;
+  return s;
+}
+/** The theme's content-slide chrome, drawn to match `contentDecor` in the renderer. */
+function contentChrome(t){
+  const c = t.colors;
+  const tx = 0.72*SC + (t.decor === 'sidebar' ? 0.28*SC : 0) + (t.decor === 'chip' ? 0.36*SC : 0);
+  const uy = (0.58 + 0.92 + 0.1) * SC;
+  switch (t.decor) {
+    case 'sidebar': return `<rect x="0" y="0" width="${0.22*SC}" height="${TH}" fill="${hx(c.accent)}"/>`;
+    case 'bar': return `<rect x="${tx}" y="${uy}" width="${1.1*SC}" height="${Math.max(1,0.075*SC)}" fill="${hx(c.accent)}"/>`;
+    case 'rule': return `<rect x="${0.72*SC}" y="${uy}" width="${12.09*SC}" height=".5" fill="${hx(c.line)}"/>`;
+    case 'chip': return `<rect x="${0.72*SC}" y="${(0.58+0.16)*SC}" width="${0.18*SC}" height="${0.6*SC}" rx="1" fill="${hx(c.accent)}"/>`;
+    case 'grid': return gridSvg(c.accent, .1);
+    default: return '';
+  }
+}
+
+/**
+ * A faithful mini of what the theme actually renders. It reads the same catalog fields the
+ * renderer does (cover style, decor, palette), so what you pick is what you get — the point is
+ * that nobody should have to generate a deck to find out what a theme looks like.
+ */
+function thumb(t, kind){
+  const c = t.colors;
+  const band = t.cover === 'split' ? 5.0 : 0.72;
+  if (kind === 'cover') {
+    return `<svg viewBox="0 0 ${TW} ${TH}" preserveAspectRatio="none" role="img" aria-label="${esc(t.name)} cover">
+      <rect width="${TW}" height="${TH}" fill="${hx(c.deep)}"/>
+      ${coverChrome(t)}
+      ${t.cover === 'wash' ? `<rect x="${band*SC}" y="${2.36*SC}" width="${1.6*SC}" height="1" fill="${hx(c.accent)}"/>` : ''}
+      <rect x="${band*SC}" y="${2.72*SC}" width="${5.2*SC}" height="${0.42*SC}" rx="1" fill="${hx(c.deepInk)}"/>
+      <rect x="${band*SC}" y="${3.42*SC}" width="${3.1*SC}" height="${0.3*SC}" rx="1" fill="${hx(c.deepInk)}" opacity=".55"/>
+      <rect x="${band*SC}" y="${4.32*SC}" width="${4.4*SC}" height="${0.16*SC}" rx="1" fill="${hx(c.deepInkSoft)}"/>
+    </svg>`;
+  }
+  const tx = 0.72 + (t.decor === 'sidebar' ? 0.28 : 0) + (t.decor === 'chip' ? 0.36 : 0);
+  let rows = '';
+  for (let i = 0; i < 4; i++) {
+    rows += `<rect x="${tx*SC}" y="${(1.9 + i*0.62)*SC}" width="${(9.4 - i*0.9)*SC}" height="${0.16*SC}" rx="1" fill="${hx(c.inkSoft)}"/>`;
+  }
+  return `<svg viewBox="0 0 ${TW} ${TH}" preserveAspectRatio="none" role="img" aria-label="${esc(t.name)} content">
+    <rect width="${TW}" height="${TH}" fill="${hx(c.canvas)}"/>
+    ${contentChrome(t)}
+    <rect x="${tx*SC}" y="${0.72*SC}" width="${4.6*SC}" height="${0.38*SC}" rx="1" fill="${hx(c.ink)}"/>
+    ${rows}
+  </svg>`;
+}
+
+function renderThemes(){
+  $('themes').innerHTML = THEMES.map(t => `
+    <div class="th${THEME===t.id?' sel':''}" data-id="${t.id}" role="button" tabindex="0" aria-pressed="${THEME===t.id}">
+      ${thumb(t,'cover')}
+      <div class="tn"><span class="dot" style="background:${hx(t.colors.accent)}"></span>${esc(t.name)}</div>
+      <div class="tm">${esc(t.blurb)}</div>
+    </div>`).join('');
+  $('themes').querySelectorAll('.th').forEach(el => {
+    el.onclick = () => pickTheme(el.dataset.id);
+    el.onkeydown = (e) => { if (e.key==='Enter'||e.key===' '){ e.preventDefault(); pickTheme(el.dataset.id); } };
+  });
+  const t = THEMES.find(x => x.id === THEME);
+  $('themeNote').innerHTML = t ? `<b>${esc(t.name)}</b> — ${esc(t.mood)} · ${esc(t.fonts.heading)} / ${esc(t.fonts.body)} · six editable slide masters` : '';
+}
+function pickTheme(id){ THEME = id; renderThemes(); pvKick(); }
+
+function renderLayouts(){
+  $('lay').innerHTML = LAYOUTS.map(l =>
+    `<div class="l"><div class="n">${esc(l.name)}<code>${esc(l.id)}</code></div><div class="b">${esc(l.needs)}</div></div>`).join('');
+}
+
+async function loadThemes(){
+  try {
+    const r = await fetch('/api/presentations/sections/themes');
+    const j = await r.json();
+    THEMES = j.themes || []; LAYOUTS = j.layouts || []; THEME = THEME || j.defaultTheme || (THEMES[0]||{}).id;
+    renderThemes(); renderLayouts();
+  } catch(e){ $('themes').innerHTML = '<div class="empty">Couldn’t load themes.</div>'; }
+}
+
+// ── Starter outlines (the SHAPE of a deck — distinct from its look) ────────
+const TEMPLATES = [
+  { id:'pitch', icon:'🚀', name:'Pitch', desc:'problem → why now → solution → traction → ask',
+    title:'Pitch', outline:'The problem\nwho feels it and how badly\nwhat it costs them today\n\nWhy now\nwhat changed in the market\nwhy this moment matters\n\nOur solution\nwhat it is in one line\nthe one thing it does best\n\nTraction\nTBD :: replace with a real metric\nTBD :: who is already using it\n\nThe ask\nwhat we want from this room\nthe next step' },
+  { id:'strategy', icon:'🧭', name:'Strategy Review', desc:'where we are → changed → options → recommendation',
+    title:'Strategy Review', outline:'Where we are\ncurrent state in 2-3 bullets\nthe key number that matters\n\nWhat changed\nthe new signal or shift\nwhy it forces a decision\n\nBuild vs buy\n## Build\nfull control of the roadmap\nour IP\nslower to ship\n## Buy\nlive next quarter\nvendor lock-in\n\nRecommendation\nwhich option and why\nwhat we are NOT doing\n\nNext steps\nowner + date\nowner + date' },
+  { id:'update', icon:'📈', name:'Project Update', desc:'goal → progress → risks → decisions → timeline',
+    title:'Project Update', outline:'Goal\nwhat done looks like\nwhy it matters\n\nWhere we are\nTBD :: percent complete\nTBD :: shipped this month\nTBD :: open risks\n\nProgress\nshipped since last update\nin flight now\n\nRisks\ntop risk + mitigation\nsecond risk + mitigation\n\nTimeline\nQ1 2026 :: Private preview\nQ2 2026 :: General availability\nQ3 2026 :: Scale' },
+  { id:'teach', icon:'🎓', name:'Teaching', desc:'what → why → how → example → takeaway',
+    title:'Explainer', outline:'What it is\nplain-language definition\nwhat it is NOT\n\nWhy it matters\nthe problem it solves\nwho should care\n\nHow it works\nDiscover :: gather the inputs\nDecide :: pick the approach\nDeliver :: ship and measure\n\nExample\na concrete walkthrough\nwhat to notice\n\nThe one thing to remember\nthe single takeaway' },
+  { id:'review', icon:'📊', name:'Numbers Review', desc:'headline → trend → breakdown → detail → actions',
+    title:'Quarterly Review', outline:'The headline\nTBD :: the one number that matters\n\nTrend\nQ1: 120\nQ2: 180\nQ3: 240\nQ4: 310\n\nRevenue mix\nEnterprise: 55\nMid-market: 30\nSelf-serve: 15\n\nBy segment\n| Segment | Revenue | Growth |\n| Enterprise | TBD | TBD |\n| Mid-market | TBD | TBD |\n\nActions\nowner + date\nowner + date' },
+  { id:'blank', icon:'▢', name:'Blank', desc:'start empty', title:'', outline:'' },
+];
+let SEL = null;
+
+function renderTemplates(){
+  $('tpls').innerHTML = TEMPLATES.map(t =>
+    `<div class="tpl${SEL===t.id?' sel':''}" data-id="${t.id}"><b>${t.icon} ${esc(t.name)}</b><span class="d">${esc(t.desc)}</span></div>`).join('');
+  $('tpls').querySelectorAll('.tpl').forEach(el => el.onclick = () => pickTemplate(el.dataset.id));
+}
+function pickTemplate(id){
+  const t = TEMPLATES.find(x => x.id === id); if (!t) return;
+  SEL = id; renderTemplates();
+  $('outline').value = t.outline;
+  if (!$('title').value.trim() && t.title) $('title').value = t.title;
+  $('outline').focus();
+}
+$('clearTpl').onclick = () => { SEL = null; renderTemplates(); $('outline').value = ''; };
+
+/** Parse the outline textarea into [{title, content}]. */
+function parseOutline(text){
+  return text.split(/\n\s*\n/).map(block => {
+    const lines = block.split('\n').filter(l => l.trim());
+    if (!lines.length) return null;
+    return { title: lines[0].trim(), content: lines.slice(1).join('\n') };
+  }).filter(Boolean);
+}
+
+/** Deck-level options shared by both generate paths. */
+function deckOpts(){
+  const dest = $('saveTo').value;
+  return {
+    theme: THEME || undefined,
+    byline: $('byline').value.trim() || undefined,
+    autoLayout: $('autoLayout').checked,
+    slideNumbers: $('slideNumbers').checked,
+    // Only send an override when the user picked one — otherwise the server's resolved
+    // Files target (their Storage settings default) applies. ADR-043 phase A + ADR-108.
+    saveTo: dest ? { provider: dest } : undefined,
+  };
+}
+
+async function generate(body, label, fmt){
+  fmt = fmt || 'pptx';
+  ['genBtn','genAlt1','genAlt2','aiBtn'].forEach(id => $(id).disabled = true);
+  $('status').textContent = label;
+  res('', null);
+  try {
+    const r = await fetch('/api/presentations/sections/' + fmt, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ ...body, ...deckOpts() }) });
+    const j = await r.json().catch(()=>null);
+    if (!r.ok || (j && j.error)){ res('Failed: '+esc((j&&j.error)||('HTTP '+r.status)), false); return; }
+    if (j && j.ok){
+      const where = j.provider==='github' ? ('GitHub ('+esc(j.savedTo)+')') : (j.provider==='dropbox' ? 'your Dropbox' : 'OSHAL local');
+      const link = j.downloadUrl ? ` — <a href="${esc(j.downloadUrl)}" target="_top">Download</a>` : (j.url ? ` — <a href="${esc(j.url)}" target="_blank">View</a>` : '');
+      const th = THEMES.find(t => t.id === j.theme);
+      const what = fmt === 'docx' ? 'Word doc' : fmt === 'xlsx' ? 'workbook' : (j.slides||'') + ' slides';
+      res('✓ Generated '+what+(th?' in '+esc(th.name):'')+' → saved to '+where+link+'. See <b>My files →</b>', true);
+      showTab('decks'); loadDecks();
+    } else { res('Generated, but unexpected response.', false); }
+  } catch(e){ res('Error: '+e.message, false); }
+  ['genBtn','genAlt1','genAlt2','aiBtn'].forEach(id => $(id).disabled = false);
+  $('status').textContent = '';
+}
+
+/** Shared click path for the format buttons — same outline, different projection. */
+function genAs(fmt){
+  const title = $('title').value.trim() || 'Presentation';
+  const sections = parseOutline($('outline').value || '');
+  const topic = $('topic').value.trim();
+  if (!sections.length && !topic){ res('Pick a shape, write an outline, or enter a topic.', false); return; }
+  const label = 'Rendering .' + fmt + '…';
+  if (sections.length) generate({ title, sections }, label, fmt);
+  else generate({ title, topic, slideCount: 8 }, 'AI drafting + rendering… (~30s)', fmt);
+}
+$('genAlt1').onclick = () => genAs($('genAlt1').dataset.fmt);
+$('genAlt2').onclick = () => genAs($('genAlt2').dataset.fmt);
+
+$('aiBtn').onclick = () => {
+  const topic = $('topic').value.trim(); if (!topic){ $('topic').focus(); return; }
+  generate({ title: $('title').value.trim() || topic, topic, slideCount: 8 }, 'AI drafting + rendering… (~30s)', KIND);
+};
+$('genBtn').onclick = () => genAs(KIND);
+
+// ── ✉ Email it (ADR-108's comms leg). Approval-gated twice: the user types the recipient and
+// clicks Send here, AND the server requires confirm:true (428 without it). Never auto-sends;
+// sends from the user's OWN connected mailbox (Gmail, else Microsoft 365).
+$('emailBtn').onclick = () => {
+  const row = $('emailRow'); const opening = row.style.display === 'none';
+  row.style.display = opening ? 'flex' : 'none';
+  if (opening) $('emailTo').focus();
+};
+$('emailCancel').onclick = () => { $('emailRow').style.display = 'none'; };
+$('emailSend').onclick = async () => {
+  const to = $('emailTo').value.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)){ $('emailTo').focus(); res('Enter a valid recipient address.', false); return; }
+  const title = $('title').value.trim() || 'Document';
+  const sections = parseOutline($('outline').value || '');
+  if (!sections.length){ res('Write or open an outline first — Email sends what’s in the editor.', false); return; }
+  $('emailSend').disabled = true; $('status').textContent = 'Rendering + sending…';
+  try {
+    const r = await fetch('/api/presentations/sections/email', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        confirm: true, to, note: $('emailNote').value.trim() || undefined, title, sections, format: KIND,
+        theme: THEME || undefined, byline: $('byline').value.trim() || undefined,
+        autoLayout: $('autoLayout').checked, slideNumbers: $('slideNumbers').checked,
+      }),
+    });
+    const j = await r.json().catch(()=>null);
+    if (!r.ok || !j || j.error){ res('Send failed: ' + esc((j&&(j.message||j.error))||('HTTP '+r.status)), false); }
+    else { res('✉ Sent <b>' + esc(j.fileName) + '</b> to ' + esc(j.to) + ' via ' + esc(j.via) + '.', true); $('emailRow').style.display = 'none'; }
+  } catch(e){ res('Error: ' + e.message, false); }
+  $('emailSend').disabled = false; $('status').textContent = '';
+};
+
+async function loadDecks(){
+  $('decks').innerHTML = '<span class="spin">Loading…</span>';
+  let r; try { r = await fetch('/api/presentations/sections/list'); } catch { $('decks').innerHTML='<div class="empty">Couldn’t load.</div>'; return; }
+  const j = await r.json().catch(()=>({}));
+  if (!r.ok){ $('decks').innerHTML = '<div class="empty">Sign in to see your files.</div>'; return; }
+  const decks = j.decks || [];
+  if (!decks.length){ $('decks').innerHTML = '<div class="empty">Nothing yet — generate a deck, document or spreadsheet and it’ll show here.</div>'; return; }
+  $('decks').innerHTML = decks.map((d) => {
+    const link = d.downloadUrl ? `<a href="${esc(d.downloadUrl)}" target="_top">⬇ Download</a>` : (d.url ? `<a href="${esc(d.url)}" target="_blank">↗ View</a>` : '<span class="dm">saved</span>');
+    const t = THEMES.find(x => x.id === d.theme);
+    const badge = t ? `<span class="badge"><span class="dot" style="background:${hx(t.colors.accent)}"></span>${esc(t.name)}</span>` : '';
+    const fmtIcon = d.format === 'docx' ? '📄' : d.format === 'xlsx' ? '📈' : '📊';
+    const fmtBadge = `<span class="badge">${fmtIcon} ${esc(d.format || 'pptx')}</span>`;
+    const meta = [d.slides ? d.slides + ' slides' : null, esc(d.provider||''), when(d.createdAt)].filter(Boolean).join(' · ');
+    const del = d.fileName ? ` <span class="ref del" data-name="${esc(d.fileName)}" style="color:#e06c6c">🗑 delete</span>` : '';
+    return `<div class="deck"><div class="dt">${esc(d.title)}</div>
+      <div class="dm">${fmtBadge}${badge}<span>${meta}</span></div>${preview(d.outline)}${link}${del}</div>`;
+  }).join('');
+  // Delete = the user's explicit click + a confirm; the store copy goes to the provider's
+  // trash/recycle bin (server: deleteStoredFile), the record goes with it.
+  $('decks').querySelectorAll('.del').forEach(el => {
+    el.onclick = async () => {
+      const name = el.dataset.name;
+      if (!confirm('Delete "' + name + '"? The store copy goes to the provider’s trash / recycle bin.')) return;
+      el.textContent = '…';
+      try {
+        const r = await fetch('/api/presentations/sections/file?name=' + encodeURIComponent(name), { method:'DELETE' });
+        const j = await r.json().catch(()=>null);
+        if (!r.ok || !j || !j.ok){ res('Delete failed: ' + esc((j&&j.error)||('HTTP '+r.status)), false); el.textContent = '🗑 delete'; return; }
+        if (j.storeRemoved === false) res('Removed from the list — the copy on ' + esc(j.provider||'your store') + ' stayed (' + esc(j.reason||'couldn’t reach it') + ').', true);
+        loadDecks();
+      } catch(e){ res('Error: ' + e.message, false); el.textContent = '🗑 delete'; }
+    };
+  });
+}
+
+/** Outline-based preview (ADR-043): slide titles + first bullets, no file download needed. */
+function preview(outline){
+  if (!Array.isArray(outline) || !outline.length) return '';
+  const slides = outline.map((s, n) => {
+    const bullets = (Array.isArray(s.bullets) && s.bullets.length)
+      ? `<ul class="pvb">${s.bullets.map(b => `<li>${esc(b)}</li>`).join('')}</ul>` : '';
+    return `<div class="pvs"><span class="pvn">${n+1}</span><div><div class="pvt">${esc(s.title||'')}</div>${bullets}</div></div>`;
+  }).join('');
+  return `<div class="pv">${slides}</div>`;
+}
+function res(msg, ok){ const r=$('result'); if(ok===null){ r.className='result'; r.innerHTML=''; return; } r.className='result '+(ok?'ok':'err'); r.innerHTML=msg; }
+
+$('refreshDecks').onclick = loadDecks;
+
+// ── Guide chat (ADR-043 phase C): the deck-builder bot drives the editor ──────────
+const CHAT = [];
+function showTab(t){
+  for (const [tab, pane] of [['tabGuide','paneGuide'],['tabPreview','panePreview'],['tabDecks','paneDecks']]){
+    const on = { tabGuide:'guide', tabPreview:'preview', tabDecks:'decks' }[tab] === t;
+    $(tab).classList.toggle('sel', on);
+    $(pane).style.display = on ? (pane === 'paneGuide' ? 'flex' : 'block') : 'none';
+  }
+  if (t === 'decks') loadDecks();
+  if (t === 'preview') renderPreview();
+}
+$('tabGuide').onclick = () => showTab('guide');
+$('tabPreview').onclick = () => showTab('preview');
+$('tabDecks').onclick = () => showTab('decks');
+
+// ── Live preview: a themed approximation rendered from the outline model ───────
+// Faithful to the CONTENT semantics (tables, KPIs, series-as-bars, quotes, columns) and to the
+// theme's palette/casing — deliberately not a pixel render of the OOXML. It answers "is my
+// content shaped right, in this look?" while the user or the guide edits; the real file is one
+// Generate away, and Drive/Office give the true view after that.
+function pvTheme(){ return THEMES.find(t => t.id === THEME) || THEMES[0]; }
+function pvLines(content){ return String(content||'').split('\n').map(l => l.trim()).filter(l => l && !/^#(?!#)/.test(l)); }
+function pvBlock(lines, t){
+  const c = t.colors, acc = hx(c.accent);
+  const out = { rows:[], kpis:[], bars:[], quote:null, cols:[], bullets:[] };
+  let col = null;
+  for (const l of lines){
+    if (/^##\s+/.test(l)) { col = { h:l.replace(/^##\s+/,''), items:[] }; out.cols.push(col); continue; }
+    if (col) { col.items.push(l); continue; }
+    if (/^\|.*\|?$/.test(l) && l.includes('|')) { if (!/^\|[\s:|-]+\|?$/.test(l)) out.rows.push(l.replace(/^\||\|$/g,'').split('|').map(x=>x.trim())); continue; }
+    if (/^>\s?/.test(l)) { out.quote = out.quote || { q:'', a:'' }; out.quote.q += (out.quote.q?' ':'') + l.replace(/^>\s?/,''); continue; }
+    if (/^(—|--|–)\s*/.test(l) && out.quote) { out.quote.a = l.replace(/^(—|--|–)\s*/,''); continue; }
+    const pair = l.split('::');
+    if (pair.length === 2 && pair[0].trim()) { out.kpis.push({ v:pair[0].trim(), c:pair[1].trim() }); continue; }
+    const m = /^(.{1,60}?)\s*:\s*([\d,.$%xkmbt\s-]+)$/i.exec(l);
+    if (m && /\d/.test(m[2])) { out.bars.push({ l:m[1].trim(), raw:m[2].trim(), n:parseFloat(m[2].replace(/[^\d.-]/g,''))||0 }); continue; }
+    out.bullets.push(l);
+  }
+  const max = Math.max(1, ...out.bars.map(b => Math.abs(b.n)));
+  let h = '';
+  if (out.kpis.length) h += `<div class="kpis">${out.kpis.slice(0,4).map(k=>`<div class="kpi" style="background:${hx(c.canvasAlt)}"><div class="v" style="color:${acc}">${esc(k.v)}</div><div class="c">${esc(k.c)}</div></div>`).join('')}</div>`;
+  if (out.bars.length) h += out.bars.slice(0,8).map(b=>`<div class="barrow"><span class="bl">${esc(b.l)}</span><span class="bar" style="background:${acc};width:${Math.max(4,Math.round(Math.abs(b.n)/max*60))}%"></span><span>${esc(b.raw)}</span></div>`).join('');
+  if (out.rows.length){ const [hd,...rs]=out.rows; h += `<table><tr>${hd.map(x=>`<th style="border-color:${hx(c.line)};background:${hx(c.canvasAlt)};color:${acc}">${esc(x)}</th>`).join('')}</tr>${rs.slice(0,8).map(r=>`<tr>${r.map(x=>`<td style="border-color:${hx(c.line)}">${esc(x)}</td>`).join('')}</tr>`).join('')}</table>`; }
+  if (out.quote) h += `<div class="q" style="border-left:3px solid ${acc};padding-left:10px">“${esc(out.quote.q)}”</div>${out.quote.a?`<div class="qa">— ${esc(out.quote.a)}</div>`:''}`;
+  if (out.cols.length) h += `<div class="cols">${out.cols.slice(0,4).map(g=>`<div class="col"><div class="colh" style="color:${acc}">${esc(g.h)}</div><ul>${g.items.slice(0,6).map(i=>`<li>${esc(i)}</li>`).join('')}</ul></div>`).join('')}</div>`;
+  if (out.bullets.length) h += `<ul>${out.bullets.slice(0,9).map(b=>`<li>${esc(b)}</li>`).join('')}</ul>`;
+  return h;
+}
+function renderPreview(){
+  if (!THEMES.length){ $('pvHost').innerHTML = '<div class="empty">Loading themes…</div>'; return; }
+  const t = pvTheme(), c = t.colors;
+  const blocks = parseOutline($('outline').value || '');
+  const kindName = { pptx:'slide', docx:'section', xlsx:'sheet' }[KIND];
+  if (!blocks.length){ $('pvHost').innerHTML = '<div class="empty">Write or open an outline — a themed preview of every '+kindName+' renders here as you type.</div>'; return; }
+  const cards = blocks.map((b,i) => `
+    <div class="pvSlide" style="background:${hx(c.canvas)};color:${hx(c.ink)}">
+      <div class="body">
+        <span class="kick" style="background:${hx(c.accent)};color:${lum(c.accent)>0.45?'#111':'#fff'}">${kindName} ${i+1}</span>
+        <div class="ttl" style="color:${hx(c.ink)}">${esc(t.headingCase==='upper'?b.title.toUpperCase():b.title)}</div>
+        ${pvBlock(pvLines(b.content), t)}
+      </div>
+    </div>`).join('');
+  $('pvHost').innerHTML = `<div class="pvNote">Live approximation in <b>${esc(t.name)}</b> — content + palette are faithful; the generated file is the real thing.</div>` + cards;
+}
+function lum(hex){ const p=[0,2,4].map(i=>{const s=parseInt(hex.slice(i,i+2),16)/255; return s<=0.03928?s/12.92:Math.pow((s+0.055)/1.055,2.4);}); return 0.2126*p[0]+0.7152*p[1]+0.0722*p[2]; }
+let pvTimer = null;
+function pvKick(){ if ($('panePreview').style.display !== 'none'){ clearTimeout(pvTimer); pvTimer = setTimeout(renderPreview, 250); } }
+$('outline').addEventListener('input', pvKick);
+$('title').addEventListener('input', pvKick);
+
+// ── Open a file: parse an existing .docx/.pptx/.xlsx into the editor ───────────
+$('openBtn').onclick = () => $('openFile').click();
+$('openFile').addEventListener('change', async () => {
+  const f = $('openFile').files[0]; if (!f) return;
+  $('openBtn').disabled = true; $('status').textContent = 'Reading ' + f.name + '…';
+  try {
+    const r = await fetch('/api/presentations/sections/import?name=' + encodeURIComponent(f.name), {
+      method:'POST', headers:{'Content-Type':'application/octet-stream'}, body: f,
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.error){ res('Couldn’t open it: ' + esc(j.error || ('HTTP ' + r.status)), false); }
+    else {
+      if (j.title) $('title').value = j.title;
+      writeOutline((j.sections||[]).map(s => ({ title: s.title, bullets: String(s.content||'').split('\n').filter(Boolean) })));
+      if (j.format && KINDS.some(k => k.id === j.format)) pickKind(j.format);
+      SEL = null; renderTemplates();
+      res('✓ Opened <b>' + esc(f.name) + '</b> — ' + (j.sections||[]).length + ' sections loaded. Edit here or ask the Guide, preview it, then Generate in any format.', true);
+      showTab('preview');
+    }
+  } catch(e){ res('Error: ' + e.message, false); }
+  $('openFile').value = ''; $('openBtn').disabled = false; $('status').textContent = '';
+});
+
+function addMsg(role, text, skipHistory){
+  const d = document.createElement('div'); d.className = 'msg ' + role; d.textContent = text;
+  $('chat').appendChild(d); $('chat').scrollTop = $('chat').scrollHeight;
+  if (!skipHistory && (role === 'you' || role === 'bot')) CHAT.push({ role: role === 'you' ? 'you' : 'guide', text });
+  return d;
+}
+
+/** Read the outline editor into [{title, bullets[]}] — the live state we send the bot. */
+function readEditorSlides(){
+  return parseOutline($('outline').value || '').map(b => ({
+    title: b.title, bullets: String(b.content || '').split('\n').map(x => x.trim()).filter(Boolean),
+  }));
+}
+/** Write [{title, bullets[]}] back into the outline editor's block format. */
+function writeOutline(slides){
+  $('outline').value = (slides || []).map(s => [s.title || '', ...(s.bullets || [])].filter(Boolean).join('\n')).join('\n\n');
+}
+/** Translate one legacy Guide action into surface-bridge contract events (the framework's
+ *  oshal-surface-bridge vocabulary): set_field/set_content are the generic superset of the old
+ *  set_title/set_theme/set_outline, and the slide-structure ops ride the contract's namespaced
+ *  `custom` op. Already-contract-shaped actions pass straight through, so a bot emitting the
+ *  generic vocabulary needs no translation at all. */
+function toBridgeEvents(a){
+  if (!a || typeof a.op !== 'string') return [];
+  if (a.op === 'set_title')    return [{ op: 'set_field', field: 'title', value: String(a.title ?? '') }];
+  if (a.op === 'set_theme')    return [{ op: 'set_field', field: 'theme', value: String(a.theme ?? '') }];
+  if (a.op === 'set_outline')  return [{ op: 'set_content', region: 'outline', content: serializeSlides(a.slides) }];
+  if (a.op === 'add_slide')    return [{ op: 'custom', name: 'add_slide', data: { title: a.title, bullets: a.bullets || [] } }];
+  if (a.op === 'update_slide') return [{ op: 'custom', name: 'update_slide', data: { index: a.index, title: a.title, bullets: a.bullets } }];
+  if (a.op === 'set_field' || a.op === 'set_content' || a.op === 'custom') return [a];
+  return [];
+}
+/** Serialize [{title,bullets[]}] into the outline editor's block format (writeOutline's text). */
+function serializeSlides(slides){
+  return (slides || []).map(s => [s.title || '', ...(s.bullets || [])].filter(Boolean).join('\n')).join('\n\n');
+}
+/** Apply ONE contract event to the editor; return a short note of what changed, or null. */
+function applyBridgeEvent(ev){
+  if (ev.op === 'set_field' && ev.field === 'title'){ $('title').value = String(ev.value ?? ''); return 'set the title'; }
+  if (ev.op === 'set_field' && ev.field === 'theme'){
+    const id = String(ev.value ?? ''); pickTheme(id);
+    const t = THEMES.find(x => x.id === id); return 'switched to ' + ((t && t.name) || id);
+  }
+  if (ev.op === 'set_content' && ev.region === 'outline'){
+    $('outline').value = String(ev.content ?? '');
+    return 'wrote ' + parseOutline($('outline').value).length + ' slides';
+  }
+  if (ev.op === 'custom' && ev.name === 'add_slide'){
+    const d = ev.data || {}; const s = readEditorSlides();
+    s.push({ title: d.title, bullets: d.bullets || [] }); writeOutline(s); return 'added a slide';
+  }
+  if (ev.op === 'custom' && ev.name === 'update_slide'){
+    const d = ev.data || {}; const s = readEditorSlides(); const i = (d.index | 0) - 1;
+    if (i < 0) return null;
+    if (!s[i]) s[i] = { title: '', bullets: [] };
+    if (d.title != null) s[i].title = d.title;
+    if (d.bullets) s[i].bullets = d.bullets;
+    writeOutline(s); return 'updated slide ' + d.index;
+  }
+  if (ev.op === 'custom' && ev.name === 'set_theme'){
+    return applyBridgeEvent({ op: 'set_field', field: 'theme', value: (ev.data || {}).theme });
+  }
+  return null;
+}
+/** Apply the bot's surface actions to the editor; return a short note of what changed.
+ *  Actions travel the surface-bridge contract shape INTERNALLY now (legacy Guide ops are
+ *  translated first), so the SAME applier serves the in-surface Guide and the cockpit relay. */
+function applyActions(actions){
+  if (!Array.isArray(actions) || !actions.length) return null;
+  const notes = [];
+  for (const a of actions){
+    for (const ev of toBridgeEvents(a)){
+      const note = applyBridgeEvent(ev);
+      if (note) notes.push(note);
+    }
+  }
+  SEL = null; renderTemplates(); pvKick();
+  return notes.length ? '✓ ' + notes.join(' · ') + ' — see the editor ◂' : null;
+}
+// Cockpit relay hookup: the shared surface-bridge client (attached in the module script below)
+// applies set_field/set_content to the data-bridge-* marks natively and re-dispatches `custom`
+// ops as DOM events — route those through the SAME applier as the Guide's actions.
+document.addEventListener('surface-bridge:custom', (e) => {
+  const d = (e && e.detail) || {};
+  const note = applyBridgeEvent({ op: 'custom', name: d.name, data: d.data || {} });
+  if (note){ SEL = null; renderTemplates(); pvKick(); }
+});
+
+async function sendChat(){
+  const text = $('chatIn').value.trim(); if (!text) return;
+  const hist = CHAT.slice(-6);
+  $('chatIn').value = ''; addMsg('you', text);
+  $('chatSend').disabled = true;
+  const typing = addMsg('bot', '…', true);
+  try {
+    const r = await fetch('/api/presentations/sections/guide', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ message: text, title: $('title').value.trim(), slides: readEditorSlides(), theme: THEME, history: hist }) });
+    const j = await r.json().catch(() => ({}));
+    typing.remove();
+    if (!r.ok || j.error){ addMsg('bot', '⚠ ' + ((j && j.error) || ('HTTP ' + r.status))); }
+    else { addMsg('bot', j.reply || '(no reply)'); const note = applyActions(j.actions); if (note) addMsg('note', note, true); }
+  } catch(e){ typing.remove(); addMsg('bot', '⚠ ' + e.message); }
+  $('chatSend').disabled = false; $('chatIn').focus();
+}
+$('chatSend').onclick = sendChat;
+$('chatIn').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); } });
+
+renderKinds(); renderTemplates(); loadThemes(); loadDecks();
+</script>
+<script type="module">
+// Surface-bridge client (framework-served): lets the cockpit relay drive this surface through
+// the generic contract — set_field lands on [data-bridge-field], set_content on
+// [data-bridge-region], custom ops re-dispatch as the surface-bridge:custom DOM event handled
+// above. Manifest declares surface.ops: [set_field, set_content, custom] (fail-closed).
+// Best-effort: the surface stays fully functional standalone if the module is unavailable.
+try {
+  const { createSurfaceBridgeClient } = await import('/shared/ui/js/surface-bridge-client.js');
+  createSurfaceBridgeClient({ app: 'presentations' }).attach();
+} catch (e) {
+  console.warn('[presentations] surface-bridge client unavailable (standalone mode)', e?.message || e);
+}
+</script>
+</body>
+</html>

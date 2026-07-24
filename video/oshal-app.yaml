@@ -1,0 +1,153 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — video ("Video Studio")
+# Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
+# ONLY the surface carves). This package is the app: the /api/video routes
+# (storyboard / generate / list / series lifecycle — routes/video-routes.js built
+# from src-routes/), the studio surface (tools/video.html, self-served at
+# /api/video/ui from ctx.appPackageDir), package COPIES of the three personas for
+# the registrar, and migration COPIES for fresh installs.
+#
+# What STAYS framework-resident per ADR-093 (this package ships none of it):
+#   - the video-series CONDUCTOR engine (src/app/series-pipeline.ts /
+#     series-orchestrator.ts / series-dispatch.ts / series-drive.ts) + the
+#     startSeriesReconciler cron in server.ts — the packaged routes reach it via
+#     @/ aliases; the conductor is the runtime (ADR-082);
+#   - the src/features/video-generation slice (renderVideo, storyboard sanitizer,
+#     Veo cost model);
+#   - the video-director (…048) + screenplay-writer (…052) INLINE nodes,
+#     registered in BOTH swarm-bot-registry blocks, + the kernel personas;
+#   - scripts/migrations/066-video-series.sql + 067-video-episode-scenes.sql
+#     (kernel-owned history; this package ships migrations/ COPIES so fresh
+#     installs create the hand-off tables);
+#   - the SHARED vids-operator remote-client desktop worker
+#     (packages/oshal-vids-operator) + its registry entries — the render stage.
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: video
+suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Video Studio
+description: >-
+  Make prompted short-form videos (TikTok / YouTube Shorts / Instagram Reels) from an idea.
+  Shape the style, tone, length, captions and voiceover; the director storyboards it and the
+  studio renders a real .mp4 with voiceover and captions, saved to your Files storage.
+version: 1.1.0
+status: active
+
+# Per-app skin (approved palette) — sakura so the media studio reads distinct.
+theme: sakura
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: video
+  ref: main
+
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+# Server-side TTS for narration defers to the swarm default (Google Cloud TTS when the
+# operator OAuth profile is present). Override here to pin a specific provider.
+voice:
+  tts:
+    provider: swarm-default
+
+# The Video Studio's bots — inline on the api, registered in BOTH swarm-bot-registry
+# blocks (kernel-resident). The personas here are package COPIES for the registrar;
+# the inline nodes keep using /app/ai-lab (core).
+bots:
+  - agentId: a0000000-0000-0000-0000-000000000048
+    name: video-director
+    persona: personas/video-director.yaml
+    role: video/storyboard-director
+    capabilities:
+      - video-storyboard
+      - scene-direction
+      - short-form-scripting
+      - caption-writing
+
+  # The SERIES screenwriter (ticketType video-series). Reason-only, inline on the api.
+  # Its persona is the quality gate: four scenes, dialogue on every scene, no narrator,
+  # a distinct camera per frame, motion-only direction. It writes; it never renders.
+  - agentId: a0000000-0000-0000-0000-000000000052
+    name: screenplay-writer
+    persona: personas/screenplay-writer.yaml
+    role: media/screenplay-writer
+    capabilities:
+      - episode-scripting
+      - series-bible
+      - dialogue-writing
+      - shot-direction
+
+  # The renderer. Already registered (kernel swarm-bot-registry blocks) — it drives
+  # Google Vids by clicking on the operator's remote node. Named here so
+  # `agentBinding: vids-operator` resolves.
+  - agentId: b00e0000-0000-0000-0000-000000000001
+    name: vids-operator
+    persona: personas/vids-operator.yaml
+    role: media/video
+    capabilities:
+      - veo-prompt-craft
+      - vids-generate
+      - vids-operate
+      - shot-planning
+
+# A series is a queued, multi-stage job (unlike a single clip, which is interactive).
+ticketType: video-series
+
+# The stage hand-off store (video_series / video_episodes / episode scenes). COPIES of
+# the kernel-owned 066/067 so fresh installs create the tables; both are idempotent.
+migrations:
+  - migrations/066-video-series.sql
+  - migrations/067-video-episode-scenes.sql
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — the packaged surface router, mounted /api/video on activation. (In core
+# server.ts this was createBotVideoRoutes behind requiresAuth; it now mounts from
+# this package, auth: oidc — ADR-085 D2.)
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - module: routes/video-routes.js
+    factory: createBotVideoRoutes
+    mountPath: /api/video
+    auth: oidc   # what core server.ts mounted (requiresAuth — ADR-085 D2)
+    requiresAuth: true
+    requiresContext: true
+
+# ── The series pipeline ────────────────────────────────────────────────────────────────
+#
+#   describe -> WRITE -> [approve the script] -> STORYBOARD -> RENDER (remote node) -> ASSEMBLE
+#
+# THE CONDUCTOR IS THE PIPELINE, NOT A GRAPH (ADR-082, resolved 2026-07-19): the
+# state-machine conductor (advanceVideoSeries in the kernel's series-orchestrator)
+# is the runtime — it holds at the approval gate ON THE SCRIPT, serializes renders,
+# and hands off through the user_sub-keyed video_series / video_episodes tables.
+# The workflow below only registers the `video-series` ticket type; a queue-approved
+# ticket lands on the screenplay-writer — the same first step the conductor drives.
+# (The dead `pipeline: graph` block was retired 2026-07-19; this package's
+# tests/video-manifest-no-graph.spec.ts guards it never returns.)
+workflow:
+  name: Video Series Pipeline
+  pipeline: manifest-worker
+  workerBot: screenplay-writer
+
+ui:
+  static:
+    - toolName: video-studio
+      label: Video Studio
+      icon: codicon codicon-device-camera-video
+      iframeUrl: /api/video/ui
+      section: top
+
+# Trim the ribbon to the studio + the essentials. Hide the generic framework items.
+ribbon:
+  hideFrameworkItems:
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - operations
+  defaultView: video-studio

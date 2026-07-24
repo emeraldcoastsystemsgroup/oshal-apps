@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Social — Intelligent Communication</title>
+<!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
+     Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
+     matters — without it the surface would have no colors at all. -->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  /* Keep the surface's own short alias names, but DERIVE each from a framework theme token instead
+     of a literal — so all eleven themes work, not just the dark ones. --accent2 is a semantic
+     "connected" success color (theme status token + hex fallback); --fb is the Facebook brand blue
+     and stays a literal in every theme. */
+  :root {
+    --bg: var(--bg-primary);
+    --panel: var(--bg-card);
+    --line: var(--border-color);
+    --text: var(--text-primary);
+    --muted: var(--text-secondary);
+    --accent: var(--accent-primary);
+    --accent2: var(--status-success, #00d3a7);
+    --fb: #1877f2;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family: system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  .page { max-width:680px; margin:0 auto; padding:34px 28px 60px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:26px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:22px; display:flex; gap:18px; align-items:center; margin-bottom:20px; }
+  .card img { width:72px; height:72px; border-radius:50%; border:2px solid var(--fb); }
+  .card .ph { width:72px; height:72px; border-radius:50%; background:var(--bg-tertiary, #222); display:flex; align-items:center; justify-content:center; font-size:28px; }
+  .card .nm { font-size:18px; font-weight:600; }
+  .card .id { color:var(--muted); font-size:12px; margin-top:3px; }
+  .badge { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--accent2); margin-top:7px; }
+  .badge::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--accent2); }
+  .note { background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:10px; padding:14px 16px; font-size:13px; line-height:1.6; color:var(--text-secondary, #c8c8da); margin-bottom:16px; }
+  .note b { color:var(--text); }
+  .links a { color:var(--accent); font-size:13px; text-decoration:none; }
+  .links a:hover { text-decoration:underline; }
+  .notice { color:var(--muted); padding:50px 0; text-align:center; }
+  .notice a { color:var(--accent); }
+  .spin { color:var(--muted); font-size:14px; }
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--text-secondary,rgba(255,255,255,.28))}
+  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
+  @media (max-width: 640px) {
+    .page { padding: 20px 14px 40px; }
+    .card { flex-wrap: wrap; padding: 16px; }
+    .note { font-size: 13px; }
+  }
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+  <div class="page">
+    <h1>👤 Social</h1>
+    <div class="sub">Your connected social accounts.</div>
+    <div id="content"><div class="spin">Checking your Facebook connection…</div></div>
+  </div>
+
+<script>
+function esc(s){ return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+async function run(){
+  const content = document.getElementById('content');
+  const r = await fetch('/api/email/social/profile?surface=1');
+  if (!r.ok) { content.innerHTML = '<div class="notice">Could not load your Facebook profile ('+r.status+').</div>'; return; }
+  const p = await r.json();
+  if (p.connected === false) { content.innerHTML = '<div class="notice">No Facebook account connected.<br><a href="/utilities" target="_top">Connect Facebook →</a></div>'; return; }
+  const avatar = p.picture ? `<img src="${esc(p.picture)}" alt="">` : `<div class="ph">👤</div>`;
+  content.innerHTML = `
+    <div class="card">${avatar}
+      <div><div class="nm">${esc(p.name||'Connected')}</div><div class="id">Facebook ID: ${esc(p.id||'')}</div>
+      <div class="badge">Connected</div></div>
+    </div>
+    <div class="note"><b>What's available now:</b> with the current <code>public_profile</code> permission, OSHAL can read your basic profile (name, ID, picture). Reading your <b>feed</b>, <b>posts</b>, <b>comments</b>, or sending <b>messages</b> requires additional Meta permissions, which need <b>Meta App Review</b> before they can be enabled.</div>
+    <div class="links"><a href="/utilities" target="_top">Manage connection →</a></div>`;
+}
+run();
+</script>
+</body>
+</html>

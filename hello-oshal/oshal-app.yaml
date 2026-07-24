@@ -1,0 +1,57 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — hello-oshal (the minimal working example)
+#
+# The smallest real extension: one self-contained route + one ribbon surface.
+# Install it to prove the loop end-to-end:
+#   node scripts/oshal-app.js install hello-oshal
+#   → lands in deployed-apps/hello-oshal/ → the loader mounts /api/hello-oshal
+#   → GET /api/hello-oshal/ping responds.
+#
+# Copy this folder as the starting point for a new extension. See BUILDING-EXTENSIONS.md.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: hello-oshal
+suite: ai-engineering   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Hello OSHAL
+description: The minimal working OSHAL app package — one route, one ribbon tile.
+version: 1.0.1
+status: active
+scope: person
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: hello-oshal
+  ref: main
+
+# No bots, no migrations, no dependencies — the smallest possible package.
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+# ADR-085 §5: RAG collections this app owns — surfaced in uninstall-impact and
+# deleted at uninstall only under the operator's explicit ?dropData=true.
+ragCollections:
+  - "hello-oshal-*"
+
+# One ribbon tile that opens the route.
+ui:
+  static:
+    - toolName: hello-oshal
+      label: Hello OSHAL
+      icon: codicon codicon-rocket
+      iframeUrl: /api/hello-oshal/ping
+      section: top
+
+# One route, compiled JS, mounted in-process at activation.
+# NOTE: this example sets requiresAuth: false so it's trivially reachable in a demo.
+# Real apps should leave requiresAuth on (the default).
+routes:
+  - module: routes/hello.js
+    factory: createHelloRoutes
+    mountPath: /api/hello-oshal
+    requiresAuth: false
+    requiresContext: false
+
+theme: midnight

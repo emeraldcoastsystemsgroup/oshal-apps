@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Little Monsters - My Files</title>
+<script>
+(function(){function a(n){if(!n)return;document.documentElement.setAttribute('data-theme',n);var h='/cockpit/css/themes/'+n+'.css',l=document.querySelector('link[data-lm-theme-link]');if(l){if(l.getAttribute('href')!==h)l.setAttribute('href',h);return;}l=document.createElement('link');l.rel='stylesheet';l.href=h;l.setAttribute('data-lm-theme-link','1');document.head.appendChild(l);}function i(){try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(e){}try{var s=localStorage.getItem('cockpit-theme');if(s)return s;}catch(e){}return 'little-monsters';}a(i());try{if(window.parent&&window.parent!==window){var ph=window.parent.document.documentElement;new MutationObserver(function(m){for(var k=0;k<m.length;k++)if(m[k].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)a(t);}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});}}catch(e){}})();
+</script>
+<link rel="stylesheet" href="/api/education/education.css">
+<style>
+  body{margin:0;color:var(--text-primary,#fdeaf6);font-family:system-ui,'Inter',sans-serif;}
+  .wrap{padding:22px clamp(14px,4vw,40px) 60px;max-width:780px;}
+  .head{display:flex;align-items:center;gap:12px;}
+  .head img{width:48px;height:48px;border-radius:12px;border:3px solid var(--accent-primary,#ec4faa);background:var(--bg-card);}
+  h1{margin:0;font-size:clamp(20px,3vw,28px);}
+  .sub{color:var(--text-muted);font-size:13px;margin:4px 0 18px;}
+  .card{border:1px solid var(--border-color);border-radius:16px;background:var(--bg-card);padding:16px;margin-bottom:16px;}
+  .card h2{margin:0 0 10px;font-size:15px;}
+  textarea{width:100%;box-sizing:border-box;min-height:120px;padding:12px;border-radius:12px;border:1px solid var(--border-color);
+    background:var(--bg-secondary);color:inherit;font-size:14px;resize:vertical;}
+  input.fn{width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid var(--border-color);
+    background:var(--bg-secondary);color:inherit;font-size:14px;margin:8px 0;}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;}
+  .btn{background:var(--accent-primary,#ec4faa);color:#fff;border:none;border-radius:12px;padding:10px 16px;font-weight:800;cursor:pointer;}
+  .btn.ghost{background:transparent;color:var(--text-primary);border:1px solid var(--border-color);}
+  .dest{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}
+  .dest a{display:block;text-decoration:none;color:inherit;border:1px solid var(--border-color);border-radius:14px;
+    background:var(--bg-secondary);padding:16px;transition:.15s;text-align:center;}
+  .dest a:hover{border-color:var(--accent-primary,#ec4faa);transform:translateY(-2px);}
+  .dest .e{font-size:30px;} .dest .n{font-weight:800;margin-top:6px;} .dest .d{font-size:11px;color:var(--text-muted);margin-top:2px;}
+  .saved li{display:flex;align-items:center;gap:10px;font-size:13px;padding:8px 0;border-bottom:1px solid var(--border-color);}
+  .saved li .x{margin-left:auto;color:var(--status-error,#ff6b8b);cursor:pointer;font-size:12px;}
+  .small{font-size:12px;color:var(--text-muted);}
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<div class="wrap">
+  <div class="head"><img src="/api/education/mascot.png" alt=""><div><h1>My Files</h1></div></div>
+  <p class="sub">A home for your notes and work — keep it here, save it to your computer, or send it to the cloud.</p>
+
+  <div class="card">
+    <h2>📝 Quick note / file</h2>
+    <input class="fn" id="fname" placeholder="File name (e.g. biology-notes.txt)" value="my-note.txt">
+    <textarea id="ftext" placeholder="Type or paste your notes here…"></textarea>
+    <div class="btns" style="margin-top:10px;">
+      <button class="btn" onclick="saveLocal()">💾 Keep it here</button>
+      <button class="btn ghost" onclick="saveToComputer()">⬇️ Save to my computer</button>
+      <button class="btn ghost" onclick="openFromComputer()">📂 Open from my computer</button>
+    </div>
+    <p class="small" id="msg" style="margin-top:8px;"></p>
+  </div>
+
+  <div class="card">
+    <h2>📚 Saved here</h2>
+    <ul class="saved" id="saved"></ul>
+    <p class="small" id="empty">Nothing saved yet. Files you keep here stay in this browser.</p>
+  </div>
+
+  <div class="card">
+    <h2>☁️ Save to the cloud</h2>
+    <p class="small" style="margin-top:0;">Connect an account once, then your files can sync there. Connections open in the hub.</p>
+    <div class="dest">
+      <a href="/utilities" target="_blank" rel="noopener"><div class="e">📦</div><div class="n">Dropbox</div><div class="d">Connect to sync</div></a>
+      <a href="/utilities" target="_blank" rel="noopener"><div class="e">🐙</div><div class="n">GitHub</div><div class="d">Connect to sync</div></a>
+      <a href="/utilities" target="_blank" rel="noopener"><div class="e">📁</div><div class="n">Google Drive</div><div class="d">Connect to sync</div></a>
+    </div>
+  </div>
+</div>
+<script>
+var KEY='lm-files';
+function load(){ try{ return JSON.parse(localStorage.getItem(KEY)||'[]'); }catch(e){ return []; } }
+function save(v){ try{ localStorage.setItem(KEY, JSON.stringify(v)); }catch(e){} }
+function msg(m){ document.getElementById('msg').textContent = m||''; }
+function esc(s){ var d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+
+function saveLocal(){
+  var name=document.getElementById('fname').value.trim()||'untitled.txt';
+  var text=document.getElementById('ftext').value;
+  if(!text){ msg('Type something first.'); return; }
+  var list=load(); list.unshift({name:name,text:text}); save(list); render(); msg('Saved “'+name+'” here.');
+}
+// Real local file system save (Chrome File System Access API), with a download fallback.
+async function saveToComputer(){
+  var name=document.getElementById('fname').value.trim()||'untitled.txt';
+  var text=document.getElementById('ftext').value;
+  try{
+    if(window.showSaveFilePicker){
+      var handle=await window.showSaveFilePicker({suggestedName:name});
+      var w=await handle.createWritable(); await w.write(text); await w.close();
+      msg('Saved to your computer ✓'); return;
+    }
+  }catch(e){ if(e&&e.name==='AbortError'){ return; } }
+  // Fallback: trigger a download
+  var blob=new Blob([text],{type:'text/plain'});
+  var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); },1000);
+  msg('Downloaded “'+name+'” ✓');
+}
+async function openFromComputer(){
+  try{
+    if(window.showOpenFilePicker){
+      var picks=await window.showOpenFilePicker();
+      var file=await picks[0].getFile(); var text=await file.text();
+      document.getElementById('fname').value=file.name; document.getElementById('ftext').value=text;
+      msg('Opened “'+file.name+'” ✓'); return;
+    }
+  }catch(e){ if(e&&e.name==='AbortError'){ return; } }
+  // Fallback: hidden input
+  var inp=document.createElement('input'); inp.type='file';
+  inp.onchange=function(){ var f=inp.files[0]; if(!f)return; var r=new FileReader();
+    r.onload=function(){ document.getElementById('fname').value=f.name; document.getElementById('ftext').value=String(r.result); msg('Opened “'+f.name+'” ✓'); }; r.readAsText(f); };
+  inp.click();
+}
+function render(){
+  var list=load(), ul=document.getElementById('saved'); ul.innerHTML='';
+  document.getElementById('empty').style.display=list.length?'none':'block';
+  list.forEach(function(f,i){
+    var li=document.createElement('li');
+    li.innerHTML='📄 <span>'+esc(f.name)+'</span> <span class="x" data-i="'+i+'">delete</span>';
+    li.onclick=function(e){ if(e.target.classList.contains('x')){ var l=load(); l.splice(i,1); save(l); render(); return; }
+      document.getElementById('fname').value=f.name; document.getElementById('ftext').value=f.text; msg('Loaded “'+f.name+'”.'); };
+    ul.appendChild(li);
+  });
+}
+render();
+</script>
+</body>
+</html>

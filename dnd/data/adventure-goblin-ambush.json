@@ -1,0 +1,95 @@
+{
+  "_license": "Original adventure by Emerald Coast Systems Group. Uses SRD 5.1 creatures (CC-BY-4.0). See LICENSE-SRD.md.",
+  "id": "goblin-ambush",
+  "title": "Ambush on the Coast Road",
+  "summary": "Cloth merchant Alden Reed's cart lies overturned on the forest road. The tracks are fresh, the woods are too quiet, and something is watching from the eastern treeline.",
+  "theme": {
+    "id": "classic-fantasy",
+    "label": "Roadside Rescue",
+    "narration": "Tell a grounded heroic-fantasy rescue story. Keep Alden Reed's disappearance and the eastern trail present through every fight, and let the party's choices determine how the rescue unfolds."
+  },
+  "scenes": [
+    {
+      "id": "coast-road",
+      "title": "Ambush on the Coast Road",
+      "objective": "Survive the ambush, drive off or defeat the goblins, and find out what happened to Alden Reed.",
+      "storyAnchor": "Alden Reed, the cloth merchant, is missing - not trapped beneath the overturned cart. A small boot print and woodsmoke from the eastern woods point toward a goblin abduction; the ambush is keeping the party from following that trail.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "The Coast Road bends through old pines, and that is where you find it: Alden Reed's cloth cart tipped onto its side, one wheel still lazily spinning. Bolts of dyed cloth spill across the dirt like a wound. There is no Alden, no horse, no blood — only a single boot print pressed into the mud, too small to be a man's, and a smell of woodsmoke drifting from the east. The forest has gone silent. Somewhere in the treeline, a bowstring creaks. Roll for initiative — and tell me: what do you do?",
+      "openingChoices": ["Take cover behind the overturned cart", "Shout into the treeline — reveal yourselves!", "Nock an arrow and scan the shadows"],
+      "terrain": {
+        "blocking": [
+          { "x": 0, "y": 0, "kind": "tree" }, { "x": 3, "y": 0, "kind": "tree" }, { "x": 6, "y": 1, "kind": "tree" },
+          { "x": 9, "y": 0, "kind": "tree" }, { "x": 11, "y": 1, "kind": "tree" }, { "x": 2, "y": 2, "kind": "tree" },
+          { "x": 7, "y": 2, "kind": "tree" }, { "x": 11, "y": 3, "kind": "tree" }, { "x": 12, "y": 4, "kind": "tree" },
+          { "x": 13, "y": 4, "kind": "tree" }, { "x": 16, "y": 4, "kind": "tree" }, { "x": 15, "y": 6, "kind": "tree" },
+          { "x": 14, "y": 8, "kind": "tree" }, { "x": 13, "y": 9, "kind": "tree" }, { "x": 16, "y": 8, "kind": "tree" },
+          { "x": 2, "y": 9, "kind": "tree" }, { "x": 1, "y": 10, "kind": "tree" }, { "x": 4, "y": 11, "kind": "tree" },
+          { "x": 6, "y": 10, "kind": "tree" }, { "x": 9, "y": 11, "kind": "tree" }, { "x": 11, "y": 10, "kind": "tree" },
+          { "x": 14, "y": 11, "kind": "tree" }, { "x": 16, "y": 10, "kind": "tree" },
+          { "x": 7, "y": 4, "kind": "rock" }, { "x": 10, "y": 7, "kind": "rock" },
+          { "x": 8, "y": 5, "kind": "cart" }, { "x": 9, "y": 5, "kind": "cart" }, { "x": 8, "y": 6, "kind": "cart" }, { "x": 9, "y": 6, "kind": "cart" }
+        ],
+        "difficult": [
+          { "x": 13, "y": 3, "kind": "brush" }, { "x": 14, "y": 7, "kind": "brush" }, { "x": 12, "y": 8, "kind": "brush" },
+          { "x": 15, "y": 5, "kind": "brush" }, { "x": 12, "y": 5, "kind": "brush" }, { "x": 15, "y": 7, "kind": "brush" },
+          { "x": 13, "y": 7, "kind": "brush" }, { "x": 11, "y": 8, "kind": "brush" }
+        ]
+      },
+      "partyStart": [ { "x": 5, "y": 5 }, { "x": 4, "y": 6 }, { "x": 3, "y": 6 }, { "x": 5, "y": 7 } ],
+      "monsters": [
+        { "ref": "goblin", "instanceId": "g1", "name": "Vesh Far-Eye", "role": "Ambush Archer", "personality": "Patient, vain about impossible shots, and quick to blame a poor angle.", "storyHook": "Vesh recognizes the marked trade maps but has never met the buyer who supplied them.", "x": 13, "y": 3, "hidden": true },
+        { "ref": "goblin", "instanceId": "g2", "name": "Rikkit Quickheel", "role": "Road Skirmisher", "personality": "Restless, competitive, and always trying to prove faster than the others.", "storyHook": "Rikkit carried messages between the road ambush and the ravine camp.", "x": 14, "y": 7, "hidden": true },
+        { "ref": "goblin", "instanceId": "g3", "name": "Tallow", "role": "Cart Cutter", "personality": "A nervous scavenger who acts cruel only when backed by stronger goblins.", "storyHook": "Tallow cut the merchant's harness and knows the captive was taken east alive.", "x": 12, "y": 8, "hidden": true },
+        { "ref": "goblin-boss", "instanceId": "boss", "name": "Snaggletooth", "role": "Goblin Boss", "personality": "A swaggering bully whose confidence cracks as soon as the ambush turns against him.", "storyHook": "Snaggletooth carries orders from an unnamed patron who paid to close the coast road.", "x": 15, "y": 5, "hidden": true }
+      ],
+      "xpReward": 350,
+      "storyAward": 850,
+      "afterword": "With the goblins scattered, the woodsmoke to the east marks their bolt-hole — a shallow ravine where the missing merchant must be. The DM grants a story award for surviving the ambush and reading the road true. Catch your breath, bind your wounds, and follow the smoke — stronger than you arrived.",
+      "next": "the-ravine"
+    },
+    {
+      "id": "the-ravine",
+      "title": "The Ravine",
+      "objective": "Rescue Alden Reed from the goblins' bolt-hole. Named wolves prowl the camp, and Snaggletooth is cornered by the cages.",
+      "storyAnchor": "Alden Reed is visible alive, bound and gagged beside the eastern cage. The party must break through Ashfang, Cinder, and Snaggletooth's named camp crew to reach him; stolen crates and an organized camp suggest this raid is bigger than roadside robbery.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "The woodsmoke leads you to a scar in the earth — a shallow ravine walled in cold stone, its floor littered with stolen crates. A cookfire guts and spits by the far wall. Beside it, lashed to a stake beside a crude wooden cage, slumps Alden Reed — alive, gagged, furious. Ashfang, an old grey wolf, and the younger black wolf Cinder lift their heads from a stripped carcass and go very still. Muckpot the cook grips a scimitar. Krell Hook-Ear watches the cage. From behind it, Snaggletooth snarls orders: he survived the road, and he is done running. This time, nobody is hidden. Roll for initiative!",
+      "openingChoices": ["Rush the cage to free the merchant", "Kick the cookfire into the crates", "Demand Snaggletooth surrender"],
+      "terrain": {
+        "blocking": [
+          { "x": 0, "y": 0, "kind": "rock" }, { "x": 1, "y": 0, "kind": "rock" }, { "x": 4, "y": 0, "kind": "rock" },
+          { "x": 7, "y": 0, "kind": "rock" }, { "x": 10, "y": 0, "kind": "rock" }, { "x": 13, "y": 0, "kind": "rock" },
+          { "x": 16, "y": 0, "kind": "rock" }, { "x": 17, "y": 0, "kind": "rock" }, { "x": 17, "y": 1, "kind": "rock" },
+          { "x": 0, "y": 11, "kind": "rock" }, { "x": 3, "y": 11, "kind": "rock" }, { "x": 6, "y": 11, "kind": "rock" },
+          { "x": 9, "y": 11, "kind": "rock" }, { "x": 12, "y": 11, "kind": "rock" }, { "x": 15, "y": 11, "kind": "rock" },
+          { "x": 17, "y": 11, "kind": "rock" }, { "x": 17, "y": 10, "kind": "rock" },
+          { "x": 6, "y": 4, "kind": "cart" }, { "x": 6, "y": 5, "kind": "cart" },
+          { "x": 10, "y": 8, "kind": "cart" }, { "x": 11, "y": 8, "kind": "cart" },
+          { "x": 14, "y": 3, "kind": "rock" }, { "x": 15, "y": 8, "kind": "cage" }, { "x": 15, "y": 9, "kind": "cage" },
+          { "x": 12, "y": 5, "kind": "fire" }
+        ],
+        "difficult": [
+          { "x": 3, "y": 4, "kind": "scree" }, { "x": 3, "y": 5, "kind": "scree" }, { "x": 3, "y": 6, "kind": "scree" },
+          { "x": 8, "y": 2, "kind": "scree" }, { "x": 9, "y": 2, "kind": "scree" },
+          { "x": 8, "y": 9, "kind": "scree" }, { "x": 9, "y": 9, "kind": "scree" },
+          { "x": 13, "y": 6, "kind": "scree" }, { "x": 11, "y": 4, "kind": "scree" }
+        ]
+      },
+      "partyStart": [ { "x": 1, "y": 5 }, { "x": 1, "y": 6 }, { "x": 0, "y": 6 }, { "x": 1, "y": 7 } ],
+      "props": [
+        { "id": "merchant", "name": "Alden Reed", "role": "Bound Cloth Merchant", "personality": "Observant, stubborn, and furious that fear has kept him silent.", "storyHook": "Alden saw marked maps in the stolen crates and heard Snaggletooth argue with a hooded buyer.", "x": 16, "y": 9, "glyph": "🧍", "color": "#94a3b8" }
+      ],
+      "monsters": [
+        { "ref": "wolf", "instanceId": "w1", "name": "Ashfang", "role": "Scarred Grey Wolf", "personality": "Old, watchful, and more protective of Cinder than loyal to any goblin.", "storyHook": "Ashfang may break from the fight if Cinder falls or Muckpot yields.", "x": 8, "y": 5, "hidden": false },
+        { "ref": "wolf", "instanceId": "w2", "name": "Cinder", "role": "Young Black Wolf", "personality": "Fast, hungry, and reckless whenever Ashfang is threatened.", "storyHook": "Cinder follows Ashfang's lead and fears the cookfire.", "x": 9, "y": 7, "hidden": false },
+        { "ref": "goblin", "instanceId": "g4", "name": "Muckpot", "role": "Camp Cook", "personality": "Complaining and sharp-tongued, but genuinely protective of the two wolves.", "storyHook": "Muckpot knows where the camp ledger is hidden and may bargain to protect Ashfang and Cinder.", "x": 12, "y": 4, "hidden": false },
+        { "ref": "goblin", "instanceId": "g5", "name": "Krell Hook-Ear", "role": "Camp Guard", "personality": "Disciplined, wary, and loyal only while Snaggletooth still looks likely to win.", "storyHook": "Krell overheard the hooded buyer promise a second payment and may surrender if isolated.", "x": 14, "y": 7, "hidden": false },
+        { "ref": "goblin-boss", "instanceId": "boss2", "name": "Snaggletooth", "role": "Cornered Goblin Boss", "personality": "Humiliated by the failed road ambush, furious, and now visibly afraid of disappointing his patron.", "storyHook": "Cornered, Snaggletooth may reveal who paid him before accepting defeat.", "x": 15, "y": 6, "hidden": false }
+      ],
+      "xpReward": 550,
+      "afterword": "Alden Reed, freed, wrings your hands and swears a debt no coin can cover. The ravine's stolen crates hold more than cloth — maps, marked in a hand no goblin wrote, of every road into the valley. Someone was PAYING Snaggletooth to close this road. But that... is a story for your next campaign.",
+      "next": null
+    }
+  ]
+}

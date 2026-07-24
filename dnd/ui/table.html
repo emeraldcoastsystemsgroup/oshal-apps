@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en" data-theme="midnight">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Dungeon Master — The Table</title>
+  <!-- Follow the cockpit's standard theme: these define the framework color tokens
+       and set data-theme from the operator's saved theme (live-following). The
+       chrome derives from them (dnd.css :root); the canvas board stays dark. -->
+  <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+  <script src="/shared/ui/js/surface-theme.js"></script>
+  <link rel="stylesheet" href="/api/dnd/dnd.css" />
+  <script src="/api/dnd/engine.js"></script>
+</head>
+<body>
+  <div id="app">
+    <div id="initiative"><span class="round" id="roundLbl">Gather your party…</span></div>
+    <div id="turnflag" class="hidden" role="status" aria-live="polite"></div>
+    <div id="playfield">
+      <div id="stage">
+        <canvas id="board"></canvas>
+        <div id="caption" class="hidden"></div>
+        <div id="banner" class="hidden"></div>
+        <button class="fab" id="gamesBtn" title="Leave this table, resume, join, or start another campaign">☰ Games</button>
+        <button class="fab" id="savesBtn" title="Read-only timeline playback and confirmed rewind">⏳ Timeline</button>
+        <button class="fab" id="partyBtn" title="Party seats and character sheets">🧙 Party</button>
+        <button class="fab primary-fab" id="fullscreenBtn" title="Hide the cockpit and fill the display with the game">⛶ PLAY FULL SCREEN</button>
+        <button class="fab" id="diceBtn" title="Roll a die">🎲 Roll</button>
+        <button class="fab" id="helpBtn" title="How to play">? Help</button>
+        <button class="fab" id="voiceBtn" title="Narration, spoken dice, action calls, and NPC pace">⚙ DM Settings</button>
+        <button class="fab" id="storyBtn" title="Open the Dungeon Master, character, inventory, and latest story">💬 DM &amp; Story</button>
+        <div id="overlay" class="overlay hidden"><div class="card" id="overlayCard"></div></div>
+      </div>
+      <div id="story">
+        <h3>Dungeon Master <span style="display:flex;gap:10px;align-items:center"><span id="voiceStatus" title="Natural Dungeon Master narrator">Algenib · Gravelly Storyteller</span><span id="recapBtn" style="cursor:pointer;font-size:12px;color:var(--muted)" title="Previously, on…">⟲ recap</span><span id="closeStory" style="cursor:pointer">✕</span></span></h3>
+        <div id="railScroll">
+          <section id="railCharacter" class="rail-character hidden" aria-live="polite"></section>
+          <section id="questThread" class="quest-thread hidden" aria-live="polite">
+            <span class="quest-label">Current Quest</span>
+            <strong id="questTitle"></strong>
+            <p id="questAnchor"></p>
+            <button id="questReplay" type="button">Hear scene opening again</button>
+          </section>
+          <div class="rail-section-title">Latest story &amp; table conversation</div>
+          <div id="log"></div>
+          <div id="choices" class="hidden" aria-label="Story choices"></div>
+        </div>
+        <div id="dmPrompts" aria-label="Quick questions for the Dungeon Master">
+          <button type="button" data-dm-prompt="What do we know so far, and what remains unresolved?">What do we know?</button>
+          <button type="button" data-dm-prompt="What people, objects, or places can we search right now?">What can I search?</button>
+          <button type="button" data-dm-prompt="We are going in circles. Give us three different ways forward.">Get us unstuck</button>
+        </div>
+        <div id="talk">
+          <input id="talkInput" aria-label="Ask the Dungeon Master" placeholder="Ask the DM anything…" autocomplete="off" />
+          <button id="micBtn" title="Speak">🎙</button>
+          <button id="sendTalk">Ask DM</button>
+        </div>
+      </div>
+    </div>
+    <div id="dock">
+      <div id="who"><div class="name">—</div></div>
+      <div id="actions"></div>
+      <div id="turnctl">
+        <button class="big" id="endTurn">End Turn</button>
+        <button class="big ghost hidden" id="stayBtn">Hold Position</button>
+        <button class="big ghost" id="moveBtn">Move</button>
+      </div>
+    </div>
+  </div>
+
+<script src="/api/dnd/table-runtime.js"></script>
+<script src="/api/dnd/table-voice.js"></script>
+<script src="/api/dnd/table-dice.js"></script>
+<script src="/api/dnd/table-presentation.js"></script>
+<script src="/api/dnd/table-turns.js"></script>
+<script src="/api/dnd/table-combat-narration.js"></script>
+<script src="/api/dnd/table-automation.js"></script>
+<script src="/api/dnd/table-outcomes.js"></script>
+<script src="/api/dnd/table-story.js"></script>
+<script src="/api/dnd/table-exploration.js"></script>
+<script src="/api/dnd/table-character-sheet.js"></script>
+<script src="/api/dnd/table-campaigns.js"></script>
+<script src="/api/dnd/table-seats.js"></script>
+<script src="/api/dnd/table-playback.js"></script>
+<script src="/api/dnd/table-immersive.js"></script>
+<script src="/api/dnd/table-screens.js"></script>
+</body>
+</html>

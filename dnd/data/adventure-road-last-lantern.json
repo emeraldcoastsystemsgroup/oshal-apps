@@ -1,0 +1,143 @@
+{
+  "_license": "Original adventure and setting by Emerald Coast Systems Group. Rules references use SRD 5.1 under CC-BY-4.0.",
+  "id": "road-last-lantern",
+  "title": "The Road of the Last Lantern",
+  "summary": "A small fellowship must carry an undying lantern across a fallen mountain road before an advancing shadow severs the valley kingdoms forever.",
+  "theme": {
+    "id": "last-lantern",
+    "label": "Epic Fellowship Journey",
+    "narration": "Use grounded high fantasy with weather, songs, old roads, friendship, and costly hope. Make the fellowship feel small against the landscape but decisive through loyalty. Avoid imitation of existing fantasy names, lore, scenes, or prose."
+  },
+  "scenes": [
+    {
+      "id": "lantern-willowmead",
+      "kind": "exploration",
+      "act": "beginning",
+      "title": "The Lighting at Willowmead",
+      "objective": "Learn why the Last Lantern must cross Greyglass Pass and choose whom the fellowship trusts before departure.",
+      "storyAnchor": "The Lantern carries the last living flame from the western beacon. It must relight Dawnwatch before the Ash Host crosses the pass. It is not a weapon; it is a signal that will unite three valley militias. Someone in Willowmead has already sold the route.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "Willowmead has one bridge, two inns, and a mayor who keeps declaring both inns superior. Tonight every window is dark except the old mill, where Keeper Ysra lifts a lantern no wind has extinguished in nine hundred years. Its flame is small and blue. Beyond the valley, Greyglass Pass is already filling with ash. If the flame reaches Dawnwatch, three kingdoms will see the beacon and close the mountain road. If it fails, each will believe the others abandoned them.",
+      "openingChoices": ["Ask Ysra about the flame", "Study the old pass maps", "Meet the travelers offering help"],
+      "exploration": {
+        "required": 4,
+        "guidance": "A fellowship is built before the road tests it. Learn the route, the burden, the allies, and the betrayal.",
+        "leads": [
+          { "id": "ysra", "name": "Keeper Ysra Vale", "type": "person", "prompt": "Ask what the Last Lantern can and cannot do.", "reveal": "Ysra says the flame cannot burn flesh or banish darkness. It carries a promise between distant people. It dies only if its bearer willingly abandons everyone waiting for it." },
+          { "id": "maps", "name": "Greyglass Pass Maps", "type": "object", "prompt": "Compare the king's road, shepherd paths, and ruined watch stations.", "reveal": "The king's road is watched. A shepherd path reaches the abandoned Bell Bridge, while an older stair climbs through Echo Barrow and rejoins near Dawnwatch." },
+          { "id": "brom", "name": "Brom Barleywake", "type": "person", "prompt": "Question the cheerful muleteer volunteering his cart.", "reveal": "Brom knows every mile marker and lies terribly. He admits an Ash Host scout paid him for the route, but he gave them a false map and now expects angry visitors." },
+          { "id": "kest", "name": "Kest of the Reeds", "type": "person", "prompt": "Ask the quiet marsh guide why she is joining.", "reveal": "Kest's village lies east of Dawnwatch. She carries thirty-seven names sewn inside her coat and intends the beacon to mean each of them is still coming." },
+          { "id": "raven", "name": "The Brass Raven", "type": "object", "prompt": "Inspect the mechanical bird found near the mill.", "requires": ["brom"], "reveal": "The raven contains Brom's false map and a fresh message ordering raiders to Bell Bridge. The enemy believed his lie—but someone corrected it in a second hand." },
+          { "id": "mayor", "name": "Mayor Pellin Twice", "type": "person", "prompt": "Ask why the mayor signed two conflicting travel permits.", "reveal": "Pellin signs everything twice from habit, but one permit carries a forged second signature. The forger had access to the mill before the Lighting." }
+        ]
+      },
+      "terrain": { "blocking": [{ "x": 8, "y": 4, "kind": "cart" }, { "x": 9, "y": 4, "kind": "cart" }, { "x": 14, "y": 8, "kind": "tree" }], "difficult": [{ "x": 5, "y": 8, "kind": "brush" }] },
+      "partyStart": [{ "x": 4, "y": 6 }, { "x": 5, "y": 6 }, { "x": 4, "y": 7 }, { "x": 5, "y": 7 }],
+      "props": [
+        { "id": "ysra-vale", "name": "Ysra Vale", "role": "Keeper of the Last Lantern", "personality": "Patient, plainspoken, and unimpressed by anyone who confuses importance with ceremony.", "storyHook": "Ysra cannot make the crossing herself; the flame chose a new fellowship.", "x": 10, "y": 4, "glyph": "✦", "color": "#93c5fd" },
+        { "id": "brom-barleywake", "name": "Brom Barleywake", "role": "Muleteer, Cook, Catastrophic Liar", "personality": "Generous, talkative, and incapable of deceiving anyone who can see his eyebrows.", "storyHook": "Brom sold the enemy a false route.", "x": 3, "y": 8, "glyph": "♧", "color": "#fbbf24" }
+      ],
+      "monsters": [],
+      "xpReward": 0,
+      "storyAward": 450,
+      "afterword": "The fellowship leaves Willowmead with the flame, Brom's mule Pickle, Kest's thirty-seven names, and proof the enemy expects them at Bell Bridge. Someone corrected Brom's false map from inside the village, but dawn will not wait for a perfect answer.",
+      "next": "lantern-greyglass"
+    },
+    {
+      "id": "lantern-greyglass",
+      "kind": "exploration",
+      "act": "middle",
+      "title": "Greyglass Pass",
+      "objective": "Cross the mountain, keep the fellowship together, and discover how the Ash Host learned the true road.",
+      "storyAnchor": "The journey matters. Storm, hunger, fear, and conflicting routes test the group before combat. The betrayer is not Brom: Ysra's apprentice Tern followed to reclaim the Lantern, believing the valley kingdoms are unworthy of its promise.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "By the second day, the world below is cloud and the world above is stone. Pickle the mule refuses to cross any bridge Brom describes as \"mostly a bridge,\" which eliminates all of them. At Echo Barrow, the party finds a fire still warm and the Brass Raven waiting on a milestone. It speaks in Ysra's voice: \"Turn back. The kingdoms will waste the flame on another war.\" Then it flies toward Dawnwatch.",
+      "openingChoices": ["Search Echo Barrow", "Follow the Brass Raven", "Ask Kest to choose the road"],
+      "exploration": {
+        "required": 4,
+        "guidance": "The middle tests relationships as well as clues. Every discovery should change how the fellowship understands the road.",
+        "leads": [
+          { "id": "barrow", "name": "Echo Barrow", "type": "place", "prompt": "Search the warm camp and ancient waystones.", "reveal": "The fire used blue lantern oil from Willowmead. Beside it lies Ysra's apprentice clasp and a list of the valley kingdoms' past betrayals." },
+          { "id": "kest-road", "name": "Kest's Marsh Compass", "type": "object", "prompt": "Let Kest read wind, lichen, and the names in her coat.", "reveal": "Kest chooses the harder shepherd stair because the wind carries no ash. She admits she is afraid the beacon will light and nobody will answer—but walks first." },
+          { "id": "pickle", "name": "Pickle's Refusal", "type": "person", "prompt": "Find out why the mule refuses the Bell Bridge.", "reveal": "Pickle smells pitch beneath the bridge stones. The span is trapped to burn, confirming the Ash Host expects the fellowship here despite Brom's false map." },
+          { "id": "raven-message", "name": "The Brass Raven's Message", "type": "object", "prompt": "Capture or decode the mechanical messenger.", "reveal": "The raven carries orders from Tern Vale, Ysra's apprentice. Tern believes extinguishing the Lantern will force the kingdoms to face the cost of their old feuds." },
+          { "id": "tern-motive", "name": "Tern Vale's Trail", "type": "person", "prompt": "Follow Tern's camp notes and discarded supplies.", "requires": ["barrow"], "reveal": "Tern is not serving the Ash Host. He is guiding raiders away from civilians while racing to Dawnwatch to destroy the beacon himself. His betrayal comes from despair, not allegiance." },
+          { "id": "names", "name": "Kest's Thirty-Seven Names", "type": "object", "prompt": "Learn who waits east of the pass.", "requires": ["kest-road"], "reveal": "The names belong to boatwrights, shepherds, children, and one terrible fiddler. The abstract kingdoms become people who will see the beacon and know the road is still open." }
+        ]
+      },
+      "terrain": { "blocking": [{ "x": 5, "y": 3, "kind": "rock" }, { "x": 10, "y": 5, "kind": "rock" }, { "x": 14, "y": 7, "kind": "rock" }], "difficult": [{ "x": 6, "y": 6, "kind": "scree" }, { "x": 7, "y": 6, "kind": "scree" }, { "x": 11, "y": 8, "kind": "scree" }] },
+      "partyStart": [{ "x": 2, "y": 8 }, { "x": 3, "y": 8 }, { "x": 2, "y": 9 }, { "x": 3, "y": 9 }],
+      "props": [
+        { "id": "kest-reeds", "name": "Kest of the Reeds", "role": "Marsh Guide and Bearer of Thirty-Seven Names", "personality": "Quiet, exact, and unexpectedly savage about bad fiddle music.", "storyHook": "Her village needs the beacon to believe help is coming.", "x": 8, "y": 7, "glyph": "⌁", "color": "#86efac" },
+        { "id": "pickle-mule", "name": "Pickle", "role": "Mule and Senior Bridge Inspector", "personality": "Stubborn, correct, and willing to forgive for apples.", "storyHook": "Pickle smells the trapped bridge.", "x": 5, "y": 9, "glyph": "♞", "color": "#d6d3d1" }
+      ],
+      "monsters": [],
+      "xpReward": 0,
+      "storyAward": 550,
+      "afterword": "The fellowship reaches Dawnwatch by the shepherd stair. Tern stands on the beacon platform with a hammer raised over the ancient lens. Below him, Ash Raiders climb from both sides of the pass. There is time to save the flame or the man, but only if the party holds the tower.",
+      "next": "lantern-dawnwatch"
+    },
+    {
+      "id": "lantern-dawnwatch",
+      "kind": "combat",
+      "act": "climax",
+      "title": "The Beacon at Dawnwatch",
+      "objective": "Hold Dawnwatch against the Ash Raiders while the Last Lantern relights the mountain beacon.",
+      "storyAnchor": "The party knows Tern acted from despair and may be brought back by proof that real people still wait. The raiders seek to extinguish the Lantern. The battle's purpose is to protect Kest, Ysra's promise, and the signal uniting the valleys.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "Dawnwatch is a broken crown of stone above the pass. Tern Vale lowers his hammer when Kest begins reading the thirty-seven names sewn inside her coat. He reaches the twenty-first before an Ash Raider's javelin strikes the beacon rim. More raiders flood onto the platform, soot-black axes raised. The Last Lantern burns in the party's hands, no brighter than a candle. Across three valleys, thousands are waiting to learn whether anyone else still stands.",
+      "openingChoices": ["Guard Kest at the beacon lens", "Call Tern back to the fellowship", "Hold the western stair"],
+      "terrain": {
+        "blocking": [{ "x": 8, "y": 4, "kind": "rock" }, { "x": 9, "y": 4, "kind": "rock" }, { "x": 8, "y": 5, "kind": "fire" }, { "x": 9, "y": 5, "kind": "fire" }, { "x": 4, "y": 2, "kind": "rock" }, { "x": 13, "y": 9, "kind": "rock" }],
+        "difficult": [{ "x": 5, "y": 5, "kind": "scree" }, { "x": 12, "y": 6, "kind": "scree" }]
+      },
+      "partyStart": [{ "x": 6, "y": 7 }, { "x": 7, "y": 7 }, { "x": 6, "y": 8 }, { "x": 7, "y": 8 }],
+      "props": [
+        { "id": "tern-vale", "name": "Tern Vale", "role": "Despairing Apprentice", "personality": "Idealistic, ashamed, and one honest answer away from choosing hope again.", "storyHook": "Tern may help light the beacon after hearing Kest's names.", "x": 10, "y": 6, "glyph": "✧", "color": "#c4b5fd" },
+        { "id": "kest-beacon", "name": "Kest of the Reeds", "role": "Voice of the Eastern Valley", "personality": "Reading every name despite the battle.", "storyHook": "The names turn the beacon from symbol into promise.", "x": 8, "y": 7, "glyph": "⌁", "color": "#86efac" }
+      ],
+      "monsters": [
+        { "ref": "ash-raider", "instanceId": "ash-1", "name": "Rauk Emberjaw", "role": "Western Stair Captain", "personality": "Loud, disciplined, and eager to be seen breaking the light.", "storyHook": "Rauk carries orders to destroy the lens.", "x": 3, "y": 4, "hidden": false },
+        { "ref": "ash-raider", "instanceId": "ash-2", "name": "Varda Soot", "role": "Javelin Hunter", "personality": "Silent and relentless.", "storyHook": "Varda targets anyone approaching the beacon.", "x": 14, "y": 3, "hidden": false },
+        { "ref": "ash-raider", "instanceId": "ash-3", "name": "Kel Bronzetooth", "role": "Lens Breaker", "personality": "Methodical and fearless.", "storyHook": "Kel's axe is wrapped to strike glass.", "x": 13, "y": 7, "hidden": false },
+        { "ref": "ash-raider", "instanceId": "ash-4", "name": "Orra Flint", "role": "Eastern Stair Guard", "personality": "Young, watchful, and uncertain why the signal matters.", "storyHook": "Orra has family in one of the valleys the beacon will warn.", "x": 15, "y": 9, "hidden": false }
+      ],
+      "xpReward": 700,
+      "storyAward": 650,
+      "afterword": "The Last Lantern touches the Dawnwatch lens. Blue fire races through ancient channels, then erupts above the pass in a pillar visible from every valley. One by one, distant beacons answer. The Ash Host stops advancing—not defeated forever, but denied the lonely kingdoms it expected.",
+      "next": "lantern-answering-fires"
+    },
+    {
+      "id": "lantern-answering-fires",
+      "kind": "exploration",
+      "act": "falling-action",
+      "title": "The Answering Fires",
+      "objective": "Witness the valleys answer, reconcile the fellowship, and decide who carries the Lantern home.",
+      "storyAnchor": "The climax is over. The end shows the signal's human consequences, Tern's accountability, and how the journey changed the fellowship.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "The first answering beacon appears in Kest's valley, then a second beyond Willowmead, then a third so distant it could be mistaken for a star. Horns carry through Greyglass Pass. Tern sits beside the unbroken lens with his hammer across his knees. Brom boils celebratory onions in a helmet nobody admits owning. Pickle has been promoted to Keeper of Bridges and is already abusing the office.",
+      "openingChoices": ["Hear Kest finish the names", "Decide Tern's road home", "Answer Willowmead's beacon"],
+      "exploration": {
+        "required": 2,
+        "guidance": "Choose consequences and relationships. The victory has already been earned.",
+        "leads": [
+          { "id": "finish-names", "name": "The Thirty-Seventh Name", "type": "person", "prompt": "Listen while Kest finishes the list.", "reveal": "The thirty-seventh name is Kest's own. She had not been certain she would return when she sewed it in. Now every name has an answering fire." },
+          { "id": "tern-road", "name": "Tern Vale's Return", "type": "person", "prompt": "Choose accountability without pretending his betrayal did no harm.", "reveal": "Tern agrees to face Willowmead, repair every false route marker, and carry messages between the valleys he believed would never answer one another." },
+          { "id": "willow-answer", "name": "Willowmead's Beacon", "type": "place", "prompt": "Send a mirror flash back to Ysra.", "reveal": "Willowmead answers with three short flashes: flame received, road held, come home. A fourth flash follows, almost certainly Mayor Pellin signing twice." },
+          { "id": "pickle-office", "name": "Keeper Pickle's First Decree", "type": "person", "prompt": "Let the new bridge inspector judge the road.", "reveal": "Pickle accepts one apple, rejects Brom's helmet-onion stew, and permits the fellowship to cross after a thorough sniffing. Standards have improved." }
+        ]
+      },
+      "terrain": { "blocking": [{ "x": 8, "y": 4, "kind": "fire" }, { "x": 9, "y": 4, "kind": "fire" }], "difficult": [] },
+      "partyStart": [{ "x": 5, "y": 7 }, { "x": 6, "y": 7 }, { "x": 7, "y": 7 }, { "x": 8, "y": 7 }],
+      "props": [
+        { "id": "tern-returning", "name": "Tern Vale", "role": "Apprentice Returning by the Long Road", "personality": "Humbled, useful, and no longer mistaking despair for wisdom.", "storyHook": "Tern will repair the roads he endangered.", "x": 11, "y": 5, "glyph": "✧", "color": "#c4b5fd" },
+        { "id": "pickle-keeper", "name": "Keeper Pickle", "role": "Senior Bridge Inspector", "personality": "Incorruptible except by apples.", "storyHook": "Every bridge home receives a proper inspection.", "x": 4, "y": 6, "glyph": "♞", "color": "#d6d3d1" }
+      ],
+      "monsters": [],
+      "xpReward": 0,
+      "storyAward": 450,
+      "afterword": "The fellowship returns along a road lit by answering fires. The valleys mobilize together, Tern begins repairing what he betrayed, and Kest carries thirty-seven names home. The Last Lantern is small again when it reaches Willowmead—but now its promise burns on every horizon.",
+      "next": null
+    }
+  ]
+}

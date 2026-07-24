@@ -1,0 +1,186 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — daily-trade-recap ("Daily Trade Recap")
+# Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
+# ONLY the surface carves; this app never had a route or a tile of its own).
+# This package is the app: the manifest (ticketType 'daily-trade-recap' + the
+# approval-gated graph workflow) + the three trade_recap_* CLI tools + a package
+# COPY of the vids-operator persona for the registrar.
+#
+# NOTE: despite the name this is a VIDS-family media pipeline (its only real
+# dependency is the SHARED vids-operator remote-client desktop worker), which is
+# why it carves with the media cluster and NOT the trading wave.
+#
+# What STAYS framework-resident per ADR-093 (this package ships none of it):
+#   - the SHARED vids-operator remote-client desktop worker
+#     (packages/oshal-vids-operator → `npx oshal-vids worker`) + its registry
+#     entries in BOTH swarm-bot-registry blocks (all four vids-family apps
+#     reference it);
+#   - ALL trading engines, schedule pins, and the deck-data pipeline — the recap
+#     stage scripts (scripts/oshal-recap-agent-remote.js, oshal-recap-render-
+#     remote.js, oshal-recap-email.js, oshal-trade-data.js, oshal-trade-recap.js,
+#     oshal-deck-data.js) are kernel-owned; the tools below shell to them at
+#     their host-mount paths;
+#   - the 5PM CT recap cron (a HOST scheduled task driving
+#     scripts/run-daily-recap.ps1) and the generic workflow:<ticketType> schedule
+#     dispatch engine (src/app/workflow-ticket-schedule-dispatch.ts).
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: daily-trade-recap
+suite: ai-finance   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Daily Trade Recap
+status: active
+description: >-
+  After the closing bell: render the day's charted trade-recap video (real Alpaca data
+  -> PowerPoint deck -> narrated MP4) on the swarm render node, then email it to the
+  operator with the day's numbers and the video attached as a preview.
+scope: public
+ticketType: daily-trade-recap
+version: 1.0.0
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: daily-trade-recap
+  ref: main
+
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+# Stage bot reuses the already-registered SHARED vids-operator worker (registered in
+# BOTH swarm-bot-registry blocks, kernel-resident) — deliberately NO bots: block here
+# (a brand-new bot would need a registry code entry); the loader backfills agent_ids
+# from workflow.workerBot. The persona ships as a registrar COPY only. It is
+# authorized for trade_recap_pipeline (agent_tools) and instructed by the ticket to
+# call exactly that one tool.
+tools:
+  # The whole pipeline in ONE call so the bot makes a single deterministic tool
+  # invocation: render on the remote node (A2A) -> email with attached preview.
+  - name: trade_recap_pipeline
+    displayName: Produce + publish the daily trade recap (agent-driven)
+    type: cli
+    category: media
+    description: >-
+      Hand the daily recap GOAL + the day's authoritative data to the video PC's LOCAL
+      AGENT (the node's claude/codex CLI) and let it DRIVE Google Vids itself per the
+      operator SOP (packages/oshal-vids-operator/RECAP-SOP.md): regenerate + reconcile the
+      numbers, build the deck, generate fresh Jamie Lee clips (Veo "Animate an image",
+      Nyx voice), assemble, archive the dated MP4+deck, publish to agenticfederal + emerald,
+      verify, and report. This is the monitored, swarm-connected bot — not a rigid build and
+      not a click list. Never fabricates: surfaces the real error + failed step.
+    executor:
+      executorType: cli
+      cliCommand: node /run/desktop/mnt/host/c/Projects/open-shal-swarm-harness-agent-llm/scripts/oshal-recap-agent-remote.js {input}
+    defaultAuthMode: auto
+    timeoutMs: 2400000
+    inputSchema:
+      type: object
+      properties:
+        node: { type: string, description: "Override video/render node (clientId or name); default auto-picks it" }
+        date: { type: string, description: "Trading day YYYY-MM-DD; default today" }
+        dryRun: { type: boolean, description: "Produce + archive but do NOT publish to the sites (for a supervised first run)" }
+        publish: { type: boolean, description: "Publish to both sites (default true unless dryRun)" }
+        cli: { type: string, description: "Force the node agent CLI: claude | codex (default: claude if signed in)" }
+    usageInstructions: >-
+      Call after the close. With no arguments ({}) it produces + publishes TODAY's recap by
+      driving the node's local agent, polling until it finishes (~15-30 min). Pass
+      { dryRun: true } for a supervised first run (produces + archives, no publish). Returns
+      the agent's own JSON summary (date, dayPct, dayPl, clips, archived, published, notes).
+    routingTags: [trade, recap, video, report, daily, trading]
+    skills: [trade-recap, trade-recap-pipeline]
+    tags: [daily-trade-recap]
+
+  # --- Sub-steps the pipeline tool calls internally (kept registered for direct use) ---
+  - name: trade_recap_render
+    displayName: Render the recap video on the remote node
+    type: cli
+    category: media
+    description: >-
+      Dispatch the daily trade-recap RENDER to the framework render node over A2A
+      (shell.exec). Builds real Alpaca data -> PowerPoint deck -> narrated MP4 + a
+      compressed copy. Returns the paths + the day's numbers. Never fabricates.
+    executor:
+      executorType: cli
+      cliCommand: node /run/desktop/mnt/host/c/Projects/open-shal-swarm-harness-agent-llm/scripts/oshal-recap-render-remote.js {input}
+    defaultAuthMode: auto
+    timeoutMs: 600000
+    inputSchema:
+      type: object
+      properties:
+        node: { type: string, description: "Override render node (clientId or name)" }
+    routingTags: [trade, recap, video, render, build]
+    skills: [trade-recap]
+    tags: [daily-trade-recap]
+
+  - name: trade_recap_email
+    displayName: Email the daily trade recap
+    type: cli
+    category: communication
+    description: >-
+      Email the daily trade-recap (numbers in the body + the compressed video attached)
+      via the operator's Google connection. Reads the day's deck-data.json (falling back
+      to recap-data.json) + the recap-email.mp4 produced by the render step.
+    executor:
+      executorType: cli
+      cliCommand: node /run/desktop/mnt/host/c/Projects/open-shal-swarm-harness-agent-llm/scripts/oshal-recap-email.js {input}
+    defaultAuthMode: auto
+    timeoutMs: 120000
+    inputSchema:
+      type: object
+      properties:
+        to: { type: string, description: "Recipient (default owner@example.com)" }
+    routingTags: [recap, email, notify]
+    skills: [trade-recap]
+    tags: [daily-trade-recap]
+
+workflow:
+  name: Daily Trade Recap
+  pipeline: graph
+  workerBot: vids-operator
+  stages:
+    - bot: vids-operator
+      name: Render + email the recap
+      approvalAfter: true
+  processDefinition:
+    name: Daily Trade Recap
+    nodeGraph:
+      nodes:
+        - id: n-start
+          type: start
+          title: Start
+          config:
+            triggerMode: manual
+        - id: n-recap
+          type: execute-agent
+          title: Render + email the recap
+          config:
+            agentBinding: vids-operator
+            workType: authored
+        - id: n-gate
+          type: approval-gate
+          title: Approve for posting
+          config:
+            gateState: approval_required
+        - id: n-deliver
+          type: deliver
+          title: Deliver
+          config:
+            deliveryMode: standard
+      edges:
+        - id: e-start-recap
+          source: n-start
+          target: n-recap
+        - id: e-recap-gate
+          source: n-recap
+          target: n-gate
+        - id: e-gate-deliver
+          source: n-gate
+          target: n-deliver
+      topologicalOrder:
+        - n-start
+        - n-recap
+        - n-gate
+        - n-deliver
+  autoStart: true

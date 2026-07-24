@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Insights{% endblock %}
+{% block body %}
+<h2 class="srch" style="margin-top:6px">Your hunt at a glance</h2>
+
+<div class="hero">
+  <div class="hcard hc-navy"><div class="hn">{{ "{:,}".format(hero.inlane or 0) }}</div><div class="hl">in-lane roles</div></div>
+  <div class="hcard hc-green"><div class="hn">{{ "{:,}".format(hero.fit70 or 0) }}</div><div class="hl">70%+ fits</div></div>
+  <div class="hcard hc-gold"><div class="hn">{{ hero.fit80 or 0 }}</div><div class="hl">80%+ strong fits</div></div>
+  <div class="hcard hc-blue"><div class="hn">${{ ((hero.avg_pay or 0)//1000) }}k</div><div class="hl">avg pay · your 70%+ lane</div></div>
+  <div class="hcard hc-teal"><div class="hn">{{ "{:,}".format(hero.fresh or 0) }}</div><div class="hl">posted this week 🔥</div></div>
+  <div class="hcard hc-slate"><div class="hn">{{ companies }}</div><div class="hl">companies indexed</div></div>
+</div>
+
+{% if highwins %}
+<h2 class="srch">🎯 High-Win cross-over — your fit × clearance × gov/defense (set-aside leverage)</h2>
+<p class="note" style="margin-top:-4px">Where the job hunt, your clearance, your AI/DevOps skills, and the small-business set-aside angle all stack. Chase these first.</p>
+<table class="jobs" style="margin-bottom:18px">
+  <thead><tr><th>High-Win</th><th>Fit</th><th>Company</th><th>Role</th><th>Pay</th></tr></thead>
+  <tbody>
+  {% for h in highwins %}
+    <tr>
+      <td><span class="score s{{ ((h.hw or 0)//20) }}">{{ h.hw }}</span></td>
+      <td><span class="score s{{ ((h.fit or 0)//20) }}">{{ h.fit }}</span></td>
+      <td class="co">{{ h.comp }}</td>
+      <td><a href="{{ url_for('job', pid=h.id) }}">{{ h.title }}</a></td>
+      <td class="sal">{% if h.sm %}~${{ (h.sm//1000) }}k{% else %}—{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<h2 class="srch">By sector — where your shots are</h2>
+<p class="note" style="margin-top:-4px">Across the {{ sectors|length }} tagged sectors (your curated companies). Click a sector to filter the job list to it.</p>
+
+<div class="sgrid">
+  {% for s in sectors %}
+  {% set emoji = {'Government / Defense':'🎖️','Fintech / Financial':'💳','AI / ML':'🤖','Data / Cloud Infra':'☁️','Cybersecurity':'🛡️','Big Tech':'🏛️','SAP / Enterprise':'🏢','Semiconductors':'🔌','Healthcare / Biotech':'🧬','Consumer / Retail':'🛒','SaaS / Productivity':'⚙️'}.get(s.sector,'•') %}
+  <div class="scard">
+    <div class="sc-head"><span class="sc-emoji">{{ emoji }}</span><span class="sc-name">{{ s.sector }}</span></div>
+    <div class="sc-big">{{ s.fit70 or 0 }}<span class="sc-biglbl">of your 70%+ fits</span></div>
+    <div class="sc-stats">
+      <div><b>{{ "{:,}".format(s.roles) }}</b><span>roles</span></div>
+      <div><b>{{ s.cos }}</b><span>companies</span></div>
+      <div><b>{{ s.avg_fit or '—' }}</b><span>avg fit</span></div>
+      <div><b>${{ ((s.avg_pay or 0)//1000) }}k</b><span>avg pay</span></div>
+    </div>
+    {% if topco.get(s.sector) %}<div class="sc-top">top fit: <b>{{ topco.get(s.sector) }}</b></div>{% endif %}
+    <a class="sc-go" href="{{ url_for('index', sector=s.sector, sort='prob') }}">see {{ "{:,}".format(s.roles) }} roles →</a>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

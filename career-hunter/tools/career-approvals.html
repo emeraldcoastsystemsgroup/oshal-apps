@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Career Hunter — Approvals</title>
+<link rel="stylesheet" href="/api/career-hunter/static/career-hunter.css">
+<style>
+@media (max-width: 640px) {
+  .wrap { padding: 12px 12px 48px; }
+  /* Header row: stack top area so button doesn't overflow */
+  .card .row[style*="justify-content:space-between"] {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  /* The nested row with the count input + enqueue button */
+  .card .row .row {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  #enqueue { flex: 1 1 auto; min-width: 0; white-space: normal; }
+  /* Prevent text input from overflowing */
+  input[type=text], input[type=password] { min-width: 0; width: 100%; }
+  #n { width: 54px !important; min-width: 54px !important; flex: 0 0 54px; }
+  /* Application rows: stack meta + actions vertically */
+  .app { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .app .acts {
+    flex-shrink: 1;
+    flex-wrap: wrap;
+    width: 100%;
+    gap: 8px;
+  }
+  .app .acts .btn { font-size: 16px; padding: 9px 14px; }
+  .btn { font-size: 16px; padding: 9px 13px; }
+}</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head><body>
+<div class="wrap">
+  <h1>Application Approvals</h1>
+  <p class="lede">Your top-scored roles, queued for a decision. <b>Approve</b> writes a standard résumé + cover; <b>Approve + OSHAL</b> adds your open-source / agentic section; <b>Deny</b> dismisses the role. Nothing is written or sent without your click. Résumés and cover letters are AI-assisted from the profile you provided — review them before applying, and note that submitting a role runs a browser on a connected desktop worker node on your behalf (you click the final Submit).</p>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <div>
+        <h2 style="margin-bottom:2px">Queue</h2>
+        <div class="hint" style="margin:0">Drafts are generated only when you approve.</div>
+      </div>
+      <div class="row">
+        <label class="hint" style="margin:0">Top</label>
+        <input type="text" id="n" value="10" style="min-width:54px;width:54px;text-align:center">
+        <button class="btn primary" id="enqueue">★ Generate draft candidates</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="listCard">
+    <div id="list"><div class="empty"><span class="spin"></span> Loading…</div></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '/api/career-hunter';
+const $ = (s) => document.querySelector(s);
+function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
+async function jpost(url, body){ const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})}); return r.json().catch(()=>({})); }
+
+const ACTIVE = new Set(['approval_required','drafting','drafted']);
+function render(apps){
+  const el = $('#list');
+  if(!apps.length){ el.innerHTML = '<div class="empty">Nothing queued yet. Click <b>Generate draft candidates</b> to pull your top-scored roles in.</div>'; return; }
+  el.innerHTML = apps.map(a => {
+    const st = a.status || 'approval_required';
+    const acts = [];
+    if(st === 'approval_required'){
+      acts.push(`<button class="btn good" data-act="approve" data-id="${a.posting_id}">Approve</button>`);
+      acts.push(`<button class="btn primary" data-act="approve-oshal" data-id="${a.posting_id}">Approve + OSHAL</button>`);
+      acts.push(`<button class="btn danger" data-act="deny" data-id="${a.posting_id}">Deny</button>`);
+    } else if(st === 'drafted'){
+      acts.push(`<button class="btn primary" data-act="applied" data-id="${a.posting_id}">Mark applied</button>`);
+      acts.push(`<button class="btn danger" data-act="deny" data-id="${a.posting_id}">Deny</button>`);
+    }
+    return `<div class="app">
+      <div class="meta">
+        <div class="title">${esc(a.title||'(role)')} ${a.include_oshal?'<span class="badge b-drafted">OSHAL</span>':''}</div>
+        <div class="co">${esc(a.company||'')}</div>
+      </div>
+      <div class="acts"><span class="badge b-${st}">${st.replace(/_/g,' ')}</span>${acts.join('')}</div>
+    </div>`;
+  }).join('');
+}
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+async function load(){
+  const r = await fetch(API+'/applications').then(r=>r.json()).catch(()=>({applications:[]}));
+  render((r.applications||[]).filter(a=>true));
+}
+$('#enqueue').onclick = async () => {
+  $('#enqueue').disabled = true; $('#enqueue').innerHTML='<span class="spin"></span> Pulling…';
+  const r = await jpost(API+'/enqueue-drafts', { limit: Number($('#n').value)||10 });
+  toast(r.created!=null ? `${r.created} new candidate(s) queued` : 'No new candidates');
+  $('#enqueue').disabled=false; $('#enqueue').textContent='★ Generate draft candidates';
+  load();
+};
+$('#list').addEventListener('click', async (e) => {
+  const b = e.target.closest('button[data-act]'); if(!b) return;
+  const id = b.dataset.id, act = b.dataset.act;
+  b.disabled = true; const orig = b.textContent; b.innerHTML='<span class="spin"></span>';
+  let r;
+  if(act==='approve')        r = await jpost(`${API}/applications/${id}/approve`, { oshal:false });
+  else if(act==='approve-oshal') r = await jpost(`${API}/applications/${id}/approve`, { oshal:true });
+  else if(act==='applied')   r = await jpost(`${API}/applications/${id}/applied`, {});
+  else if(act==='deny')      r = await jpost(`${API}/applications/${id}/deny`, {});
+  if(r && r.ok!==false) toast(act==='deny'?'Denied':act==='applied'?'Marked applied':'Drafted résumé + cover');
+  else toast('Failed: '+((r&&r.error)||'error'));
+  load();
+});
+load();
+</script>
+</body></html>

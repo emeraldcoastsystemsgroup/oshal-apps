@@ -1,0 +1,246 @@
+/* ============================================================
+   education.css — Little Monsters Education Platform Styles
+   ============================================================
+   Shared CSS for all education bot UI pages. Uses the same
+   variable names as the cockpit theme system so colors stay
+   consistent. Pages load this + the LM theme to match cockpit.
+
+   CHANGE LOG
+   ---------------------------------------------------------------------------
+   DATE           | AUTHOR                    | DESCRIPTION
+   ---------------------------------------------------------------------------
+   2026-04-20     | roger.murphy@emeraldcoastsystemsgroup.com    | Initial creation — shared education styles
+   2026-04-22     | roger.murphy@agenticfederal.us   | Removed colliding :root color vars so iframe pages inherit the cockpit midnight theme instead of a purple LM palette
+   ============================================================ */
+
+/* ── Non-color tokens only. Colors come from the cockpit theme loaded
+   alongside this file (see each LM HTML page: it links midnight.css
+   before education.css). ── */
+:root {
+  /* ── Spacing (matches cockpit base.css) ── */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
+  /* ── Typography ── */
+  --font-family: 'Nunito', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-size-xs: 11px;
+  --font-size-sm: 13px;
+  --font-size-md: 15px;
+  --font-size-lg: 18px;
+  --font-size-xl: 22px;
+  --font-size-2xl: 28px;
+
+  /* ── Radii (matches cockpit) ── */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 9999px;
+
+  /* ── LM Custom ── */
+  --lm-xp-gradient: linear-gradient(90deg, #8b5cf6 0%, #06b6d4 50%, #34d399 100%);
+  --lm-streak-color: #f97316;
+  --lm-urgent: #ef4444;
+  --lm-soon: #fbbf24;
+  --lm-chill: #06b6d4;
+}
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Scrollbars (mirror the cockpit base.css look — slim, theme-tinted).
+   The education iframe pages never load base.css, so without this they fall
+   back to the chunky default OS scrollbars. ── */
+* { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.22) transparent; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.35); }
+::-webkit-scrollbar-corner { background: transparent; }
+
+body {
+  font-family: var(--font-family);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Glass Card (matches cockpit pattern) ── */
+.lm-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  transition: border-color 200ms ease, transform 150ms ease;
+}
+.lm-card:hover {
+  border-color: var(--border-color-hover);
+}
+.lm-card.clickable:hover {
+  transform: translateY(-2px);
+  cursor: pointer;
+}
+
+/* ── Section Label ── */
+.lm-section-label {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  margin-bottom: var(--space-sm);
+}
+
+/* ── Badge ── */
+.lm-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+.lm-badge-urgent { background: rgba(239,68,68,0.12); color: var(--lm-urgent); }
+.lm-badge-soon { background: rgba(251,191,36,0.12); color: var(--lm-soon); }
+.lm-badge-chill { background: rgba(6,182,212,0.12); color: var(--lm-chill); }
+.lm-badge-success { background: rgba(52,211,153,0.12); color: var(--status-success); }
+
+/* ── Button ── */
+.lm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: 10px 18px;
+  border-radius: var(--radius-sm);
+  border: none;
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 200ms ease, transform 150ms ease;
+}
+.lm-btn:hover { transform: translateY(-1px); }
+.lm-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+.lm-btn-primary { background: var(--accent-primary); color: #fff; }
+.lm-btn-primary:hover { background: var(--accent-primary-hover); }
+
+.lm-btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+}
+.lm-btn-ghost:hover { background: var(--glass-bg); color: var(--text-primary); }
+
+/* ── Read Aloud Button ── */
+.lm-read-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--status-active);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--font-family);
+}
+.lm-read-btn:hover { background: rgba(6,182,212,0.08); }
+
+/* ── Form Fields ── */
+.lm-field { margin-bottom: var(--space-md); }
+.lm-field label {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-bottom: var(--space-xs);
+  font-weight: 600;
+}
+.lm-field input, .lm-field select, .lm-field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+  outline: none;
+}
+.lm-field input:focus, .lm-field select:focus, .lm-field textarea:focus {
+  border-color: var(--accent-primary);
+}
+
+/* ── Empty State ── */
+.lm-empty {
+  text-align: center;
+  padding: var(--space-xl);
+  color: var(--text-muted);
+  font-size: var(--font-size-md);
+  font-weight: 600;
+}
+
+/* ── Tabs ── */
+.lm-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border-color);
+  padding: 0 var(--space-lg);
+  background: var(--bg-secondary);
+}
+.lm-tab {
+  padding: var(--space-md) var(--space-lg);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+  transition: color 200ms, border-color 200ms;
+}
+.lm-tab:hover { color: var(--text-primary); }
+.lm-tab.active { color: var(--accent-primary); border-color: var(--accent-primary); }
+
+/* ── Utility ── */
+.lm-hide { display: none !important; }
+.lm-text-center { text-align: center; }
+.lm-flex { display: flex; }
+.lm-gap-sm { gap: var(--space-sm); }
+.lm-gap-md { gap: var(--space-md); }
+.lm-mb-sm { margin-bottom: var(--space-sm); }
+.lm-mb-md { margin-bottom: var(--space-md); }
+.lm-mb-lg { margin-bottom: var(--space-lg); }
+
+/* ── Entrance Animations ── */
+@keyframes lm-fade-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.lm-animate-in {
+  animation: lm-fade-in 0.4s ease forwards;
+  opacity: 0;
+}
+.lm-animate-in:nth-child(1) { animation-delay: 0.05s; }
+.lm-animate-in:nth-child(2) { animation-delay: 0.1s; }
+.lm-animate-in:nth-child(3) { animation-delay: 0.15s; }
+.lm-animate-in:nth-child(4) { animation-delay: 0.2s; }
+.lm-animate-in:nth-child(5) { animation-delay: 0.25s; }
+.lm-animate-in:nth-child(6) { animation-delay: 0.3s; }
+
+/* ── Font Size Modes (accessibility) ── */
+body.lm-large-text {
+  --font-size-xs: 13px;
+  --font-size-sm: 15px;
+  --font-size-md: 17px;
+  --font-size-lg: 22px;
+  --font-size-xl: 28px;
+  --font-size-2xl: 36px;
+}
+body.lm-large-text .card-text { font-size: 22px; }
+body.lm-large-text .due-title { font-size: 18px; }
+body.lm-large-text .assign-title { font-size: 18px; }

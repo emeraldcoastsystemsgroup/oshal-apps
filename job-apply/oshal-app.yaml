@@ -1,0 +1,59 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — job-apply (Job Apply submission workflow)
+# Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface"
+# — ADR-093). A WORKFLOW-ONLY app: it adds the `job-apply` ticket type + queue and
+# nothing else. There is NO surface route, NO html, and NO queue-classification
+# literal in the kernel — the app is purely the ticketType + workflow binding.
+#
+# What STAYS framework-resident per ADR-093 (this package does NOT ship any of it):
+#   - the career-hunter worker bot (registered by the career-hunter app + the kernel
+#     swarm-bot-registry) — job-apply's workerBot; declared as an app dependency below
+#     so the installer resolves it npm-style (fail-closed);
+#   - the apply-operator / apply-ingest ENGINE (the OIDC-side /api/apply-operator
+#     dispatch + the service-secret /api/apply/ingest desktop callback + the shared
+#     apply-inflight watchdog) — the browser-submission engine chain stays core;
+#   - the apply CLIs + toolkits (scripts/oshal-apply.js, applyOperatorTools) the
+#     career-hunter/career-advisor bots run in their sandbox.
+#
+# Push a job-apply ticket (job URL, ATS, posting id) and the QueueManager routes it to
+# the career-hunter worker bot (manifest-worker, self-gating): it gathers the job + the
+# user's canonical apply values + the packet, hands the browser submission to a desktop
+# worker node (screen/mouse via codex.exec), and the ticket PASSES or FAILS on the result.
+# The operator just watches the queue.
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: job-apply
+suite: ai-knowledge   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Job Apply
+description: >-
+  Submit an approved, packet-ready job application by driving the operator's real browser on a
+  desktop worker node. Push a ticket, it queues, the worker submits it, the ticket passes or fails.
+version: 1.0.0
+status: active
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: job-apply
+  ref: main
+
+# The worker bot (career-hunter) is shipped by the career-hunter app + kernel registry.
+# Declare it as an app dependency so the installer ensures it is present (fail-closed,
+# ADR-085 §3). No connectors/tools of this app's own — the submission engine + apply CLIs
+# are framework-resident.
+dependencies:
+  apps: [career-hunter]
+  tools: []
+  connectors: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WORKFLOW — the queue. `pipeline` is any non-'swarm' label with a workerBot →
+# manifest-worker (one self-gating bot). The workerBot (career-hunter) is registered by
+# the career-hunter app; this manifest does not re-declare it.
+# ─────────────────────────────────────────────────────────────────────────────
+ticketType: job-apply
+workflow:
+  name: Job Application Submission
+  pipeline: job-apply
+  workerBot: career-hunter

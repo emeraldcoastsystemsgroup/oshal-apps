@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#160b04" />
+  <title>Pumpkin Remote</title>
+  <style>
+    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    body { margin:0; min-height:100vh; background:radial-gradient(circle at 50% 20%, #2a1305, #0a0500); color:#ffdca8;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; display:flex; flex-direction:column; align-items:center; padding:20px; }
+    h1 { font-size:20px; margin:8px 0 2px; } h1 b{ color:#ffb020; }
+    .sub { color:rgba(255,220,170,.55); font-size:12px; margin-bottom:16px; }
+    .row { display:flex; gap:8px; width:100%; max-width:420px; margin-bottom:12px; }
+    .row > * { flex:1; }
+    select, input { min-height:44px; background:#12100c; color:#ffdca8; border:1px solid rgba(255,170,60,.25); border-radius:10px; padding:11px; font-size:16px; width:100%; }
+    button { appearance:none; min-height:44px; border:1px solid rgba(255,170,60,.3); background:#2a1809; color:#ffdca8; padding:12px; border-radius:12px; font-size:15px; touch-action:manipulation; }
+    .seg.on { background:#ff8c1a; color:#1a0a00; border-color:#ffb020; font-weight:600; }
+    .mic { width:220px; height:220px; border-radius:50%; margin:22px 0 10px; font-size:20px; font-weight:600;
+      background:radial-gradient(circle at 50% 40%, #ff8c1a, #b34700); color:#1a0700; border:none; box-shadow:0 0 40px rgba(255,120,0,.4);
+      transition:transform .08s, box-shadow .2s; }
+    .mic:active, .mic.live { transform:scale(.95); box-shadow:0 0 70px rgba(53,208,122,.7); background:radial-gradient(circle at 50% 40%, #45e08a, #158f4c); color:#062; }
+    .heard { min-height:44px; font-size:16px; text-align:center; max-width:420px; color:#fff3c0; }
+    .status { font-size:12px; color:#ffcf7a; min-height:16px; text-align:center; }
+    .hint { font-size:12px; color:rgba(255,220,170,.45); margin-top:auto; padding-top:16px; text-align:center; }
+    .demo-note { display:none; width:100%; max-width:420px; border:1px solid rgba(255,176,32,.45); background:rgba(255,140,26,.1); border-radius:10px; color:#ffcf7a; font-size:12px; line-height:1.45; padding:10px 12px; margin:0 0 14px; text-align:center; }
+    body.demo .demo-note { display:block; }
+    #sendText { flex:0 0 auto; }
+    @media (max-width:360px){ body{padding:12px;} .mic{width:190px;height:190px;} }
+  </style>
+  <!-- Shared glass treatment (contract: tests/unit/surface-glass-assets.spec.ts); after local styles. -->
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body data-guest-local-demo="true">
+  <h1>🎃 <b>Pumpkin</b> Remote</h1>
+  <div class="sub">Hold the button and talk. The pumpkin on the projector says it.</div>
+  <div class="demo-note">Browser demo remote: open this link in another tab on the same device. It sends locally and never touches an account or paid AI.</div>
+
+  <div class="row">
+    <button id="mSay" class="seg on">Say it</button>
+    <button id="mAsk" class="seg">Ask pumpkin</button>
+  </div>
+  <div class="row">
+    <select id="roomSel"><option value="">Main</option></select>
+  </div>
+  <div class="row">
+    <input id="lineText" type="text" placeholder="Or type a line…" />
+    <button id="sendText">Send</button>
+  </div>
+
+  <button id="mic" class="mic">🎤<br>Hold to talk</button>
+  <div class="heard" id="heard"></div>
+  <div class="status" id="status"></div>
+  <div class="hint">Same login as the projector. Pick the screen's room above.</div>
+
+  <script src="/pumpkin/pumpkin-audio.js"></script>
+  <script>
+  (function(){
+    'use strict';
+    var qs=new URLSearchParams(location.search);
+    var channel=String(qs.get('channel')||'pumpkin-preview').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,80)||'pumpkin-preview';
+    var S={ mode:'say', room:qs.get('room')||'', token:null, demo:qs.get('demo')==='1', channel:channel, bus:null };
+    var audio=new window.PumpkinAudio('');
+    function $(s){return document.querySelector(s);}
+    function api(p,o){o=o||{};o.credentials='include';o.headers=Object.assign({'Content-Type':'application/json'},o.headers||{});return fetch(p,o).then(function(r){return r.json().catch(function(){return{};}).then(function(j){if(!r.ok){var err=new Error(j.message||j.error||('Request failed ('+r.status+')'));throw err;}return j;});});}
+    function createDemoBus(name){var bc=null,key='oshal.pumpkin.demo.bus.'+name;try{if('BroadcastChannel'in window)bc=new window.BroadcastChannel(name);}catch(e){}return{post:function(event){if(bc){bc.postMessage(event);return;}try{window.localStorage.setItem(key,JSON.stringify({at:Date.now(),event:event}));}catch(e){}}};}
+    function guestReply(text){var line=String(text||'').toLowerCase();if(/trick|treat|candy/.test(line))return{say:'A treat for the brave — but mind the shadows behind you!',expression:'mischief',intensity:.78};if(/scary|spooky|boo/.test(line))return{say:'Boo! The candle flickers, and the whole porch wakes up.',expression:'spooky',intensity:.9};var replies=[{say:'The candle heard you. Step closer, little mortal.',expression:'mischief',intensity:.68},{say:'Interesting... the porch remembers every Halloween whisper.',expression:'surprised',intensity:.62},{say:'Heh heh heh... that earns you one glowing pumpkin grin.',expression:'happy',intensity:.72}];var score=0;for(var i=0;i<line.length;i++)score+=line.charCodeAt(i);return replies[score%replies.length];}
+
+    function setMode(m){ S.mode=m; $('#mSay').classList.toggle('on',m==='say'); $('#mAsk').classList.toggle('on',m==='ask'); }
+    function loadRooms(){
+      if(S.demo){ var demo=$('#roomSel'); demo.innerHTML='<option value="browser-demo">Browser demo projector</option>'; S.room='browser-demo'; return; }
+      api('/api/pumpkin/rooms').then(function(j){
+        var sel=$('#roomSel'); var rooms=(j.rooms||[]);
+        if(!rooms.length){ return; }
+        sel.innerHTML='';
+        rooms.forEach(function(r){ var o=document.createElement('option'); o.value=r.room; o.textContent=r.label+(r.live?' ●':' ○'); sel.appendChild(o); });
+        if(S.room){ sel.value=S.room; } else { S.room=sel.value; }
+      });
+    }
+    function ensureRoom(){
+      var label = $('#roomSel').selectedOptions[0] ? ($('#roomSel').selectedOptions[0].textContent||'Main').replace(/[●○]/g,'').trim() : (S.room||'Main');
+      return api('/api/pumpkin/rooms/register',{method:'POST',body:JSON.stringify({label:label})}).then(function(j){ S.room=j.room; S.token=j.token; return j; });
+    }
+    function send(text){
+      if(!text) return;
+      $('#status').textContent = S.mode==='ask' ? 'Asking…' : 'Sending…';
+      if(S.demo){
+        var reply=S.mode==='ask'?guestReply(text):{say:text,expression:'neutral',intensity:.6};
+        S.bus.post({type:'speak',say:reply.say,expression:reply.expression,intensity:reply.intensity});
+        $('#status').textContent=S.mode==='ask'?'🎃 “'+reply.say+'”':'sent to the browser-demo projector';
+        return;
+      }
+      ensureRoom().then(function(){
+        var ep = S.mode==='ask' ? '/api/pumpkin/rooms/ask' : '/api/pumpkin/rooms/say';
+        return api(ep,{method:'POST',body:JSON.stringify({room:S.room,token:S.token,text:text})});
+      }).then(function(j){
+        if(j && j.listeners>0) $('#status').textContent='🎃 spoken on '+j.listeners+' screen(s)';
+        else $('#status').textContent='no projector listening on this room yet';
+      }).catch(function(err){ $('#status').textContent=(err&&err.message)||'failed to send'; });
+    }
+
+    var listening=false;
+    function start(){ if(listening) return; listening=true; audio.unlock(); $('#mic').classList.add('live'); $('#heard').textContent=''; $('#status').textContent='listening…';
+      audio.startListening({ browserOnly:S.demo, onInterim:function(t){ $('#heard').textContent=t; }, onFinal:function(t){ $('#heard').textContent=t; send(t); }, onError:function(e){ $('#status').textContent=e==='browser_speech_unavailable'?'Voice input is unavailable here — type a line above.':'mic: '+e; }, onEnd:function(){ $('#mic').classList.remove('live'); listening=false; } });
+    }
+    function stop(){ if(!listening) return; audio.stopListening(); listening=false; $('#mic').classList.remove('live'); }
+
+    $('#mSay').onclick=function(){setMode('say');}; $('#mAsk').onclick=function(){setMode('ask');};
+    $('#sendText').onclick=function(){var input=$('#lineText');var text=input.value.trim();if(!text){$('#status').textContent='type a line first';return;}send(text);};
+    $('#lineText').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();$('#sendText').click();}});
+    var mic=$('#mic');
+    mic.addEventListener('pointerdown',function(e){e.preventDefault();try{mic.setPointerCapture(e.pointerId);}catch(err){}start();});
+    ['pointerup','pointercancel','lostpointercapture'].forEach(function(type){mic.addEventListener(type,function(e){e.preventDefault();stop();});});
+    if(S.demo){document.body.classList.add('demo');S.bus=createDemoBus(S.channel);}
+    setMode('say'); loadRooms(); setInterval(loadRooms,15000);
+  })();
+  </script>
+</body>
+</html>

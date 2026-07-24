@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Little Monsters - Timelines</title>
+<script>
+(function(){function a(n){if(!n)return;document.documentElement.setAttribute('data-theme',n);var h='/cockpit/css/themes/'+n+'.css',l=document.querySelector('link[data-lm-theme-link]');if(l){if(l.getAttribute('href')!==h)l.setAttribute('href',h);return;}l=document.createElement('link');l.rel='stylesheet';l.href=h;l.setAttribute('data-lm-theme-link','1');document.head.appendChild(l);}function i(){try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(e){}try{var s=localStorage.getItem('cockpit-theme');if(s)return s;}catch(e){}return 'little-monsters';}a(i());try{if(window.parent&&window.parent!==window){var ph=window.parent.document.documentElement;new MutationObserver(function(m){for(var k=0;k<m.length;k++)if(m[k].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)a(t);}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});}}catch(e){}})();
+</script>
+<link rel="stylesheet" href="/api/education/education.css">
+<style>
+  body{margin:0;color:var(--text-primary,#fdeaf6);font-family:system-ui,'Inter',sans-serif;}
+  .wrap{padding:22px clamp(14px,4vw,40px) 60px;max-width:760px;}
+  .head{display:flex;align-items:center;gap:12px;}
+  .head img{width:48px;height:48px;border-radius:12px;border:3px solid var(--accent-primary,#ec4faa);background:var(--bg-card);}
+  h1{margin:0;font-size:clamp(20px,3vw,28px);}
+  .sub{color:var(--text-muted);font-size:13px;margin:4px 0 18px;}
+  .card{border:1px solid var(--border-color);border-radius:16px;background:var(--bg-card);padding:16px;margin-bottom:16px;}
+  .add{display:flex;gap:8px;flex-wrap:wrap;}
+  .add input{padding:10px 12px;border-radius:10px;border:1px solid var(--border-color);background:var(--bg-secondary);color:inherit;font-size:14px;}
+  .add .when{width:110px;} .add .what{flex:1;min-width:160px;}
+  .btn{background:var(--accent-primary,#ec4faa);color:#fff;border:none;border-radius:12px;padding:10px 16px;font-weight:800;cursor:pointer;}
+  /* timeline */
+  .tl{position:relative;margin-top:10px;padding-left:30px;}
+  .tl::before{content:'';position:absolute;left:9px;top:6px;bottom:6px;width:3px;border-radius:3px;
+    background:linear-gradient(180deg,#ec4faa,#a855f7,#5b8def);}
+  .ev{position:relative;margin-bottom:16px;}
+  .ev::before{content:'';position:absolute;left:-26px;top:4px;width:13px;height:13px;border-radius:50%;
+    background:var(--accent-primary,#ec4faa);box-shadow:0 0 0 4px var(--bg-card);}
+  .ev .yr{font-weight:800;color:var(--accent-primary,#ec4faa);font-size:14px;}
+  .ev .ti{font-weight:700;font-size:15px;margin-top:1px;}
+  .ev .no{font-size:13px;color:var(--text-muted);margin-top:2px;}
+  .ev .x{position:absolute;right:0;top:0;color:var(--status-error,#ff6b8b);cursor:pointer;font-size:12px;}
+  .empty{color:var(--text-muted);font-size:13px;}
+  .small{font-size:12px;color:var(--text-muted);margin-top:6px;}
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<div class="wrap">
+  <div class="head"><img src="/api/education/mascot.png" alt=""><div><h1>Timelines</h1></div></div>
+  <p class="sub">Turn a jumble of dates into a clear path. Add events and watch them line up in order.</p>
+
+  <div class="card">
+    <div class="add">
+      <input class="when" id="when" placeholder="Year / date">
+      <input class="what" id="what" placeholder="What happened?">
+      <input class="what" id="note" placeholder="A detail (optional)">
+      <button class="btn" onclick="addEv()">Add</button>
+    </div>
+    <p class="small">Tip: type a year like <b>1776</b> or a date like <b>1969-07-20</b> — events sort themselves.</p>
+  </div>
+
+  <div class="card">
+    <div class="tl" id="tl"><div class="empty">No events yet. Add the milestones from your lecture above.</div></div>
+  </div>
+</div>
+<script>
+var KEY='lm-timeline';
+function load(){try{return JSON.parse(localStorage.getItem(KEY)||'[]');}catch(e){return[];}}
+function save(v){try{localStorage.setItem(KEY,JSON.stringify(v));}catch(e){}}
+function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+function keyOf(w){ var n=parseFloat(String(w).replace(/[^0-9.\-]/g,'')); return isNaN(n)?0:n; }
+function addEv(){
+  var w=document.getElementById('when').value.trim(), t=document.getElementById('what').value.trim(), n=document.getElementById('note').value.trim();
+  if(!w||!t) return;
+  var l=load(); l.push({w:w,t:t,n:n}); save(l);
+  document.getElementById('when').value=''; document.getElementById('what').value=''; document.getElementById('note').value='';
+  render();
+}
+function render(){
+  var l=load().slice().sort(function(a,b){return keyOf(a.w)-keyOf(b.w);});
+  var tl=document.getElementById('tl');
+  if(!l.length){ tl.innerHTML='<div class="empty">No events yet. Add the milestones from your lecture above.</div>'; return; }
+  tl.innerHTML=l.map(function(e,i){
+    return '<div class="ev"><span class="x" data-i="'+i+'">remove</span>'
+      +'<div class="yr">'+esc(e.w)+'</div><div class="ti">'+esc(e.t)+'</div>'
+      +(e.n?'<div class="no">'+esc(e.n)+'</div>':'')+'</div>';
+  }).join('');
+  tl.querySelectorAll('.x').forEach(function(x){ x.onclick=function(){
+    // map sorted index back to a removal by matching content
+    var sorted=load().slice().sort(function(a,b){return keyOf(a.w)-keyOf(b.w);});
+    var target=sorted[parseInt(x.getAttribute('data-i'),10)];
+    var raw=load(); for(var j=0;j<raw.length;j++){ if(raw[j].w===target.w&&raw[j].t===target.t){ raw.splice(j,1); break; } }
+    save(raw); render();
+  }; });
+}
+render();
+</script>
+</body>
+</html>

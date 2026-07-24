@@ -1,0 +1,201 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — creative-studio ("Creative Studio")
+# Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
+# ONLY the surface carves; this app never had a route of its own). This package is
+# the app: the manifest (ticketType 'creative-story' + the graph workflow), the
+# three creative_* CLI tools, the Creative Studio ribbon tile (a view over the Vids
+# job queue at /api/vids/app), and a package COPY of the vids-operator persona for
+# the registrar.
+#
+# What STAYS framework-resident per ADR-093 (this package ships none of it):
+#   - the SHARED vids-operator remote-client desktop worker
+#     (packages/oshal-vids-operator → `npx oshal-vids worker`) + its registry
+#     entries in BOTH swarm-bot-registry blocks — all four vids-family apps
+#     reference it (the social/communications-bot precedent);
+#   - scripts/oshal-vids.js (the CLI the creative_* tools shell to) — kernel-owned;
+#   - the /api/vids dispatch surface + vids_jobs ledger (migration 059) this app's
+#     tile reads — owned by the 'vids' app (declared in dependencies.apps);
+#   - the ADR-080 Extend-story content library + production engine, which lives in
+#     the desktop worker package (content.next / content.produce tools), not here.
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: creative-studio
+suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Creative Studio
+status: active
+description: >-
+  A creative bot that just keeps making short kid-safe videos: it rotates a
+  public-domain library (fables, fairytales, famous sayings), animates each story
+  across ~10 continuous Extend scenes in Google Vids, downloads the finished MP4,
+  and saves it to your content folder + Google Drive.
+scope: public
+ticketType: creative-story
+theme: midnight
+version: 1.0.0
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: creative-studio
+  ref: main
+
+# The tile + the creative_* tools ride the 'vids' app's /api/vids surface and
+# vids_jobs ledger (resolves from core swarm-apps until the vids carve lands,
+# then from this store — npm-style, fail-closed).
+dependencies:
+  apps: [vids]
+  tools: []
+  connectors: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — reuses the already-registered SHARED vids-operator worker (registered in
+# BOTH swarm-bot-registry blocks, kernel-resident). The persona here is a package
+# COPY for the registrar; the worker keeps using /app/ai-lab (core).
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: b00e0000-0000-0000-0000-000000000001
+    name: vids-operator
+    persona: personas/vids-operator.yaml
+    role: media/video
+    capabilities:
+      - veo-prompt-craft
+      - vids-generate
+      - vids-operate
+      - shot-planning
+
+tools:
+  # Produce the NEXT unproduced story from the rotating library (the cycler entry).
+  - name: creative_produce_next
+    displayName: Produce the next story video
+    type: cli
+    category: media
+    description: >-
+      Make the next unproduced kid-safe story video: rotate the library (fables /
+      fairytales / famous sayings), animate the ~100-word story across ~10
+      continuous Google Vids EXTEND scenes on the remote node, download the MP4,
+      and save it to the content folder + Google Drive. Returns which story was
+      made, scene count, local path, and Drive status. Never fabricates a result.
+    executor:
+      executorType: cli
+      cliCommand: node /app/scripts/oshal-vids.js story-next {input}
+    defaultAuthMode: auto
+    timeoutMs: 2400000
+    inputSchema:
+      type: object
+      properties:
+        beats: { type: number, description: "Scenes per story (default 10)" }
+        node: { type: string, description: "Override the Vids worker (clientId or name); default auto-picks it" }
+    usageInstructions: >-
+      Call with no arguments ({}) to produce the next story in the rotation. The
+      library rotates across fables, fairytales, and famous sayings so the feed
+      stays varied; already-produced stories are skipped.
+    routingTags: [creative, story, video, kids, vids]
+    skills: [veo-prompt-craft, browser-operate]
+    tags: [creative-studio]
+
+  # Produce a SPECIFIC story (by library id) or an ad-hoc idea.
+  - name: creative_produce
+    displayName: Produce a specific story video
+    type: cli
+    category: media
+    description: >-
+      Animate a specific story across ~10 continuous Extend scenes in Google Vids
+      and save it. Pass a library storyId (e.g. tortoise-and-hare,
+      raining-cats-and-dogs) or an ad-hoc {title, script}. Returns the local path
+      + Drive status.
+    executor:
+      executorType: cli
+      cliCommand: node /app/scripts/oshal-vids.js story {input}
+    defaultAuthMode: ask
+    requiresApproval: true
+    timeoutMs: 2400000
+    inputSchema:
+      type: object
+      properties:
+        storyId: { type: string, description: "A library story id" }
+        title: { type: string, description: "Ad-hoc story title (with script)" }
+        script: { type: string, description: "Ad-hoc ~100-word narration to animate" }
+        beats: { type: number, description: "Scenes (default 10)" }
+        orientation: { type: string, description: "Landscape | Portrait | Square" }
+    routingTags: [creative, story, video]
+    skills: [veo-prompt-craft, browser-operate]
+    tags: [creative-studio]
+
+  # List what's already been produced (from the content-folder manifests).
+  - name: creative_list
+    displayName: List produced story videos
+    type: cli
+    category: media
+    description: Read back the dispatched story/clip jobs and their status (from the vids_jobs ledger). The node's own `oshal-vids story --list` reads the content-folder manifests directly.
+    executor:
+      executorType: cli
+      cliCommand: node /app/scripts/oshal-vids.js jobs {input}
+    defaultAuthMode: auto
+    timeoutMs: 60000
+    inputSchema:
+      type: object
+      properties:
+        limit: { type: number, description: "Max entries (default 50)" }
+    routingTags: [creative, list]
+    tags: [creative-studio]
+
+# Cockpit tile — reuse the Vids job-queue surface (story jobs land in vids_jobs too).
+ui:
+  static:
+    - toolName: creative-studio
+      label: Creative Studio
+      icon: codicon codicon-sparkle
+      iframeUrl: /api/vids/app
+      section: top
+
+# A creative-story ticket routes to the vids-operator bot, which calls
+# creative_produce_next and reports what it made. autoStart so a scheduled fire
+# runs without a human promoting the ticket.
+workflow:
+  name: Creative Studio Pipeline
+  pipeline: graph
+  workerBot: vids-operator
+  stages:
+    - bot: vids-operator
+      name: Produce the next story video
+  processDefinition:
+    name: Creative Studio
+    nodeGraph:
+      nodes:
+        - id: n-start
+          type: start
+          title: Start
+          config:
+            triggerMode: manual
+        - id: n-produce
+          type: execute-agent
+          title: Produce the next story video
+          config:
+            agentBinding: vids-operator
+            workType: authored
+        - id: n-deliver
+          type: deliver
+          title: Deliver
+          config:
+            deliveryMode: standard
+      edges:
+        - id: e-start-produce
+          source: n-start
+          target: n-produce
+        - id: e-produce-deliver
+          source: n-produce
+          target: n-deliver
+      topologicalOrder:
+        - n-start
+        - n-produce
+        - n-deliver
+  autoStart: true
+
+ribbon:
+  hideFrameworkItems:
+    - addressbook
+    - echo
+    - logs
+    - operations
+  defaultView: creative-studio

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Job Hunter{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=2">
+<script src="{{ url_for('static', filename='mic.js') }}?v=2" defer></script>
+<script src="{{ url_for('static', filename='apply.js') }}?v=1" defer></script>
+</head><body>
+<header>
+  <a class="brand" href="{{ url_for('index') }}">⌖ Job Hunter</a>
+  <nav class="topnav"><a href="{{ url_for('index') }}">List</a><a href="{{ url_for('report') }}">📁 By Company</a><a href="{{ url_for('ready') }}">📋 Ready to Apply</a><a href="{{ url_for('progress') }}">📈 My Progress</a><a href="{{ url_for('skills') }}">🎤 Interview</a><a href="{{ url_for('insights') }}">📊 Insights</a><a href="{{ url_for('jobmap') }}{% if request.endpoint == 'index' and request.query_string %}?{{ request.query_string.decode() }}{% endif %}">Map</a><a href="{{ url_for('companies_dir') }}">Companies</a><a href="{{ url_for('strengthen') }}">💪 Strengthen</a><a href="{{ url_for('recruiters_page') }}">🎯 Recruiters</a><a href="{{ url_for('sources') }}">Sources</a></nav>
+  <span class="tag">direct-from-employer postings · AI-matched to your profile</span>
+</header>
+{% with msgs = get_flashed_messages() %}
+  {% if msgs %}<div class="flash">{% for m in msgs %}<div>{{ m }}</div>{% endfor %}</div>{% endif %}
+{% endwith %}
+<main>{% block body %}{% endblock %}</main>
+</body></html>

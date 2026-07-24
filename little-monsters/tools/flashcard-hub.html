@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Little Monsters - Flashcards</title>
+<script>
+(function(){function a(n){if(!n)return;document.documentElement.setAttribute('data-theme',n);var h='/cockpit/css/themes/'+n+'.css',l=document.querySelector('link[data-lm-theme-link]');if(l){if(l.getAttribute('href')!==h)l.setAttribute('href',h);return;}l=document.createElement('link');l.rel='stylesheet';l.href=h;l.setAttribute('data-lm-theme-link','1');document.head.appendChild(l);}function i(){try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(e){}try{var s=localStorage.getItem('cockpit-theme');if(s)return s;}catch(e){}return 'little-monsters';}a(i());try{if(window.parent&&window.parent!==window){var ph=window.parent.document.documentElement;new MutationObserver(function(m){for(var k=0;k<m.length;k++)if(m[k].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)a(t);}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});}}catch(e){}})();
+</script>
+<link rel="stylesheet" href="/api/education/education.css">
+<style>
+  body{margin:0;color:var(--text-primary,#fdeaf6);font-family:system-ui,'Inter',sans-serif;}
+  .wrap{padding:20px clamp(14px,4vw,40px) 60px;max-width:760px;}
+  .head{display:flex;align-items:center;gap:12px;margin-bottom:4px;}
+  .head img{width:46px;height:46px;border-radius:12px;border:3px solid var(--accent-primary,#ec4faa);background:var(--bg-card);}
+  h1{margin:0;font-size:clamp(20px,3vw,26px);}
+  .sub{color:var(--text-muted);font-size:13px;margin:2px 0 16px;}
+  .btn{background:var(--accent-primary,#ec4faa);color:#fff;border:none;border-radius:12px;padding:10px 16px;font-weight:800;cursor:pointer;font-size:14px;}
+  .btn.ghost{background:transparent;color:var(--text-primary);border:1px solid var(--border-color);}
+  .btn.sm{padding:7px 12px;font-size:13px;}
+  .btn.danger{color:var(--status-error,#ff6b8b);border-color:var(--status-error,#ff6b8b);background:transparent;border-width:1px;border-style:solid;}
+  .topbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .topbar .back{cursor:pointer;color:var(--accent-primary,#ec4faa);font-weight:700;font-size:14px;}
+  .set{border:1px solid var(--border-color);border-radius:14px;background:var(--bg-card);padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .set .info{flex:1;min-width:150px;}
+  .set .t{font-weight:800;font-size:15px;}
+  .set .m{font-size:12px;color:var(--text-muted);margin-top:2px;}
+  .set .acts{display:flex;gap:8px;flex-wrap:wrap;}
+  .empty{color:var(--text-muted);font-size:14px;padding:14px 0;}
+  label{display:block;font-size:12px;color:var(--text-muted);margin:8px 0 4px;}
+  input,select,textarea{width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid var(--border-color);background:var(--bg-secondary);color:inherit;font-size:14px;font-family:inherit;}
+  .row{display:flex;gap:8px;margin-bottom:8px;}.row input{flex:1;}
+  .row .del{flex:0 0 auto;width:38px;border:1px solid var(--border-color);background:transparent;color:var(--status-error,#ff6b8b);border-radius:10px;cursor:pointer;}
+  .card{border:1px solid var(--border-color);border-radius:16px;background:var(--bg-card);padding:16px;margin-bottom:14px;}
+  .msg{font-weight:700;font-size:13px;min-height:18px;margin-top:8px;}
+  .small{font-size:12px;color:var(--text-muted);}
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<div class="wrap" id="app"><div class="empty">Loading your flashcards…</div></div>
+<script>
+var classes=[];
+// Attribute-safe escape (also escapes quotes) so set titles/ids are safe both as text and
+// inside HTML attribute values — set titles are user-controlled.
+function esc(s){var d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function app(){return document.getElementById('app');}
+function go(view){ if(window.parent!==window){ window.parent.postMessage({type:'lm-navigate',view:view},'*'); } else { window.location.href='/api/education/'+view; } }
+
+async function loadClasses(){ try{var r=await fetch('/api/education/classes'); if(r.ok)classes=(await r.json()).classes||[];}catch(e){} }
+
+// ───────── GALLERY ─────────
+async function gallery(){
+  var sets=[];
+  try{ var r=await fetch('/api/education/flashcards/sets'); if(r.ok)sets=(await r.json()).sets||[]; }catch(e){}
+  var h='<div class="head"><img src="/api/education/mascot.png" alt=""><div><h1>🃏 My Flashcards</h1></div></div>'
+    +'<p class="sub">Make new cards, edit them, or jump in and study.</p>'
+    +'<div style="margin-bottom:14px;"><button class="btn" onclick="create()">＋ New flashcard set</button></div>';
+  if(!sets.length){ h+='<div class="empty">No sets yet — tap “New flashcard set” to make your first one.</div>'; }
+  else { h+=sets.map(function(s){
+    var t=esc(s.title||'Untitled');
+    // Values go in data-* attributes (read via getAttribute) instead of inline onclick
+    // strings, so a title with a quote can't break out into executable script.
+    return '<div class="set"><div class="info"><div class="t">'+t+'</div>'
+      +'<div class="m">'+(s.card_count||0)+' cards'+(s.class_name?(' · '+esc(s.class_name)):'')+'</div></div>'
+      +'<div class="acts">'
+      +'<button class="btn sm" data-act="study" data-set="'+esc(s.set_id)+'">▶ Study</button>'
+      +'<button class="btn sm ghost" data-act="edit" data-set="'+esc(s.set_id)+'" data-title="'+t+'">✎ Edit</button>'
+      +'<button class="btn sm danger" data-act="del" data-set="'+esc(s.set_id)+'">🗑</button></div></div>';
+  }).join(''); }
+  app().innerHTML=h;
+  app().querySelectorAll('button[data-act]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var id=b.getAttribute('data-set'), act=b.getAttribute('data-act');
+      if(act==='study') study(id); else if(act==='edit') edit(id, b.getAttribute('data-title')); else delSet(id);
+    });
+  });
+}
+function study(setId){ if(window.parent!==window){ window.parent.postMessage({type:'lm-navigate',view:'flashcards-study',setId:setId},'*'); }
+  window.location.href='/api/education/flashcards?setId='+encodeURIComponent(setId); }
+async function delSet(setId){
+  if(!confirm('Delete this whole set?')) return;
+  try{ var r=await fetch('/api/education/flashcards/sets/'+setId,{method:'DELETE'}); if(!r.ok) alert('Could not delete the set.'); }
+  catch(e){ alert('Could not delete the set.'); }
+  gallery();
+}
+
+// ───────── CREATE ─────────
+function create(){
+  app().innerHTML='<div class="topbar"><span class="back" onclick="gallery()">← My flashcards</span></div>'
+    +'<div class="head"><img src="/api/education/mascot.png" alt=""><div><h1>✍️ New set</h1></div></div>'
+    +'<div class="card"><div class="row" style="gap:10px;"><div style="flex:1;"><label>Class</label><select id="cls"><option value="">No class</option>'
+    +classes.map(function(c){return '<option value="'+c.class_id+'">'+esc(c.name)+'</option>';}).join('')+'</select></div>'
+    +'<div style="flex:1;"><label>Title</label><input id="title" placeholder="e.g. Chapter 5 terms"></div></div></div>'
+    +'<div class="card"><label>Quick fill — paste "term: definition" lines</label>'
+    +'<textarea id="paste" rows="3" placeholder="Mitochondria: the powerhouse of the cell"></textarea>'
+    +'<div style="margin-top:8px;"><button class="btn ghost sm" onclick="parsePaste()">Make cards from notes</button></div></div>'
+    +'<div class="card"><div id="rows"></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">'
+    +'<button class="btn ghost sm" onclick="addRow()">＋ Add a card</button>'
+    +'<button class="btn" onclick="saveNew()">💾 Save set</button></div><div class="msg" id="msg"></div></div>'
+    +'<div class="card"><label>🤖 Or auto-build from a class\'s notes</label>'
+    +'<div><button class="btn sm" id="aiBtn" onclick="aiGen()">Build a set from my class</button></div><div class="msg" id="aiMsg"></div></div>';
+  addRow(); addRow();
+}
+function addRow(f,b){ var d=document.createElement('div'); d.className='row';
+  d.innerHTML='<input class="f" placeholder="Front" value="'+esc(f||'')+'"><input class="b" placeholder="Back" value="'+esc(b||'')+'"><button class="del">✕</button>';
+  d.querySelector('.del').onclick=function(){d.remove();}; document.getElementById('rows').appendChild(d); }
+function parsePaste(){ var n=0; document.getElementById('paste').value.split('\n').forEach(function(ln){ ln=ln.trim(); if(!ln)return;
+  var m=ln.split(/\s*[:\-–]\s+/); if(m.length>=2){ addRow(m[0],m.slice(1).join(' - ')); n++; } });
+  document.getElementById('paste').value=''; document.getElementById('msg').textContent=n?('Added '+n+' cards.'):'Use "term: definition" lines.'; }
+function collect(){ var c=[]; document.querySelectorAll('#rows .row').forEach(function(r){ var f=r.querySelector('.f').value.trim(),b=r.querySelector('.b').value.trim(); if(f&&b)c.push({front:f,back:b}); }); return c; }
+async function saveNew(){
+  var cards=collect(); if(!cards.length){ document.getElementById('msg').textContent='Add at least one card.'; return; }
+  document.getElementById('msg').textContent='Saving…';
+  try{ var r=await fetch('/api/education/flashcards/sets',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({classId:document.getElementById('cls').value||null,title:document.getElementById('title').value.trim()||'My cards',sourceType:'manual',cards:cards})});
+    var d=await r.json(); if(!r.ok)throw new Error(d.error||'save failed');
+    gallery();
+  }catch(e){ document.getElementById('msg').textContent='Could not save: '+e.message; }
+}
+async function aiGen(){
+  var cls=document.getElementById('cls').value; if(!cls){ document.getElementById('aiMsg').textContent='Pick a class first.'; return; }
+  var b=document.getElementById('aiBtn'); b.disabled=true; document.getElementById('aiMsg').textContent='Reading your class notes…';
+  try{ var r=await fetch('/api/education/flashcards/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({classId:cls})});
+    var d=await r.json(); if(!r.ok)throw new Error(d.error||d.reason||'unavailable');
+    gallery();
+  }catch(e){ document.getElementById('aiMsg').textContent='Could not build: '+e.message; b.disabled=false; }
+}
+
+// ───────── EDIT ─────────
+async function edit(setId,title){
+  var cards=[];
+  try{ var r=await fetch('/api/education/flashcards/sets/'+setId+'/cards'); if(r.ok)cards=(await r.json()).cards||[]; }catch(e){}
+  var h='<div class="topbar"><span class="back" onclick="gallery()">← My flashcards</span></div>'
+    +'<div class="head"><img src="/api/education/mascot.png" alt=""><div><h1>✎ '+esc(title||'Edit set')+'</h1></div></div>'
+    +'<p class="sub">Edit a card and tap away to save. '+cards.length+' cards.</p><div id="ecards"></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;"><button class="btn ghost sm" onclick="addNewCard(\''+setId+'\')">＋ Add a card</button>'
+    +'<button class="btn sm" onclick="study(\''+setId+'\')">▶ Study this set</button></div>'
+    +'<div class="msg" id="emsg"></div>';
+  app().innerHTML=h;
+  var box=document.getElementById('ecards');
+  cards.forEach(function(c){ box.appendChild(editRow(c)); });
+  if(!cards.length) box.innerHTML='<div class="empty">No cards yet — add one below.</div>';
+}
+function editRow(c){
+  var d=document.createElement('div'); d.className='row';
+  d.innerHTML='<input class="ef" value="'+esc(c.front)+'"><input class="eb" value="'+esc(c.back)+'"><button class="del">✕</button>';
+  var save=function(){ var f=d.querySelector('.ef').value.trim(),b=d.querySelector('.eb').value.trim(); if(!f||!b)return;
+    fetch('/api/education/flashcards/cards/'+c.card_id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({front:f,back:b})})
+      .then(function(r){ flash(r.ok?'Saved ✓':'Save failed — try again'); }).catch(function(){ flash('Save failed — try again'); }); };
+  d.querySelector('.ef').addEventListener('change',save); d.querySelector('.eb').addEventListener('change',save);
+  d.querySelector('.del').onclick=function(){ if(!confirm('Delete this card?'))return;
+    fetch('/api/education/flashcards/cards/'+c.card_id,{method:'DELETE'}).then(function(){ d.remove(); flash('Card removed'); }); };
+  return d;
+}
+async function addNewCard(setId){
+  var f=prompt('Front (term / question)?'); if(!f)return; var b=prompt('Back (definition / answer)?'); if(!b)return;
+  try{ var r=await fetch('/api/education/flashcards/sets/'+setId+'/cards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({front:f,back:b})});
+    if(!r.ok){ alert('Could not add the card.'); return; } }catch(e){ alert('Could not add the card.'); return; }
+  edit(setId);
+}
+function flash(t){ var e=document.getElementById('emsg')||document.getElementById('msg'); if(e){ e.textContent=t; setTimeout(function(){e.textContent='';},1200); } }
+
+(async function(){ await loadClasses(); gallery(); })();
+</script>
+</body>
+</html>

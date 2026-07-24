@@ -1,0 +1,151 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — vids ("Vids Studio")
+# Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
+# ONLY the surface carves). This package is the app: the /api/vids routes
+# (routes/vids-routes.js built from src-routes/ — job/story dispatch to the
+# registered remote Vids worker + the self-contained job-queue surface at
+# /api/vids/app), the vids_generate CLI tool, the manifest (ticketType 'vids' +
+# the studio pipeline), a package COPY of the vids-operator persona for the
+# registrar, and a migrations/ COPY of 059 for fresh installs.
+#
+# What STAYS framework-resident per ADR-093 (this package ships none of it):
+#   - the SHARED vids-operator remote-client desktop worker
+#     (packages/oshal-vids-operator → `npx oshal-vids worker`) + its registry
+#     entries in BOTH swarm-bot-registry blocks — all four vids-family apps
+#     reference it (the ADR-080 Extend-story content library + production engine
+#     lives in the worker's content.* tools, NOT in these routes);
+#   - the remote-client registry/mesh (src/app/routes/remote-client-routes.ts)
+#     these routes enqueue into — reached via the @/ alias;
+#   - scripts/oshal-vids.js (the CLI backing vids_generate + the creative_*
+#     tools) — kernel-owned;
+#   - scripts/migrations/059-vids-platform.sql (kernel-owned history; the COPY
+#     here creates vids_jobs + seeds the worker bot row on fresh installs).
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: vids
+suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Vids Studio
+description: >-
+  Turn an idea into generated video. The Veo specialist drives Google Vids by
+  clicking — describes the shot, generates the clip, places it on the timeline —
+  on a remote operator machine, and learns what works over time.
+version: 1.1.0
+status: active
+
+theme: midnight
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: vids
+  ref: main
+
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — reuses the already-registered SHARED vids-operator worker (registered in
+# BOTH swarm-bot-registry blocks, kernel-resident; seeded by migration 059). The
+# persona here is a package COPY for the registrar.
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: b00e0000-0000-0000-0000-000000000001
+    name: vids-operator
+    persona: personas/vids-operator.yaml
+    role: media/video
+    capabilities:
+      - veo-prompt-craft
+      - vids-generate
+      - vids-operate
+      - shot-planning
+
+# CLI tool (backs the vids_generate registered tool). Enqueues a generate-job to
+# the registered Vids worker via the LOCAL /api/vids API (same container — this
+# package's own route), which hands it to the remote-client registry the worker
+# polls. The CLI itself is kernel-resident (scripts/oshal-vids.js).
+tools:
+  - name: vids_generate
+    displayName: Generate a Veo clip
+    type: cli
+    category: media
+    description: >-
+      Generate an AI video clip in Google Vids from a prompt and place it on the
+      timeline. Runs on the remote Vids worker machine's Chrome.
+    executor:
+      executorType: cli
+      cliCommand: node /app/scripts/oshal-vids.js generate {input}
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        prompt: { type: string, description: "What to generate (the bot will optimize it)" }
+        orientation: { type: string, description: "Landscape | Portrait | Square" }
+        insertMode: { type: string, description: "Insert | Extend | none" }
+      required: [prompt]
+    routingTags: [vids, veo, video, generate]
+    skills: [veo-prompt-craft, browser-operate]
+    tags: [vids-studio]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — the packaged surface router, mounted /api/vids on activation. (In core
+# server.ts this was createVidsRoutes behind serviceSecretOr(requiresAuth); the
+# same posture here so the in-container vids_generate / creative_* CLI tools keep
+# reaching it with X-Service-Secret while browsers hit the OIDC wall — ADR-085 D2.)
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - module: routes/vids-routes.js
+    factory: createVidsRoutes
+    mountPath: /api/vids
+    auth: service-or-oidc   # what core server.ts mounted (ADR-085 D2)
+    requiresAuth: true
+    requiresContext: true
+  # Public, read-only finished-vids surface (BACKLOG "per-user PUBLIC publish directory"). Serves
+  # ONLY explicitly-published renders from a per-user (user_sub-keyed) publish dir; nothing about
+  # jobs/prompts/queue is ever public. Mounted under /api/ (NOT /public) because the loader (D2)
+  # requires a public mount at /api/<name>; the router self-guards (slug + file validation,
+  # published-dir only, no listing, fail-closed 404). The publish/unpublish COPY action is deferred
+  # (no render file exists in the controller — the worker renders + publishes externally).
+  - module: routes/vids-public-routes.js
+    factory: createVidsPublicRoutes
+    mountPath: /api/vids-public
+    auth: public
+    requiresAuth: false
+    requiresContext: true
+
+# Cockpit ribbon tile + embedded surface (the job queue, served by the route above).
+ui:
+  static:
+    - toolName: vids-studio
+      label: Vids Studio
+      icon: codicon codicon-device-camera-video
+      iframeUrl: /api/vids/app
+      section: top
+
+# The vids_jobs ledger + worker-bot seed. COPY of the kernel-owned 059 so fresh
+# installs create the table; idempotent.
+migrations:
+  - migrations/059-vids-platform.sql
+
+# Tickets of type 'vids' route to the operator bot.
+ticketType: vids
+workflow:
+  name: Vids Studio Pipeline
+  pipeline: vids
+  workerBot: vids-operator
+  phases:
+    - intake     # scope the idea + inputs into a shot
+    - plan       # optimize into a Veo prompt + settings
+    - generate   # drive the remote Chrome to render + place the clip
+    - deliver    # report the placed clip + what was learned
+
+ribbon:
+  hideFrameworkItems:
+    - addressbook
+    - echo
+    - logs
+    - operations
+  defaultView: vids-studio

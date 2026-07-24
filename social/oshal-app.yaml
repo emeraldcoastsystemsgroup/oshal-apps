@@ -1,0 +1,155 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — social (Social swarm, ADR-038)
+# Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 2, "skill with a surface" —
+# ONLY the surface carves). What STAYS framework-resident per ADR-093 interim:
+#   - the communications-bot REAL node (comms container + BOTH registry blocks
+#     b0…0001 + core email-summarizer persona) — the app's chat/right-rail agent;
+#   - the social-writer node (a0…0040) the ticket workerBot dispatches to;
+#   - the Signals ENGINE: the inbox-ingest cron that fills oshal_inbox_messages
+#     (category=social) from the connected Gmail — this package's Signals surface
+#     is a VIEW over that shared store, not the ingest;
+#   - the linkedin / twitter / meta-business (+ facebook, google) platform
+#     connectors driven via the per-user broker;
+#   - the kernel-resident LinkedIn AI Content Assistant at /api/linkedin-assistant
+#     (draft→judge→refine→approve state machine + its own no-post gate) — this
+#     app's "LinkedIn Assistant" tile is a VIEW onto that kernel surface.
+# This package is the app: the Workspace/Signals/Composer surfaces + the
+# /api/social routes + the workflow + a package persona COPY for the registrar.
+# Framework: OSHAL (see docs/build-your-own-swarm-app.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: social
+suite: ai-productivity   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Social
+description: >-
+  Listens to your feeds, surfaces trends, and drafts posts and replies from your
+  input — then publishes to multiple platforms at once (LinkedIn + Facebook + X).
+  AI drafting runs on the comms bot; publishing uses your per-user connector
+  tokens. Human-approved — nothing posts until you click Publish.
+version: 1.0.0
+status: active
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: social
+  ref: main
+
+# Runtime connector allow-list — the platforms this app publishes to + the mailbox
+# whose Social category feeds the Signals view, all via the per-user broker.
+dependencies:
+  apps: []
+  tools: []
+  connectors: [linkedin, twitter, meta-business, facebook, google]
+
+# Per-app skin (approved palette) — light-blue so the social workspace reads distinct.
+theme: light-blue
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LinkedIn AI Content Assistant — the social north-star orchestrated flow.
+# A ticketType=linkedin-content ticket (scheduled / swarm-initiated) routes via the
+# generic single-bot worker dispatch (dispatchManifestWorkerTicket) straight to the
+# social-writer persona (the drafting owner, registered globally as a0…0040 — stays
+# framework-resident). Interactive drafting uses the direct/inline path in the
+# kernel-resident linkedin-assistant-routes (draft -> quality-judge score -> one
+# refine under SOCIAL_JUDGE_BAR -> pending-approval); no ticket needed for that.
+# Nothing publishes without an explicit human Publish click.
+# ─────────────────────────────────────────────────────────────────────────────
+ticketType: linkedin-content
+workflow:
+  name: LinkedIn Content Assistant
+  # No `pipeline:` — not an incident. Single-bot worker dispatch to social-writer; the
+  # persona is its own quality gate. The quality-judge SCORING step is an orchestration
+  # step inside the assistant flow, NOT a second reviewer bot (one-bot-per-ticket-type).
+  workerBot: social-writer
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SCHEDULES — a per-user "poll". scope: per-user means it is NOT system-wide; it
+# registers for a specific user only when THEY connect the required connector
+# (facebook). Runs only when the agent scheduler is on (ENABLE_AGENT_SCHEDULER=true).
+# ─────────────────────────────────────────────────────────────────────────────
+schedules:
+  - id: social-daily-digest
+    cron: "0 13 * * *"
+    scope: per-user
+    requiresConnection: facebook
+    targetAgent: b0000000-0000-0000-0000-000000000001
+    description: Daily digest of your connected social signals.
+    prompt: >-
+      Summarize what happened across my connected social accounts in the last day:
+      notable mentions, replies needing attention, and anything worth a post.
+
+# The Social app's chat agent IS the communications-bot — the real, secure bot
+# (own container, NO master key) that owns the inbox-fed social signals. The
+# comms NODE (container + static registry blocks) is framework-resident (ADR-093);
+# the persona here is a package COPY for the registrar — the container keeps using
+# /app/ai-lab. ADR-083: this manifest and email-summarizer's manifest BOTH declare
+# communications-bot, and manifest bot upserts clobber base_capabilities whole-array
+# — keep this list the SAME UNION as email's or load order decides the bot's identity.
+bots:
+  - agentId: b0000000-0000-0000-0000-000000000001
+    name: communications-bot
+    persona: personas/email-summarizer.yaml
+    role: comms/email-calendar-social
+    capabilities:
+      - email-summarization
+      - gmail-triage
+      - outlook-mail
+      - calendar-digest
+      - meeting-agenda
+      - reply-drafting
+      - inbox-triage
+      - social-signals-feed
+      - social-publishing
+      - sms-texting
+      - voice-calls
+
+# Cockpit surface. Studio + Composer are COMBINED into one Workspace (split screen:
+# who to engage on the left, draft/publish on the right). The LinkedIn Assistant tile
+# opens the kernel-resident /api/linkedin-assistant surface; Accounts opens /utilities.
+ui:
+  static:
+    - toolName: social-workspace
+      label: Workspace
+      icon: codicon codicon-edit
+      iframeUrl: /api/social/workspace
+      section: top
+    - toolName: linkedin-assistant
+      label: LinkedIn Assistant
+      icon: codicon codicon-rocket
+      iframeUrl: /api/linkedin-assistant/panel   # kernel-resident surface — stays framework-served
+      section: top
+    - toolName: social-signals
+      label: Signals
+      icon: codicon codicon-radio-tower
+      iframeUrl: /api/social/signals/ui
+      section: top
+    - toolName: social-accounts
+      label: Accounts
+      icon: codicon codicon-account
+      iframeUrl: /utilities   # core framework surface — stays kernel-mounted
+      section: bottom
+
+routes:
+  - module: routes/social-routes.js
+    factory: createSocialRoutes
+    mountPath: /api/social
+    auth: oidc   # what core server.ts mounted (requiresAuth — ADR-085 D2)
+    requiresAuth: true
+    requiresContext: true
+
+# No migrations: the Signals feed reads the shared oshal_inbox_messages store
+# (filled by the framework inbox-ingest cron, category=social) and connected
+# accounts — no app-owned Postgres tables; the store stays in place across the carve.
+
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  defaultView: social-workspace

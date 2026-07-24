@@ -1,0 +1,101 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — movies ("Movies & TV")
+# Carved out of OSHAL core 2026-07-18 (ADR-085 Wave 2 carve #1).
+#
+# An AI movies & TV concierge that drives a visual surface: it searches films +
+# shows (TMDB), shows where each is streaming + trailers, recommends from the
+# viewer's taste, curates a watchlist, and hands off streaming + ticket links.
+#
+# Handoff truth: discovery uses the free TMDB API (operator key). "Watch" opens a
+# where-to-watch (JustWatch) page and "Tickets" opens a Fandango search — the viewer
+# streams or buys there. OSHAL never streams or sells.
+#
+# BOT NOTE (ADR-093 interim): movies-concierge (b00b…001) is a REAL bot-node —
+# its own compose container (movies-bot, port 3076, requiresOwnNode), blocks in
+# BOTH framework registries, worker + foundation personas, and the
+# moviesToolKit.js / oshal-tmdb.js tool chain it runs. The heavy-bot quadruple
+# STAYS in the framework repo as the operator-applied fragment (finance
+# precedent). This manifest therefore declares NO bots; the workflow's
+# workerBot resolves via the framework's static registry.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: movies
+suite: ai-home   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Movies & TV
+description: >-
+  AI movies & TV concierge — search films and shows, see where they're streaming,
+  watch trailers, get recommendations, build a watchlist, and find showtimes. Other
+  swarm bots can ask it what to watch or where to watch it.
+version: 1.0.0
+status: active
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: movies
+  ref: main
+
+# TMDB is the one connector this app reads (operator/tenant key or env fallback);
+# declaring it scopes the app profile's connector surface to exactly that.
+dependencies:
+  apps: []
+  tools: []
+  connectors: [tmdb]
+
+# Guests never reach the concierge (was hardcoded Tier C in core's
+# guest-capability matrix; the literal left with this carve). Request only —
+# grants come from the operator endpoint (D4).
+guestTier: blocked
+
+# Compiled-JS route (built from src-routes/ by `oshal-app build`). One OIDC mount;
+# every route resolves the viewer sub itself; the surface serves from this
+# package's tools/ via ctx.appPackageDir.
+routes:
+  - module: routes/movies-routes.js
+    factory: createMoviesRoutes
+    mountPath: /api/movies
+    auth: oidc
+    requiresContext: true
+
+# Belt-and-braces: the same five tables ensureMoviesSchema creates lazily
+# (owner RLS at the chokepoint). Idempotent — safe on DBs where core migration
+# 048 already ran.
+migrations:
+  - migrations/048-movies-platform.sql
+
+# WORKFLOW — tickets of type 'movies' route to the concierge (framework-resident
+# bot-node; see BOT NOTE).
+ticketType: movies
+workflow:
+  name: Movies & TV Concierge Pipeline
+  pipeline: movies
+  workerBot: movies-concierge
+  phases:
+    - intake     # understand the mood / title / "what's on tonight"
+    - find       # search titles, check where-to-watch, recommend
+    - handoff    # save to watchlist + hand off the stream/ticket link
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon icon opens the Movies surface (served by
+# createMoviesRoutes from this package's tools/).
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: movies-concierge
+      label: Movies & TV
+      icon: codicon codicon-device-camera-video
+      iframeUrl: /api/movies/app
+      section: top
+
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  hideChatPanel: true
+  defaultView: movies-concierge

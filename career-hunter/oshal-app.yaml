@@ -1,0 +1,397 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — career-hunter (Career Hunter)
+# Carved out of OSHAL core 2026-07-18 (ADR-085 Wave 3 #1 — the biggest carve: the
+# job-hunting APP ships here). ENGINE-CARVE 2026-07-20: the ADR-093 interim is retired —
+# the Python engine now ships IN this package (engine/ = the jobhunter package + seeds +
+# sync tooling) and the CLI wrapper moved to bin/oshal-jobhunter.js (engine resolved
+# package-relative). Manifest cliCommands invoke it via {packageDir}/bin/. Core keeps only
+# the Python INTERPRETER as a base-image runtime (like node); nothing career-specific.
+# The per-user job store stays on the api-output volume (JOBHUNTER_STORE_ROOT unchanged) —
+# that is this swarm's installed-app DATA, not code, and never lived in the repo.
+# ONE-BOT 2026-07-20: career-advisor (cb…0002) retired; the app has a SINGLE agent that
+# registers inline from this manifest (packaged claude-code shape on the api) — so there
+# are NO dedicated career containers and NO compose fragment. Engine work runs server-side
+# via the {packageDir}/bin CLI tools (the inline bot calls tools; it never shells out).
+# Framework: OSHAL (see docs/adr/2026-04-20-ADR-swarm-application-manifests.md)
+#
+# A node in the hive: turns the battle-tested Python job-hunter engine into an OSHAL
+# app. The shared jobs CORPUS is ingested once from employers' public ATS feeds and shared
+# by all users; every per-user
+# signal (keyword/AI fit, status, resume/cover, lifecycle) is isolated per user_sub.
+# ONE career-hunter agent (inline packaged shape) owns the domain — it calls the framework
+# tools below; the cockpit board wraps the engine's Flask dashboard; an Approvals surface
+# (near Settings) drives the human-in-the-loop application ticket queue.
+#
+# Everything reduces to a tool, a CLI, a connector, or a surface:
+#   CLI        bin/oshal-jobhunter.js  (query/draft/score/refresh — engine in engine/)
+#   Tools      the framework `tools:` below ({packageDir} cliCommands, server-side)
+#   Connector  anthropic (click-to-connect)   [firecrawl = a per-user settings field]
+#   Surfaces   board (wrapped dashboard) · approvals · settings
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: career-hunter
+suite: ai-knowledge   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Intelligent Career
+description: >-
+  Reads openings from employers' own public ATS job feeds into a shared corpus, scores every
+  posting against your private career profile, and turns the best fits into a human-in-the-loop
+  application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume +
+  cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.
+version: 1.3.0
+status: active
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: career-hunter
+  ref: main
+
+# Guests may browse read-only; every write is gated. (Was hardcoded Tier A in core —
+# the literal left with this carve. Request only; grants come from the operator, D4.)
+guestTier: readonly
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOT — ONE registered bot (2026-07-20 consolidation: career-advisor cb…0002 retired;
+# career-hunter absorbs the advisor/chat duties). It registers from THIS manifest at
+# activate (standard inline packaged shape) — no kernel registry entry, no container.
+# It never shells out: every engine action is a framework tool below, executed
+# server-side from this package ({packageDir}/bin/oshal-jobhunter.js); the engine does
+# its own LLM work under the user's connected key.
+# ─────────────────────────────────────────────────────────────────────────────
+chatBot: career-hunter
+
+bots:
+  - agentId: cb000000-0000-0000-0000-000000000001
+    name: career-hunter
+    persona: personas/career-hunter.yaml   # package copy — the one persona (worker + advisor)
+    role: career/job-hunt-owner
+    capabilities:
+      - ats-scraping
+      - job-scoring
+      - resume-generation
+      - cover-letter-generation
+      - careers-discovery
+      - job-search
+      - job-fit-advice
+      - job-matching
+      - application-strategy
+      - application-status
+      - resume-tailoring
+      - recruiter-outreach
+      - career-coaching
+  # NOTE: the apply tools below are OWNED by career-hunter (granted via its persona
+  # authorizations). The dedicated apply-operator worker bot (cb…003, its own persona +
+  # /api/apply-operator route + browser_control MCP) drives the real browser on the desktop;
+  # it is registered in swarm-bot-registry.ts, not listed here, so it doesn't trip the
+  # inline-bot wiring validator (it executes remotely, not inline in the api).
+
+# Bot tools auto-discovered at load (wrap the CLI verbs + the surface HTML).
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FRAMEWORK TOOLS — registered into the dynamic tool registry; their usageInstructions
+# auto-inject into authorized bots' prompts, and the runtime runs them server-side
+# (the bot CALLS the tool — it never shells out). Scoped to the signed-in user via the
+# tool-executor (OSHAL_USER_SUB + .oshal-user-sub in the task workspace).
+# ─────────────────────────────────────────────────────────────────────────────
+tools:
+  - name: career_database
+    displayName: Career Database
+    type: cli
+    description: >-
+      Read the signed-in user's career-hunter data — scored job matches, applied/generated
+      pipeline counts, fresh high-fit roles, and resume gap themes — from their migrated jobs
+      database. Use it to answer anything about their job search with real numbers.
+    executor:
+      executorType: cli
+      cliCommand: node {packageDir}/bin/oshal-jobhunter.js query
+    defaultAuthMode: auto
+    usageInstructions: >-
+      Call career_database (no arguments) to get a JSON snapshot of THIS user's hunt:
+      freshHighFit.count = roles ≥70% fit posted in the last 3 days; topMatches = best-fit
+      roles (title/company/fit/salary/status); recentApplied = the user's MOST RECENTLY
+      APPLIED jobs (title/company/fit/salary_max/applied_at), newest first; pipeline =
+      applied/generated/promoted counts; topGaps = resume gap themes by how many jobs they
+      cost. For ANY question about jobs the user APPLIED to / recent applications, answer
+      ONLY from recentApplied — NEVER from topMatches (those are best-FIT roles, not
+      applications). ALWAYS call this before answering questions about their jobs, matches,
+      applications, fit, or gaps. The data is already scoped to the signed-in user — never
+      ask them to set up a database or for their role/location; you already have it.
+
+  # ── engine work tools: what the codex sandbox shell-out used to do, now server-side ──
+  - name: career_draft
+    displayName: Draft Application
+    type: cli
+    description: >-
+      Write the tailored resume + cover letter PDFs for ONE approved posting — the engine
+      tailors against the user's real profile (its own LLM pass under their connected key)
+      and returns the output packet paths.
+    executor:
+      executorType: cli
+      cliCommand: node {packageDir}/bin/oshal-jobhunter.js draft --job {input.postingId}
+    defaultAuthMode: auto
+    usageInstructions: >-
+      Call career_draft with input.postingId (the posting id from the ticket or
+      career_database) to produce the tailored resume + cover letter for that ONE job.
+      Report the output paths it prints. This is the standard draft — never claim a draft
+      was made without calling it.
+  - name: career_draft_oshal
+    displayName: Draft Application (OSHAL variant)
+    type: cli
+    description: >-
+      Same as career_draft but includes the OSHAL/open-source resume section. OPT-IN only.
+    executor:
+      executorType: cli
+      cliCommand: node {packageDir}/bin/oshal-jobhunter.js draft --job {input.postingId} --oshal
+    defaultAuthMode: auto
+    usageInstructions: >-
+      Call career_draft_oshal ONLY when the ticket or operator explicitly approved the
+      OSHAL/open-source variant for input.postingId. When in doubt, use career_draft.
+  - name: career_score
+    displayName: Score Fresh Postings
+    type: cli
+    description: >-
+      AI fit-score the signed-in user's fresh in-lane postings (bounded to recent postings;
+      the engine's own scoring pass under the user's connected key).
+    executor:
+      executorType: cli
+      cliCommand: node {packageDir}/bin/oshal-jobhunter.js score
+    defaultAuthMode: auto
+    usageInstructions: >-
+      Call career_score (no arguments) when a ticket or the operator asks to score fresh
+      postings. It is bounded to recent in-lane roles; report the counts it prints.
+
+  # ── apply-operator tools: the submission pipeline, per signed-in user (oshal-apply.js) ──
+  - name: career_profile
+    displayName: Apply Profile
+    type: cli
+    description: >-
+      The signed-in user's CANONICAL apply values — contact, phone (E.164), address,
+      work-authorization/sponsorship, citizenship, clearance, EEO — plus their career_db.
+    executor:
+      executorType: cli
+      cliCommand: node /app/scripts/oshal-apply.js profile
+    defaultAuthMode: auto
+    usageInstructions: >-
+      Call career_profile (no arguments) for THIS user's canonical form values. Pull EVERY
+      value you type into an application from here — the generated resume is NOT the source of
+      truth. If a required field is missing, PAUSE and report it; never invent a value.
+  - name: apply_next
+    displayName: Apply — Next
+    type: cli
+    description: >-
+      Get the signed-in user's NEXT approved, US-eligible, packet-ready job to submit.
+    executor:
+      executorType: cli
+      cliCommand: node /app/scripts/oshal-apply.js queue next
+    defaultAuthMode: auto
+    usageInstructions: >-
+      Call apply_next (no arguments) for the next submittable job — returns {item:{posting_id,
+      title, company, url, packet_dir, resume_pdf, cover_pdf}} or {item:null} if none is ready.
+  - name: apply_claim
+    displayName: Apply — Claim
+    type: cli
+    description: Lock a job (apply_active=0) so no other worker double-submits it.
+    executor:
+      executorType: cli
+      cliCommand: node /app/scripts/oshal-apply.js queue claim {input.postingId}
+    defaultAuthMode: auto
+    usageInstructions: >-
+      Call apply_claim with input.postingId (from apply_next) the instant you pick a job, before
+      you start filling — it prevents a second worker from submitting the same posting.
+  - name: apply_record
+    displayName: Apply — Record
+    type: cli
+    description: Record a submission outcome for the signed-in user.
+    executor:
+      executorType: cli
+      cliCommand: node /app/scripts/oshal-apply.js queue record {input.postingId} {input.status}
+    defaultAuthMode: auto
+    usageInstructions: >-
+      Call apply_record with input.postingId and input.status ("applied" | "deferred" |
+      "dismissed") after the outcome. "applied" stamps applied_at; use "deferred" for a blocker.
+  - name: email_code
+    displayName: Email Code
+    type: cli
+    description: The newest ATS security/verification code from the signed-in user's connected Gmail.
+    executor:
+      executorType: cli
+      cliCommand: node /app/scripts/oshal-apply.js email-code
+    defaultAuthMode: auto
+    usageInstructions: >-
+      Call email_code (no arguments) when an application shows a verification-code prompt.
+      Returns {code, from, subject}. A submit that produced a code prompt is NOT a submission —
+      enter the code, resubmit, then confirm.
+  - name: apply_trace
+    displayName: Apply Trace
+    type: cli
+    description: Append one learning line to the signed-in user's apply trace after an outcome.
+    executor:
+      executorType: cli
+      cliCommand: node /app/scripts/oshal-apply.js trace
+    defaultAuthMode: auto
+    usageInstructions: >-
+      Call apply_trace after each submission outcome so the next run learns which fields/ATSes
+      bounce. (Detailed fields are supplied by the runtime via APPLY_* context.)
+  - name: career_refresh
+    displayName: Refresh Jobs Database
+    type: cli
+    description: >-
+      Start the full jobs-database refresh NOW — scrape every company's ATS feed, re-index all
+      users' keyword matches, AI-score the new roles, and queue the top drafts. The same chain
+      the nightly 18:00-CT cron runs. Admin-only; runs detached for hours.
+    executor:
+      executorType: cli
+      cliCommand: node {packageDir}/bin/oshal-jobhunter.js refresh
+    defaultAuthMode: auto
+    usageInstructions: >-
+      Call career_refresh (no arguments) when the operator asks you to update, refresh, rescrape,
+      or re-index the jobs database. It returns immediately with {ok,started} — the scrape runs
+      detached and takes hours, so tell the operator it's underway, never that it's done. If it
+      returns 403/admin-only, this user isn't a career admin: say so and stop (do not retry). If
+      it returns "already running", report that the refresh is in progress. To check progress,
+      call career_refresh_status and read {running, corpusFreshAt}.
+  - name: career_refresh_status
+    displayName: Refresh Status
+    type: cli
+    description: >-
+      Whether a jobs-database refresh is currently running, plus the corpus's newest
+      last-seen timestamp (how fresh the data is).
+    executor:
+      executorType: cli
+      cliCommand: node {packageDir}/bin/oshal-jobhunter.js refresh-status
+    defaultAuthMode: auto
+    usageInstructions: >-
+      Call career_refresh_status (no arguments) to answer "is the refresh done / how fresh is
+      the jobs data". {running:true} = scrape+index still going; corpusFreshAt = newest
+      last-seen timestamp in the shared corpus (UTC). Data from tonight = the morning is ready.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# UI SURFACES
+#   board    (top)    — the wrapped engine dashboard (all existing views)
+#   approvals(bottom) — the human-in-the-loop application ticket queue, near Settings
+#   settings (bottom) — Anthropic click-to-connect + Firecrawl API-key field + cron toggles
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: career-mobile
+      label: Mobile
+      icon: codicon codicon-device-mobile
+      iframeUrl: /api/career-hunter/mobile
+      section: top
+    - toolName: career-board
+      label: Job Board
+      icon: codicon codicon-briefcase
+      iframeUrl: /api/career-hunter/board-native
+      section: top
+    # Submissions — what the desktop worker is doing with the queued résumés: worker reachability,
+    # the ticket lanes, and the narrated screenshot story per run. Sits next to the Job Board because
+    # that is where a submission is queued and this is where you watch it.
+    - toolName: career-submissions
+      label: Submissions
+      icon: codicon codicon-desktop-download
+      iframeUrl: /api/career-hunter/submissions
+      section: top
+    - toolName: career-recruiters
+      label: Recruiters
+      icon: codicon codicon-organization
+      iframeUrl: /api/career-hunter/recruiters-ui
+      section: top
+    - toolName: career-strengthen
+      label: Strengthen
+      icon: codicon codicon-sparkle
+      iframeUrl: /api/career-hunter/strengthen-ui
+      section: top
+    - toolName: career-resume-studio
+      label: Resume Studio
+      icon: codicon codicon-edit
+      iframeUrl: /api/career-hunter/resume-studio
+      section: top
+    # Profile Studio — LinkedIn profile customization (plan -> approve -> desktop
+    # browser-control apply via linkedin-profile-operator; no LinkedIn edit API exists).
+    - toolName: career-profile-studio
+      label: Profile Studio
+      icon: codicon codicon-account
+      iframeUrl: /api/career-hunter/profile-studio
+      section: top
+    - toolName: career-insights
+      label: Insights
+      icon: codicon codicon-graph-line
+      iframeUrl: /api/career-hunter/insights-ui
+      section: top
+    - toolName: career-approvals
+      label: Approvals
+      icon: codicon codicon-checklist
+      iframeUrl: /api/career-hunter/approvals
+      section: bottom
+    # Admin only (server gates on CAREER_HUNTER_ADMIN_SUBS): view every company + its detected
+    # board, paste a real careers URL to re-detect the ATS + scrape. Writes the SHARED corpus.
+    - toolName: career-companies
+      label: Companies
+      icon: codicon codicon-globe
+      iframeUrl: /api/career-hunter/companies-admin
+      section: bottom
+    - toolName: career-settings
+      label: Career Settings
+      icon: codicon codicon-settings-gear
+      iframeUrl: /api/career-hunter/settings
+      section: bottom
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — mounted conditionally by the loader.
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - module: routes/career-hunter-routes.js
+    factory: createCareerHunterRoutes
+    mountPath: /api/career-hunter
+    auth: service-or-oidc   # what server.ts ACTUALLY mounts (ADR-085 D2; drifted to oidc here when the mount gained the service path — the standing guard caught it)
+    requiresAuth: true
+    requiresContext: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DATABASE MIGRATIONS — applied idempotently on first load.
+# ─────────────────────────────────────────────────────────────────────────────
+  - module: routes/career-graph-routes.js
+    factory: createCareerGraphRoutes
+    mountPath: /api/career-hunter/graph
+    auth: oidc
+
+# Package copies are idempotent (safe on DBs where the core migrations already ran).
+# NEW career-rls.sql closes the 060 gap: career_digest_settings + career_score_settings
+# shipped without owner RLS.
+migrations:
+  - migrations/031-career-hunter.sql
+  - migrations/077-career-digest.sql
+  - migrations/082-career-title-profile.sql
+  - migrations/090-career-rls.sql
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WORKFLOW — career-application tickets route to the career-hunter worker bot.
+# Single-bot (no external reviewer): the persona self-gates. Human approval gates
+# live in the Approvals surface (approval_required -> approved -> in_process_build).
+# ─────────────────────────────────────────────────────────────────────────────
+ticketType: career-application
+workflow:
+  name: Career Application Pipeline
+  pipeline: career-application
+  workerBot: career-hunter
+
+# ─────────────────────────────────────────────────────────────────────────────
+# THEMING
+# ─────────────────────────────────────────────────────────────────────────────
+# (sharedCss dropped at carve: surfaces load career-hunter.css via /api/career-hunter/static/,
+#  served from this package tools/ — the field would point outside the package.)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RIBBON VISIBILITY — keep the native `tickets` view available (it is the queue);
+# hide the rest of the framework chrome. `settings` always stays.
+# ─────────────────────────────────────────────────────────────────────────────
+ribbon:
+  hideFrameworkItems:
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  defaultView: career-board

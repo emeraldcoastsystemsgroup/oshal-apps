@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}My Progress · Job Hunter{% endblock %}
+{% block body %}
+<style>
+  .ph { display:flex; align-items:baseline; gap:14px; margin-bottom:10px; }
+  .ph h1 { margin:0; font-size:20px; }
+  .funnel { display:flex; flex-direction:column; gap:6px; max-width:760px; margin-bottom:18px; }
+  .stage { display:flex; align-items:center; gap:10px; }
+  .stage .lbl { width:190px; font-size:13px; color:#33414f; text-align:right; }
+  .stage .bar { height:26px; border-radius:5px; min-width:34px; color:#fff; font-weight:700;
+                font-size:12px; display:flex; align-items:center; padding:0 9px; }
+  .conv { display:flex; gap:22px; margin:6px 0 20px; font-size:13px; color:#33414f; }
+  .conv b { color:#16304F; font-size:16px; }
+  .dead { color:#9a5a12; font-size:13px; margin-bottom:18px; }
+  h2.sec { font-family:"Georgia",serif; font-size:15px; color:#16304F; margin:6px 0 8px; }
+  table.pl { width:100%; border-collapse:collapse; }
+  table.pl th { text-align:left; font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:.4px; border-bottom:1px solid #d6dee8; padding:4px 8px; }
+  table.pl td { padding:7px 8px; border-bottom:1px solid #f0f2f6; font-size:13px; vertical-align:middle; }
+  .st { font-size:11px; font-weight:700; padding:2px 8px; border-radius:9px; }
+  .st-applied { background:#fde8d5; color:#9a5a12; } .st-interview { background:#e6f4ea; color:#1f7a3d; }
+  .st-offer { background:#16304F; color:#fff; }
+  .acts form { display:inline; } .acts button { font-size:11px; padding:3px 8px; margin-left:3px; }
+  .empty { color:var(--mut); font-size:13px; }
+</style>
+
+<div class="ph"><h1>My Progress</h1><span class="sub">your ≥70 / ≥$200K pipeline, stage by stage</span></div>
+
+{% set top = stages[0][1] or 1 %}
+<div class="funnel">
+  {% for label, count, color in stages %}
+  <div class="stage">
+    <div class="lbl">{{ label }}</div>
+    <div class="bar" style="background:{{ color }}; width:{{ [4, (count*100//top)]|max }}%">{{ "{:,}".format(count) }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="conv">
+  <div>Résumé→Applied <b>{{ conv.apply_rate }}%</b></div>
+  <div>Applied→Interview <b>{{ conv.intv_rate }}%</b></div>
+  <div>Interview→Offer <b>{{ conv.offer_rate }}%</b></div>
+</div>
+<div class="dead">Dismissed / dead: {{ dead }}</div>
+
+<h2 class="sec">Live pipeline — applied &amp; interviewing ({{ rows|length }})</h2>
+{% if rows %}
+<table class="pl">
+  <thead><tr><th>Stage</th><th>Fit</th><th>Company</th><th>Role</th><th>Posting</th><th>Advance</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    <td><span class="st st-{{ r.status }}">{{ r.status }}</span></td>
+    <td><span class="score s{{ [5,((r.fit or 0)//20)]|min }}">{{ r.fit }}</span></td>
+    <td>{{ r.company }}</td>
+    <td><a href="{{ url_for('job', pid=r.id) }}">{{ r.title }}</a></td>
+    <td>{% if r.url %}<a href="{{ r.url }}" target="_blank" rel="noopener">open ↗</a>{% endif %}</td>
+    <td class="acts">
+      {% for act,lbl in [('interview','→ Interview'),('offer','→ Offer'),('dismiss','Dead')] %}
+      <form method="post" action="{{ url_for('act', pid=r.id, action=act) }}">
+        <input type="hidden" name="back" value="{{ url_for('progress') }}"><button>{{ lbl }}</button>
+      </form>
+      {% endfor %}
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">Nothing applied yet. Fire roles from <a href="{{ url_for('ready') }}">Ready to Apply</a> and hit “Mark applied” — they’ll show up here to track through interview &amp; offer.</p>
+{% endif %}
+{% endblock %}

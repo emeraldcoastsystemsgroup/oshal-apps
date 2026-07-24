@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Little Monsters - Formula Lab</title>
+<script>
+(function(){function a(n){if(!n)return;document.documentElement.setAttribute('data-theme',n);var h='/cockpit/css/themes/'+n+'.css',l=document.querySelector('link[data-lm-theme-link]');if(l){if(l.getAttribute('href')!==h)l.setAttribute('href',h);return;}l=document.createElement('link');l.rel='stylesheet';l.href=h;l.setAttribute('data-lm-theme-link','1');document.head.appendChild(l);}function i(){try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(e){}try{var s=localStorage.getItem('cockpit-theme');if(s)return s;}catch(e){}return 'little-monsters';}a(i());try{if(window.parent&&window.parent!==window){var ph=window.parent.document.documentElement;new MutationObserver(function(m){for(var k=0;k<m.length;k++)if(m[k].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)a(t);}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});}}catch(e){}})();
+</script>
+<link rel="stylesheet" href="/api/education/education.css">
+<style>
+  body{margin:0;color:var(--text-primary,#fdeaf6);font-family:system-ui,'Inter',sans-serif;}
+  .wrap{padding:22px clamp(14px,4vw,40px) 60px;}
+  .head{display:flex;align-items:center;gap:12px;}
+  .head img{width:48px;height:48px;border-radius:12px;border:3px solid var(--accent-primary,#ec4faa);background:var(--bg-card);}
+  h1{margin:0;font-size:clamp(20px,3vw,28px);}
+  .sub{color:var(--text-muted);font-size:13px;margin:4px 0 18px;}
+  input.search{width:100%;max-width:420px;padding:11px 14px;border-radius:12px;border:1px solid var(--border-color);
+    background:var(--bg-card);color:inherit;font-size:14px;margin-bottom:18px;}
+  .subj{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--accent-primary,#ec4faa);margin:18px 0 8px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;}
+  .f{border:1px solid var(--border-color);border-radius:14px;background:var(--bg-card);padding:14px;cursor:pointer;transition:.15s;}
+  .f:hover{border-color:var(--accent-primary,#ec4faa);}
+  .f .n{font-weight:700;font-size:14px;}
+  .f .eq{font-family:'Cambria Math',Georgia,serif;font-size:18px;margin:6px 0;color:var(--accent-primary,#ec4faa);}
+  .f .d{font-size:12px;color:var(--text-muted);line-height:1.4;}
+  .f .ex{display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border-color);font-size:13px;line-height:1.5;}
+  .f.open .ex{display:block;}
+  .f .ex b{color:var(--accent-primary,#ec4faa);}
+  .f .taptip{font-size:11px;color:var(--text-muted);margin-top:8px;opacity:.8;}
+  .f.open .taptip{display:none;}
+  .f .ex .deck{display:inline-block;margin-top:8px;font-size:12px;color:var(--status-active,#5b8def);text-decoration:none;font-weight:700;}
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<div class="wrap">
+  <div class="head"><img src="/api/education/mascot.png" alt=""><div><h1>Formula Lab</h1></div></div>
+  <p class="sub">Your digital cheat-sheet — Physics 1 &amp; Chemistry, always one tap away.</p>
+  <input class="search" id="search" placeholder="Search formulas (e.g. velocity, moles, force)…" oninput="filt()">
+  <div id="out"></div>
+</div>
+<script>
+// Each formula carries a worked example (ex). Click a card to see it solved step by step.
+var DATA = {
+  'Physics 1': [
+    {n:'Average velocity', eq:'v = Δx / Δt', d:'displacement over time', ex:'A runner covers <b>100 m</b> in <b>20 s</b>.<br>v = 100 / 20 = <b>5 m/s</b>.'},
+    {n:'Acceleration', eq:'a = Δv / Δt', d:'change in velocity over time', ex:'A car goes 0→<b>30 m/s</b> in <b>6 s</b>.<br>a = 30 / 6 = <b>5 m/s²</b>.'},
+    {n:'Kinematics (no t)', eq:'v² = v₀² + 2aΔx', d:'final velocity from distance', ex:'Start 0, a=<b>2 m/s²</b>, Δx=<b>25 m</b>.<br>v² = 0 + 2·2·25 = 100 → v = <b>10 m/s</b>.'},
+    {n:'Position', eq:'x = x₀ + v₀t + ½at²', d:'position under constant a', ex:'x₀=0, v₀=<b>4 m/s</b>, a=<b>2</b>, t=<b>3 s</b>.<br>x = 0 + 4·3 + ½·2·9 = 12 + 9 = <b>21 m</b>.'},
+    {n:"Newton's 2nd law", eq:'F = m·a', d:'net force = mass × acceleration', ex:'<b>3 kg</b> at <b>4 m/s²</b>.<br>F = 3·4 = <b>12 N</b>.'},
+    {n:'Weight', eq:'W = m·g', d:'g ≈ 9.8 m/s²', ex:'<b>10 kg</b> object.<br>W = 10·9.8 = <b>98 N</b>.'},
+    {n:'Momentum', eq:'p = m·v', d:'mass × velocity', ex:'<b>2 kg</b> at <b>5 m/s</b>.<br>p = 2·5 = <b>10 kg·m/s</b>.'},
+    {n:'Kinetic energy', eq:'KE = ½mv²', d:'energy of motion', ex:'<b>4 kg</b> at <b>3 m/s</b>.<br>KE = ½·4·3² = ½·4·9 = <b>18 J</b>.'},
+    {n:'Potential energy', eq:'PE = m·g·h', d:'gravitational PE', ex:'<b>2 kg</b> at <b>5 m</b> high.<br>PE = 2·9.8·5 = <b>98 J</b>.'},
+    {n:'Work', eq:'W = F·d·cosθ', d:'force through a distance', ex:'<b>10 N</b> pushes <b>3 m</b> (θ=0).<br>W = 10·3·1 = <b>30 J</b>.'},
+    {n:'Power', eq:'P = W / t', d:'work over time', ex:'<b>60 J</b> in <b>4 s</b>.<br>P = 60 / 4 = <b>15 W</b>.'},
+    {n:"Hooke's law", eq:'F = -k·x', d:'spring restoring force', ex:'k=<b>200 N/m</b>, stretched <b>0.1 m</b>.<br>F = 200·0.1 = <b>20 N</b> (pulling back).'},
+  ],
+  'Chemistry': [
+    {n:'Moles', eq:'n = m / M', d:'mass / molar mass', ex:'<b>36 g</b> of water (M=18).<br>n = 36 / 18 = <b>2 mol</b>.'},
+    {n:'Molarity', eq:'M = n / V', d:'moles of solute per liter', ex:'<b>0.5 mol</b> in <b>2 L</b>.<br>M = 0.5 / 2 = <b>0.25 M</b>.'},
+    {n:'Ideal gas law', eq:'PV = nRT', d:'R = 0.0821 L·atm/mol·K', ex:'n=<b>1</b>, T=<b>273 K</b>, V=<b>22.4 L</b>.<br>P = nRT/V = (1·0.0821·273)/22.4 ≈ <b>1 atm</b>.'},
+    {n:'Density', eq:'ρ = m / V', d:'mass per volume', ex:'<b>20 g</b> in <b>10 mL</b>.<br>ρ = 20 / 10 = <b>2 g/mL</b>.'},
+    {n:'Percent yield', eq:'% = (actual/theoretical)·100', d:'reaction efficiency', ex:'Got <b>8 g</b>, expected <b>10 g</b>.<br>% = (8/10)·100 = <b>80%</b>.'},
+    {n:'Dilution', eq:'M₁V₁ = M₂V₂', d:'concentration before/after', ex:'<b>2 M</b>, <b>50 mL</b> → <b>200 mL</b>.<br>M₂ = (2·50)/200 = <b>0.5 M</b>.'},
+    {n:'pH', eq:'pH = -log[H⁺]', d:'acidity', ex:'[H⁺] = <b>0.001 M</b>.<br>pH = -log(0.001) = <b>3</b>.'},
+    {n:'pH + pOH', eq:'pH + pOH = 14', d:'at 25 °C', ex:'pH = <b>9</b>.<br>pOH = 14 - 9 = <b>5</b>.'},
+    {n:'Heat', eq:'q = m·c·ΔT', d:'specific heat', ex:'<b>100 g</b> water (c=4.18), ΔT=<b>10°</b>.<br>q = 100·4.18·10 = <b>4180 J</b>.'},
+    {n:'Avogadro', eq:'1 mol = 6.022×10²³', d:'particles per mole', ex:'<b>2 mol</b> of atoms.<br>2·6.022×10²³ = <b>1.2×10²⁴ atoms</b>.'},
+  ],
+};
+function render(filter){
+  var out=document.getElementById('out'); out.innerHTML=''; var f=(filter||'').toLowerCase();
+  Object.keys(DATA).forEach(function(subj){
+    var items=DATA[subj].filter(function(x){ return !f || (x.n+' '+x.eq+' '+x.d).toLowerCase().indexOf(f)>=0; });
+    if(!items.length) return;
+    var h=document.createElement('div'); h.className='subj'; h.textContent=subj; out.appendChild(h);
+    var g=document.createElement('div'); g.className='grid';
+    items.forEach(function(x){
+      var c=document.createElement('div'); c.className='f';
+      var deck='<a class="deck" href="/api/education/tutor?prefill='+encodeURIComponent('Give me a quick overview of '+x.n+' ('+x.eq+') with one more worked example.')+'">🎓 Ask the tutor for an overview →</a>';
+      c.innerHTML='<div class="n">'+x.n+'</div><div class="eq">'+x.eq+'</div><div class="d">'+x.d+'</div>'
+        +'<div class="ex"><b>Example.</b> '+x.ex+'<br>'+deck+'</div>'
+        +'<div class="taptip">Tap for a worked example ›</div>';
+      c.onclick=function(e){ if(e.target.classList&&e.target.classList.contains('deck'))return; c.classList.toggle('open'); };
+      g.appendChild(c);
+    });
+    out.appendChild(g);
+  });
+}
+function filt(){ render(document.getElementById('search').value); }
+render('');
+</script>
+</body>
+</html>

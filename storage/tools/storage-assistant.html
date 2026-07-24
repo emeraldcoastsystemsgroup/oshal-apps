@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Storage Assistant — OSHAL</title>
+<!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
+     Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
+     matters — without it the surface would have no colours at all. -->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  /* Short alias names kept, but DERIVED from the framework theme instead of literal hex, so all
+     eleven themes work — not just the dark palette these hex values used to match. Semantic status
+     colours come from the theme with the old hex as a fallback. */
+  :root { --bg:var(--bg-primary); --panel:var(--bg-card); --panel2:var(--bg-tertiary); --line:var(--border-color); --text:var(--text-primary); --muted:var(--text-muted); --accent:var(--accent-primary); --accent2:var(--status-success, #00d3a7); }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family: system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  .page { max-width:680px; margin:0 auto; padding:24px 22px 30px; display:flex; flex-direction:column; height:100vh; }
+  h1 { font-size:20px; margin:0 0 2px; } .sub { color:var(--muted); font-size:12.5px; margin-bottom:14px; }
+  .chips { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:12px; }
+  .chip { background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:16px; padding:6px 11px; font-size:12px; cursor:pointer; }
+  .chip:hover { border-color:var(--accent); }
+  #log { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding:4px 2px; }
+  .msg { max-width:85%; padding:10px 13px; border-radius:12px; font-size:13.5px; line-height:1.5; white-space:pre-wrap; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#fff; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
+  .msg.bot a { color:var(--accent); }
+  .bar { display:flex; gap:10px; margin-top:12px; }
+  .bar input { flex:1; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:9px; padding:11px 13px; font-size:14px; }
+  .bar button { border:none; border-radius:9px; padding:11px 18px; font-size:14px; font-weight:600; cursor:pointer; background:var(--accent); color:#fff; }
+  .bar button:disabled { opacity:.5; }
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--muted,rgba(255,255,255,.28))}
+  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
+  @media (max-width: 640px) {
+    .page { padding: 16px 14px 20px; }
+    .bar input { font-size: 16px; }
+    .bar button { font-size: 16px; padding: 11px 16px; }
+  }
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+  <div class="page">
+    <h1>🗂️ Storage Assistant</h1>
+    <div class="sub">Chat to manage your storage — create a GitHub repo, set where code/files save, or list your files. I do it for you.</div>
+    <div class="chips">
+      <span class="chip" onclick="ask(this.textContent)">Where do my files save?</span>
+      <span class="chip" onclick="ask(this.textContent)">Save my files to Dropbox</span>
+      <span class="chip" onclick="ask(this.textContent)">Make me a new GitHub repo called oshal-demo</span>
+      <span class="chip" onclick="ask(this.textContent)">List my files</span>
+    </div>
+    <div id="log"></div>
+    <div class="bar">
+      <input id="input" placeholder="Ask the storage assistant…" onkeydown="if(event.key==='Enter')send()" />
+      <button id="sendBtn" onclick="send()">Send</button>
+    </div>
+  </div>
+<script>
+const $ = (id) => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function linkify(s){ return esc(s).replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank">$1</a>'); }
+function add(role, text){ const d=document.createElement('div'); d.className='msg '+role; d.innerHTML=linkify(text); $('log').appendChild(d); $('log').scrollTop=$('log').scrollHeight; return d; }
+function ask(t){ $('input').value=t; send(); }
+
+async function send(){
+  const msg = ($('input').value||'').trim(); if(!msg) return;
+  $('input').value=''; $('sendBtn').disabled=true;
+  add('user', msg);
+  const thinking = add('bot', '…');
+  try {
+    const r = await fetch('/api/storage/assistant', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ message: msg }) });
+    const j = await r.json().catch(()=>({}));
+    thinking.innerHTML = linkify((r.ok ? (j.reply || 'Done.') : ('Error: '+((j&&j.error)||('HTTP '+r.status)))));
+  } catch(e){ thinking.textContent = 'Error: '+e.message; }
+  $('sendBtn').disabled=false; $('input').focus();
+}
+add('bot', "Hi — I'm your storage assistant. Try “make me a GitHub repo called oshal-demo”, “save my files to Dropbox”, or “where do my files save?”");
+</script>
+</body>
+</html>

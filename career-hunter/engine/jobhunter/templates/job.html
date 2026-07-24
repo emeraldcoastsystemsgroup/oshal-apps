@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}{{ j.title }} — {{ j.company }}{% endblock %}
+{% block body %}
+<a class="back" href="{{ url_for('index') }}">← all jobs</a>
+{% include "_job_detail.html" %}
+{% endblock %}

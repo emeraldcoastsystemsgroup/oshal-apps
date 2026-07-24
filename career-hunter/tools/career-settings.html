@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Career Hunter — Settings</title>
+<link rel="stylesheet" href="/api/career-hunter/static/career-hunter.css">
+<style>
+@media (max-width: 640px) {
+  .row { flex-direction: column; align-items: flex-start; }
+  input[type=text], input[type=password] { min-width: 0; width: 100%; font-size: 16px; }
+  .btn { width: 100%; padding: 10px 13px; font-size: 14px; }
+  .wrap { padding: 12px 12px 40px; }
+}
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head><body>
+<div class="wrap">
+  <h1>Career Settings</h1>
+  <p class="lede">Scoring and writing run on your default OSHAL LLM. Add an optional web-search key, and run a refresh on demand.</p>
+
+  <div class="card">
+    <h2>AI model</h2>
+    <p class="hint">Job scoring and résumé/cover writing use your <b>default OSHAL LLM</b> (Claude) — no separate key needed here. Manage the connection in <a href="/utilities" target="_top">Utilities &amp; Connectors</a>.</p>
+    <div class="row">
+      <span id="anthropicState" class="pill-no">Checking…</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Firecrawl (optional)</h2>
+    <p class="hint">A Firecrawl API key enables richer web search for finding recruiters and careers pages. Only used if you enter one.</p>
+    <div class="row">
+      <span id="firecrawlState" class="pill-no">Checking…</span>
+      <input type="password" id="firecrawlKey" placeholder="fc-…">
+      <button class="btn primary" id="firecrawlSave">Save key</button>
+      <button class="btn" id="firecrawlClear">Remove</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Refresh</h2>
+    <p class="hint">Pull the latest jobs into the shared corpus and keyword-index them, then AI-score your fresh in-lane roles. (Nightly + midday runs do this automatically.)</p>
+    <div class="row">
+      <button class="btn" id="runPull">Pull jobs now</button>
+      <button class="btn" id="runScore">Score fresh now</button>
+      <span id="runOut" class="hint" style="margin:0"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Daily digest</h2>
+    <p class="hint">Once a day, OSHAL checks for new high-fit matches and sends them to you over <b>your own connected channel</b> — email from your Gmail, or a text from your Twilio. On by default; nothing is sent on days with no new matches, and never more than once a day.</p>
+    <div class="row">
+      <label class="hint" style="margin:0;display:flex;align-items:center;gap:6px"><input type="checkbox" id="digestEnabled" checked> Notify me about new matches</label>
+      <span id="digestEmailState" class="pill-no">Email: checking…</span>
+      <span id="digestTextState" class="pill-no">Text: checking…</span>
+    </div>
+    <div class="row">
+      <input type="text" id="digestPhone" placeholder="+15551234567 (for the text channel)">
+      <button class="btn primary" id="digestSave">Save digest settings</button>
+      <button class="btn" id="digestPreview">Preview today's digest</button>
+    </div>
+    <div id="digestOut" class="hint" style="white-space:pre-wrap"></div>
+  </div>
+
+  <div class="card">
+    <h2>Add career materials</h2>
+    <p class="hint">Upload more than a résumé — work samples, exported job emails, a LinkedIn <b>“Download your data”</b> archive, or a status report. OSHAL reads them and adds what you actually do to your profile. Add-only: nothing already in your profile is overwritten.</p>
+    <div class="row">
+      <select id="artKind">
+        <option value="status-report">Status report</option>
+        <option value="work-sample">Work sample</option>
+        <option value="linkedin-export">LinkedIn export</option>
+        <option value="email">Job email(s)</option>
+        <option value="resume-extra">Another résumé</option>
+        <option value="other">Other</option>
+      </select>
+      <input type="file" id="artFiles" multiple accept=".pdf,.docx,.txt,.md,.csv,.tsv,.html,.htm,.eml,.json,.zip">
+      <button class="btn primary" id="artUpload">Add to my profile</button>
+    </div>
+    <div id="artOut" class="hint" style="white-space:pre-wrap"></div>
+  </div>
+
+  <div class="card">
+    <h2>Target titles</h2>
+    <p class="hint">On top of the keyword prefilter, OSHAL runs a daily <b>title pass</b> that AI-scores roles whose titles match <b>your</b> target list — so your best-fit roles surface even when the keyword score misses them. Seeded from your uploaded resume; edit any time (comma-separated). Each run is capped, and it runs at most once a day.</p>
+    <div class="row">
+      <span id="titleState" class="pill-no">Checking…</span>
+    </div>
+    <div class="row">
+      <input type="text" id="titleTerms" placeholder="e.g. SAP Architect, Basis Administrator, Platform Engineer">
+      <button class="btn primary" id="titleSave">Save titles</button>
+      <button class="btn" id="titleRun">Run title pass now</button>
+    </div>
+    <div id="titleOut" class="hint" style="white-space:pre-wrap"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const API='/api/career-hunter', $=(s)=>document.querySelector(s);
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
+async function jpost(u,b){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});return r.json().catch(()=>({}));}
+
+async function refreshState(){
+  const s = await fetch(API+'/settings/state').then(r=>r.json()).catch(()=>({}));
+  $('#anthropicState').className = s.anthropicConnected?'pill-ok':'pill-no';
+  $('#anthropicState').textContent = s.anthropicConnected?'● Default LLM ready':'○ Default LLM not connected';
+  $('#firecrawlState').className = s.firecrawlSet?'pill-ok':'pill-no';
+  $('#firecrawlState').textContent = s.firecrawlSet?'● Key set':'○ No key';
+}
+$('#firecrawlSave').onclick = async()=>{ const k=$('#firecrawlKey').value.trim(); if(!k){toast('Paste a key');return;} const r=await jpost(API+'/settings/firecrawl',{key:k}); $('#firecrawlKey').value=''; toast(r.ok?'Firecrawl key saved':'Failed'); refreshState(); };
+$('#firecrawlClear').onclick = async()=>{ await fetch(API+'/settings/key/firecrawl',{method:'DELETE'}); toast('Removed'); refreshState(); };
+async function run(verb,label){ const o=$('#runOut'); o.innerHTML='<span class="spin"></span> '+label+'…'; const r=await jpost(API+'/run/'+verb,{}); o.textContent = r.ok?'Done.':'Failed: '+((r.err||'').slice(-120)); toast(r.ok?label+' complete':label+' failed'); }
+$('#runPull').onclick=()=>run('pull','Pull');
+$('#runScore').onclick=()=>run('score','Score');
+
+async function refreshDigest(){
+  const s = await fetch(API+'/digest/state').then(r=>r.json()).catch(()=>({}));
+  $('#digestEnabled').checked = s.enabled !== false;
+  if (s.phone) $('#digestPhone').value = s.phone;
+  $('#digestEmailState').className = s.emailReady?'pill-ok':'pill-no';
+  $('#digestEmailState').textContent = s.emailReady?'● Email ready (your Gmail)':'○ Email: connect Google in Utilities';
+  $('#digestTextState').className = (s.textReady && s.phone)?'pill-ok':'pill-no';
+  $('#digestTextState').textContent = s.textReady?(s.phone?'● Text ready (your Twilio)':'○ Text: add your phone below'):'○ Text: connect Twilio in Utilities';
+}
+$('#digestSave').onclick = async()=>{
+  const r = await jpost(API+'/settings/digest',{enabled:$('#digestEnabled').checked, phone:$('#digestPhone').value.trim()});
+  toast(r.ok?'Digest settings saved':(r.error||'Failed')); refreshDigest();
+};
+$('#digestPreview').onclick = async()=>{
+  const o=$('#digestOut'); o.innerHTML='<span class="spin"></span> Checking…';
+  const p = await fetch(API+'/digest/preview').then(r=>r.json()).catch(()=>({hits:[]}));
+  o.textContent = (p.hits&&p.hits.length)
+    ? p.hits.map((h,i)=>`${i+1}. [${h.fit}%] ${h.title} — ${h.company}${h.location?' · '+h.location:''}`).join('\n')
+    : 'No new matches since your last digest — nothing would be sent today.';
+};
+async function refreshTitles(){
+  const s = await fetch(API+'/title-profile/state').then(r=>r.json()).catch(()=>({}));
+  const terms = s.titleTerms||[];
+  if (document.activeElement !== $('#titleTerms')) $('#titleTerms').value = terms.join(', ');
+  $('#titleState').className = terms.length?'pill-ok':'pill-no';
+  $('#titleState').textContent = terms.length
+    ? (s.source==='derived' ? '● '+terms.length+' target titles (from your resume — edit below)' : '● '+terms.length+' target titles saved')
+    : '○ No target titles yet — add some below, or upload a resume first';
+}
+$('#titleSave').onclick = async()=>{
+  const r = await jpost(API+'/settings/title-profile',{terms:$('#titleTerms').value});
+  toast(r.ok?'Target titles saved':(r.error||'Failed')); refreshTitles();
+};
+$('#titleRun').onclick = async()=>{
+  const o=$('#titleOut'); o.innerHTML='<span class="spin"></span> Scoring title-matching roles…';
+  const r = await jpost(API+'/title-pass/run-now',{});
+  o.textContent = r.ran
+    ? ('Done — AI-scored '+(r.scored??0)+' title-matching roles ('+(r.skipped??0)+' skipped).')
+    : ('Not run: '+(r.reason||r.error||'failed')+(r.reason==='no-title-profile'?' — save some target titles first.':''));
+  toast(r.ran?'Title pass complete':'Title pass not run');
+};
+// Add career materials — upload artifacts, absorb into the profile, then show what was learned.
+$('#artUpload').onclick = async()=>{
+  const inp=$('#artFiles'); const files=inp&&inp.files; if(!files||!files.length){ toast('Pick one or more files'); return; }
+  const o=$('#artOut'); o.innerHTML='<span class="spin"></span> Reading your materials…';
+  const fd=new FormData(); fd.append('kind',$('#artKind').value); for(const f of files) fd.append('files',f);
+  try{
+    const r=await fetch(API+'/artifacts/upload',{method:'POST',body:fd}); const j=await r.json().catch(()=>({}));
+    if(!r.ok||!j.started){ o.textContent='Upload failed'+(j.error?': '+j.error:''); toast('Upload failed'); return; }
+    inp.value='';
+    o.textContent='Added '+(j.accepted?.length||0)+' file(s). Learning from them…'+(j.rejected?.length?(' ('+j.rejected.length+' skipped: unsupported type)'):'');
+    toast('Absorbing your materials');
+    let tries=0; const poll=setInterval(async()=>{
+      tries++; const s=await fetch(API+'/artifacts').then(x=>x.json()).catch(()=>({learned:[]}));
+      const recent=(s.learned||[]).flatMap(e=>e.changelog||[]).slice(-8);
+      if(recent.length){ o.textContent='Learned:\n• '+recent.join('\n• '); }
+      if(tries>=10){ clearInterval(poll); if(!recent.length) o.textContent='Processed — nothing new to add, or still working. Check back shortly.'; }
+    }, 4000);
+  }catch(e){ o.textContent='Upload failed: '+e.message; toast('Upload failed'); }
+};
+refreshState();
+refreshDigest();
+refreshTitles();
+</script>
+</body></html>

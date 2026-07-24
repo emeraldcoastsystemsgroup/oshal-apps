@@ -1,0 +1,822 @@
+{
+  "$schema": "https://github.com/emeraldcoastsystemsgroup/open-shal/blob/main/docs/adr/085-remote-app-packages-and-registries.md",
+  "version": 1,
+  "name": "oshal-applications",
+  "description": "The OSHAL app store — installable app packages (ADR-085 git-subdir sources).",
+  "apps": [
+    {
+      "name": "hello-oshal",
+      "suite": "ai-engineering",
+      "displayName": "Hello OSHAL",
+      "description": "The minimal working example — one route, one ribbon tile. Copy it to start a new extension.",
+      "version": "1.0.1",
+      "theme": "midnight",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "hello-oshal",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "little-monsters",
+      "suite": "ai-home",
+      "displayName": "Little Monsters",
+      "description": "Voice-first ADHD study companion for K-12: lecture capture, flashcards, Socratic RAG tutor.",
+      "version": "1.0.7",
+      "theme": "little-monsters",
+      "dependencies": {
+        "apps": [
+          "presentations"
+        ],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "little-monsters",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "packaging"
+    },
+    {
+      "name": "brand-graphics",
+      "suite": "ai-creative",
+      "displayName": "Brand Graphics",
+      "description": "On-brand OSHAL motion graphics — a short brief becomes the validated electric-\"oshal\" intro look via Google Vids on the operator's signed-in Chrome.",
+      "version": "1.0.1",
+      "theme": "midnight",
+      "dependencies": {
+        "apps": [
+          "vids"
+        ],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "brand-graphics",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "lora",
+      "suite": "ai-creative",
+      "displayName": "LoRA Studio",
+      "description": "Train a reusable character (a \"sprite\") from images and captions, validate it on a fixed held-out matrix, and improve it by targeting its weak spots — every version scored so \"better\" is a number. Runs free on your GPU box.",
+      "version": "1.0.0",
+      "theme": "indigo",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "lora",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "youtube-kids",
+      "suite": "ai-home",
+      "displayName": "Kid Lens",
+      "description": "Upload your YouTube Takeout watch history and get a parent-friendly brief on what your kid is into — top interests, decoded channels, gift ideas, conversation openers. Read-only.",
+      "version": "1.0.0",
+      "theme": "sakura",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "youtube-kids",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "payments",
+      "suite": "ai-productivity",
+      "displayName": "Payments",
+      "description": "Take payments through your own Square or PayPal account — Square runs a card charge, PayPal sends an invoice. Deterministic, sandbox by default, explicit-confirm gated.",
+      "version": "1.0.0",
+      "theme": "ocean",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [
+          "square",
+          "paypal"
+        ]
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "payments",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "finance",
+      "suite": "ai-finance",
+      "displayName": "Finance",
+      "description": "Link your banks and brokerages via Plaid and see everything in one place — net worth, accounts, holdings, spending — with a plain-English brief. Read-only aggregation; money movement is explicit-confirm gated.",
+      "version": "1.0.0",
+      "theme": "forest",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "finance",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "movies",
+      "suite": "ai-home",
+      "displayName": "Movies & TV",
+      "description": "AI movies & TV concierge — search films and shows, see where they're streaming, watch trailers, get recommendations, build a watchlist, and find showtimes.",
+      "version": "1.0.0",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [
+          "tmdb"
+        ]
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "movies",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "spotify",
+      "suite": "ai-home",
+      "displayName": "Spotify",
+      "description": "AI music concierge — search your Spotify, see what's playing and your playlists, get recommendations from your taste, and build playlists on your account. Playback opens in your own Spotify app.",
+      "version": "1.0.0",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [
+          "spotify"
+        ]
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "spotify",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "rides",
+      "suite": "ai-home",
+      "displayName": "Get a Ride",
+      "description": "AI Uber Rides concierge — pickup + destination in, ride options with labelled fare estimates out, and a ready deep link you confirm and pay in your own Uber app.",
+      "version": "1.0.0",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [
+          "uber-rides"
+        ]
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "rides",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "eats",
+      "suite": "ai-home",
+      "displayName": "Eats",
+      "description": "AI Uber Eats concierge — search restaurants, browse menus, build an order, and hand off a ready Uber Eats checkout you confirm and pay in your own Uber app.",
+      "version": "1.0.0",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [
+          "uber"
+        ]
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "eats",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "purchasing",
+      "suite": "ai-productivity",
+      "displayName": "Shopping",
+      "description": "AI shopping concierge — search Walmart, build lists, learn your preferences, find deals, and hand off a ready-to-checkout cart you complete on the retailer's site. Other swarm bots can ask it to prepare a purchase.",
+      "version": "1.0.0",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [
+          "walmart"
+        ]
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "purchasing",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "career-hunter",
+      "suite": "ai-productivity",
+      "displayName": "Career Hunter",
+      "description": "The job-hunting swarm: nightly scrape over ~1,240 companies, AI fit scoring, approval-gated applications, recruiter tracking, resume + LinkedIn profile studios, morning digest, and a mobile swipe deck. ONE registered agent; the Python engine ships in the package (bin/ + engine/) — core keeps only the interpreter.",
+      "version": "1.3.0",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "career-hunter",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "presentations",
+      "suite": "ai-productivity",
+      "displayName": "AI Office",
+      "description": "One outline, three artifacts — a themed PowerPoint deck, Word document, or live Excel workbook. Ten shared looks, twenty layouts, fully editable in Microsoft Office, Google Workspace or LibreOffice; saves to Dropbox, Google Drive, OneDrive, or OSHAL local. The deck-generation engine stays framework-resident (kernel skill); this package is the studio surface.",
+      "version": "2.0.0",
+      "theme": "midnight",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [
+          "dropbox",
+          "github",
+          "google-drive",
+          "google",
+          "microsoft"
+        ]
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "presentations",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "storage",
+      "suite": "ai-productivity",
+      "displayName": "Storage",
+      "description": "Your storage hub — choose where OSHAL saves generated code vs files (GitHub / Dropbox / OSHAL-local), manage targets by chat with the Storage Assistant, and browse your files. The storage-target kernel skill and /api/files browser stay framework-resident.",
+      "version": "1.1.0",
+      "theme": "graphite",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [
+          "dropbox",
+          "github",
+          "google-drive"
+        ]
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "storage",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "portrait-studio",
+      "suite": "ai-creative",
+      "displayName": "Portrait Studio",
+      "description": "Turn any photo into a portrait worth framing — 100 profiles × 100 backdrops: business, business casual, slice of life, work environments, history and fantasy, with interchangeable clothing, hats, props and finishes. Millions of permutations of awesome.",
+      "version": "1.3.0",
+      "theme": "midnight",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "portrait-studio",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "home",
+      "suite": "ai-home",
+      "displayName": "Smart Home",
+      "description": "Your smart home, one surface — read device state and scenes across SmartThings and Google Home, ask the home bot to run a routine, and let scheduled 'morning routine' tickets drive the house. The home-bot node, home-data store, and the scheduler's home-control branch stay framework-resident; this package is the surface over them.",
+      "version": "1.0.0",
+      "theme": "forest",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [
+          "smartthings",
+          "google-home"
+        ]
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "home",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "social",
+      "suite": "ai-productivity",
+      "displayName": "Social",
+      "description": "Draft, review, and publish across your networks from one surface - the comms bot drafts a post in your voice, you approve, and it publishes on your per-user LinkedIn / X / Facebook token (nothing posts until you click Publish). The Signals view reads your social-notification emails straight from your connected inbox. The comms + social-writer nodes, the inbox-ingest Signals engine, and the kernel-resident LinkedIn AI Content Assistant stay framework-resident; this package is the surface over them.",
+      "version": "1.0.0",
+      "theme": "light-blue",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [
+          "linkedin",
+          "twitter",
+          "meta-business",
+          "facebook",
+          "google"
+        ]
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "social",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "job-apply",
+      "suite": "ai-knowledge",
+      "displayName": "Job Apply",
+      "description": "Submit an approved, packet-ready job application by driving your real browser on a desktop worker node — push a ticket, it queues, the career-hunter worker submits it, and the ticket passes or fails. Workflow-only: the career-hunter worker bot and the apply-operator/apply-ingest submission engine stay framework-resident; this package is the ticket queue over them.",
+      "version": "1.0.0",
+      "dependencies": {
+        "apps": [
+          "career-hunter"
+        ],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "job-apply",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "feeds",
+      "suite": "ai-productivity",
+      "displayName": "Feeds",
+      "description": "Your connected message feeds in one place - live stream, activity trends, hot channels, and trending topics over your own Slack messages, with a curator bot that answers 'what did I miss'. The feeds-indexing engine + cron, the feeds-curator inline node, the slack connector, and the /feeds framework page stay framework-resident; this package is the surface over them.",
+      "version": "1.0.0",
+      "theme": "ocean",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [
+          "slack"
+        ]
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "feeds",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "cloud",
+      "suite": "ai-engineering",
+      "displayName": "Cloud",
+      "description": "Inspect and operate your Google Cloud by chat. Connect GCP at /utilities; the cloud-ops-bot reads your projects/services/instances via your connector token and acts on your behalf (read-only by default) - the API-based replacement for gcloud. The cloud-ops-bot node, the GCP CLIs/toolkit, and the gcp connector + token broker stay framework-resident; this package is the manifest + queue over them.",
+      "version": "1.0.0",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [
+          "gcp"
+        ]
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "cloud",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "identity",
+      "suite": "ai-productivity",
+      "displayName": "Identity Hub",
+      "description": "Every account you've connected, in one place - click to jump straight into Gmail, LinkedIn, your smart-home app, and more, reconnect a login that's expired, or connect a new one, plus an optional access review that flags what needs attention. OSHAL never shows or hands back a password. The identity-advisor inline node and the connector hub (/api/connect + /utilities) stay framework-resident; this package is the surface over them.",
+      "version": "1.0.0",
+      "theme": "ocean",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "identity",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "travel",
+      "suite": "ai-home",
+      "displayName": "Travel",
+      "description": "AI travel concierge (ADR-059) - search real flights (Duffel), see an honest price read from the swarm's shared price history, watch routes for a fare drop, and book via a deep-link handoff; hotels and cars are deep-link handoffs today. The swarm-shared price engine + fare-watch cron, the Duffel CLI + connector, the travel migrations, and the travel-concierge node stay framework-resident; this package is the surface + tools over them.",
+      "version": "1.0.0",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [
+          "duffel"
+        ]
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "travel",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "camera",
+      "suite": "ai-creative",
+      "displayName": "Camera Ops",
+      "description": "Remote camera control - connect a GoPro (Open GoPro HTTP) or other cameras as device nodes and drive them: record, photo, modes, settings, low-latency preview. A control concierge turns natural language into one validated command; destructive ops always need a human confirm. The camera engine, the camera-node server, and the camera-operator inline node stay framework-resident; this package is the surface over them.",
+      "version": "1.0.0",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "camera",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "drone",
+      "suite": "ai-home",
+      "displayName": "Drone Ops",
+      "description": "Drone fleet automation control - arm, take off, fly waypoint missions, and coordinate multi-drone fleet plans inside a hard geofence with deterministic separation checks. A flight-planning concierge drafts single or fleet missions from natural language; a human approves every flight (real hardware also needs the confirm rail). The drone engine, the drone-node server, and the drone-operator inline node stay framework-resident; this package is the surface over them (ADR-099: drones ARE swarm nodes).",
+      "version": "1.1.0",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "drone",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "spaces",
+      "suite": "ai-home",
+      "displayName": "Spaces",
+      "description": "Turn a real space into an explorable 3D scene: film a walkthrough (or import an iPhone/LiDAR/drone capture) into a Gaussian-splat scene you walk in a WebGL viewer, get live walk/pan guidance while you film, mint a phone-pairing token for LiDAR ingest, paint Wi-Fi coverage onto the map, and fly a sim-drone scan orbit. The video->3D reconstruction engine + owner-scoped scan store stay framework-resident as the pinned 'spatial-mapping' kernel skill (declared in the package uses:), and the spaces-operator inline concierge stays core; this package is the surface over them (ADR-111, ADR-093).",
+      "version": "0.5.0",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "spaces",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "sat-ops",
+      "suite": "ai-engineering",
+      "displayName": "Sat Ops",
+      "description": "Satellite fleet plane - a 3D orbit console with fleet attitude telemetry (MEKF health, wheel momentum, ADCS mode), SGP4 ground tracks and pass windows, pairwise conjunction screening, and an approval-gated command console (point / detumble / desat / safe). Sim engines only (RK4 gyrostat or the NASA 42 referee) - commands cannot leave simulation. The sat engine, the sat-node server, and the sat-operator inline node stay framework-resident; this package is the surface over them (ADR-102: sats ARE swarm nodes).",
+      "version": "1.1.0",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "sat-ops",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "pumpkin",
+      "suite": "ai-creative",
+      "displayName": "Pumpkin",
+      "description": "Animated talking jack-o'-lantern Halloween prop - project a glowing procedural pumpkin face into an inflatable, with a lip-syncing mouth. The public browser demo has locally interactive control, projector, voice, saved looks, and same-device remote tabs without server writes or AI spend; signed-in mode adds owner-scoped cross-device pairing and autonomous pumpkin-bot replies.",
+      "version": "1.0.1",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "pumpkin",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "creative-studio",
+      "suite": "ai-creative",
+      "displayName": "Creative Studio",
+      "description": "A creative bot that just keeps making short kid-safe videos - it rotates a public-domain library (fables, fairytales, famous sayings), animates each ~100-word story across ~10 continuous Google Vids Extend scenes on the remote worker (ADR-080), downloads the finished MP4, and saves it to your content folder + Google Drive. The shared vids-operator desktop worker, its registry entries, and the oshal-vids CLI stay framework-resident; the /api/vids surface it tiles is owned by the vids app (declared dependency); this package is the manifest + tools + tile over them.",
+      "version": "1.0.0",
+      "theme": "midnight",
+      "dependencies": {
+        "apps": [
+          "vids"
+        ],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "creative-studio",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "daily-trade-recap",
+      "suite": "ai-finance",
+      "displayName": "Daily Trade Recap",
+      "description": "After the closing bell: render the day's charted trade-recap video (real Alpaca data -> PowerPoint deck -> narrated MP4) on the swarm render node, then email it to the operator with the day's numbers and the video attached as a preview. An approval gate holds the result before posting. Vids-family despite the name: the shared vids-operator desktop worker, its registry entries, all trading engines + the deck-data pipeline, the recap stage scripts, and the 5PM CT host cron stay framework-resident; this package is the manifest + tools over them (no route, no tile).",
+      "version": "1.0.0",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "daily-trade-recap",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "video",
+      "suite": "ai-creative",
+      "displayName": "Video Studio",
+      "description": "Make prompted short-form videos (TikTok / YouTube Shorts / Instagram Reels) from an idea - the director bot storyboards it and the studio renders a real .mp4 with voiceover and captions, saved to your Files storage; a series is written by the screenplay-writer, approval-gated on the script, then rendered one episode at a time on the remote Vids node. The series conductor engine, the video-generation slice, the video-director + screenplay-writer inline nodes, and the shared vids-operator desktop worker stay framework-resident; this package is the surface over them.",
+      "version": "1.1.0",
+      "theme": "sakura",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "video",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "vids",
+      "suite": "ai-creative",
+      "displayName": "Vids Studio",
+      "description": "Turn an idea into generated video - the Veo specialist drives Google Vids by clicking, in a remote operator's logged-in Chrome: describe the shot, it generates the clip and places it on the timeline. Job + multi-scene Extend-story dispatch to the registered desktop worker, with the job-queue surface behind the cockpit tile. The shared vids-operator desktop worker (the ADR-080 story engine lives in its content.* tools), its registry entries, the remote-client mesh, and the oshal-vids CLI stay framework-resident; this package is the surface over them.",
+      "version": "1.1.0",
+      "theme": "midnight",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "vids",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "email-summarizer",
+      "suite": "ai-productivity",
+      "displayName": "Intelligent Communication",
+      "description": "Your inbox, calendar, and day in one surface - the ADR-037 reference comms app. Reads your connected Gmail + Calendar (read-only scopes), builds a prioritized My Day digest, and the communications bot summarizes your day and drafts replies on its own harness/model with cost captured per user; sending is a single explicit-confirm gated action. The communications-bot node, the kernel sendGmail/sendOutlookMail machinery (with the header-injection fence), the gmail/outlook/twilio connectors + CLIs, and the inbox-ingest Signals engine stay framework-resident; this package is the surface over them.",
+      "version": "1.0.0",
+      "theme": "gray",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [
+          "google",
+          "outlook",
+          "twilio",
+          "facebook"
+        ]
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "email-summarizer",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "kalshi",
+      "suite": "ai-finance",
+      "displayName": "Kalshi Prediction Markets",
+      "description": "Find mispriced event contracts on Kalshi (ADR-094). Every open market is evaluated like a poker hand - calibrated true probability (from Kalshi's own settled-market tape, no history means no edge) versus price plus fees - and playable hands are ranked with quarter-Kelly stakes and explicit risk flags. Portfolio + order placement ride the per-user connector, confirm-gated and demo-exchange-first (KALSHI_LIVE_ENABLED gates live money; every order and refusal audited). The prediction-markets engine, the kalshi connector + broker key, the calibration/forward-test CLIs, and the default tile stay framework-resident; this package is the surface + confirm-gated order routes over them.",
+      "version": "1.0.0",
+      "theme": "midnight",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [
+          "kalshi"
+        ]
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "kalshi",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "intelligent-trades",
+      "suite": "ai-finance",
+      "displayName": "Intelligent Trades",
+      "description": "Signal-justified stock trading (ADR-052). Capture a market signal, let the trading-analyst reason it into a decision tree, and execute through the provider-agnostic BrokerAdapter (Alpaca paper / Schwab live) - every order FK-bound to its justifying decision and signals. Dual paper/live books, PAPER-ONLY by default; the env-level live gate (TRADING_LIVE_ENABLED + explicit confirm) and the whole autopilot/engine stay framework-resident - this package is the four route surfaces (/api/trading, /autopilot, /lab, /trading-charts), the cockpit surface + vendored chart lib, the trading_* operator tools, and the analyst/feed-bot manifest. NOTE: package directory is 'trading' (install trading); the registered app name stays intelligent-trades.",
+      "version": "1.0.0",
+      "theme": "midnight",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "trading",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "world",
+      "suite": "ai-knowledge",
+      "displayName": "World Intelligence",
+      "description": "Shared world intelligence (ADR-061 Layer B) - multi-source news feeds classified into a bias-aware sentiment graph (political + economic + outlet-kind axes), entity co-mention graph, and historical series. Ask the analyst what the press is saying about X and get a structured, bias-contextualized read, not a misleading average. The Layer-B engine (src/features/world-data), the deterministic world-schedule dispatcher, scripts/oshal-world.js, the world-analyst registry entry, and the default tile stay framework-resident; this package is the /api/world surface (fail-closed token-guarded writes, open reads), the world-analyst manifest, the seven world_* tools, and the refresh/pulse schedules.",
+      "version": "1.0.0",
+      "theme": "midnight",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "world",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "dnd",
+      "suite": "ai-creative",
+      "displayName": "Dungeon Master",
+      "description": "Play D&D with an AI Dungeon Master on a cinematic shared board: claimed heroes and visible AI companions follow an explicit move, action, target, dice, result, and advance loop with natural narration, saved characters, multiplayer join codes, playback, and rewind. Open SRD 5.1 (CC-BY).",
+      "version": "0.14.4",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "path": "dnd",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    }
+  ]
+}

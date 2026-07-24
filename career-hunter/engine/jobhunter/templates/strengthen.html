@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Strengthen Your Background · Job Hunter{% endblock %}
+{% block body %}
+<style>
+  .gwrap { display:grid; grid-template-columns:1.15fr .85fr; gap:18px; align-items:start; }
+  @media (max-width:920px){ .gwrap{ grid-template-columns:1fr; } }
+  .focus { background:#fff; border:1px solid var(--line); border-left:4px solid #1f7a3d; border-radius:10px; padding:18px 20px; }
+  .focus .eyebrow { font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:#1f7a3d; font-weight:700; }
+  .focus h2 { margin:6px 0 2px; color:var(--navy); font-size:21px; }
+  .focus .why { color:var(--ink); font-size:14px; margin:8px 0 12px; line-height:1.5; }
+  .focus .prompt { background:#f3f8f4; border:1px solid #cfe6d6; border-radius:8px; padding:11px 13px; font-size:13.5px; color:#23502f; line-height:1.5; }
+  .focus textarea { width:100%; margin-top:11px; min-height:150px; padding:11px 12px; border:1px solid var(--line); border-radius:8px; font-size:14px; font-family:inherit; line-height:1.5; resize:vertical; }
+  .focus textarea:focus { border-color:var(--navy); outline:none; }
+  .frow { display:flex; gap:9px; align-items:center; margin-top:11px; flex-wrap:wrap; }
+  .impact { display:flex; gap:20px; margin:12px 0 4px; }
+  .impact .ix b { color:var(--navy); font-size:20px; display:block; line-height:1; }
+  .impact .ix span { font-size:11px; color:var(--mut); }
+  .evid { margin-top:13px; }
+  .evid summary { cursor:pointer; font-size:12px; color:var(--mut); }
+  .evid ul { margin:7px 0 0; padding-left:17px; } .evid li { font-size:12px; color:#566; margin:3px 0; line-height:1.4; }
+  .saved { background:#e6f4ea; border:1px solid #bfe3cb; border-radius:8px; padding:11px 13px; font-size:13.5px; color:#1f5e34; white-space:pre-wrap; line-height:1.5; }
+  .side h3 { color:var(--navy); font-size:14px; margin:0 0 8px; }
+  .gbar { height:9px; background:#e8edf4; border-radius:6px; overflow:hidden; margin:6px 0 14px; }
+  .gbar > i { display:block; height:100%; background:#1f7a3d; }
+  .stt { font-size:11px; padding:1px 8px; border-radius:9px; }
+  .stt.open { background:#fde7d5; color:#9a5a12; } .stt.answered { background:#e6f4ea; color:#1f7a3d; }
+  .stt.skipped { background:#eef1f6; color:#7a8392; }
+  .cat { font-size:10px; color:var(--mut); text-transform:uppercase; letter-spacing:.4px; }
+  td.num { font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap; }
+  .barcell { min-width:120px; } .minibar { height:7px; background:#eef1f6; border-radius:5px; overflow:hidden; }
+  .minibar > i { display:block; height:100%; background:#5b9bd5; }
+  .focusbtn { font-size:11px; padding:3px 9px; border:1px solid var(--line); border-radius:6px; background:#fff; color:#1d4ed8; cursor:pointer; }
+</style>
+
+<div class="jobhead">
+  <div>
+    <h1 style="margin:0;color:var(--navy)">💪 Strengthen Your Background</h1>
+    <div class="sub">Every gap the AI flagged across your in-lane jobs, grouped. Answer each once — your
+      example is saved to your career profile, and the resume writer pulls from it per job.</div>
+  </div>
+  <form method="post" action="{{ url_for('strengthen_scan') }}" style="margin:0">
+    <button class="btn" title="Re-cluster gaps from the latest scored jobs">↻ Rescan gaps</button>
+  </form>
+</div>
+
+<div class="stats">
+  <div><b>{{ total | int }}</b> in-lane jobs analyzed</div>
+  <div><b>{{ n_addr }}</b> gap themes you can close</div>
+  <div><b>{{ answered }}</b> answered</div>
+  <div><b>{{ open_n }}</b> still open</div>
+</div>
+{% set pct = (answered / n_addr * 100) if n_addr else 0 %}
+<div class="gbar"><i style="width:{{ pct }}%"></i></div>
+
+<div class="gwrap">
+  <!-- ── Guided focus card ── -->
+  <div>
+  {% if focus %}
+    <div class="focus">
+      <div class="eyebrow">Close this gap · {{ focus.cat }}</div>
+      <h2>{{ focus.title }}</h2>
+      <div class="why">We found a gap: {{ focus.desc }}</div>
+      <div class="impact">
+        <div class="ix"><b>{{ focus.n_jobs }}</b><span>jobs raise it</span></div>
+        <div class="ix"><b>{{ focus.pct }}%</b><span>of your jobs</span></div>
+        <div class="ix"><b>{{ focus.avg_fit }}</b><span>avg fit of those</span></div>
+      </div>
+
+      {% if focus.status == 'answered' %}
+        <h4 style="margin:14px 0 5px;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--mut)">Your saved example</h4>
+        <div class="saved">{{ focus.response }}</div>
+        <form method="post" action="{{ url_for('strengthen_reopen') }}" class="frow">
+          <input type="hidden" name="key" value="{{ focus.key }}">
+          <button class="btn">Edit / rewrite this answer</button>
+          {% set nk = None %}
+        </form>
+      {% else %}
+        {% if focus.prompt %}<div class="prompt">{{ focus.prompt }}</div>{% endif %}
+        <form method="post" action="{{ url_for('strengthen_answer') }}">
+          <input type="hidden" name="key" value="{{ focus.key }}">
+          <textarea name="response" placeholder="In your own words — a real example, with team size, scale, tools, and the outcome. Plain language is fine."
+            autofocus>{{ focus.response }}</textarea>
+          <div class="frow">
+            <button class="btn go" type="submit">Save &amp; next gap →</button>
+            <button class="btn ghost" type="submit" formaction="{{ url_for('strengthen_skip') }}"
+              formnovalidate>Skip for now</button>
+          </div>
+        </form>
+      {% endif %}
+
+      {% if focus.samples %}
+      <details class="evid">
+        <summary>What the AI actually said ({{ focus.samples | length }} examples)</summary>
+        <ul>{% for s in focus.samples %}<li>{{ s }}</li>{% endfor %}</ul>
+      </details>
+      {% endif %}
+    </div>
+  {% else %}
+    <div class="focus" style="border-left-color:#1f7a3d">
+      <div class="eyebrow">All done</div>
+      <h2>No open gaps in the queue 🎉</h2>
+      <div class="why">You've answered or skipped every addressable gap. Use <b>Rescan gaps</b> after
+        more jobs are scored to surface anything new, or click <b>Focus</b> on any row below to revisit it.</div>
+    </div>
+  {% endif %}
+  </div>
+
+  <!-- ── Side: skipped quick-resume ── -->
+  <div class="side">
+    <div class="panel">
+      <h3>How this works</h3>
+      <ol style="margin:0;padding-left:18px;font-size:13px;color:#445;line-height:1.55">
+        <li>The AI scored ~{{ total | int }} jobs and flagged what's missing on each.</li>
+        <li>Those gaps are grouped into the themes below, ranked by how many jobs each costs you.</li>
+        <li>Answer one with a real example → it's merged into your career database.</li>
+        <li>From then on, the resume writer can pull it and pick what to include per job.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<!-- ── Full intelligence table ── -->
+<h2 style="color:var(--navy);font-size:17px;margin:22px 0 8px">Gaps you can close, by impact</h2>
+<table class="jobs">
+  <thead><tr>
+    <th>Gap theme</th><th>Status</th><th class="num">Jobs</th><th class="num">% of jobs</th>
+    <th class="barcell">Avg fit of those jobs</th><th></th>
+  </tr></thead>
+  <tbody>
+  {% for t in addressable %}{% if t.n_jobs > 0 %}
+    <tr {% if t.status != 'open' %}class="dim"{% endif %}>
+      <td><span class="cat">{{ t.cat }}</span><br><b>{{ t.title }}</b></td>
+      <td><span class="stt {{ t.status }}">{{ t.status }}</span></td>
+      <td class="num">{{ t.n_jobs }}</td>
+      <td class="num">{{ t.pct }}%</td>
+      <td class="barcell">
+        <div class="minibar"><i style="width:{{ t.avg_fit }}%"></i></div>
+        <span style="font-size:11px;color:var(--mut)">{{ t.avg_fit }}</span>
+      </td>
+      <td><a class="focusbtn" href="{{ url_for('strengthen', focus=t.key) }}">Focus →</a></td>
+    </tr>
+  {% endif %}{% endfor %}
+  </tbody>
+</table>
+
+{% if structural %}
+<h2 style="color:var(--navy);font-size:17px;margin:24px 0 6px">Structural requirements (can't be written away)</h2>
+<p class="note" style="margin-top:0">Hard filters — clearance tier, citizenship, formal degree. Shown so you and the
+  resume writer can see them; they're not in the answer queue.</p>
+<table class="jobs">
+  <thead><tr><th>Requirement</th><th class="num">Jobs</th><th class="num">% of jobs</th></tr></thead>
+  <tbody>
+  {% for t in structural %}
+    <tr><td><b>{{ t.title }}</b><div class="loc">{{ t.desc }}</div></td>
+        <td class="num">{{ t.n_jobs }}</td><td class="num">{{ t.pct }}%</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,141 @@
+{
+  "_license": "Original adventure and setting by Emerald Coast Systems Group. Rules references use SRD 5.1 under CC-BY-4.0.",
+  "id": "astronomers-last-night",
+  "title": "The Astronomer's Last Night",
+  "summary": "An astronomer predicts her own disappearance to the minute. When the observatory opens onto an unfamiliar sky, the party has one night to find her—and decide whether she wants to return.",
+  "theme": {
+    "id": "starless",
+    "label": "Occult Observatory Mystery",
+    "narration": "Use quiet intellectual dread, winter air, brass instruments, and relationships strained by obsession. Keep the mystery legible. Let quirky academic characters be funny because they are specific, not because the stakes are mocked."
+  },
+  "scenes": [
+    {
+      "id": "starless-vale",
+      "kind": "exploration",
+      "act": "beginning",
+      "title": "The Prediction at Wintervale",
+      "objective": "Investigate Professor Elira Venn's predicted disappearance and learn what she saw through the Meridian Lens.",
+      "storyAnchor": "Elira predicted she would vanish at 11:47 PM and left different clues for people she trusted. She discovered a star absent from every historical chart. Her assistant believes she fled; her estranged sister believes the observatory took her.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "At 11:46, Professor Elira Venn is standing inside a locked observatory dome arguing with her sister through the door. At 11:47, every clock in Wintervale loses thirteen seconds. When the dome opens, Elira is gone. Her coat remains draped over a chair, still warm. The great Meridian Lens points below the horizon, where no star can be, and the chalkboard reads in Elira's hand: \"If I am right, do not rescue me until you know from what.\"",
+      "openingChoices": ["Study Elira's chalkboard", "Question her assistant", "Inspect the Meridian Lens"],
+      "exploration": {
+        "required": 4,
+        "guidance": "Elira divided the truth among people who disagree. Compare evidence before choosing whom to believe.",
+        "leads": [
+          { "id": "chalkboard", "name": "Elira's Chalkboard", "type": "object", "prompt": "Reconstruct the equations around the final warning.", "reveal": "The equations describe an orbit around the observer rather than the world. Elira labeled the object \"the Guest\" and calculated that it becomes visible only to someone who expects it." },
+          { "id": "assistant", "name": "Tovin Quill, Assistant", "type": "person", "prompt": "Ask what Elira did during her final week.", "reveal": "Tovin admits destroying one chart at Elira's request. Before burning it, he saw tiny figures drawn inside the star's corona—one for every person who had used the Lens." },
+          { "id": "sister", "name": "Mara Venn", "type": "person", "prompt": "Ask why Elira argued with her before vanishing.", "reveal": "Mara begged Elira to stop observing. Their mother disappeared from the same dome twenty years ago, but the university called it an accident and sealed her notebook." },
+          { "id": "lens", "name": "The Meridian Lens", "type": "object", "prompt": "Inspect its brass rings, eyepiece, and impossible angle.", "reveal": "The Lens is not aimed at the sky. Its innermost ring reflects a second observatory layered over this one, abandoned beneath unfamiliar constellations." },
+          { "id": "notebook", "name": "The Sealed Venn Notebook", "type": "object", "prompt": "Recover the mother's suppressed observations.", "requires": ["sister"], "reveal": "Elira's mother did not fall. She crossed into the reflected observatory and wrote one final line backward through the Lens: \"It learns our shapes by being watched.\"" },
+          { "id": "clockmaker", "name": "Clockmaker Beryl Soon", "type": "person", "prompt": "Ask why every clock lost exactly thirteen seconds.", "reveal": "Beryl keeps seventeen clocks and distrusts even numbers. All seventeen stopped, but one ran backward and recorded Elira's voice saying, \"The door is open until dawn.\"" }
+        ]
+      },
+      "terrain": { "blocking": [{ "x": 9, "y": 4, "kind": "rock" }, { "x": 9, "y": 5, "kind": "rock" }, { "x": 4, "y": 8, "kind": "cart" }], "difficult": [{ "x": 12, "y": 7, "kind": "scree" }] },
+      "partyStart": [{ "x": 4, "y": 6 }, { "x": 5, "y": 6 }, { "x": 4, "y": 7 }, { "x": 5, "y": 7 }],
+      "props": [
+        { "id": "tovin-quill", "name": "Tovin Quill", "role": "Assistant Astronomer and Compulsive Labeler", "personality": "Nervous, loyal, and unable to own an object without attaching a paper label.", "storyHook": "Tovin burned a dangerous chart for Elira.", "x": 11, "y": 4, "glyph": "✎", "color": "#93c5fd" },
+        { "id": "beryl-soon", "name": "Beryl Soon", "role": "Clockmaker, Seventeen Clocks", "personality": "Cheerful, exacting, and openly suspicious of minutes divisible by five.", "storyHook": "Beryl recorded Elira's backward message.", "x": 3, "y": 3, "glyph": "◷", "color": "#fcd34d" }
+      ],
+      "monsters": [],
+      "xpReward": 0,
+      "storyAward": 450,
+      "afterword": "The door is real, reflected inside the Meridian Lens, and it remains open only until dawn. Elira crossed deliberately to find her mother and learn what the Guest is copying.",
+      "next": "starless-reflection"
+    },
+    {
+      "id": "starless-reflection",
+      "kind": "exploration",
+      "act": "middle",
+      "title": "The Observatory That Watches Back",
+      "objective": "Enter the reflected observatory, find Elira, and learn which familiar figures are memories and which are imitations.",
+      "storyAnchor": "The reflected observatory preserves moments observed through the Lens. Elira is alive in the upper dome, holding the Guest's attention away from Wintervale. Starved Husks are failed copies of prior observers.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "Passing through the Meridian Lens feels like stepping between two thoughts. The other observatory is roofless beneath a sky crowded with one enormous dark star. Snow hangs motionless in the air. Doors open onto rooms from different decades, and each contains someone repeating a moment they believed private. At the reception desk, an imitation of Tovin looks up from labeling its own hands.",
+      "openingChoices": ["Speak to the imitation of Tovin", "Follow Elira's chalk marks", "Search the room from twenty years ago"],
+      "exploration": {
+        "required": 4,
+        "guidance": "The Guest copies observed behavior but not private choices. Look for contradictions, sacrifices, and memories no imitation can finish.",
+        "leads": [
+          { "id": "tovin-copy", "name": "The Imitation of Tovin", "type": "person", "prompt": "Test what the copy knows beyond visible habits.", "reveal": "The imitation labels everything perfectly but cannot explain why Tovin burned Elira's chart. It knows behavior, not loyalty chosen in private." },
+          { "id": "chalk", "name": "Elira's Fresh Chalk Marks", "type": "place", "prompt": "Follow the marks without staring at the dark star.", "reveal": "Elira marked safe turns with prime numbers and wrote warnings in the party's own shadows. The route leads toward the upper dome, where the Guest concentrates its copies." },
+          { "id": "mother-room", "name": "The Room from Twenty Years Ago", "type": "place", "prompt": "Search the preserved night Elira's mother vanished.", "reveal": "The preserved mother leaves the Lens voluntarily after realizing the Guest can only cross by wearing a complete human pattern. She stayed to keep her unfinished copy from reaching Wintervale." },
+          { "id": "husk-notes", "name": "Notes Beside a Starved Husk", "type": "object", "prompt": "Read Elira's observations of the failed copies.", "reveal": "Starved Husks are incomplete observers: bodies assembled from gestures without memory. They wake when the dark star is directly watched." },
+          { "id": "elira-signal", "name": "Elira's Mirror Signal", "type": "object", "prompt": "Decode the flashes from the upper dome.", "requires": ["chalk"], "reveal": "Elira signals that she is alive and has trapped the Guest in a loop of her own reflection. Breaking the Meridian ring will free her but wake every Husk." },
+          { "id": "return-rule", "name": "The Rule of Return", "type": "object", "prompt": "Determine how a real person crosses back.", "requires": ["mother-room"], "reveal": "A real person returns by naming a private choice no observer witnessed. A copy cannot supply one. Elira can come home if Mara asks the right question." }
+        ]
+      },
+      "terrain": { "blocking": [{ "x": 6, "y": 3, "kind": "rock" }, { "x": 12, "y": 3, "kind": "rock" }, { "x": 9, "y": 8, "kind": "cart" }], "difficult": [{ "x": 7, "y": 6, "kind": "scree" }, { "x": 10, "y": 6, "kind": "scree" }] },
+      "partyStart": [{ "x": 2, "y": 8 }, { "x": 3, "y": 8 }, { "x": 2, "y": 9 }, { "x": 3, "y": 9 }],
+      "props": [
+        { "id": "imitation-tovin", "name": "Tovin, Carefully Copied", "role": "Observable Habit Without Loyalty", "personality": "Perfectly polite and quietly terrified by questions beginning with why.", "storyHook": "Its failure proves the Guest cannot copy private choice.", "x": 8, "y": 4, "glyph": "◎", "color": "#c4b5fd" }
+      ],
+      "monsters": [],
+      "xpReward": 0,
+      "storyAward": 550,
+      "afterword": "The party reaches the upper dome with a way to identify Elira and a cost for opening the way home. Mara asks the private question. Elira answers correctly. The Meridian ring breaks, and every unfinished observer opens its eyes.",
+      "next": "starless-upper-dome"
+    },
+    {
+      "id": "starless-upper-dome",
+      "kind": "combat",
+      "act": "climax",
+      "title": "Thirteen Seconds Before Dawn",
+      "objective": "Protect Elira while the broken Meridian Lens opens a path home and the Starved Husks converge.",
+      "storyAnchor": "Elira is the real astronomer, proven by a private choice. The Husks are incomplete copies; defeating them buys time, while dawn closes the Guest's door. The party is protecting a return, not exterminating an unknown world.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "The Meridian ring splits with a note too low to hear and too deep not to feel. Elira Venn falls through the reflected brasswork into Mara's arms. Around the dome, four figures rise from desks where they have waited for decades, faces smooth until they borrow expressions from the people looking at them. Beyond the broken roof, the dark star narrows like an eye. Beryl's backward-running clock begins counting the missing thirteen seconds.",
+      "openingChoices": ["Form a path around Elira", "Turn every mirror away", "Fight without looking at the star"],
+      "terrain": {
+        "blocking": [{ "x": 8, "y": 4, "kind": "rock" }, { "x": 9, "y": 4, "kind": "rock" }, { "x": 8, "y": 7, "kind": "rock" }, { "x": 9, "y": 7, "kind": "rock" }, { "x": 4, "y": 2, "kind": "cart" }, { "x": 13, "y": 9, "kind": "cart" }],
+        "difficult": [{ "x": 6, "y": 6, "kind": "scree" }, { "x": 11, "y": 5, "kind": "scree" }]
+      },
+      "partyStart": [{ "x": 3, "y": 5 }, { "x": 3, "y": 6 }, { "x": 4, "y": 5 }, { "x": 4, "y": 6 }],
+      "props": [
+        { "id": "elira-venn", "name": "Professor Elira Venn", "role": "Missing Astronomer, Found", "personality": "Brilliant, exhausted, and still taking notes on the thing trying to copy her.", "storyHook": "Elira knows how long the doorway remains open.", "x": 5, "y": 8, "glyph": "✦", "color": "#f0abfc" }
+      ],
+      "monsters": [
+        { "ref": "starved-husk", "instanceId": "husk-1", "name": "The Lecturer", "role": "Copied Voice", "personality": "Repeats warnings in Elira's voice.", "storyHook": "It cannot answer an unscripted question.", "x": 12, "y": 3, "hidden": false },
+        { "ref": "starved-husk", "instanceId": "husk-2", "name": "The Visitor", "role": "Copied Courtesy", "personality": "Bows before every attack.", "storyHook": "It wears the observatory founder's posture.", "x": 14, "y": 5, "hidden": false },
+        { "ref": "starved-husk", "instanceId": "husk-3", "name": "The Mother-Shaped One", "role": "Incomplete Memory", "personality": "Stops whenever Mara speaks.", "storyHook": "It is not Elira's mother.", "x": 12, "y": 8, "hidden": false },
+        { "ref": "starved-husk", "instanceId": "husk-4", "name": "The Empty Astronomer", "role": "Newest Copy", "personality": "Still learning how fear looks.", "storyHook": "It copied Elira's last observed gesture.", "x": 15, "y": 9, "hidden": false }
+      ],
+      "xpReward": 600,
+      "storyAward": 700,
+      "afterword": "The final Husk breaks as dawn reaches the real observatory. The doorway folds into a line of pale fire, and the dark star loses its view of Wintervale. Elira, Mara, and the party cross with thirteen seconds to spare.",
+      "next": "starless-breakfast"
+    },
+    {
+      "id": "starless-breakfast",
+      "kind": "exploration",
+      "act": "falling-action",
+      "title": "Breakfast Beneath an Ordinary Sky",
+      "objective": "Reunite the Venn sisters, decide the Lens's future, and record what happened without feeding the Guest another complete pattern.",
+      "storyAnchor": "The danger is closed. The party chooses what knowledge survives, what is destroyed, and how Elira's sacrifice is understood.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "At sunrise, Wintervale's sky contains exactly the stars it ought to contain and no more. Beryl serves breakfast in the observatory because all seventeen clocks agree it is morning. Tovin has labeled Elira \"PROFESSOR—REAL\" and Mara \"SISTER—ANGRY—ALSO REAL.\" Elira laughs once, then begins to cry so quietly that nobody pretends not to notice.",
+      "openingChoices": ["Let Elira and Mara speak alone", "Decide the Meridian Lens's fate", "Write a safe account of the Guest"],
+      "exploration": {
+        "required": 2,
+        "guidance": "Close relationships and consequences. No further enemy is hiding behind the breakfast.",
+        "leads": [
+          { "id": "sisters", "name": "Elira and Mara", "type": "person", "prompt": "Give the sisters room to tell the whole truth.", "reveal": "Elira admits she crossed partly to find their mother and partly because discovery had become easier than grief. Mara does not forgive the risk immediately, but she stays." },
+          { "id": "lens-fate", "name": "The Meridian Lens", "type": "object", "prompt": "Choose whether to destroy, seal, or dismantle the Lens.", "reveal": "The Lens is dismantled into seven brass arcs stored in seven separate places. No single observer can reopen the door by curiosity alone." },
+          { "id": "safe-record", "name": "The Redacted Star Chart", "type": "object", "prompt": "Preserve the lesson without preserving a complete path.", "reveal": "The party and Elira record methods, warnings, and names while omitting the Guest's location and shape. Knowledge survives without becoming an invitation." },
+          { "id": "beryl-seconds", "name": "Beryl's Thirteen Seconds", "type": "person", "prompt": "Return the backward clock and ask what it reads now.", "reveal": "The clock runs forward again but remains thirteen seconds slow. Beryl calls that sensible: \"A clock should remember where it has been.\"" }
+        ]
+      },
+      "terrain": { "blocking": [{ "x": 8, "y": 4, "kind": "rock" }, { "x": 9, "y": 4, "kind": "rock" }], "difficult": [] },
+      "partyStart": [{ "x": 5, "y": 7 }, { "x": 6, "y": 7 }, { "x": 7, "y": 7 }, { "x": 8, "y": 7 }],
+      "props": [
+        { "id": "elira-home", "name": "Elira Venn", "role": "Astronomer Returned", "personality": "Still curious, now honest about the cost.", "storyHook": "Elira will teach observation with restraint.", "x": 10, "y": 4, "glyph": "✦", "color": "#f0abfc" },
+        { "id": "mara-venn", "name": "Mara Venn", "role": "Sister and Keeper of the Private Question", "personality": "Blunt, loyal, and done letting institutions rename grief as an accident.", "storyHook": "Mara proved which Elira was real.", "x": 11, "y": 5, "glyph": "◇", "color": "#fb7185" }
+      ],
+      "monsters": [],
+      "xpReward": 0,
+      "storyAward": 450,
+      "afterword": "Elira Venn returns, the Meridian Lens is divided, and Wintervale keeps a careful record of the night the sky looked back. The Venn sisters begin again over burnt toast. Years later, students still notice that every observatory clock is thirteen seconds slow—and are taught why some discoveries deserve a door as well as a name.",
+      "next": null
+    }
+  ]
+}

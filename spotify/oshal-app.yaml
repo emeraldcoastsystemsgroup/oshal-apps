@@ -1,0 +1,178 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — spotify ("Spotify" Music Concierge)
+# Carved out of OSHAL core 2026-07-18 (ADR-085 Wave 2 carve #2 — first packaged
+# service-or-oidc mount). The spotify-concierge REAL bot-node (spotify-bot container,
+# BOTH registry blocks, worker+foundation personas, spotifyToolKit.js, oshal-spotify.js,
+# migration 047 bot seed) STAYS in the framework repo per ADR-093 interim — this
+# manifest declares NO bots; workflow.workerBot resolves via the static registry.
+# Framework: OSHAL (see docs/build-your-own-swarm-app.md)
+#
+# An AI music concierge that drives a visual surface: it searches the listener's
+# Spotify, shows what's playing + their playlists, recommends tracks from their
+# taste, and BUILDS playlists on their account. Other swarm bots can ask it for music.
+#
+# Playback truth: discovery + playlist-building use the Spotify Web API with the
+# listener's own brokered token, but pressing play needs Premium + the Web Playback
+# SDK — so playback is a DEEP-LINK HANDOFF (open.spotify.com) into the listener's own
+# Spotify app. No password or payment ever touches OSHAL.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: spotify
+suite: ai-home   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Spotify
+description: >-
+  AI music concierge — search your Spotify, see what's playing and your playlists,
+  get recommendations from your taste, and build playlists on your account. Other
+  swarm bots can ask it to find music or assemble a playlist.
+version: 1.0.0
+status: active
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  path: spotify
+  ref: main
+
+# Spotify is the one connector this app uses (the listener's own brokered token).
+dependencies:
+  apps: []
+  tools: []
+  connectors: [spotify]
+
+# Guests never reach the concierge (was hardcoded Tier C in core; literal left with
+# this carve). Request only — grants come from the operator endpoint (D4).
+guestTier: blocked
+
+tools:
+  - name: music-search
+    displayName: Search Spotify
+    type: api
+    category: media
+    description: Search the listener's Spotify catalog for real tracks.
+    executor: { executorType: api, apiEndpoint: "GET /api/spotify/search?q={input.query}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        query: { type: string }
+      required: [query]
+    usageInstructions: >-
+      Call with {query}. Only recommend tracks returned by this tool.
+    routingTags: [music, spotify, search]
+    skills: [music-search, recommendation]
+    tags: [spotify, route-backed]
+
+  - name: now-playing
+    displayName: Now Playing
+    type: api
+    category: media
+    description: Read the listener's current Spotify playback state when available.
+    executor: { executorType: api, apiEndpoint: "GET /api/spotify/now-playing" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Call with {} when the user asks what is playing or wants recommendations based on the current track.
+    routingTags: [music, spotify, playback]
+    skills: [now-playing-awareness, recommendation]
+    tags: [spotify, route-backed]
+
+  - name: list-playlists
+    displayName: List Playlists
+    type: api
+    category: media
+    description: List the listener's Spotify playlists.
+    executor: { executorType: api, apiEndpoint: "GET /api/spotify/playlists" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Call with {} before adding context about existing playlists or avoiding duplicate mixes.
+    routingTags: [music, spotify, playlists]
+    skills: [playlist-building, music-search]
+    tags: [spotify, route-backed]
+
+  - name: build-playlist
+    displayName: Build Spotify Playlist
+    type: api
+    category: media
+    description: Create a playlist on the listener's own Spotify account from selected track URIs.
+    executor: { executorType: api, apiEndpoint: "POST /api/spotify/playlist" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        name: { type: string }
+        trackUris: { type: array, items: { type: string } }
+        description: { type: string }
+        isPublic: { type: boolean }
+      required: [name, trackUris]
+    usageInstructions: >-
+      Call only when the listener asks to make/build a playlist. Use trackUris returned by music-search or top-tracks.
+    routingTags: [music, spotify, playlist-building]
+    skills: [playlist-building]
+    tags: [spotify, route-backed, approval-required]
+
+  - name: spotify-accounts
+    displayName: Spotify Account Status
+    type: api
+    category: media
+    description: Check whether Spotify is connected and usable for this listener.
+    executor: { executorType: api, apiEndpoint: "GET /api/spotify/config" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Call with {} before claiming live Spotify access. If not_connected, ask the user to connect Spotify.
+    routingTags: [music, spotify, connection]
+    skills: [now-playing-awareness, playlist-building]
+    tags: [spotify, route-backed]
+
+# UI SURFACES — ribbon icons that open the Spotify surface.
+ui:
+  static:
+    - toolName: spotify-concierge
+      label: Music
+      icon: codicon codicon-music
+      iframeUrl: /api/spotify/app
+      section: top
+
+# ROUTES — app-owned API + surface, gated to this app's activation.
+routes:
+  - module: routes/spotify-routes.js
+    factory: createSpotifyRoutes
+    mountPath: /api/spotify
+    auth: service-or-oidc   # what server.ts ACTUALLY mounts (ADR-085 D2)
+    requiresAuth: true
+    requiresContext: true
+
+# DATABASE MIGRATIONS — applied idempotently on first load.
+# Belt-and-braces: same four tables ensureSpotifySchema creates lazily (owner RLS at
+# the chokepoint). Idempotent — safe where core migration 046 already ran. 047 (bot
+# seed) stays core with the bot.
+migrations:
+  - migrations/046-spotify-platform.sql
+
+# WORKFLOW — tickets of type 'spotify' route to the concierge.
+ticketType: spotify
+workflow:
+  name: Spotify Concierge Pipeline
+  pipeline: spotify
+  workerBot: spotify-concierge
+  phases:
+    - intake     # understand the vibe / artist / task
+    - find       # search tracks, recommend, assemble the playlist
+    - handoff    # create the playlist + hand off the open.spotify.com link
+
+# RIBBON VISIBILITY — focus mode for /cockpit?app=spotify
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  hideChatPanel: true
+  defaultView: spotify-concierge

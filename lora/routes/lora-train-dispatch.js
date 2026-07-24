@@ -1,0 +1,170 @@
+"use strict";
+/**
+ * LoRA Studio — ticket-gated box dispatch. Training and validation run on the GPU edge box; per the
+ * ADR-070 privilege rule, the box is reached ONLY through the queue/worker path on an authorized
+ * action — never a direct endpoint call. This module builds the box-side command and enqueues it as
+ * an embedded `mcp.call-tool` → `shell.exec` task on the edge worker via the shared remote-client
+ * registry (the same queue the oshal-chat worker polls). The worker runs it only with
+ * `allowSystemControl` enabled; results flow back to the controller via /api/lora/ingest.
+ *
+ * Training = a separate kohya PROCESS (not a ComfyUI workflow), so shell.exec is the only transport.
+ * Validation runs over ComfyUI HTTP inside the box script, but is dispatched the same gated way so the
+ * GPU box is driven through one authorized path.
+ *
+ * VENDORED into the lora store package 2026-07-17 (ADR-085 Wave 1 carve #3) — this module is
+ * app-owned (only lora imports it). The remote-client registry + logger stay core and are imported
+ * via @/ aliases the loader resolves at runtime. Box script names (train-lora.py etc.) refer to the
+ * FRAMEWORK repo's scripts/comfyui-edge/ deployed on the box — unchanged by the carve.
+ *
+ * @module lora-train-dispatch
+ */
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.buildTrainCommand = buildTrainCommand;
+exports.buildValidateCommand = buildValidateCommand;
+exports.buildImproveCommand = buildImproveCommand;
+exports.buildOvernightCommand = buildOvernightCommand;
+exports.dispatchBoxCommand = dispatchBoxCommand;
+const logger_1 = require("@/shared/logger");
+const remote_client_routes_1 = require("@/app/routes/remote-client-routes");
+const logger = (0, logger_1.createChildLogger)({ module: 'lora-train-dispatch' });
+/** The LoRA Studio bot identity (the task's fromAgentId). */
+const LORA_DIRECTOR_AGENT_ID = 'a0000000-0000-0000-0000-000000000049';
+/*
+ * ── BOX FACTS (verified by driving the GPU box DIRECTLY end-to-end) ──────────────────────────────
+ * The commands here are executed on the GPU edge box via the worker's gated PowerShell shell.exec.
+ * They MUST match what actually runs on that box, which differs from the early assumptions:
+ *
+ *  1. REPO PATH. The box's open-shal clone lives at  %USERPROFILE%\Documents\oshal-client\open-shal
+ *     (NOT ~/open-shal). So the box scripts are under  <repo>\scripts\comfyui-edge\ . Overridable via
+ *     LORA_BOX_REPO.
+ *  2. PYTHON. Bare `python` on the box is the Windows Store ALIAS STUB and is non-functional. Every
+ *     box python script must be run with the kohya venv interpreter at
+ *     %USERPROFILE%\kohya_ss\venv\Scripts\python.exe  (it has torch / PIL / open_clip + everything
+ *     train-lora.py / validate-lora.py / make-targeted-batch.py / overnight-loop.py need). Overridable
+ *     via LORA_BOX_VENV_PY.
+ *  3. UTF-8. Training/validation CRASH on Windows cp1252 stdout unless PYTHONUTF8=1 is set, so every
+ *     dispatched command sets `$env:PYTHONUTF8="1"` first.
+ *  4. TRANSPORT QUOTING. shell.exec mangles a bare leading `$var=` and a bare `$env:USERPROFILE`
+ *     intermittently; the reliable pattern is to reference paths inside DOUBLE QUOTES so PowerShell
+ *     expands $env:USERPROFILE itself (e.g. "$env:USERPROFILE/kohya_ss/...") and to keep commands well
+ *     under the 32KB transport limit. Forward slashes work fine on Windows PowerShell.
+ *  5. DATASET. train-lora.py --dataset accepts a FOLDER of <name>.png / <name>.txt pairs (the curated
+ *     run used a folder, not the old ~/overnight/curated.zip default which was not present on the box).
+ *     Default below is a folder; override per-box via LORA_BOX_DATASET.
+ *  6. CALLBACK. The box reports results back to the controller at LORA_CONTROLLER_URL
+ *     (http://localhost:35457) with the shared SWARM_SERVICE_SECRET → POST /api/lora/ingest.
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+/** Box repo root. PowerShell-expanded ($env:USERPROFILE) — shell.exec runs PowerShell on the box. */
+const BOX_REPO = process.env.LORA_BOX_REPO || '$env:USERPROFILE/Documents/oshal-client/open-shal';
+/** The kohya venv python — the ONLY working interpreter on the box (bare `python` is a Store stub). */
+const BOX_VENV_PY = process.env.LORA_BOX_VENV_PY || '$env:USERPROFILE/kohya_ss/venv/Scripts/python.exe';
+/** Training dataset — a FOLDER of <name>.png/.txt pairs (override per-box via LORA_BOX_DATASET). */
+const BOX_DATASET = process.env.LORA_BOX_DATASET || '$env:USERPROFILE/overnight/curated';
+/** Where the box reports results back to (the controller, reachable from the box). */
+const CONTROLLER_URL = process.env.LORA_CONTROLLER_URL || 'http://localhost:35457';
+/**
+ * Pick the GPU edge worker to drive — the REMOTE box (e.g. edge-node-1), never this controller's
+ * own local oshal-chat node. Selection order: an explicit client id (LORA_EDGE_CLIENT_ID) → a
+ * tailnet hostname match (LORA_EDGE_HOSTNAME, default 'edge-node-1') → any online worker that has a
+ * tailnetHostname (a real remote box) → last resort, the first online worker. The hostname/remote
+ * preference matters because the controller runs its OWN worker node with NO tailnetHostname, and
+ * dispatching training there would have no GPU/ComfyUI/dataset.
+ */
+function pickEdgeClient() {
+    const preferredId = (process.env.LORA_EDGE_CLIENT_ID || '').trim();
+    const preferredHost = (process.env.LORA_EDGE_HOSTNAME || 'edge-node-1').trim().toLowerCase();
+    let clients = [];
+    try {
+        clients = remote_client_routes_1.remoteClientRegistry.listClients();
+    }
+    catch {
+        clients = [];
+    }
+    const host = (c) => String(c.tailnetHostname || '').trim().toLowerCase();
+    const online = clients.filter((c) => (c.status ?? 'online') === 'online' && (c.healthy ?? true) &&
+        ((c.capabilities ?? []).includes('shell.exec') || (c.tags ?? []).some((t) => /worker/i.test(t))));
+    if (preferredId)
+        return online.find((c) => c.clientId === preferredId) ?? null;
+    if (preferredHost) {
+        const match = online.find((c) => host(c) === preferredHost);
+        if (match)
+            return match;
+    }
+    // Prefer a real REMOTE box (advertises a tailnetHostname) over the controller's own local node.
+    return online.find((c) => host(c).length > 0) ?? online[0] ?? null;
+}
+/** A bare box-script python invocation (kohya venv interpreter, double-quoted for $env expansion). */
+function pyScript(script, args) {
+    return `& "${BOX_VENV_PY}" "${BOX_REPO}/scripts/comfyui-edge/${script}" ${args}`.trim();
+}
+/**
+ * Single-line python invocation on the box (PowerShell), with the controller callback + secret.
+ * Always sets PYTHONUTF8=1 first (cp1252 stdout otherwise crashes train/validate) and invokes the
+ * kohya venv python (bare `python` on the box is a non-functional Store stub). See BOX FACTS above.
+ */
+function pyCommand(script, args) {
+    const secret = (process.env.SWARM_SERVICE_SECRET || '').trim();
+    const tail = `--controller ${CONTROLLER_URL} --secret ${secret}`;
+    return `$env:PYTHONUTF8="1"; ${pyScript(script, `${args} ${tail}`)}`.trim();
+}
+/** The kohya training command for one version (improve passes the parent it builds on). */
+function buildTrainCommand(subject, version, parentVersion) {
+    const parent = parentVersion != null ? ` --parent-version ${parentVersion}` : '';
+    return pyCommand('train-lora.py', `--character ${subject} --version ${version} --dataset "${BOX_DATASET}"${parent}`);
+}
+/** The ComfyUI validation command for one trained version. */
+function buildValidateCommand(subject, version) {
+    const loraName = `${subject}_v${version}.safetensors`;
+    return pyCommand('validate-lora.py', `--character ${subject} --version ${version} --lora-name ${loraName}`);
+}
+/**
+ * The improve command: regenerate training data BIASED to the weak axis-values, then train the next
+ * version on the augmented set (PowerShell `;` sequences the two steps on the box).
+ * @param weakValues - the scorecard's weak_cells[].value list to over-sample
+ */
+function buildImproveCommand(subject, version, parentVersion, weakValues) {
+    const weak = weakValues.map((v) => v.replace(/"/g, '')).join('||');
+    // PYTHONUTF8 is set once at the front; the venv interpreter runs the batch step, then training.
+    const batch = `$env:PYTHONUTF8="1"; ${pyScript('make-targeted-batch.py', `--character ${subject} --weak "${weak}" --count 60`)}`;
+    // buildTrainCommand already re-asserts $env:PYTHONUTF8 + the venv python, so the two steps are independent.
+    return `${batch}; ${buildTrainCommand(subject, version, parentVersion)}`;
+}
+/** The autonomous overnight loop (improve→validate until plateau / max hours, then park a review ticket). */
+function buildOvernightCommand(subject, startVersion, maxHours, plateau) {
+    return pyCommand('overnight-loop.py', `--character ${subject} --start-version ${startVersion} --max-hours ${maxHours} --plateau ${plateau} --dataset "${BOX_DATASET}"`);
+}
+/**
+ * @description Enqueue a box-side command to the edge worker as a gated shell.exec task. Returns the
+ * dispatch outcome (clientId + taskId on success). Never throws — a missing/offline box returns
+ * `{ ok: false, error }` so the route can surface a clean "box not connected" message.
+ * @param command - the box-side shell command (built by buildTrainCommand/buildValidateCommand)
+ * @param correlationId - ties the task to its ticket (the ticket id)
+ */
+function dispatchBoxCommand(command, correlationId) {
+    const client = pickEdgeClient();
+    if (!client) {
+        return { ok: false, error: 'No online GPU edge worker — the oshal-chat node on the box is not connected.' };
+    }
+    const taskId = `lora-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const envelope = {
+        taskId,
+        correlationId: correlationId || taskId,
+        fromAgentId: LORA_DIRECTOR_AGENT_ID,
+        toAgentId: client.agentId || client.clientId,
+        intent: 'mcp.call-tool',
+        input: { name: 'shell.exec', arguments: { command } },
+        createdAt: new Date().toISOString(),
+    };
+    try {
+        const task = remote_client_routes_1.remoteClientRegistry.enqueueTask(client.clientId, envelope);
+        logger.info({ clientId: client.clientId, taskId: task.taskId }, 'lora box command dispatched');
+        return { ok: true, clientId: client.clientId, taskId: task.taskId };
+    }
+    catch (err) {
+        const error = err instanceof Error ? err.message : 'enqueue failed';
+        logger.error({ err, clientId: client.clientId }, 'lora box dispatch failed');
+        return { ok: false, error };
+    }
+}
+//# sourceMappingURL=lora-train-dispatch.js.map

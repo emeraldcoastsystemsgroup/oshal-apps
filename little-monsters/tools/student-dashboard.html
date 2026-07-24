@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Little Monsters - Student Dashboard</title>
+<!--
+  CHANGE LOG
+  ---------------------------------------------------------------------------
+  DATE           | AUTHOR                    | DESCRIPTION
+  ---------------------------------------------------------------------------
+  2026-04-19     | roger.murphy@emeraldcoastsystemsgroup.com    | Initial creation — student dashboard
+  2026-04-22     | roger.murphy@agenticfederal.us   | Follow parent cockpit theme via theme-sync.js so the iframe recolors when the operator cycles themes instead of being pinned to midnight
+  2026-06-12     | roger.murphy@agenticfederal.us   | Slicker pass: time-of-day greeting, stat count-up + icons, hover lift on cards, skeleton loading, and a "Recent lectures" strip with ▶ replay (presentation player) + flashcards deep links via GET /lectures/recent
+  2026-07-12     | roger.murphy@emeraldcoastsystemsgroup.com    | Quick-action "Record Lecture" navigates to 'recorder' (the manifest toolName is lm-recorder; 'record' targeted a ribbon id that never existed, so the button was a no-op even pre-carve-out)
+  2026-07-12     | roger.murphy@emeraldcoastsystemsgroup.com    | Entry-screen demo invite: an "Open classes you can join" strip + live join chips inside the first-run overlay, both fed by GET /catalog — a brand-new user sees the published demo classes (teacher already set up, textbook already uploaded) and joins in one tap instead of having to discover the Class Bank
+  ---------------------------------------------------------------------------
+-->
+<script>
+// Sync iframe theme to parent cockpit's data-theme. Storage events don't fire
+// in the writing window, so a MutationObserver on the parent <html> is the
+// reliable path for live same-tab updates when the operator cycles themes.
+(function(){
+  function applyTheme(n){
+    if(!n)return;
+    document.documentElement.setAttribute('data-theme',n);
+    var href='/cockpit/css/themes/'+n+'.css';
+    var link=document.querySelector('link[data-lm-theme-link="1"]');
+    if(link){if(link.getAttribute('href')!==href)link.setAttribute('href',href);return;}
+    link=document.createElement('link');link.rel='stylesheet';link.href=href;
+    link.setAttribute('data-lm-theme-link','1');document.head.appendChild(link);
+  }
+  function initial(){
+    try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(_e){}
+    try{var s=window.localStorage.getItem('cockpit-theme');if(s)return s;}catch(_e){}
+    return 'midnight';
+  }
+  applyTheme(initial());
+  try{if(window.parent&&window.parent!==window){
+    var ph=window.parent.document.documentElement;
+    new MutationObserver(function(ms){for(var i=0;i<ms.length;i++){if(ms[i].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)applyTheme(t);}}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});
+  }}catch(_e){}
+})();
+</script>
+<link rel="stylesheet" href="/api/education/education.css">
+<style>
+  /* Uses education.css for all base variables. Page-specific styles only below. */
+  :root { --gradient: linear-gradient(135deg, #8b5cf6 0%, #06b6d4 50%, #34d399 100%); }
+
+  body {
+    font-family: var(--font-family);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 24px;
+  }
+
+  /* ── Header ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .header-left { display: flex; align-items: center; gap: 16px; }
+  .header-logo {
+    width: 48px; height: 48px;
+    border-radius: 14px;
+    display: block;
+    object-fit: cover;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.22);
+  }
+  .header h1 { font-size: 22px; font-weight: 700; }
+  .header p { color: var(--text-muted); font-size: 13px; margin-top: 2px; }
+
+  /* ── XP Bar ── */
+  .xp-section { margin-bottom: 28px; }
+  .xp-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .xp-level { font-size: 18px; font-weight: 700; color: var(--accent-primary); }
+  .xp-count { font-size: 13px; color: var(--text-muted); }
+  .xp-bar-bg {
+    height: 10px;
+    background: rgba(139, 92, 246, 0.15);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .xp-bar-fill {
+    height: 100%;
+    background: var(--gradient);
+    border-radius: 99px;
+    transition: width 0.5s ease;
+  }
+
+  /* ── Stats Row ── */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    text-align: center;
+    transition: transform 0.18s, border-color 0.18s, box-shadow 0.18s;
+  }
+  .stat-card:hover { transform: translateY(-2px); border-color: rgba(139,92,246,0.3); box-shadow: 0 6px 18px rgba(0,0,0,0.25); }
+  .stat-icon { font-size: 18px; margin-bottom: 4px; }
+  .stat-value { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .stat-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* ── Quick Actions ── */
+  .section-title { font-size: 16px; font-weight: 600; margin-bottom: 14px; }
+  .actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .action-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 20px 16px;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: background 0.2s, border-color 0.2s, transform 0.15s;
+  }
+  .action-btn:hover {
+    background: var(--bg-card-hover);
+    border-color: rgba(139, 92, 246, 0.25);
+    transform: translateY(-2px);
+  }
+  .action-icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  /* ── Class List ── */
+  .classes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  .class-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    cursor: pointer;
+    position: relative; overflow: hidden;
+    transition: background 0.2s, border-color 0.2s, transform 0.18s, box-shadow 0.18s;
+  }
+  .class-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--gradient); opacity: 0.55;
+  }
+  .class-card:hover {
+    background: var(--bg-card-hover);
+    border-color: rgba(139, 92, 246, 0.3);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 22px rgba(0,0,0,0.3);
+  }
+
+  /* ── Recent Lectures ── */
+  .recent-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-bottom: 28px; }
+  .lecture-card {
+    background: var(--bg-card); border: 1px solid var(--border-color);
+    border-radius: var(--radius-md); padding: 14px 16px;
+    transition: transform 0.18s, border-color 0.18s, box-shadow 0.18s;
+  }
+  .lecture-card:hover { transform: translateY(-2px); border-color: rgba(139,92,246,0.3); box-shadow: 0 6px 18px rgba(0,0,0,0.25); }
+  .lecture-class { font-size: 13px; font-weight: 700; }
+  .lecture-date { font-size: 11px; color: var(--text-muted); margin: 2px 0 10px; }
+  .lecture-links { display: flex; gap: 8px; flex-wrap: wrap; }
+  .lecture-links a {
+    text-decoration: none; font-size: 12px; font-weight: 700;
+    padding: 7px 12px; border-radius: 8px;
+  }
+  .lecture-links .replay { background: var(--gradient); color: #0a0e1a; }
+  .lecture-links .cards { border: 1px solid var(--border-color); color: var(--text-primary); }
+  .lecture-links .listen { border: 1px solid var(--border-color); color: var(--text-muted); }
+  .lecture-links a:hover { filter: brightness(1.12); }
+
+  /* ── Skeleton shimmer ── */
+  .skeleton {
+    background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.09) 50%, rgba(255,255,255,0.04) 75%);
+    background-size: 200% 100%; animation: shimmer 1.3s infinite;
+    border-radius: var(--radius-md); height: 84px; border: 1px solid var(--border-color);
+  }
+  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  .class-name { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .class-teacher { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
+  .class-stats { display: flex; gap: 16px; font-size: 12px; color: var(--text-muted); }
+  .class-stats span { display: flex; align-items: center; gap: 4px; }
+
+  /* ── Upcoming ── */
+  .upcoming-list { list-style: none; }
+  .upcoming-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .upcoming-date {
+    min-width: 48px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--accent-primary);
+    font-weight: 600;
+  }
+  .upcoming-date .day { font-size: 20px; display: block; }
+  .upcoming-title { font-size: 14px; font-weight: 500; }
+  .upcoming-class { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  /* ── Loading / Empty States ── */
+  .empty-state {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+  .loading { text-align: center; padding: 20px; color: var(--text-muted); }
+
+  /* ── Class Bank rows ── */
+  .catalog-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--bg-secondary, #141a2e); border: 1px solid var(--border-color, #2a3350); border-radius: 12px; margin-bottom: 10px; }
+  .catalog-name { font-size: 14px; font-weight: 700; color: var(--text-primary, #e8ecf5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .catalog-meta { font-size: 11.5px; color: var(--text-muted, #9aa4bf); margin-top: 2px; }
+  .catalog-btn { flex-shrink: 0; font: inherit; font-weight: 700; font-size: 12.5px; color: #fff; background: var(--accent-primary, #8b5cf6); border: none; border-radius: 8px; padding: 8px 16px; cursor: pointer; }
+  .catalog-btn:hover { filter: brightness(1.08); }
+  .catalog-btn.joined { background: transparent; color: var(--text-muted, #9aa4bf); border: 1px solid var(--border-color, #2a3350); }
+
+  /* ── Add Class Form ── */
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .field input[type="text"], .field input[type="url"] {
+    width: 100%; padding: 10px 12px; border-radius: 8px;
+    border: 1px solid var(--border-color); background: rgba(255,255,255,0.04);
+    color: var(--text-primary); font-size: 13px; outline: none;
+  }
+  .field input:focus { border-color: var(--accent-primary); }
+  .nc-error { color: #f87171; }
+  .nc-success { color: #34d399; }
+
+  /* ── Mobile ── */
+  @media (max-width: 640px) {
+    body { padding: 14px; }
+    .stats { gap: 10px; grid-template-columns: repeat(2, 1fr); }
+    .actions { gap: 10px; grid-template-columns: 1fr; }
+    .classes { grid-template-columns: 1fr; }
+    .recent-row { grid-template-columns: 1fr; }
+    .catalog-row { flex-wrap: wrap; }
+    /* Prevent iOS auto-zoom on focus by keeping inputs at >= 16px */
+    .field input[type="text"],
+    .field input[type="url"],
+    .field textarea { font-size: 16px; }
+    /* Add Class / Catalog modals: full-bleed sheet on small screens */
+    #addClassModal > div, #catalogModal > div { max-width: 100%; padding: 18px; max-height: 94vh; }
+    /* Onboarding overlay: full-bleed on small screens */
+    #onboardOverlay > div { max-width: 100%; }
+    #onboardOverlay > div > div:last-child { padding: 16px; }
+    /* My Classes header button row: stack on narrow screens */
+    .section-title + div > div { flex-wrap: wrap; }
+    .action-btn { min-height: 44px; }
+  }
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div class="header">
+  <div class="header-left">
+    <img class="header-logo" src="/api/education/logo.png" alt="Little Monsters logo" width="48" height="48">
+    <div>
+      <h1 id="greeting">Little Monsters</h1>
+      <p id="greetingSub">Your study companion</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── First-run onboarding overlay (shown to new users with no classes) ── -->
+<div id="onboardOverlay" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(6,8,20,0.78);backdrop-filter:blur(3px);align-items:center;justify-content:center;padding:24px;">
+  <div style="background:var(--bg-secondary,#141a2e);border:1px solid var(--border-color,#2b3a63);border-radius:18px;max-width:560px;width:100%;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+    <div style="background:linear-gradient(135deg,#8b5cf6,#06b6d4,#34d399);padding:26px 28px;">
+      <div style="font-size:32px;line-height:1;margin-bottom:8px;">👋</div>
+      <div id="onboardTitle" style="font-size:22px;font-weight:800;color:#0a0e1a;">Welcome to Little Monsters!</div>
+      <div id="onboardSub" style="font-size:13px;color:#0a0e1a;opacity:0.8;margin-top:4px;">Let's get you set up in under a minute.</div>
+    </div>
+    <div style="padding:22px 28px;">
+      <div id="onboardSteps">
+        <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:16px;">
+          <div style="flex:0 0 30px;height:30px;border-radius:50%;background:rgba(139,92,246,0.18);color:var(--accent-primary,#8b5cf6);display:flex;align-items:center;justify-content:center;font-weight:800;">1</div>
+          <div><div style="font-weight:700;font-size:14px;">📚 Add your classes</div><div style="font-size:13px;color:var(--text-muted,#9fb3c8);margin-top:2px;">Join your teachers' classes from the <strong>Class Bank</strong>, or create your own private class for self-study.</div></div>
+        </div>
+        <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:16px;">
+          <div style="flex:0 0 30px;height:30px;border-radius:50%;background:rgba(6,182,212,0.18);color:#22d3ee;display:flex;align-items:center;justify-content:center;font-weight:800;">2</div>
+          <div><div style="font-weight:700;font-size:14px;">🎤 Record a lecture</div><div style="font-size:13px;color:var(--text-muted,#9fb3c8);margin-top:2px;">Tap record in class — you instantly get a replay presentation, flashcards & notes.</div></div>
+        </div>
+        <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:8px;">
+          <div style="flex:0 0 30px;height:30px;border-radius:50%;background:rgba(52,211,153,0.18);color:#34d399;display:flex;align-items:center;justify-content:center;font-weight:800;">3</div>
+          <div><div style="font-weight:700;font-size:14px;">🧠 Study smarter</div><div style="font-size:13px;color:var(--text-muted,#9fb3c8);margin-top:2px;">Ask the tutor, review flashcards, and take quizzes — all grounded in your class.</div></div>
+        </div>
+      </div>
+      <div id="onboardDemoClasses" style="margin-top:14px;"></div>
+      <div style="display:flex;gap:10px;margin-top:22px;flex-wrap:wrap;">
+        <button id="onboardCta" onclick="onboardPrimary()" style="flex:1 1 220px;background:linear-gradient(135deg,#7c5cff,#5fdcc0);color:#0a0e1a;border:0;border-radius:12px;padding:14px 20px;font-weight:800;font-size:15px;cursor:pointer;">➕ Create your first class</button>
+        <button onclick="dismissOnboard()" style="background:none;border:1px solid var(--border-color,#2b3a63);color:var(--text-muted,#9fb3c8);border-radius:12px;padding:14px 18px;font-size:14px;cursor:pointer;">Explore first</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── XP Progress ── -->
+<div class="xp-section">
+  <div class="xp-header">
+    <span class="xp-level" id="xpLevel">Level 1</span>
+    <span class="xp-count" id="xpCount">0 / 100 XP</span>
+  </div>
+  <div class="xp-bar-bg">
+    <div class="xp-bar-fill" id="xpBar" style="width: 0%"></div>
+  </div>
+</div>
+
+<!-- ── Stats ── -->
+<div class="stats">
+  <div class="stat-card">
+    <div class="stat-icon">🔥</div>
+    <div class="stat-value" id="streakCount" style="color: var(--status-warning)">0</div>
+    <div class="stat-label">Day Streak</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">🃏</div>
+    <div class="stat-value" id="flashcardCount" style="color: var(--status-active)">0</div>
+    <div class="stat-label">Cards Reviewed</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">🎯</div>
+    <div class="stat-value" id="quizAvg" style="color: var(--status-success)">--</div>
+    <div class="stat-label">Quiz Average</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">🎤</div>
+    <div class="stat-value" id="lectureCount" style="color: var(--accent-primary)">0</div>
+    <div class="stat-label">Lectures</div>
+  </div>
+</div>
+
+<!-- ── Quick Actions ── -->
+<div class="section-title">Quick Actions</div>
+<div class="actions">
+  <button class="action-btn" onclick="navigate('recorder')">
+    <div class="action-icon" style="background: rgba(239,68,68,0.15); color: #ef4444;">&#9679;</div>
+    <div>
+      <div>Record Lecture</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Capture and transcribe</div>
+    </div>
+  </button>
+  <button class="action-btn" onclick="navigate('flashcards')">
+    <div class="action-icon" style="background: rgba(6,182,212,0.15); color: var(--status-active);">&#9733;</div>
+    <div>
+      <div>Study Flashcards</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Review due cards</div>
+    </div>
+  </button>
+  <button class="action-btn" onclick="openPage('quiz')">
+    <div class="action-icon" style="background: rgba(52,211,153,0.15); color: var(--status-success);">&#10004;</div>
+    <div>
+      <div>Practice Quiz</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Test your knowledge</div>
+    </div>
+  </button>
+  <button class="action-btn" onclick="navigate('tutor')">
+    <div class="action-icon" style="background: rgba(139,92,246,0.15); color: var(--accent-primary);">&#9993;</div>
+    <div>
+      <div>Ask Tutor</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Get help with a topic</div>
+    </div>
+  </button>
+</div>
+
+<!-- ── Recent Lectures (replay) ── -->
+<div class="section-title" id="recentTitle" style="display:none;">🎬 Recent Lectures</div>
+<div class="recent-row" id="recentRow" style="display:none;"></div>
+
+<!-- ── Open classes invite (entry-screen advertising for published/demo classes) ── -->
+<div id="demoStrip" style="display:none;background:linear-gradient(135deg,rgba(139,92,246,0.12),rgba(6,182,212,0.10));border:1px solid var(--border-color);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:24px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+    <div style="font-weight:800;font-size:14px;">🎓 Open classes you can join right now</div>
+    <button class="action-btn" onclick="showCatalog()" style="padding:6px 12px;width:auto;font-size:11px;">See all</button>
+  </div>
+  <div id="demoStripChips" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;"></div>
+</div>
+
+<!-- ── My Classes ── -->
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;flex-wrap:wrap;">
+  <div class="section-title" style="margin-bottom:0;">My Classes</div>
+  <div style="display:flex;gap:8px;">
+    <button class="action-btn" onclick="showCatalog()" style="padding:8px 16px;width:auto;font-size:12px;">&#128218; Browse Class Bank</button>
+    <button class="action-btn" onclick="showAddClass()" style="padding:8px 16px;width:auto;font-size:12px;background:transparent;border:1px solid var(--border-color);">+ Create My Own</button>
+  </div>
+</div>
+<div class="classes" id="classList">
+  <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+</div>
+
+<!-- ── Add Class Modal ── -->
+<div id="addClassModal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;padding:24px;">
+  <div style="background:var(--bg-card,#1a2238);border:1px solid var(--border-color,#2a3350);border-radius:16px;padding:28px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;">
+    <h2 style="font-size:18px;margin-bottom:4px;">Create My Own Class</h2>
+    <p style="color:var(--text-muted);font-size:12px;margin-bottom:20px;">A <strong>private</strong> class just for you (e.g. homeroom or self-study). Only you can see it unless you share it. Looking for a teacher's class instead? Use <strong>Browse Class Bank</strong>.</p>
+
+    <div class="field"><label>Class Name *</label><input type="text" id="nc-name" placeholder="e.g. Biology 101"></div>
+    <div class="field"><label>Subject *</label><input type="text" id="nc-subject" placeholder="e.g. Biology"></div>
+    <div class="field"><label>Teacher Name</label><input type="text" id="nc-teacher" placeholder="e.g. Mrs. Johnson"></div>
+    <div class="field"><label>Grade Level</label><input type="text" id="nc-grade" placeholder="e.g. 10th Grade"></div>
+    <div class="field"><label>Room / Period</label><input type="text" id="nc-room" placeholder="e.g. Room 204, Period 3"></div>
+    <div class="field"><label>Class Website</label><input type="url" id="nc-website" placeholder="e.g. https://classroom.google.com/..."></div>
+    <div class="field"><label>Schedule</label><input type="text" id="nc-schedule" placeholder="e.g. MWF 9:00-9:50 AM"></div>
+    <div class="field"><label>Description</label><textarea id="nc-desc" rows="2" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border-color);background:rgba(255,255,255,0.04);color:var(--text-primary);font-size:13px;font-family:var(--font-family);resize:vertical;" placeholder="What does this class cover?"></textarea></div>
+
+    <div style="border-top:1px solid var(--border-color);margin:16px 0;padding-top:16px;">
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Upload materials (optional — you can add these later)</p>
+      <div class="field"><label>Textbook (PDF)</label><input type="file" id="nc-textbook" accept=".pdf" style="font-size:12px;"></div>
+      <div class="field"><label>Syllabus (PDF)</label><input type="file" id="nc-syllabus" accept=".pdf" style="font-size:12px;"></div>
+    </div>
+
+    <div id="nc-status" style="font-size:12px;min-height:20px;margin-bottom:12px;"></div>
+
+    <div style="display:flex;gap:10px;">
+      <button onclick="submitNewClass()" style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--accent-primary,#8b5cf6);color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Create Class</button>
+      <button onclick="hideAddClass()" style="padding:12px 20px;border-radius:10px;border:1px solid var(--border-color);background:transparent;color:var(--text-muted);font-size:14px;cursor:pointer;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Class Bank (Catalog) Modal ── -->
+<div id="catalogModal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;padding:24px;">
+  <div style="background:var(--bg-card,#1a2238);border:1px solid var(--border-color,#2a3350);border-radius:16px;padding:28px;width:100%;max-width:560px;max-height:88vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <h2 style="font-size:18px;">&#128218; Class Bank</h2>
+      <button onclick="hideCatalog()" style="background:transparent;border:none;color:var(--text-muted);font-size:22px;line-height:1;cursor:pointer;">&times;</button>
+    </div>
+    <p style="color:var(--text-muted);font-size:12px;margin-bottom:18px;">Classes your school's teachers have published. Tap <strong>Join</strong> to add one to your dashboard — you can leave anytime.</p>
+    <div id="catalogList"><div class="loading">Loading classes...</div></div>
+  </div>
+</div>
+
+<!-- ── Upcoming ── -->
+<div class="section-title" style="margin-top: 28px;">Upcoming</div>
+<ul class="upcoming-list" id="upcomingList">
+  <div class="loading">Loading assignments...</div>
+</ul>
+
+<!-- ── Mascot ── -->
+<div id="mascot-container"></div>
+
+<script src="/api/education/mascot.js?v=3"></script>
+<script>
+/**
+ * Student Dashboard — Client-side Logic
+ *
+ * Fetches student data from the API and renders the dashboard.
+ * All API calls go through the standard /api/ endpoints.
+ */
+
+/** Time-of-day greeting in the hero. */
+function setGreeting() {
+  var h = new Date().getHours();
+  var g = h < 5 ? 'Up late?' : h < 12 ? 'Good morning!' : h < 17 ? 'Good afternoon!' : 'Good evening!';
+  document.getElementById('greeting').textContent = g;
+  document.getElementById('greetingSub').textContent = 'Little Monsters — your study companion';
+}
+
+/** Animate a stat number counting up. */
+function countUp(elId, target, suffix) {
+  var el = document.getElementById(elId);
+  var n = parseInt(target, 10);
+  if (!Number.isFinite(n) || n <= 0) { el.textContent = (target || 0) + (suffix || ''); return; }
+  var steps = Math.min(n, 24), i = 0;
+  var t = setInterval(function () {
+    i++;
+    el.textContent = Math.round((n * i) / steps) + (suffix || '');
+    if (i >= steps) clearInterval(t);
+  }, 28);
+}
+
+/** Recent lectures strip — replay the presentation, jump to its flashcards, re-listen. */
+async function loadRecentLectures() {
+  try {
+    var resp = await fetch('/api/education/lectures/recent?limit=6');
+    if (!resp.ok) return;
+    var data = await resp.json();
+    var lectures = (data.lectures || []).filter(function (l) { return l.has_slides || l.flashcard_set_id || l.has_audio; });
+    if (lectures.length === 0) return;
+    var row = document.getElementById('recentRow');
+    row.innerHTML = lectures.map(function (l) {
+      var when = new Date(l.created_at || l.lecture_date);
+      var links = '';
+      if (l.has_slides) {
+        links += '<a class="replay" href="/api/education/presentation?lectureId=' + l.lecture_id +
+          '&classId=' + l.class_id + (l.flashcard_set_id ? '&setId=' + l.flashcard_set_id : '') + '">▶ Replay</a>';
+      }
+      if (l.flashcard_set_id) {
+        links += '<a class="cards" href="/api/education/flashcards?setId=' + l.flashcard_set_id + '&classId=' + l.class_id + '">🃏 Cards</a>';
+      }
+      if (l.has_audio) {
+        links += '<a class="listen" href="/api/education/lectures/' + l.lecture_id + '/audio" target="_blank">🎧</a>';
+      }
+      return '<div class="lecture-card">' +
+        '<div class="lecture-class">' + escapeHtml(l.class_name || 'Class') + '</div>' +
+        '<div class="lecture-date">' + when.toLocaleDateString([], { month: 'short', day: 'numeric' }) +
+        ' · ' + when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '</div>' +
+        '<div class="lecture-links">' + links + '</div></div>';
+    }).join('');
+    document.getElementById('recentTitle').style.display = '';
+    row.style.display = '';
+  } catch (e) { /* strip is optional — dashboard works without it */ }
+}
+
+/** Navigate to a bot UI by name. */
+function navigate(view) {
+  // Bot UIs are loaded as iframes in the cockpit toolbar.
+  // This sends a message to the parent frame to switch views.
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({ type: 'lm-navigate', view: view }, '*');
+  } else {
+    console.log('[LM Dashboard] Navigate:', view);
+  }
+}
+
+/** Open a class detail view. The ribbon's dynamic class icons are named by the
+ *  8-char id prefix, so we send the dedicated lm-open-class shape (the bridge
+ *  maps it) rather than lm-navigate with a full UUID, which matches no button. */
+function openClass(classId) {
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({ type: 'lm-open-class', classId: classId }, '*');
+  } else {
+    window.location.href = '/api/education/class?classId=' + encodeURIComponent(classId);
+  }
+}
+
+/** Open an in-app page that has NO ribbon icon (e.g. quiz) by navigating this
+ *  same pane — a ribbon postMessage would no-op since there is no button. */
+function openPage(page) {
+  window.location.href = '/api/education/' + page;
+}
+
+/** Render class cards from API data. */
+function renderClasses(classes) {
+  const container = document.getElementById('classList');
+  if (!classes || classes.length === 0) {
+    container.innerHTML = '<div class="empty-state">No classes yet. Tap <strong>Browse Class Bank</strong> to join your teachers\' classes, or <strong>Create My Own</strong> for a private study class.</div>';
+    return;
+  }
+
+  container.innerHTML = classes.map(function(cls) {
+    return '<div class="class-card" onclick="openClass(\'' + cls.id + '\')">' +
+      '<div class="class-name">' + escapeHtml(cls.name) + '</div>' +
+      '<div class="class-teacher">' + escapeHtml(cls.teacher || '') + '</div>' +
+      '<div class="class-stats">' +
+        '<span>' + (cls.lectureCount || 0) + ' lectures</span>' +
+        '<span>' + (cls.flashcardCount || 0) + ' cards</span>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+/** Render upcoming assignments. */
+function renderUpcoming(items) {
+  const container = document.getElementById('upcomingList');
+  if (!items || items.length === 0) {
+    container.innerHTML = '<div class="empty-state">No upcoming assignments. Enjoy the break!</div>';
+    return;
+  }
+
+  container.innerHTML = items.map(function(item) {
+    var date = new Date(item.dueDate);
+    var month = date.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+    var day = date.getDate();
+    return '<li class="upcoming-item">' +
+      '<div class="upcoming-date"><span class="day">' + day + '</span>' + month + '</div>' +
+      '<div>' +
+        '<div class="upcoming-title">' + escapeHtml(item.title) + '</div>' +
+        '<div class="upcoming-class">' + escapeHtml(item.className || '') + '</div>' +
+      '</div>' +
+    '</li>';
+  }).join('');
+}
+
+/** Update XP bar from student data. */
+function updateXP(xp, level) {
+  var xpForLevel = Math.floor(100 * Math.pow(1.5, (level || 1) - 1));
+  var xpInLevel = xp % xpForLevel;
+  var pct = Math.min(100, Math.round((xpInLevel / xpForLevel) * 100));
+
+  document.getElementById('xpLevel').textContent = 'Level ' + (level || 1);
+  document.getElementById('xpCount').textContent = xpInLevel + ' / ' + xpForLevel + ' XP';
+  document.getElementById('xpBar').style.width = pct + '%';
+}
+
+/** HTML escape utility. */
+function escapeHtml(str) {
+  var div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
+/** Get studentId from URL params or localStorage. */
+function getStudentId() {
+  var params = new URLSearchParams(window.location.search);
+  var id = params.get('studentId') || localStorage.getItem('lm-student-id');
+  if (id) localStorage.setItem('lm-student-id', id);
+  return id;
+}
+
+/** Initialize dashboard — fetch real data from API. */
+// ─── First-run onboarding ────────────────────────────────────────────────────
+var ME = null; // { studentId, name, role, classCount, isNew }
+
+/** Resolve the authenticated user (works with real SSO — no client id needed),
+ *  greet by name, and show the onboarding walkthrough for brand-new users. */
+async function loadMe() {
+  try {
+    var resp = await fetch('/api/education/me');
+    if (!resp.ok) return null;
+    ME = await resp.json();
+    // Persist the real studentId so the rest of the dashboard can fetch /student/:id.
+    if (ME && ME.studentId) localStorage.setItem('lm-student-id', ME.studentId);
+    if (ME && ME.name) setGreeting(ME.name);
+    // New user (no classes) → walk them through setup, unless they dismissed it.
+    if (ME && ME.isNew && localStorage.getItem('lm-onboarded') !== '1') {
+      showOnboard(ME.role, ME.name);
+    }
+    return ME;
+  } catch (e) { return null; }
+}
+
+function showOnboard(role, name) {
+  // Students start by joining published classes from the bank; teachers start by
+  // creating (and publishing) a class for their students.
+  var isTeacher = role === 'teacher' || role === 'admin';
+  document.getElementById('onboardTitle').textContent = 'Welcome' + (name ? ', ' + name.split(' ')[0] : '') + '! 🎉';
+  document.getElementById('onboardSub').textContent = isTeacher
+    ? "Let's create your first class — under a minute."
+    : "Let's add your classes — under a minute.";
+  document.getElementById('onboardCta').innerHTML = isTeacher ? '➕ Create your first class' : '📚 Browse the Class Bank';
+  document.getElementById('onboardOverlay').style.display = 'flex';
+  // Make step 1 actionable: surface the published (demo) classes right in the
+  // walkthrough so a brand-new user joins in one tap without hunting for the bank.
+  fetchOpenClasses().then(function (rows) {
+    var open = rows.filter(function (c) { return !c.enrolled; }).slice(0, 3);
+    var host = document.getElementById('onboardDemoClasses');
+    if (!host || !open.length) return;
+    host.innerHTML = '<div style="font-size:12px;color:var(--text-muted,#9fb3c8);margin-bottom:8px;">Or jump straight in — these classes are open, textbook included:</div>' +
+      open.map(function (c) { return demoClassChip(c, true); }).join('');
+  });
+}
+function onboardPrimary() {
+  hideOnboard(true);
+  var isTeacher = ME && (ME.role === 'teacher' || ME.role === 'admin');
+  if (isTeacher) showAddClass(); else showCatalog();
+}
+function dismissOnboard() { hideOnboard(true); }
+function hideOnboard(remember) {
+  document.getElementById('onboardOverlay').style.display = 'none';
+  if (remember) localStorage.setItem('lm-onboarded', '1');
+}
+
+async function init() {
+  setGreeting();
+  await loadMe();              // identity + onboarding (auth-aware)
+  loadRecentLectures(); // independent of student data — render as soon as it returns
+  fetchOpenClasses().then(renderDemoStrip); // entry-screen invite to published/demo classes
+
+  // Initialize mascot
+  if (typeof LMMascot !== 'undefined') {
+    var mascot = new LMMascot(document.getElementById('mascot-container'));
+    mascot.setMood('happy');
+  }
+
+  var studentId = getStudentId();
+
+  if (studentId) {
+    // Fetch real dashboard data
+    try {
+      var resp = await fetch('/api/education/student/' + studentId + '/dashboard');
+      if (resp.ok) {
+        var data = await resp.json();
+        updateXP(data.student.xp || 0, data.student.level || 1);
+        countUp('streakCount', data.student.streak_days || 0);
+        countUp('flashcardCount', data.stats.flashcardsReviewed || 0);
+        if (data.stats.quizAverage) countUp('quizAvg', data.stats.quizAverage, '%');
+        countUp('lectureCount', data.classes.reduce(function(sum, c) { return sum + (parseInt(c.lecture_count) || 0); }, 0));
+
+        renderClasses(data.classes.map(function(c) {
+          return { id: c.class_id, name: c.name, teacher: c.teacher_name, lectureCount: c.lecture_count, flashcardCount: c.flashcard_count };
+        }));
+        renderUpcoming(data.upcoming.map(function(a) {
+          return { title: a.title, dueDate: a.due_date, className: a.class_name };
+        }));
+        if (mascot && data.student.streak_days >= 3) mascot.setMood('hyped');
+        return;
+      }
+    } catch (e) {
+      console.warn('[LM Dashboard] API fetch failed, loading classes list instead:', e.message);
+    }
+  }
+
+  // Fallback: just load class list for students without an ID
+  try {
+    var classResp = await fetch('/api/education/classes');
+    if (classResp.ok) {
+      var classData = await classResp.json();
+      renderClasses((classData.classes || []).map(function(c) {
+        return { id: c.class_id, name: c.name, teacher: c.teacher_name, lectureCount: c.lecture_count || 0, flashcardCount: c.flashcard_set_count || 0 };
+      }));
+    } else {
+      renderClasses([]);
+    }
+  } catch (e) {
+    renderClasses([]);
+  }
+
+  renderUpcoming([]);
+  updateXP(0, 1);
+}
+
+// ─── Open-classes invite (entry-screen demo advertising) ────────────────────
+
+/** Fetch the published-class catalog once per page and cache it. */
+var OPEN_CLASSES = null;
+async function fetchOpenClasses() {
+  try {
+    var data = await (await fetch('/api/education/catalog')).json();
+    OPEN_CLASSES = data.classes || [];
+  } catch (e) { OPEN_CLASSES = []; }
+  return OPEN_CLASSES;
+}
+
+/** One joinable-class chip. fromOnboard chips also dismiss the walkthrough on join. */
+function demoClassChip(c, fromOnboard) {
+  var meta = [c.subject, c.teacher_name].filter(Boolean).map(escapeHtml).join(' • ');
+  return '<div style="display:flex;align-items:center;gap:10px;background:var(--bg-card,#1a2238);border:1px solid var(--border-color,#2a3350);border-radius:10px;padding:10px 12px;margin-bottom:6px;">' +
+    '<div style="flex:1;min-width:0;">' +
+      '<div style="font-weight:700;font-size:13px;">' + escapeHtml(c.name) + '</div>' +
+      '<div style="font-size:11px;color:var(--text-muted,#9fb3c8);">' + meta + '</div>' +
+    '</div>' +
+    '<button class="catalog-btn" onclick="joinOpenClass(\'' + c.class_id + '\',' + (fromOnboard ? 'true' : 'false') + ')">Join</button>' +
+  '</div>';
+}
+
+/** Render the "open classes you can join" strip above My Classes; hides when
+ *  everything published is already joined (or nothing is published). */
+function renderDemoStrip() {
+  var strip = document.getElementById('demoStrip');
+  if (!strip) return;
+  var open = (OPEN_CLASSES || []).filter(function (c) { return !c.enrolled; }).slice(0, 4);
+  if (!open.length) { strip.style.display = 'none'; return; }
+  document.getElementById('demoStripChips').innerHTML = open.map(function (c) { return demoClassChip(c, false); }).join('');
+  strip.style.display = 'block';
+}
+
+/** One-tap join from the strip/overlay, then refresh everything that shows classes. */
+async function joinOpenClass(classId, fromOnboard) {
+  try {
+    var resp = await fetch('/api/education/classes/' + classId + '/enroll', { method: 'POST' });
+    if (!resp.ok) throw new Error((await resp.json().catch(function(){return{};})).error || 'join failed');
+    if (fromOnboard) hideOnboard(true);
+    try { window.parent.postMessage('lm-classes-changed', '*'); } catch (e) {}
+    await fetchOpenClasses();
+    renderDemoStrip();
+    init(); // re-pulls the dashboard so My Classes shows the new class immediately
+  } catch (e) { alert('Could not join: ' + e.message); }
+}
+
+// ─── Class Bank (catalog) ────────────────────────────────────────────────────
+
+function showCatalog() {
+  document.getElementById('catalogModal').style.display = 'flex';
+  loadCatalog();
+}
+
+function hideCatalog() {
+  document.getElementById('catalogModal').style.display = 'none';
+}
+
+/** Load the school-wide bank of published classes with a Join/Joined state. */
+async function loadCatalog() {
+  var list = document.getElementById('catalogList');
+  list.innerHTML = '<div class="loading">Loading classes...</div>';
+  try {
+    var data = await (await fetch('/api/education/catalog')).json();
+    var rows = data.classes || [];
+    if (!rows.length) {
+      list.innerHTML = '<div class="empty-state">No published classes yet. Create your own to get started.</div>';
+      return;
+    }
+    list.innerHTML = rows.map(function(c) {
+      var meta = [c.subject, c.grade_level, c.teacher_name].filter(Boolean).map(escapeHtml).join(' &bull; ');
+      var btn = c.enrolled
+        ? '<button class="catalog-btn joined" onclick="leaveClass(\'' + c.class_id + '\')">Joined &check;</button>'
+        : '<button class="catalog-btn" onclick="joinClass(\'' + c.class_id + '\')">Join</button>';
+      return '<div class="catalog-row">' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div class="catalog-name">' + escapeHtml(c.name) + '</div>' +
+          '<div class="catalog-meta">' + meta + (meta ? ' &bull; ' : '') + (c.student_count || 0) + ' enrolled</div>' +
+        '</div>' + btn +
+      '</div>';
+    }).join('');
+  } catch (e) {
+    list.innerHTML = '<div class="empty-state">Could not load the class bank.</div>';
+  }
+}
+
+/** Self-enroll into a published class, then refresh the bank + My Classes. */
+async function joinClass(classId) {
+  try {
+    var resp = await fetch('/api/education/classes/' + classId + '/enroll', { method: 'POST' });
+    if (!resp.ok) throw new Error((await resp.json().catch(function(){return{};})).error || 'join failed');
+    await loadCatalog();
+    if (typeof loadClassList === 'function') loadClassList();
+    try { window.parent.postMessage('lm-classes-changed', '*'); } catch (e) {}
+  } catch (e) { alert('Could not join: ' + e.message); }
+}
+
+/** Remove a class from your own dashboard (self-unenroll). */
+async function leaveClass(classId) {
+  if (!confirm('Remove this class from your dashboard? You can rejoin from the Class Bank anytime.')) return;
+  try {
+    var resp = await fetch('/api/education/classes/' + classId + '/leave', { method: 'POST' });
+    if (!resp.ok) throw new Error((await resp.json().catch(function(){return{};})).error || 'leave failed');
+    await loadCatalog();
+    if (typeof loadClassList === 'function') loadClassList();
+    try { window.parent.postMessage('lm-classes-changed', '*'); } catch (e) {}
+  } catch (e) { alert('Could not leave: ' + e.message); }
+}
+
+// ─── Add Class ──────────────────────────────────────────────────────────────
+
+function showAddClass() {
+  document.getElementById('addClassModal').style.display = 'flex';
+  document.getElementById('nc-name').focus();
+}
+
+function hideAddClass() {
+  document.getElementById('addClassModal').style.display = 'none';
+  document.getElementById('nc-status').textContent = '';
+}
+
+async function submitNewClass() {
+  var name = document.getElementById('nc-name').value.trim();
+  var subject = document.getElementById('nc-subject').value.trim();
+  var statusEl = document.getElementById('nc-status');
+
+  if (!name || !subject) {
+    statusEl.className = 'nc-error';
+    statusEl.textContent = 'Class name and subject are required.';
+    return;
+  }
+
+  statusEl.className = '';
+  statusEl.textContent = 'Creating class...';
+
+  try {
+    var payload = {
+      name: name,
+      subject: subject,
+      teacherName: document.getElementById('nc-teacher').value.trim(),
+      gradeLevel: document.getElementById('nc-grade').value.trim(),
+      description: document.getElementById('nc-desc').value.trim(),
+      website: document.getElementById('nc-website').value.trim(),
+      schedule: document.getElementById('nc-schedule').value.trim(),
+      room: document.getElementById('nc-room').value.trim(),
+    };
+
+    var resp = await fetch('/api/education/classes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!resp.ok) {
+      var err = await resp.json();
+      throw new Error(err.error || 'Failed to create class');
+    }
+
+    var data = await resp.json();
+    var classId = data.classId;
+
+    statusEl.className = 'nc-success';
+    statusEl.textContent = 'Class created! Uploading materials...';
+
+    // Upload textbook if provided
+    var textbookFile = document.getElementById('nc-textbook').files[0];
+    if (textbookFile) {
+      statusEl.textContent = 'Uploading textbook: ' + textbookFile.name + '...';
+      var tbForm = new FormData();
+      tbForm.append('file', textbookFile);
+      tbForm.append('classId', classId);
+      tbForm.append('type', 'textbook');
+      tbForm.append('title', textbookFile.name.replace('.pdf', ''));
+      await fetch('/api/education/upload-material', { method: 'POST', body: tbForm }).catch(function() {});
+    }
+
+    // Upload syllabus if provided
+    var syllabusFile = document.getElementById('nc-syllabus').files[0];
+    if (syllabusFile) {
+      statusEl.textContent = 'Uploading syllabus: ' + syllabusFile.name + '...';
+      var syForm = new FormData();
+      syForm.append('file', syllabusFile);
+      syForm.append('classId', classId);
+      syForm.append('type', 'syllabus');
+      await fetch('/api/education/upload-material', { method: 'POST', body: syForm }).catch(function() {});
+    }
+
+    statusEl.className = 'nc-success';
+    statusEl.textContent = 'Done! ' + name + ' is ready. Refresh to see it in the ribbon.';
+
+    // Reload class list + refresh the cockpit ribbon (new class icon)
+    await loadClassList();
+    try { window.parent.postMessage('lm-classes-changed', '*'); } catch (e) {}
+
+    // Clear form after 2s
+    setTimeout(function() { hideAddClass(); clearAddClassForm(); }, 2000);
+
+  } catch (e) {
+    statusEl.className = 'nc-error';
+    statusEl.textContent = 'Error: ' + e.message;
+  }
+}
+
+function clearAddClassForm() {
+  ['nc-name','nc-subject','nc-teacher','nc-grade','nc-room','nc-website','nc-schedule','nc-desc'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('nc-textbook').value = '';
+  document.getElementById('nc-syllabus').value = '';
+}
+
+/** Load just the class list (used after adding a class). */
+async function loadClassList() {
+  try {
+    var classResp = await fetch('/api/education/classes');
+    if (classResp.ok) {
+      var classData = await classResp.json();
+      renderClasses((classData.classes || []).map(function(c) {
+        return { id: c.class_id, name: c.name, teacher: c.teacher_name, lectureCount: c.lecture_count || 0, flashcardCount: c.flashcard_set_count || 0 };
+      }));
+    }
+  } catch (e) { /* ignore */ }
+}
+
+// Boot
+init();
+
+// ── Level-up celebration ──────────────────────────────────────────────────────
+// The first time you land on the home dashboard AFTER leveling up, throw confetti
+// and — if you have an unopened mystery box — nudge you to go open it. Self-contained
+// (builds its own overlay) so it doesn't depend on markup order. Uses lmConfetti from
+// mascot.js and remembers the last-celebrated level in localStorage.
+(function levelUpCelebration(){
+  try {
+    var css = '.lu-overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:1500;background:rgba(10,6,24,.62);padding:16px;}'
+      + '.lu-overlay.on{display:flex;}'
+      + '.lu-card{background:var(--bg-secondary,#241640);border:1px solid var(--border-color,rgba(236,79,170,.3));border-radius:20px;padding:24px;text-align:center;max-width:340px;animation:luPop .4s ease;}'
+      + '@keyframes luPop{from{transform:scale(.8);opacity:0}}'
+      + '.lu-card img{width:84px;height:84px;border-radius:18px;}'
+      + '.lu-card .lu-title{font-size:22px;font-weight:800;margin-top:8px;}'
+      + '.lu-card .lu-sub{color:var(--text-muted,#b98cc8);font-size:14px;margin-top:6px;}'
+      + '.lu-card .lu-actions{display:flex;gap:10px;justify-content:center;margin-top:16px;flex-wrap:wrap;}'
+      + '.lu-card button{border:none;border-radius:12px;padding:11px 18px;font-weight:800;cursor:pointer;}'
+      + '.lu-card .lu-open{background:var(--accent-primary,#ec4faa);color:#fff;}'
+      + '.lu-card .lu-x{background:transparent;border:1px solid var(--border-color,rgba(236,79,170,.3));color:var(--text-primary,#fdeaf6);}';
+    var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
+    var ov = document.createElement('div'); ov.className = 'lu-overlay';
+    ov.innerHTML = '<div class="lu-card"><img src="/api/education/mascot.png" alt=""><div class="lu-title"></div><div class="lu-sub"></div>'
+      + '<div class="lu-actions"><button class="lu-open">🎁 Open my box!</button><button class="lu-x">Maybe later</button></div></div>';
+    document.body.appendChild(ov);
+    ov.querySelector('.lu-x').onclick = function(){ ov.classList.remove('on'); };
+    ov.querySelector('.lu-open').onclick = function(){ if (window.parent !== window) window.parent.postMessage({ type:'lm-navigate', view:'monsters' }, '*'); ov.classList.remove('on'); };
+
+    fetch('/api/education/rewards').then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+      if (!d || typeof d.level !== 'number') return;
+      var KEY = 'lm-home-level', stored = localStorage.getItem(KEY);
+      if (stored === null) { localStorage.setItem(KEY, String(d.level)); return; } // first visit = baseline, don't celebrate retroactively
+      if (d.level > (parseInt(stored, 10) || 0)) {
+        localStorage.setItem(KEY, String(d.level));
+        try { if (window.lmConfetti) window.lmConfetti(); } catch (e) {}
+        ov.querySelector('.lu-title').textContent = '🎉 You reached Level ' + d.level + '!';
+        if (d.boxes > 0) {
+          ov.querySelector('.lu-sub').textContent = 'You have ' + d.boxes + ' mystery box' + (d.boxes > 1 ? 'es' : '') + ' waiting to open!';
+          ov.querySelector('.lu-open').style.display = '';
+        } else {
+          ov.querySelector('.lu-sub').textContent = 'Amazing work — keep the streak going!';
+          ov.querySelector('.lu-open').style.display = 'none';
+        }
+        ov.classList.add('on');
+      }
+    }).catch(function(){});
+  } catch (e) { /* celebration is best-effort */ }
+})();
+</script>
+</body>
+</html>

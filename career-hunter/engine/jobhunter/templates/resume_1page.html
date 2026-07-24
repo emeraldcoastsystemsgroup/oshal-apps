@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Resume (1-page) {{ contact.name }}</title>
+<style>
+  /* 1-PAGE COMPACT: same shaded-navy brand as Premium; recent roles trimmed to 2 bullets,
+     pre-2011 collapsed to a single "Earlier career" line. Built to fit one Letter page. */
+  @page { size: Letter; margin: 0; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin:0; font-family:"Calibri","Segoe UI","Arial",sans-serif; color:#22303c;
+         font-size:9.3pt; line-height:1.22;
+         background: linear-gradient(157deg, #28507c 0%, #16304F 52%, #0d2036 100%)
+                     no-repeat left top / 28% 100%, #ffffff; }
+  .wrap { display:grid; grid-template-columns:28% 72%; min-height:100vh; }
+  .side { color:#cdd9e8; padding:0.28in 12px 0.24in 0.28in; }
+  .side .nm { color:#fff; font-family:"Georgia","Cambria",serif; font-size:16.5pt; font-weight:700; line-height:1.04; }
+  .side .cred { color:#9db8dc; font-weight:600; font-size:8.8pt; margin-top:2px; }
+  .side h3 { color:#fff; font-family:"Georgia","Cambria",serif; font-size:8.8pt; letter-spacing:.5px;
+             margin:10px 0 4px; padding-bottom:2px; border-bottom:1px solid #34527a; }
+  .side .row { font-size:8.2pt; margin:2px 0; color:#c4d2e4; word-break:break-word; line-height:1.26; }
+  .side .list { font-size:8.2pt; color:#c4d2e4; line-height:1.34; }
+  .clr { background:#2E5E43; color:#fff; display:inline-block; padding:2px 8px; border-radius:3px;
+         font-size:8.2pt; font-weight:700; }
+  .main { padding:0.28in 0.3in 0.24in 0.26in; background:#fff; }
+  .headline { font-family:"Georgia","Cambria",serif; font-size:12pt; font-weight:700; color:#16304F; line-height:1.1; }
+  .main h2 { font-family:"Georgia","Cambria",serif; font-size:10pt; letter-spacing:.3px; color:#16304F;
+             margin:8px 0 4px; padding-bottom:2px; border-bottom:1.5px solid #d6dee8; break-after:avoid; }
+  .summary { margin:4px 0 1px; color:#2b3946; }
+  .role { margin-bottom:5px; break-inside:avoid; }
+  .role-h { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+  .rt { font-weight:700; color:#16222e; font-size:9.6pt; } .ro { color:#3d4b5a; font-size:9.2pt; font-weight:600; }
+  .rs { color:#6a7787; font-size:8.2pt; white-space:nowrap; }
+  ul { margin:2px 0 0; padding-left:14px; } li { margin:1px 0; line-height:1.22; }
+  li b { font-weight:700; color:#16304F; }
+  .earlier { font-size:8.8pt; color:#3d4b5a; margin-top:3px; }
+  .earlier b { color:#16222e; }
+</style></head>
+<body><div class="wrap">
+  <aside class="side">
+    <div class="nm">{{ contact.name }}</div>
+    {% if contact.credential %}<div class="cred">{{ contact.credential }}</div>{% endif %}
+    <h3>Contact</h3>
+    {% if contact.location %}<div class="row">{{ contact.location }}</div>{% endif %}
+    {% if contact.email %}<div class="row">{{ contact.email }}</div>{% endif %}
+    {% if contact.phone %}<div class="row">{{ contact.phone }}</div>{% endif %}
+    {% if contact.linkedin %}<div class="row">{{ contact.linkedin }}</div>{% endif %}
+    {% if contact.citizenship %}<div class="row">{{ contact.citizenship }}</div>{% endif %}
+    {% if r.clearance or contact.clearance %}<h3>Clearance</h3><div class="clr">{{ r.clearance or contact.clearance }}</div>{% endif %}
+    {% if r.competencies %}<h3>Core Competencies</h3><div class="list">{{ r.competencies | join(' · ') }}</div>{% endif %}
+    {% if r.skills %}<h3>Technical Skills</h3><div class="list">{{ r.skills | join(' · ') }}</div>{% endif %}
+    {% if r.certifications %}<h3>Certifications</h3><div class="list">{{ r.certifications | join(' · ') }}</div>{% endif %}
+    {% if r.education %}<h3>Education</h3><div class="list">{{ r.education | join(' · ') }}</div>{% endif %}
+  </aside>
+  <main class="main">
+    <div class="headline">{{ r.headline }}</div>
+    <h2>Professional Summary</h2>
+    <div class="summary">{{ r.summary }}</div>
+    <h2>Professional Experience</h2>
+    {% for e in recent %}
+    <div class="role">
+      <div class="role-h">
+        <div><span class="rt">{{ e.title }}</span><span class="ro">, {{ e.org }}</span></div>
+        <div class="rs">{{ e.span }}</div>
+      </div>
+      <ul>{% for b in e.bullets[:2] %}<li>{{ b | boldmetrics }}</li>{% endfor %}</ul>
+    </div>
+    {% endfor %}
+    {% if r.open_source %}
+    <h2>Open Source &amp; Independent R&amp;D</h2>
+    {% for e in r.open_source %}
+    <div class="role">
+      <div class="role-h">
+        <div><span class="rt">{{ e.title }}</span>{% if e.org %}<span class="ro">, {{ e.org }}</span>{% endif %}</div>
+        <div class="rs">{{ e.span }}</div>
+      </div>
+      <ul>{% for b in e.bullets[:2] %}<li>{{ b | boldmetrics }}</li>{% endfor %}</ul>
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% if earlier %}
+    <div class="earlier"><b>Earlier career:</b>
+      {% for e in earlier %}{{ e.title }} ({{ e.org }}{% if e.span %}, {{ e.span }}{% endif %}){% if not loop.last %} · {% endif %}{% endfor %}
+    </div>
+    {% endif %}
+  </main>
+</div></body></html>

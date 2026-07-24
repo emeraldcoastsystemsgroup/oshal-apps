@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Video Studio — OSHAL</title>
+<!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
+     Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
+     matters — without it the surface would have no colors at all. -->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  /* Short alias names kept, but each DERIVED from a framework token so all eleven themes work — not
+     just the dark one whose hex used to be hardcoded here. Status/accent aliases keep the old hex as
+     a fallback after the comma so the surface stays legible if a theme omits a token. */
+  :root {
+    --bg: var(--bg-primary);
+    --panel: var(--bg-card);
+    --panel2: var(--bg-tertiary);
+    --line: var(--border-color);
+    --text: var(--text-primary);
+    --muted: var(--text-muted);
+    --accent: var(--accent-primary, #ff5c8a);
+    --accent2: var(--status-success, #00d3a7);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family: system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  .top { padding:16px 22px 12px; border-bottom:1px solid var(--line); }
+  .top h1 { font-size:19px; margin:0 0 2px; } .top .sub { color:var(--muted); font-size:12.5px; }
+  .split { display:flex; height:calc(100vh - 64px); }
+  .pane { overflow-y:auto; padding:18px 20px; }
+  .left { flex:1; border-right:1px solid var(--line); }
+  .right { flex:0 0 36%; }
+  .lbl { font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin:0 0 10px; }
+  label { display:block; font-size:12px; color:var(--muted); margin:12px 0 5px; }
+  input, textarea, select { width:100%; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:14px; font-family:inherit; }
+  textarea { min-height:80px; resize:vertical; line-height:1.5; font-size:13.5px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+  .toggles { display:flex; gap:18px; align-items:center; margin-top:12px; flex-wrap:wrap; }
+  .toggles label { display:flex; align-items:center; gap:7px; margin:0; font-size:13px; color:var(--text); }
+  .toggles input { width:auto; }
+  .rangewrap { display:flex; align-items:center; gap:10px; } .rangewrap input { flex:1; }
+  .btn { border:none; border-radius:9px; padding:11px 18px; font-size:14px; font-weight:600; cursor:pointer; background:var(--accent); color:#fff; }
+  .btn.ghost { background:var(--panel2); border:1px solid var(--line); color:var(--text); }
+  .btn:disabled { opacity:.5; cursor:default; }
+  .bar { display:flex; align-items:center; gap:12px; margin-top:16px; flex-wrap:wrap; }
+  .hint { color:var(--muted); font-size:12px; }
+  .result { margin-top:14px; padding:12px 14px; border-radius:10px; font-size:13.5px; display:none; }
+  .result.ok { background:rgba(0,211,167,.1); border:1px solid var(--accent2); color:var(--accent2); display:block; }
+  .result.err { background:rgba(255,90,90,.1); border:1px solid #ff5a5a; color:#ff9a9a; display:block; }
+  .result a { color:inherit; font-weight:700; }
+  .scenes { margin-top:8px; }
+  .scene { background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:12px 13px; margin-bottom:10px; }
+  .scene .sh { display:flex; align-items:center; gap:8px; margin-bottom:7px; }
+  .scene .sn { flex:0 0 auto; width:22px; height:22px; border-radius:6px; background:var(--panel2); color:var(--muted); font-size:11px; text-align:center; line-height:22px; }
+  .scene .sd { margin-left:auto; color:var(--muted); font-size:11.5px; }
+  .scene textarea { min-height:46px; }
+  .scene .row { margin-top:7px; }
+  .vid { background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:12px 14px; margin-bottom:10px; }
+  .vid .vt { font-weight:600; font-size:13.5px; word-break:break-word; }
+  .vid .vm { color:var(--muted); font-size:11.5px; margin:3px 0 8px; }
+  .vid a { color:var(--accent); text-decoration:none; font-size:12.5px; font-weight:600; }
+  .vid video { width:100%; border-radius:8px; margin-top:6px; background:#000; }
+  .empty { background:var(--panel); border:1px dashed var(--line); border-radius:12px; padding:22px; text-align:center; color:var(--muted); font-size:13px; }
+  .spin { color:var(--muted); font-size:13px; }
+  ::-webkit-scrollbar{width:10px;height:10px} ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px}
+  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
+  @media (max-width: 640px) {
+    .split { flex-direction: column; height: auto; }
+    .left { border-right: none; border-bottom: 1px solid var(--line); }
+    .right { flex: none; width: 100%; }
+    .grid3, .grid2 { grid-template-columns: 1fr 1fr; }
+    input, textarea, select { font-size: 16px; }
+    .top { padding: 12px 14px 10px; }
+  }
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+  <div class="top">
+    <h1>🎬 Video Studio</h1>
+    <div class="sub">Shape it → storyboard it → render a real short with voiceover &amp; captions for TikTok / Shorts / Reels.</div>
+  </div>
+  <div class="split">
+    <div class="pane left">
+      <div class="lbl">1 · Shape your video</div>
+      <div class="grid2">
+        <div><label>Style</label><input id="style" value="clean explainer" placeholder="e.g. futuristic live-action, stick figures" /></div>
+        <div><label>Tone</label><input id="tone" value="energetic" placeholder="e.g. playful, calm tutorial" /></div>
+      </div>
+      <div class="grid3">
+        <div><label>Aspect</label>
+          <select id="aspect"><option value="9:16">9:16 (Shorts/Reels/TikTok)</option><option value="1:1">1:1 (Square)</option><option value="16:9">16:9 (Wide)</option></select>
+        </div>
+        <div><label>Voice</label>
+          <select id="voice"><option value="swarm">Voiceover (default voice)</option><option value="none">No voiceover</option></select>
+        </div>
+        <div><label>Music</label>
+          <select id="music"><option value="none">No music</option><option value="upbeat">Upbeat</option><option value="chill">Chill</option></select>
+        </div>
+      </div>
+      <label>Target length: <b id="lenVal">20</b>s</label>
+      <div class="rangewrap"><span class="hint">4s</span><input id="len" type="range" min="4" max="90" step="2" value="20" /><span class="hint">90s</span></div>
+      <div class="toggles">
+        <label><input id="captions" type="checkbox" checked /> Burn-in captions</label>
+      </div>
+
+      <div class="lbl" style="margin-top:20px">2 · Your idea</div>
+      <textarea id="idea" placeholder="e.g. A futuristic muscle-cat bakes a cake over a campfire — cinematic, funny payoff."></textarea>
+      <div class="bar">
+        <button class="btn ghost" id="sbBtn" onclick="storyboard()">✨ Storyboard it</button>
+        <span class="hint" id="sbHint"></span>
+      </div>
+
+      <!--
+        SERIES — a multi-episode show, written by the screenplay-writer bot and rendered on the
+        remote Vids node. Unlike a single clip (interactive, rendered here), a series is a queued
+        ticket: write -> you approve the scripts -> render -> assemble. The scripts are approved
+        BEFORE anything renders, because a bad script caught afterwards costs real render credits.
+      -->
+      <details id="seriesBox" style="margin-top:22px;border:1px solid var(--line,#2a2a3a);border-radius:10px;padding:12px 14px">
+        <summary style="cursor:pointer;font-weight:600">🎬 Make a series instead <span class="hint">— multiple episodes, written by the swarm</span></summary>
+
+        <div class="lbl" style="margin-top:14px">Series title</div>
+        <input id="seriesTitle" placeholder="e.g. The Breakfast Crew" />
+
+        <div class="lbl" style="margin-top:12px">What is the show about?</div>
+        <textarea id="seriesPremise" placeholder="e.g. A pancake, a slice of toast and a shy blueberry tell each other terrible jokes at breakfast. Each episode ends on a punchline and everyone laughs."></textarea>
+
+        <div class="lbl" style="margin-top:12px">Style lock <span class="hint">— the look every frame reuses</span></div>
+        <input id="seriesStyle" placeholder="e.g. tactile claymation miniature, warm kitchen morning light" />
+
+        <div class="lbl" style="margin-top:12px">Cast <span class="hint">— one per line: Name — description. Put props after “with”.</span></div>
+        <textarea id="seriesCast" rows="3" placeholder="Pippa Pancake — Golden fluffy pancake with a syrup swirl; eager and clumsy.&#10;Toasty Toast — Warm brown toast slice with a bow tie; proud, a little boastful."></textarea>
+        <div class="hint" style="margin-top:4px">Leave blank and the screenwriter invents a cast. The first clause must end in the character’s own noun — “bean with two glow sticks”, not “bean drummer holding glow sticks” — or the drumsticks end up talking.</div>
+
+        <div class="bar" style="margin-top:12px;gap:14px;align-items:center;flex-wrap:wrap">
+          <label>Episodes <input id="seriesCount" type="number" min="1" max="20" value="1" style="width:64px" /></label>
+          <label>Scenes each <input id="seriesScenes" type="number" min="2" max="10" value="4" style="width:64px" /></label>
+          <span class="hint">Four scenes is the proven shape: setup → problem → turn → punchline.</span>
+        </div>
+
+        <div class="bar" style="margin-top:10px">
+          <button class="btn" id="seriesBtn" onclick="createSeries()">🎬 Write the series</button>
+          <span class="hint" id="seriesHint"></span>
+        </div>
+        <div id="seriesList" style="margin-top:12px"></div>
+      </details>
+
+      <div id="sbWrap" style="display:none">
+        <div class="lbl" style="margin-top:20px">3 · Storyboard <span class="hint" id="sbMeta"></span></div>
+        <label>Title</label><input id="title" />
+        <div class="scenes" id="scenes"></div>
+        <div class="bar">
+          <button class="btn" id="genBtn" onclick="generate()">🎬 Generate video</button>
+          <span class="hint" id="genHint">Veo renders each scene (~2–5 min/scene) — this can take several minutes.</span>
+        </div>
+      </div>
+      <div class="result" id="result"></div>
+    </div>
+
+    <div class="pane right">
+      <div class="lbl">My videos</div>
+      <div id="list"><div class="spin">Loading…</div></div>
+    </div>
+  </div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let SB = null; // current storyboard
+
+$('len').addEventListener('input', () => { $('lenVal').textContent = $('len').value; });
+
+function readShape() {
+  const voiceSel = $('voice').value;
+  return {
+    style: $('style').value.trim() || 'clean explainer',
+    tone: $('tone').value.trim() || 'energetic',
+    aspectRatio: $('aspect').value,
+    targetSeconds: Number($('len').value),
+    captions: $('captions').checked,
+    voice: voiceSel === 'none' ? 'none' : 'default',
+    music: $('music').value,
+  };
+}
+
+function renderScenes() {
+  $('scenes').innerHTML = '';
+  SB.scenes.forEach((sc, i) => {
+    const el = document.createElement('div'); el.className = 'scene';
+    el.innerHTML = `<div class="sh"><span class="sn">${i + 1}</span><span class="sd">${sc.durationSec}s</span></div>
+      <textarea data-i="${i}" data-k="prompt">${esc(sc.prompt)}</textarea>
+      ${sc.narration !== '' ? `<div class="row"><label>Voiceover</label><textarea data-i="${i}" data-k="narration">${esc(sc.narration)}</textarea></div>` : ''}
+      ${sc.caption !== '' ? `<div class="row"><label>Caption</label><input data-i="${i}" data-k="caption" value="${esc(sc.caption)}" /></div>` : ''}`;
+    $('scenes').appendChild(el);
+  });
+}
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function collectScenes() {
+  document.querySelectorAll('#scenes [data-i]').forEach((node) => {
+    const i = Number(node.getAttribute('data-i')), k = node.getAttribute('data-k');
+    if (SB.scenes[i]) SB.scenes[i][k] = node.value;
+  });
+}
+
+async function storyboard() {
+  const idea = $('idea').value.trim();
+  if (!idea) { $('sbHint').textContent = 'Type an idea first.'; return; }
+  $('sbBtn').disabled = true; $('sbHint').textContent = 'Directing…'; hideResult();
+  try {
+    const r = await fetch('/api/video/storyboard', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idea, shape: readShape() }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'storyboard failed');
+    SB = j.storyboard;
+    $('title').value = SB.title;
+    $('sbMeta').textContent = `· ${SB.scenes.length} scenes · ~${j.seconds}s · est ~$${j.estCostUsd}`;
+    renderScenes();
+    $('sbWrap').style.display = 'block'; $('sbHint').textContent = '';
+  } catch (e) { $('sbHint').textContent = e.message; }
+  finally { $('sbBtn').disabled = false; }
+}
+
+async function generate() {
+  if (!SB) return;
+  collectScenes(); SB.title = $('title').value.trim() || SB.title;
+  $('genBtn').disabled = true; hideResult(); $('genHint').textContent = 'Rendering… keep this tab open (several minutes).';
+  try {
+    const r = await fetch('/api/video/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ storyboard: SB, shape: readShape() }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'generation failed');
+    showResult(`✅ Rendered ${j.seconds}s video (est $${j.estCostUsd}) → saved to ${j.provider}.` + (j.downloadUrl ? ` <a href="${j.downloadUrl}" target="_blank">Download</a>` : ''), true);
+    loadList();
+  } catch (e) { showResult('⚠️ ' + e.message, false); }
+  finally { $('genBtn').disabled = false; $('genHint').textContent = ''; }
+}
+
+function showResult(html, ok){ const el=$('result'); el.innerHTML=html; el.className='result '+(ok?'ok':'err'); }
+function hideResult(){ $('result').className='result'; }
+
+async function loadList() {
+  try {
+    const r = await fetch('/api/video/list'); const j = await r.json();
+    const vids = j.videos || [];
+    if (!vids.length) { $('list').innerHTML = '<div class="empty">No videos yet — shape an idea and hit Generate.</div>'; return; }
+    $('list').innerHTML = vids.map((v) => `<div class="vid">
+      <div class="vt">${esc(v.title || v.fileName)}</div>
+      <div class="vm">${v.seconds ? v.seconds + 's · ' : ''}${v.scenes ? v.scenes + ' scenes · ' : ''}${v.provider || ''}${v.costUsd ? ' · $' + v.costUsd : ''}</div>
+      ${v.downloadUrl ? `<video controls preload="none" src="${v.downloadUrl}"></video><div style="margin-top:6px"><a href="${v.downloadUrl}" target="_blank">Download</a></div>` : (v.url ? `<a href="${v.url}" target="_blank">Open</a>` : '')}
+    </div>`).join('');
+  } catch (e) { $('list').innerHTML = '<div class="empty">Could not load videos.</div>'; }
+}
+loadList();
+
+/* ── SERIES ────────────────────────────────────────────────────────────────────────────
+   Creating a series does NOT render anything. It queues a ticket: the screenplay-writer
+   drafts the episodes, they wait for your approval, and only then does the remote Vids
+   node spend a render. */
+
+/** Parse the cast textarea: "Name — description" (em dash, en dash, or a plain hyphen). */
+function parseCast(text) {
+  return String(text || '').split('\n').map((l) => l.trim()).filter(Boolean).map((line) => {
+    const m = line.match(/^(.+?)\s*[—–-]\s*(.+)$/);
+    return m ? { name: m[1].trim(), description: m[2].trim() } : { name: line, description: '' };
+  });
+}
+
+async function createSeries() {
+  const title = $('seriesTitle').value.trim();
+  const premise = $('seriesPremise').value.trim();
+  if (!title || !premise) { $('seriesHint').textContent = 'A title and a premise, please.'; return; }
+  const body = {
+    title, premise,
+    styleLock: $('seriesStyle').value.trim(),
+    cast: parseCast($('seriesCast').value),
+    episodeCount: Number($('seriesCount').value) || 1,
+    scenesPerEpisode: Number($('seriesScenes').value) || 4,
+    orientation: readShape().aspectRatio === '9:16' ? 'Portrait' : 'Landscape',
+  };
+  $('seriesBtn').disabled = true; $('seriesHint').textContent = 'Queueing…';
+  try {
+    const r = await fetch('/api/video/series', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'could not create the series');
+    $('seriesHint').textContent = j.message || 'Queued.';
+    loadSeries();
+  } catch (e) {
+    $('seriesHint').textContent = e.message;
+  } finally { $('seriesBtn').disabled = false; }
+}
+
+const EP_STATE = { planned:'⏳ planned', scripted:'📝 scripted', rendering:'🎥 rendering', rendered:'🎞️ rendered', assembled:'✅ done', failed:'⚠️ failed' };
+
+async function loadSeries() {
+  try {
+    const r = await fetch('/api/video/series');
+    if (!r.ok) return;
+    const { series } = await r.json();
+    if (!series || !series.length) { $('seriesList').innerHTML = ''; return; }
+    $('seriesList').innerHTML = series.map((s) => `<div class="vid" style="margin-top:10px">
+      <div class="vt">${esc(s.title)} <span class="hint">· ${esc(s.status)}</span></div>
+      <div class="vm">${s.episode_count} episode${s.episode_count === 1 ? '' : 's'} · ${s.scenes_per_episode} scenes each</div>
+      ${(s.episodes || []).map((e) => `<div class="vm">${e.ordinal}. ${esc(e.title || 'untitled')} — ${EP_STATE[e.status] || esc(e.status)}${e.drive_url ? ` · <a href="${e.drive_url}" target="_blank">watch</a>` : ''}</div>`).join('')}
+    </div>`).join('');
+  } catch (e) { /* the panel is optional; never break the studio over it */ }
+}
+loadSeries();
+</script>
+</body>
+</html>

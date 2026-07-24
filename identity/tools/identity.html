@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<!--
+  Identity Hub surface — a click-to-access launcher over the accounts the signed-in user
+  has ALREADY authorized on the Connections page. Self-contained iframe page (served by
+  createIdentityRoutes at /api/identity/). It reads the existing /api/connect/list (the
+  single source of truth for the catalog + connection state — no token is ever returned)
+  and renders one grid grouped by purpose, with three actions per provider:
+    • Open    — deep-link straight into the provider (Gmail, LinkedIn, …).
+    • Reconnect — re-run consent when a stored login has expired.
+    • Connect — start consent for a provider not yet connected.
+  Plus an optional Access review (the inline identity-advisor bot, metadata only).
+  OSHAL never shows or hands back a password — this only launches/relinks authorized accounts.
+-->
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Identity Hub</title>
+<script>
+  (() => {
+    const supported = ['midnight','daylight','ocean','sakura','forest','gray','black','light-blue','aurora','graphite','amber'];
+    try {
+      const saved = localStorage.getItem('cockpit-theme');
+      if (saved && supported.includes(saved)) {
+        document.documentElement.setAttribute('data-theme', saved);
+      }
+    } catch (_) {}
+  })();
+</script>
+<link rel="stylesheet" href="/fonts/codicon.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/midnight.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/daylight.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/ocean.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/sakura.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/forest.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/gray.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/black.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/light-blue.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/aurora.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/graphite.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/amber.css" />
+<style>
+  :root {
+    --bg:#0a1420; --panel:#101f30; --panel2:#16293d; --line:#22384f;
+    --text:#e6f0fa; --muted:#8fa9c2; --accent:#39a0ff; --accent2:#9ed0ff;
+    --danger:#ff8b8b; --ok:#37d27f; --warn:#ffce6b;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  .page { max-width:920px; margin:0 auto; padding:30px 24px 70px; }
+  .head { display:flex; align-items:center; gap:12px; margin-bottom:4px; }
+  h1 { font-size:23px; margin:0; }
+  .badge { font-size:22px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:20px; line-height:1.5; }
+  .actions { margin-left:auto; display:flex; gap:8px; }
+  .btn { border:none; border-radius:8px; padding:9px 15px; cursor:pointer; font-size:13px; font-weight:600; }
+  .btn.primary { background:var(--accent); color:#04121f; }
+  .btn.ghost { background:var(--panel2); border:1px solid var(--line); color:var(--text); }
+  .btn.sm { padding:6px 11px; font-size:12px; }
+  .btn:disabled { opacity:.45; cursor:default; }
+  .cat { margin:22px 0 10px; font-size:12px; color:var(--accent2); text-transform:uppercase; letter-spacing:.6px; font-weight:700; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:12px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:13px; padding:15px; display:flex; flex-direction:column; gap:10px; }
+  .card .top { display:flex; align-items:center; gap:9px; }
+  .card .name { font-size:14px; font-weight:600; }
+  .card .ico { font-size:18px; color:var(--accent2); }
+  .pill { margin-left:auto; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; padding:3px 8px; border-radius:20px; }
+  .pill.ok { background:rgba(55,210,127,.14); color:var(--ok); }
+  .pill.off { background:var(--panel2); color:var(--muted); }
+  .pill.exp { background:rgba(255,139,139,.14); color:var(--danger); }
+  .accts { display:flex; flex-direction:column; gap:5px; }
+  .acct { font-size:12px; color:var(--muted); display:flex; align-items:center; gap:6px; }
+  .acct .star { color:var(--warn); }
+  .acct .shared { color:var(--accent2); font-size:10px; border:1px solid var(--line); border-radius:10px; padding:1px 6px; }
+  .row { display:flex; gap:7px; flex-wrap:wrap; margin-top:auto; }
+  .note { font-size:11px; color:var(--muted); }
+  .note.warn { color:var(--warn); }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px; margin:18px 0; }
+  .panel h2 { font-size:15px; margin:0 0 8px; color:var(--accent2); }
+  .review h2 { color:var(--accent2); font-size:15px; border-bottom:1px solid var(--line); padding-bottom:6px; margin:16px 0 9px; }
+  .review h3 { font-size:13px; margin:12px 0 5px; }
+  .review ul { margin:5px 0; padding-left:20px; }
+  .review li { font-size:13px; line-height:1.6; margin:3px 0; }
+  .review p { font-size:13px; line-height:1.6; color:#d6e6f5; }
+  .review strong { color:var(--text); }
+  .spin { color:var(--muted); font-size:14px; padding:28px 0; text-align:center; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent); animation:p 1s infinite; }
+  @keyframes p { 0%,100%{opacity:.3} 50%{opacity:1} }
+  .err { color:var(--danger); }
+  .foot { color:var(--muted); font-size:11px; margin-top:18px; line-height:1.5; }
+
+  @media (max-width: 640px) {
+    .page { padding:18px 14px 50px; }
+    .head { flex-wrap:wrap; gap:8px; }
+    .actions { margin-left:0; width:100%; display:flex; gap:8px; }
+    .actions .btn { flex:1; text-align:center; font-size:13px; padding:10px 8px; }
+    .grid { grid-template-columns:1fr; }
+    .card .top { flex-wrap:wrap; }
+    .btn, input, select, textarea { font-size:16px; }
+    .btn.sm { font-size:14px; padding:9px 12px; }
+  }
+
+  :root {
+    color-scheme: light dark;
+    --identity-page-max: 1360px;
+    --identity-bg: var(--bg-primary, #0a1420);
+    --identity-panel: var(--bg-card, rgba(16, 31, 48, 0.72));
+    --identity-panel-strong: var(--bg-card-hover, rgba(22, 41, 61, 0.88));
+    --identity-line: var(--border-color, rgba(255, 255, 255, 0.11));
+    --identity-line-strong: var(--border-color-hover, rgba(255, 255, 255, 0.2));
+    --identity-text: var(--text-primary, #e6f0fa);
+    --identity-muted: var(--text-secondary, #8fa9c2);
+    --identity-faint: var(--text-muted, #64748b);
+    --identity-accent: var(--accent-primary, #39a0ff);
+    --identity-accent-strong: var(--accent-primary-hover, #9ed0ff);
+    --identity-danger: var(--status-error, #ff8b8b);
+    --identity-ok: var(--status-success, #37d27f);
+    --identity-warn: var(--status-warning, #ffce6b);
+  }
+
+  html,
+  body {
+    min-height: 100%;
+  }
+
+  body {
+    background:
+      radial-gradient(circle at 12% 10%, color-mix(in srgb, var(--identity-accent) 18%, transparent), transparent 34rem),
+      linear-gradient(135deg, var(--identity-bg), color-mix(in srgb, var(--identity-bg) 70%, var(--bg-secondary, #111827)));
+    color: var(--identity-text);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  .page {
+    width: min(var(--identity-page-max), calc(100% - 36px));
+    max-width: none;
+    margin: 0 auto;
+    padding: 26px 0 64px;
+  }
+
+  .head,
+  .toolbar,
+  .panel,
+  .card,
+  .metric-card,
+  .empty-card {
+    border: 1px solid var(--identity-line);
+    background: var(--identity-panel);
+    box-shadow: var(--panel-shadow, 0 18px 50px rgba(0, 0, 0, 0.22));
+    backdrop-filter: blur(var(--glass-blur-light, 12px)) saturate(130%);
+    -webkit-backdrop-filter: blur(var(--glass-blur-light, 12px)) saturate(130%);
+  }
+
+  .head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 22px;
+    align-items: center;
+    border-radius: 12px;
+    padding: 22px;
+    margin-bottom: 0;
+  }
+
+  .head-title {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    min-width: 0;
+  }
+
+  .badge {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: var(--accent-gradient, linear-gradient(135deg, var(--identity-accent), var(--identity-accent-strong)));
+    color: #fff;
+    font-size: 20px;
+    box-shadow: 0 12px 30px color-mix(in srgb, var(--identity-accent) 28%, transparent);
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(30px, 3.6vw, 48px);
+    line-height: 1;
+    letter-spacing: 0;
+  }
+
+  .eyebrow,
+  .cat,
+  .panel h2 {
+    color: var(--identity-accent-strong);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .eyebrow {
+    margin: 0 0 7px;
+  }
+
+  .sub {
+    max-width: 900px;
+    margin: 9px 0 0;
+    color: var(--identity-muted);
+    font-size: 14px;
+    line-height: 1.55;
+  }
+
+  .actions,
+  .row,
+  .filters {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .actions {
+    justify-content: flex-end;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 38px;
+    border: 1px solid var(--identity-line);
+    border-radius: 8px;
+    padding: 0 14px;
+    color: var(--identity-text);
+    background: var(--identity-panel-strong);
+    font-size: 13px;
+    font-weight: 750;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .btn.primary {
+    border-color: transparent;
+    background: var(--identity-accent);
+    color: #06101f;
+  }
+
+  .btn.ghost:hover,
+  .filter-btn:hover,
+  .card:hover {
+    border-color: var(--identity-line-strong);
+  }
+
+  .btn.sm {
+    min-height: 32px;
+    padding: 0 11px;
+    font-size: 12px;
+  }
+
+  .metric-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin: 14px 0;
+  }
+
+  .metric-card {
+    border-radius: 10px;
+    padding: 14px 15px;
+  }
+
+  .metric-label {
+    display: block;
+    color: var(--identity-muted);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .metric-card strong {
+    display: block;
+    margin-top: 6px;
+    font-size: 26px;
+    line-height: 1;
+  }
+
+  .toolbar {
+    display: grid;
+    grid-template-columns: minmax(240px, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 16px;
+  }
+
+  .search {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 42px;
+    border: 1px solid var(--identity-line);
+    border-radius: 8px;
+    padding: 0 13px;
+    background: color-mix(in srgb, var(--identity-bg) 38%, transparent);
+  }
+
+  .search input {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--identity-text);
+    font: inherit;
+  }
+
+  .filter-btn {
+    min-height: 36px;
+    border: 1px solid var(--identity-line);
+    border-radius: 999px;
+    padding: 0 13px;
+    background: color-mix(in srgb, var(--identity-panel-strong) 70%, transparent);
+    color: var(--identity-muted);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .filter-btn.is-active {
+    border-color: color-mix(in srgb, var(--identity-accent) 70%, transparent);
+    color: var(--identity-text);
+    background: color-mix(in srgb, var(--identity-accent) 16%, var(--identity-panel));
+  }
+
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  }
+
+  .card {
+    min-height: 156px;
+    border-radius: 10px;
+    padding: 15px;
+  }
+
+  .card .top {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .name {
+    display: block;
+    overflow: hidden;
+    color: var(--identity-text);
+    font-size: 14px;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .provider-type {
+    display: block;
+    margin-top: 2px;
+    overflow: hidden;
+    color: var(--identity-faint);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ico {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--identity-accent) 15%, transparent);
+    color: var(--identity-accent-strong);
+    font-size: 17px;
+  }
+
+  .pill {
+    border: 1px solid var(--identity-line);
+    border-radius: 999px;
+    padding: 4px 8px;
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: .04em;
+    white-space: nowrap;
+  }
+
+  .pill.ok {
+    border-color: color-mix(in srgb, var(--identity-ok) 55%, transparent);
+    color: var(--identity-ok);
+    background: color-mix(in srgb, var(--identity-ok) 12%, transparent);
+  }
+
+  .pill.off {
+    color: var(--identity-muted);
+    background: color-mix(in srgb, var(--identity-panel-strong) 68%, transparent);
+  }
+
+  .pill.exp {
+    border-color: color-mix(in srgb, var(--identity-danger) 55%, transparent);
+    color: var(--identity-danger);
+    background: color-mix(in srgb, var(--identity-danger) 12%, transparent);
+  }
+
+  .acct {
+    min-width: 0;
+    font-size: 12px;
+  }
+
+  .acct-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .empty-card {
+    border-radius: 12px;
+    padding: 40px 18px;
+  }
+
+  @media (max-width: 760px) {
+    .page {
+      width: min(100% - 20px, var(--identity-page-max));
+      padding: 14px 0 44px;
+    }
+
+    .head,
+    .toolbar {
+      grid-template-columns: 1fr;
+    }
+
+    .actions,
+    .filters {
+      justify-content: stretch;
+    }
+
+    .actions .btn,
+    .filter-btn {
+      flex: 1;
+    }
+
+    .metric-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .page > .head,
+  .page > .sub {
+    display: none;
+  }
+
+  .identity-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 22px;
+    align-items: center;
+    border: 1px solid var(--identity-line);
+    border-radius: 12px;
+    padding: 22px;
+    background: var(--identity-panel);
+    box-shadow: var(--panel-shadow, 0 18px 50px rgba(0, 0, 0, 0.22));
+    backdrop-filter: blur(var(--glass-blur-light, 12px)) saturate(130%);
+    -webkit-backdrop-filter: blur(var(--glass-blur-light, 12px)) saturate(130%);
+  }
+
+  @media (max-width: 760px) {
+    .identity-hero {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<div class="page">
+  <section class="identity-hero">
+    <div>
+      <p class="eyebrow">Connected Account Launcher</p>
+      <div class="head-title">
+        <span class="badge codicon codicon-key"></span>
+        <h1>Identity Hub</h1>
+      </div>
+      <p class="sub">Every authorized account in one place. Open connected services, reconnect expired logins, or start a new consent flow without exposing tokens or passwords.</p>
+    </div>
+    <div class="actions">
+      <button class="btn ghost" id="manageBtn"><span class="codicon codicon-settings-gear"></span>Manage connections</button>
+      <button class="btn primary" id="reviewBtn"><span class="codicon codicon-shield"></span>Access review</button>
+    </div>
+  </section>
+  <section class="metric-grid" id="identityMetrics" aria-label="Identity connection summary"></section>
+  <section class="toolbar" aria-label="Connection filters">
+    <label class="search">
+      <span class="codicon codicon-search"></span>
+      <input id="identitySearch" type="search" placeholder="Search accounts, providers, or categories" autocomplete="off" />
+    </label>
+    <div class="filters" id="identityFilters">
+      <button class="filter-btn is-active" type="button" data-filter="all">All</button>
+      <button class="filter-btn" type="button" data-filter="connected">Connected</button>
+      <button class="filter-btn" type="button" data-filter="needs-attention">Needs attention</button>
+      <button class="filter-btn" type="button" data-filter="available">Available</button>
+    </div>
+  </section>
+  <div class="head">
+    <span class="badge">🔑</span>
+    <h1>Identity Hub</h1>
+    <div class="actions">
+      <button class="btn ghost sm" id="legacyManageBtn">Manage connections</button>
+      <button class="btn primary sm" id="legacyReviewBtn">Access review</button>
+    </div>
+  </div>
+  <div class="sub">Every account you've connected, in one place — click <strong>Open</strong> to jump straight in, <strong>Reconnect</strong> a login that's expired, or <strong>Connect</strong> a new one. OSHAL never shows or hands back a password; this launches accounts you've already authorized.</div>
+  <div id="review"></div>
+  <div id="main"><div class="spin"><span class="dot"></span> Loading your connections…</div></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const main = $('main');
+const metrics = $('identityMetrics');
+const searchInput = $('identitySearch');
+const filters = $('identityFilters');
+let allProviders = [];
+let activeFilter = 'all';
+
+/** Where "Open" deep-links to per provider (public app URLs — presentation data only). */
+const OPEN_URLS = {
+  google: 'https://mail.google.com', gcp: 'https://console.cloud.google.com',
+  facebook: 'https://www.facebook.com', 'meta-business': 'https://business.facebook.com/latest/home',
+  linkedin: 'https://www.linkedin.com/feed/', outlook: 'https://outlook.office.com/mail/',
+  twitter: 'https://x.com/home', github: 'https://github.com', dropbox: 'https://www.dropbox.com/home',
+  smartthings: 'https://my.smartthings.com', 'google-home': 'https://home.google.com',
+  spotify: 'https://open.spotify.com', tmdb: 'https://www.themoviedb.org',
+};
+/** Group headings + display order. Unknown categories fall through to "Other". */
+const CATEGORIES = [
+  ['identity', 'Sign-in & Identity'], ['email', 'Email & Calendar'], ['social', 'Social'],
+  ['storage', 'Storage & Code'], ['iot', 'Smart Home'], ['devops', 'Cloud & DevOps'],
+  ['music', 'Music'], ['media', 'Movies & TV'], ['llm', 'AI / LLM'], ['other', 'Other'],
+];
+
+const esc = (s) => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+/** Tiny Markdown → HTML for the access review. */
+function renderMarkdown(md) {
+  const inline = (s) => esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  const lines = String(md || '').split(/\r?\n/);
+  let html = '', inList = false;
+  const closeList = () => { if (inList) { html += '</ul>'; inList = false; } };
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) { closeList(); continue; }
+    if (line.startsWith('## ')) { closeList(); html += '<h2>' + inline(line.slice(3)) + '</h2>'; }
+    else if (line.startsWith('### ')) { closeList(); html += '<h3>' + inline(line.slice(4)) + '</h3>'; }
+    else if (/^[-*]\s+/.test(line)) { if (!inList) { html += '<ul>'; inList = true; } html += '<li>' + inline(line.replace(/^[-*]\s+/,'')) + '</li>'; }
+    else { closeList(); html += '<p>' + inline(line) + '</p>'; }
+  }
+  closeList();
+  return html;
+}
+
+/** Open an OAuth/consent flow (or /utilities) in a new top-level tab — OAuth can't run in an iframe. */
+function openTop(url) { window.open(url, '_blank', 'noopener'); }
+
+/** Is this provider managed on /utilities (pasted token or BYO-LLM) rather than a redirect flow? */
+function isTokenSetup(p) { return p.auth === 'token' || p.auth === 'llm' || (!p.configured && p.tokenFallback); }
+
+/** Render the action buttons for one provider card. */
+function actionsFor(p) {
+  const startUrl = '/api/connect/' + encodeURIComponent(p.id) + '/start';
+  const openUrl = OPEN_URLS[p.id];
+  const btns = [];
+  if (p.connected && openUrl) {
+    btns.push(`<button class="btn primary sm" data-open="${esc(openUrl)}">Open ↗</button>`);
+  }
+  if (isTokenSetup(p)) {
+    btns.push(`<button class="btn ghost sm" data-util="1">${p.connected ? 'Manage' : 'Set up'}</button>`);
+  } else if (!p.configured) {
+    btns.push(`<button class="btn ghost sm" disabled title="This connector's OAuth client isn't configured yet">Not configured</button>`);
+  } else if (p.connected) {
+    btns.push(`<button class="btn ghost sm" data-start="${esc(startUrl)}">Reconnect</button>`);
+  } else {
+    btns.push(`<button class="btn ghost sm" data-start="${esc(startUrl)}">Connect</button>`);
+  }
+  return `<div class="row">${btns.join('')}</div>`;
+}
+
+/** Render one provider card. */
+function cardFor(p) {
+  const iconByCategory = {
+    identity: 'codicon-key',
+    email: 'codicon-mail',
+    social: 'codicon-comment-discussion',
+    storage: 'codicon-folder-library',
+    iot: 'codicon-home',
+    devops: 'codicon-git-branch',
+    music: 'codicon-music',
+    media: 'codicon-device-camera-video',
+    llm: 'codicon-hubot',
+  };
+  const icon = p.id === 'any-llm' ? 'codicon-hubot' : (iconByCategory[p.category] || 'codicon-plug');
+  let pill = '<span class="pill off">Not connected</span>';
+  const anyExpired = (p.connections || []).some((c) => c.expired);
+  if (p.connected) pill = anyExpired ? '<span class="pill exp">Reconnect</span>' : '<span class="pill ok">Connected</span>';
+  const accts = (p.connections || []).map((c) => {
+    const nm = esc(c.label || c.account || 'account');
+    return `<div class="acct">${c.isDefault ? '<span class="star" title="Default">★</span>' : ''}${nm}${c.tenantId ? '<span class="shared">shared</span>' : ''}${c.expired ? ' <span class="err">· expired</span>' : ''}</div>`;
+  }).join('');
+  return `
+    <div class="card">
+      <div class="top">
+        <span class="ico codicon ${icon}"></span>
+        <span><span class="name">${esc(p.label)}</span><span class="provider-type">${esc(p.category || 'other')} - ${esc(p.auth || 'connection')}</span></span>
+        ${pill}
+      </div>
+      ${accts ? `<div class="accts">${accts}</div>` : '<div class="note">Not connected yet.</div>'}
+      ${actionsFor(p)}
+    </div>`;
+}
+
+/** Wire the data-attribute action buttons inside a container. */
+function wire(container) {
+  container.querySelectorAll('[data-open]').forEach((b) => b.onclick = () => openTop(b.getAttribute('data-open')));
+  container.querySelectorAll('[data-start]').forEach((b) => b.onclick = () => openTop(b.getAttribute('data-start')));
+  container.querySelectorAll('[data-util]').forEach((b) => b.onclick = () => openTop('/utilities'));
+}
+
+function countExpired(providers) {
+  return providers.filter((p) => (p.connections || []).some((c) => c.expired)).length;
+}
+
+function renderMetrics(providers) {
+  const connected = providers.filter((p) => p.connected).length;
+  const expired = countExpired(providers);
+  const configured = providers.filter((p) => p.configured || isTokenSetup(p)).length;
+  const categories = new Set(providers.map((p) => p.category || 'other')).size;
+  metrics.innerHTML = [
+    ['Connected', connected],
+    ['Need attention', expired],
+    ['Ready to enable', configured],
+    ['Categories', categories],
+  ].map(([label, value]) => `<article class="metric-card"><span class="metric-label">${label}</span><strong>${value}</strong></article>`).join('');
+}
+
+function providerMatches(p) {
+  const query = (searchInput?.value || '').trim().toLowerCase();
+  const expired = (p.connections || []).some((c) => c.expired);
+  if (activeFilter === 'connected' && !p.connected) return false;
+  if (activeFilter === 'needs-attention' && !(expired || (p.connected && !p.configured))) return false;
+  if (activeFilter === 'available' && p.connected) return false;
+  if (!query) return true;
+  const haystack = [
+    p.id,
+    p.label,
+    p.category,
+    p.auth,
+    ...(p.connections || []).map((c) => c.label || c.account || ''),
+  ].join(' ').toLowerCase();
+  return haystack.includes(query);
+}
+
+function renderProviders() {
+  const providers = allProviders.filter(providerMatches);
+  const byCat = new Map();
+  for (const p of providers) {
+    const cat = p.category || 'other';
+    if (!byCat.has(cat)) byCat.set(cat, []);
+    byCat.get(cat).push(p);
+  }
+  const ordered = [...CATEGORIES.map(([k]) => k), ...[...byCat.keys()].filter((k) => !CATEGORIES.some(([c]) => c === k))];
+  const seen = new Set();
+  let html = '';
+  for (const cat of ordered) {
+    if (seen.has(cat) || !byCat.has(cat)) continue;
+    seen.add(cat);
+    const label = (CATEGORIES.find(([c]) => c === cat) || [cat, cat.charAt(0).toUpperCase() + cat.slice(1)])[1];
+    const cards = byCat.get(cat).sort((a, b) => (b.connected - a.connected) || String(a.label).localeCompare(String(b.label))).map(cardFor).join('');
+    html += `<div class="cat">${esc(label)}</div><div class="grid">${cards}</div>`;
+  }
+  const connected = allProviders.filter((p) => p.connected).length;
+  if (!html) {
+    html = '<div class="empty-card">No connections match this search or filter.</div>';
+  }
+  html += `<div class="foot">${connected} of ${allProviders.length} providers connected. Open launches a provider in a new tab; Reconnect and Connect run the consent flow. OSHAL stores authorization metadata for your bots without displaying secrets.</div>`;
+  main.innerHTML = html;
+  wire(main);
+}
+
+/** Load the catalog + connection state and render the grid grouped by purpose. */
+async function load() {
+  let providers;
+  try {
+    const r = await fetch('/api/connect/list', { credentials: 'include' });
+    if (r.status === 401) { main.innerHTML = '<div class="panel"><div class="err">Please sign in to see your connections.</div></div>'; return; }
+    const j = await r.json();
+    providers = j.providers || [];
+    allProviders = providers;
+    renderMetrics(allProviders);
+    renderProviders();
+    return;
+  } catch (e) {
+    main.innerHTML = `<div class="panel"><div class="err">Couldn't load connections: ${esc(e.message)}</div></div>`;
+    return;
+  }
+  const byCat = new Map();
+  for (const p of providers) {
+    const cat = p.category || 'other';
+    if (!byCat.has(cat)) byCat.set(cat, []);
+    byCat.get(cat).push(p);
+  }
+  const ordered = [...CATEGORIES.map(([k]) => k), ...[...byCat.keys()].filter((k) => !CATEGORIES.some(([c]) => c === k))];
+  const seen = new Set();
+  let html = '';
+  for (const cat of ordered) {
+    if (seen.has(cat) || !byCat.has(cat)) continue;
+    seen.add(cat);
+    const label = (CATEGORIES.find(([c]) => c === cat) || [cat, cat.charAt(0).toUpperCase() + cat.slice(1)])[1];
+    const cards = byCat.get(cat).sort((a, b) => (b.connected - a.connected)).map(cardFor).join('');
+    html += `<div class="cat">${esc(label)}</div><div class="grid">${cards}</div>`;
+  }
+  const connected = providers.filter((p) => p.connected).length;
+  html += `<div class="foot">${connected} of ${providers.length} providers connected. “Open” launches the provider in a new tab; “Reconnect”/“Connect” run their consent flow. OSHAL stores the authorization so your bots can act for you — it never shows you the secret.</div>`;
+  main.innerHTML = html;
+  wire(main);
+}
+
+/** Run the optional access review (inline identity-advisor bot, metadata only). */
+async function runReview() {
+  const box = $('review');
+  $('reviewBtn').disabled = true;
+  box.innerHTML = '<div class="panel review"><div class="spin"><span class="dot"></span> Reviewing your connected accounts…</div></div>';
+  try {
+    const r = await fetch('/api/identity/advice', { credentials: 'include' });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.message || j.error || ('HTTP ' + r.status));
+    box.innerHTML = `<div class="panel review"><h2>Access review</h2>${renderMarkdown(j.advice)}</div>`;
+  } catch (e) {
+    box.innerHTML = `<div class="panel review"><span class="err">Review failed: ${esc(e.message)}</span></div>`;
+  } finally {
+    $('reviewBtn').disabled = false;
+  }
+}
+
+$('reviewBtn').onclick = runReview;
+$('manageBtn').onclick = () => openTop('/utilities');
+searchInput?.addEventListener('input', renderProviders);
+filters?.querySelectorAll('[data-filter]').forEach((button) => {
+  button.addEventListener('click', () => {
+    activeFilter = button.getAttribute('data-filter') || 'all';
+    filters.querySelectorAll('[data-filter]').forEach((candidate) => candidate.classList.toggle('is-active', candidate === button));
+    renderProviders();
+  });
+});
+load();
+</script>
+</body>
+</html>

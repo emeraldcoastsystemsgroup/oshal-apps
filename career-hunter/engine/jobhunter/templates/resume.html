@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Resume {{ contact.name }}</title>
+<style>
+  /* ATS-SAFE: single column, real text, standard headings, no tables/columns/boxes/icons.
+     0.8in margins, Calibri/Arial, name ~20pt, headings 13pt, body 10.5pt, 1.4 line-height. */
+  @page { size: Letter; margin: 0.5in; }
+  * { box-sizing: border-box; }
+  body { font-family: "Calibri","Segoe UI","Arial",sans-serif; color:#1a1a1a;
+         font-size:10.5pt; line-height:1.4; margin:0; }
+  header { text-align:center; margin-bottom:6px; padding-bottom:8px; border-bottom:1px solid #d6dee8; }
+  .name { font-size:20pt; font-weight:700; color:#1F3A5F; letter-spacing:.3px; }
+  .headline { font-size:11.5pt; color:#33414f; margin-top:1px; font-weight:600; }
+  .contact { font-size:9.3pt; color:#444; margin-top:5px; }
+  h2 { font-size:11pt; text-transform:uppercase; letter-spacing:.9px; color:#1F3A5F;
+       border-bottom:1px solid #1F3A5F; padding-bottom:2px; margin:15px 0 7px;
+       page-break-after: avoid; break-after: avoid; }
+  .summary { margin:6px 0 2px; }
+  /* keep a skills/competencies block whole, don't split it mid-list across a page */
+  .skillsline { margin:2px 0; break-inside: avoid; page-break-inside: avoid; }
+  /* keep each role's heading with its bullets, never orphan a heading at a page bottom */
+  .role { margin-bottom:10px; page-break-inside: avoid; break-inside: avoid; }
+  .role-h { display:flex; justify-content:space-between; align-items:baseline; gap:12px;
+            page-break-after: avoid; break-after: avoid; }
+  .role-t { font-weight:700; color:#1a1a1a; font-size:10.8pt; }
+  .role-o { color:#33414f; font-size:10.2pt; font-weight:600; }
+  .role-s { color:#5a6675; font-size:9.4pt; white-space:nowrap; }
+  ul { margin:4px 0 0; padding-left:17px; }
+  li { margin:2.5px 0; line-height:1.4; }
+  li b { font-weight:700; color:#16222e; }
+  .meta { font-size:10pt; break-inside: avoid; page-break-inside: avoid; }
+  .meta div { margin:2px 0; } .meta b { color:#1F3A5F; }
+</style></head>
+<body>
+  <header>
+  <div class="name">{{ contact.name }}{% if contact.credential %}, {{ contact.credential }}{% endif %}</div>
+  <div class="headline">{{ r.headline }}</div>
+  <div class="contact">
+    {%- set bits = [] -%}
+    {%- if contact.location %}{% set _ = bits.append(contact.location) %}{% endif -%}
+    {%- if contact.phone %}{% set _ = bits.append(contact.phone) %}{% endif -%}
+    {%- if contact.email %}{% set _ = bits.append(contact.email) %}{% endif -%}
+    {%- if contact.linkedin %}{% set _ = bits.append(contact.linkedin) %}{% endif -%}
+    {%- if contact.clearance %}{% set _ = bits.append(contact.clearance) %}{% endif -%}
+    {%- if contact.citizenship %}{% set _ = bits.append(contact.citizenship) %}{% endif -%}
+    {{ bits | join('  |  ') }}
+  </div>
+  </header>
+
+  <h2>Professional Summary</h2>
+  <div class="summary">{{ r.summary }}</div>
+
+  {% if r.competencies %}
+  <h2>Core Competencies</h2>
+  <div class="skillsline">{{ r.competencies | join(', ') }}</div>
+  {% endif %}
+
+  <h2>Professional Experience</h2>
+  {% for e in r.experience %}
+  <div class="role">
+    <div class="role-h">
+      <div><span class="role-t">{{ e.title }}</span><span class="role-o">, {{ e.org }}</span></div>
+      <div class="role-s">{{ e.span }}</div>
+    </div>
+    <ul>{% for b in e.bullets %}<li>{{ b | boldmetrics }}</li>{% endfor %}</ul>
+  </div>
+  {% endfor %}
+
+  {% if r.open_source %}
+  <h2>Open Source &amp; Independent R&amp;D</h2>
+  {% for e in r.open_source %}
+  <div class="role">
+    <div class="role-h">
+      <div><span class="role-t">{{ e.title }}</span>{% if e.org %}<span class="role-o">, {{ e.org }}</span>{% endif %}</div>
+      <div class="role-s">{{ e.span }}</div>
+    </div>
+    <ul>{% for b in e.bullets %}<li>{{ b | boldmetrics }}</li>{% endfor %}</ul>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if r.skills %}
+  <h2>Technical Skills</h2>
+  <div class="skillsline">{{ r.skills | join(', ') }}</div>
+  {% endif %}
+
+  <h2>Education &amp; Certifications</h2>
+  <div class="meta">
+    {% if r.education %}<div><b>Education:</b> {{ r.education | join(', ') }}</div>{% endif %}
+    {% if r.certifications %}<div><b>Certifications:</b> {{ r.certifications | join(', ') }}</div>{% endif %}
+    {% if r.clearance or contact.clearance %}<div><b>Clearance:</b> {{ r.clearance or contact.clearance }}</div>{% endif %}
+  </div>
+</body></html>

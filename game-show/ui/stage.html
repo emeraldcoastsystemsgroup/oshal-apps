@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Game Show</title>
+  <link rel="stylesheet" href="/api/game-show/game-show.css">
+</head>
+<body>
+  <div class="gs-lights"></div>
+  <div id="gs-root"><div class="gs-wrap gs-center"><p class="gs-muted">Loading the studio…</p></div></div>
+  <audio id="gs-audio"></audio>
+  <video class="gs-cam-src" id="gs-cam" playsinline muted autoplay></video>
+  <canvas id="gs-canvas" width="320" height="320" style="display:none"></canvas>
+  <!-- Surface scripts are inlined at serve time (CSP-safe); order matters. -->
+  <script src="/api/game-show/gs-core.js"></script>
+  <script src="/api/game-show/gs-presence.js"></script>
+  <script src="/api/game-show/gs-controls.js"></script>
+  <script src="/api/game-show/gs-surfaces.js"></script>
+  <script src="/api/game-show/gs-app.js"></script>
+</body>
+</html>
