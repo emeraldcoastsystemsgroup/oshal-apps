@@ -1,0 +1,109 @@
+/*
+ * gs-set-wheel.css — Wheel set treatment (gsw- prefix), scoped under
+ * body[data-gs-show="wheel"]: the green-framed white-tile puzzle wall with
+ * cyan flip-in reveals, the category banner, the SVG prize wheel (rotor spun
+ * by the module ticker in gs-show-wheel.js — no CSS animation drives it),
+ * the A-Z called-letters tracker, round-bank pods, and the big gold SPIN
+ * button + letter grid in the dock.
+ * (.css is exempt from the repo line cap; no change-log block required.)
+ */
+
+body[data-gs-show="wheel"] .gsw-set { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 4px 0; }
+
+/* ── the puzzle wall: rows of white tiles in a green show frame ───────────── */
+body[data-gs-show="wheel"] .gsw-puzzleframe { width: min(960px, 100%); border-radius: 16px; padding: 14px 16px;
+  background: linear-gradient(180deg, #14532d, #0c3f21 60%, #082d18);
+  border: 3px solid var(--gs-green); box-shadow: inset 0 2px 0 rgba(255, 255, 255, .12), inset 0 -14px 30px rgba(0, 0, 0, .45),
+    0 0 26px color-mix(in srgb, var(--gs-green) 35%, transparent), var(--gs-shadow); }
+body[data-gs-show="wheel"] .gsw-puzzle { display: flex; flex-wrap: wrap; justify-content: center; }
+body[data-gs-show="wheel"] .gsw-word { white-space: nowrap; display: inline-flex; margin: 3px clamp(6px, 1.2vw, 14px); }
+body[data-gs-show="wheel"] .gsw-tile { display: inline-grid; place-items: center; margin: 2px;
+  width: clamp(26px, 3.6vw, 46px); height: clamp(36px, 4.8vw, 60px); border-radius: 5px;
+  font-weight: 900; font-size: clamp(18px, 2.8vw, 32px); line-height: 1; color: transparent;
+  background: linear-gradient(180deg, #ffffff, #dbeafe 85%, #bfdbfe);
+  border: 1px solid #64748b; box-shadow: inset 0 -3px 6px rgba(15, 23, 42, .25), 0 2px 6px rgba(0, 0, 0, .5); }
+body[data-gs-show="wheel"] .gsw-tile.shown { color: #0f172a; background: #ffffff; }
+body[data-gs-show="wheel"] .gsw-tile.flip { animation: gsw-flip .7s ease both; }
+@keyframes gsw-flip {
+  0% { transform: rotateX(90deg); background: var(--gs-cyan); box-shadow: 0 0 22px var(--gs-cyan); }
+  55% { background: var(--gs-cyan); color: #062a3f; box-shadow: 0 0 22px var(--gs-cyan); }
+  100% { transform: rotateX(0); background: #ffffff; }
+}
+body[data-gs-show="wheel"] .gsw-waiting { padding: 10px; font-size: 16px; }
+
+/* category banner + status */
+body[data-gs-show="wheel"] .gsw-category { font-weight: 900; text-transform: uppercase; letter-spacing: 3px;
+  font-size: clamp(13px, 1.8vw, 18px); color: var(--gs-gold); background: rgba(0, 0, 0, .45);
+  border: 1px solid color-mix(in srgb, var(--gs-gold) 55%, transparent); border-radius: 999px; padding: 4px 22px;
+  text-shadow: 0 0 12px rgba(251, 191, 36, .45); }
+body[data-gs-show="wheel"] .gsw-status { display: flex; justify-content: center; min-height: 22px; }
+body[data-gs-show="wheel"] .gsw-solved { font-weight: 900; font-size: clamp(18px, 2.6vw, 28px); color: var(--gs-gold);
+  text-shadow: 0 0 18px rgba(251, 191, 36, .7); letter-spacing: 1px; }
+
+/* ── the wheel + side rail ────────────────────────────────────────────────── */
+body[data-gs-show="wheel"] .gsw-lower { display: flex; align-items: center; justify-content: center; gap: clamp(14px, 3vw, 40px);
+  flex-wrap: wrap; width: 100%; }
+body[data-gs-show="wheel"] .gsw-wheelwrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+body[data-gs-show="wheel"] .gsw-wheel { width: clamp(210px, 26vw, 330px); height: auto; display: block;
+  filter: drop-shadow(0 12px 30px rgba(0, 0, 0, .6)) drop-shadow(0 0 18px rgba(251, 191, 36, .18)); }
+body[data-gs-show="wheel"] .gsw-outcome { min-height: 24px; font-weight: 900; letter-spacing: 1px; font-size: 16px;
+  color: var(--gs-gold); text-shadow: 0 0 12px rgba(251, 191, 36, .5); font-variant-numeric: tabular-nums; }
+
+body[data-gs-show="wheel"] .gsw-side { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+body[data-gs-show="wheel"] .gsw-alpha { display: grid; grid-template-columns: repeat(13, 1fr); gap: 3px; }
+body[data-gs-show="wheel"] .gsw-al { width: clamp(18px, 2vw, 24px); height: clamp(20px, 2.2vw, 26px); display: grid; place-items: center;
+  font-size: 12px; font-weight: 800; color: var(--gs-ink); border: 1px solid var(--gs-line); border-radius: 4px;
+  background: rgba(255, 255, 255, .06); }
+body[data-gs-show="wheel"] .gsw-al.called { opacity: .25; text-decoration: line-through; }
+
+body[data-gs-show="wheel"] .gsw-pods { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+body[data-gs-show="wheel"] .gsw-pod { display: flex; flex-direction: column; align-items: center; min-width: 88px;
+  padding: 6px 12px; border-radius: 10px; background: linear-gradient(180deg, var(--gs-navy-2), #0a0f2a);
+  border: 1px solid var(--gs-line); border-bottom: 4px solid var(--gs-gold-2); }
+body[data-gs-show="wheel"] .gsw-pod.control { border-color: var(--gs-gold);
+  box-shadow: 0 0 18px rgba(251, 191, 36, .4); }
+body[data-gs-show="wheel"] .gsw-pod-name { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px;
+  color: var(--gs-dim); max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body[data-gs-show="wheel"] .gsw-pod.control .gsw-pod-name { color: var(--gs-ink); }
+body[data-gs-show="wheel"] .gsw-pod-cash { font-weight: 900; font-size: 17px; color: var(--gs-gold); font-variant-numeric: tabular-nums; }
+
+/* ── dock controls: the big gold wheel button + letter grid ───────────────── */
+body[data-gs-show="wheel"] .gsw-spinbtn { width: 108px; height: 108px; border-radius: 50%; cursor: pointer;
+  font: inherit; font-weight: 900; font-size: 24px; letter-spacing: 2px; color: #26180a;
+  border: 5px solid #78350f; position: relative;
+  background:
+    radial-gradient(circle at 50% 50%, #fde68a 0 34%, transparent 35%),
+    conic-gradient(#ef4444 0 30deg, #fbbf24 0 60deg, #38bdf8 0 90deg, #22c55e 0 120deg, #f472b6 0 150deg, #fb923c 0 180deg,
+      #ef4444 0 210deg, #fbbf24 0 240deg, #38bdf8 0 270deg, #22c55e 0 300deg, #f472b6 0 330deg, #fb923c 0 360deg);
+  box-shadow: 0 0 26px rgba(251, 191, 36, .5), 0 8px 18px rgba(0, 0, 0, .5), inset 0 2px 4px rgba(255, 255, 255, .4);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, .5); transition: transform .06s ease, filter .2s; }
+body[data-gs-show="wheel"] .gsw-spinbtn:hover { filter: brightness(1.07); }
+body[data-gs-show="wheel"] .gsw-spinbtn:active { transform: translateY(2px) rotate(8deg); }
+body[data-gs-show="wheel"] .gsw-callchip { border-color: var(--gs-gold); color: var(--gs-gold); font-weight: 800; margin-bottom: 6px; }
+body[data-gs-show="wheel"] .gsw-letters { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; max-width: 460px; }
+body[data-gs-show="wheel"] .gsw-letter { min-width: 40px; padding: 9px 4px; font-weight: 900; font-size: 16px;
+  border: 1px solid color-mix(in srgb, var(--gs-cyan) 45%, var(--gs-line)); }
+body[data-gs-show="wheel"] .gsw-letter:hover { border-color: var(--gs-gold); color: var(--gs-gold); }
+
+/* ── phones: one readable column ──────────────────────────────────────────── */
+@media (max-width: 700px) {
+  body[data-gs-show="wheel"] .gsw-lower { flex-direction: column; gap: 10px; }
+  body[data-gs-show="wheel"] .gsw-wheel { width: min(64vw, 250px); }
+  body[data-gs-show="wheel"] .gsw-puzzleframe { padding: 8px; }
+  body[data-gs-show="wheel"] .gsw-word { margin: 2px 5px; }
+  body[data-gs-show="wheel"] .gsw-alpha { grid-template-columns: repeat(13, 1fr); }
+  body[data-gs-show="wheel"] .gsw-spinbtn { width: 92px; height: 92px; font-size: 20px; }
+  body[data-gs-show="wheel"] .gsw-letters { max-width: 96vw; }
+  body[data-gs-show="wheel"] .gsw-letter { min-width: 34px; padding: 8px 3px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-gs-show="wheel"] .gsw-tile.flip { animation: none; }
+}
+
+/* Fit the whole set above the fold on a 720-800px TV viewport: the wall and the
+   wheel yield vertical space rather than pushing the podium characters off-air. */
+body[data-gs-show="wheel"] .gsw-tile { height: clamp(30px, 5.4vh, 52px); width: clamp(22px, 3.1vw, 40px); font-size: clamp(16px, 2.4vw, 28px); }
+body[data-gs-show="wheel"] .gsw-wheel { width: clamp(190px, 30vh, 300px); }
+body[data-gs-show="wheel"] .gsw-lower { gap: clamp(10px, 2.2vw, 28px); margin-top: 2px; }
+body[data-gs-show="wheel"] .gsw-puzzleframe { padding: clamp(8px, 1.4vh, 16px) 16px; }

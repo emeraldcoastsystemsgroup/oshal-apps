@@ -4,19 +4,21 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>OSHAL Shopping</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
 <style>
   :root {
-    --bg: #0f1117;
-    --surface: #171a22;
-    --surface-2: #202430;
-    --line: rgba(255,255,255,.1);
-    --text: #f7f8fc;
-    --muted: #a8adba;
-    --dim: #747b8e;
-    --accent: #8b7cf6;
-    --accent-2: #6f5ce8;
-    --ok: #30c48d;
-    --warn: #f4b64a;
+    --bg: var(--bg-primary, #0f1117);
+    --surface: var(--bg-card, #171a22);
+    --surface-2: var(--bg-tertiary, #202430);
+    --line: var(--border-color, rgba(255,255,255,.1));
+    --text: var(--text-primary, #f7f8fc);
+    --muted: var(--text-secondary, #a8adba);
+    --dim: var(--text-muted, #747b8e);
+    --accent: var(--accent-primary, #8b7cf6);
+    --accent-2: var(--accent-primary-hover, #6f5ce8);
+    --ok: var(--status-success, #30c48d);
+    --warn: var(--status-warning, #f4b64a);
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
@@ -41,7 +43,7 @@
     gap: 12px;
     padding: 10px 18px;
     border-bottom: 1px solid var(--line);
-    background: rgba(15,17,23,.96);
+    background: color-mix(in srgb, var(--surface) 96%, transparent);
   }
   .mark {
     width: 34px;
@@ -106,7 +108,7 @@
     gap: 12px;
     padding: 14px;
     border-bottom: 1px solid var(--line);
-    background: #11141b;
+    background: var(--surface-2);
   }
   h1 { margin: 0; font-size: 23px; line-height: 1.1; }
   .subcopy { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
@@ -122,7 +124,7 @@
     min-height: 42px;
     border: 1px solid var(--line);
     border-radius: 8px;
-    background: #090b10;
+    background: var(--bg);
     color: var(--text);
     padding: 0 12px;
     outline: 0;

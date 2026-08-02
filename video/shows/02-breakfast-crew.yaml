@@ -1,0 +1,52 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# The Breakfast Crew Joke Show — the approved back catalogue (10 episodes rendered
+# 2026-07-07, all on Drive) and the shape every other show copies: a short 4-scene
+# joke, dialogue on every scene, no narrator.
+#
+# Cast descriptions rewritten from the original series bible so each first clause
+# ends in that character's own noun (pancake / toast / blueberry / butter / bottle /
+# waffle) — the original "Toast-slice host with crumb freckles and a bow tie" would
+# have addressed the speaker as "the freckles".
+# ─────────────────────────────────────────────────────────────────────────────
+
+slug: breakfast-crew
+title: The Breakfast Crew Joke Show
+scenesPerEpisode: 4
+orientation: Landscape
+introClip: breakfast-intro-FINAL.mp4
+
+premise: |
+  A cozy breakfast table runs a tiny morning joke show. Pippa Pancake hosts from a toaster stage,
+  Butter Buddy keeps slipping somewhere safe, and Syrup Sam always arrives a beat too late. Each
+  episode is one short kitchen joke: a small breakfast problem, a wrong idea confidently applied,
+  and a punchline somebody says out loud. Warm, silly, and safe — the slapstick never hurts anyone.
+
+styleLock: >-
+  chunky stop-motion clay and felt breakfast-table comedy, warm kitchen sunlight, safe slapstick,
+  no lens effects
+
+cast:
+  - name: Pippa Pancake
+    description: golden pancake with tiny sneakers; hosts the show and flips into every punchline.
+  - name: Toasty Toast
+    description: cheerful slice of toast with crumb freckles and a bow tie; cannot resist a pun.
+  - name: Blue Blueberry
+    description: tiny sleepy blueberry with a dozy grin; wakes up exactly on the punchline.
+  - name: Butter Buddy
+    description: slippery pat of butter with a tiny cape; slides safely toward the window.
+  - name: Syrup Sam
+    description: kind amber syrup bottle with a slow pour; speaks slowly and arrives late.
+  - name: Waffle Wanda
+    description: orderly waffle with round glasses; loves grids, plans, and order.
+
+jokeSeeds:
+  - The toaster spring is too strong and launches breakfast one seat to the left.
+  - Butter Buddy tries to stand still for the whole show and lasts four seconds.
+  - Syrup Sam arrives so late the joke has to be explained back to him.
+  - Waffle Wanda plans the joke on a grid and the grid is funnier than the joke.
+  - Blue Blueberry sleeps through the setup and delivers the punchline anyway.
+  - Toasty Toast makes a pun so bad the table goes completely silent.
+  - Everyone insists on a group bow and nobody agrees which way to face.
+  - The skillet spotlight follows the wrong character all morning.
+  - A crumb gets a bigger laugh than the whole crew and takes a bow.
+  - The window flower box sneezes pollen at exactly the wrong moment.

@@ -4,8 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Pumpkin Control</title>
+  <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+  <script src="/shared/ui/js/surface-theme.js"></script>
   <style>
-    :root { --bg:#160b04; --panel:#20130a; --line:rgba(255,170,60,.2); --amber:#ffb020; --ink:#ffdca8; --muted:rgba(255,220,170,.55); }
+    :root {
+      --bg:var(--bg-primary,#160b04);
+      --panel:var(--bg-card,#20130a);
+      --line:var(--border-color,rgba(255,170,60,.2));
+      --amber:var(--accent-primary,#ffb020);
+      --ink:var(--text-primary,#ffdca8);
+      --muted:var(--text-secondary,rgba(255,220,170,.55));
+    }
     * { box-sizing:border-box; }
     body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; font-size:14px; }
     .wrap { display:grid; grid-template-columns: minmax(0,360px) minmax(0,1fr); gap:16px; padding:16px; min-height:100vh; width:100%; }
@@ -16,13 +25,13 @@
     .card h2 { font-size:13px; text-transform:uppercase; letter-spacing:.6px; color:var(--amber); margin:0 0 10px; }
     label { display:block; font-size:12px; color:var(--muted); margin:8px 0 3px; }
     input[type=text], input[type=color], select, input[type=range] { width:100%; }
-    input[type=text], select { min-height:44px; background:#12100c; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:9px 10px; font-size:16px; }
-    input[type=color]{ height:44px; border:1px solid var(--line); border-radius:8px; background:#12100c; }
+    input[type=text], select { min-height:44px; background:var(--bg-secondary,#12100c); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:9px 10px; font-size:16px; }
+    input[type=color]{ height:44px; border:1px solid var(--line); border-radius:8px; background:var(--bg-secondary,#12100c); }
     input[type=range]{ min-height:44px; }
     .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
     .row > * { flex:1 1 auto; }
-    button { appearance:none; min-height:44px; border:1px solid var(--line); background:#2a1809; color:var(--ink); padding:10px 13px; border-radius:9px; cursor:pointer; font-size:14px; touch-action:manipulation; }
-    button:hover{ background:#3a220c; }
+    button { appearance:none; min-height:44px; border:1px solid var(--line); background:var(--bg-tertiary,#2a1809); color:var(--ink); padding:10px 13px; border-radius:9px; cursor:pointer; font-size:14px; touch-action:manipulation; }
+    button:hover{ background:var(--bg-card-hover,#3a220c); }
     button.primary{ background:#ff8c1a; color:#1a0a00; border-color:var(--amber); font-weight:600; }
     button.seg.on{ background:#ff8c1a; color:#1a0a00; border-color:var(--amber); font-weight:600; }
     .grid2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
@@ -35,7 +44,16 @@
     .status { font-size:12px; color:#ffcf7a; min-height:16px; }
     a { color:var(--amber); }
     .linkbox { display:flex; gap:6px; min-width:0; } .linkbox input{ min-width:0; font-size:12px; }
+    .qrwrap { display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; margin-top:10px; }
+    .qrwrap .muted { flex:1 1 150px; line-height:1.5; word-break:break-word; }
+    .qr { flex:0 0 auto; width:160px; height:160px; display:block; border:1px solid var(--line); border-radius:8px; background:#fff; image-rendering:pixelated; }
     .demo-note { border:1px solid rgba(255,176,32,.45); background:rgba(255,140,26,.1); border-radius:10px; color:#ffcf7a; font-size:12px; line-height:1.45; padding:10px 12px; margin:0 0 12px; }
+    .savedRow { display:flex; gap:6px; margin-bottom:6px; }
+    .savedRow .play { flex:1 1 auto; text-align:left; font-size:13px; line-height:1.3; overflow:hidden; }
+    .savedRow .play .src { display:block; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
+    .savedRow .pin, .savedRow .del { flex:0 0 44px; padding:8px; font-size:15px; }
+    .savedRow .pin.on { background:#ff8c1a; color:#1a0a00; border-color:var(--amber); }
+    .savedEmpty { font-size:12px; color:var(--muted); padding:4px 0; }
     [hidden] { display:none !important; }
     @media (max-width:820px){ .wrap{ grid-template-columns:minmax(0,1fr); } }
     @media (max-width:560px){
@@ -72,6 +90,19 @@
           <button id="apply">Push look + mode →</button>
         </div>
         <div class="status" id="dispStatus"></div>
+
+        <div class="fieldset">
+          <label>Projector link — open this on the projector device</label>
+          <div class="linkbox">
+            <input id="projectorUrl" type="text" readonly />
+            <button id="copyProjector">Copy</button>
+          </div>
+          <div class="qrwrap">
+            <img id="projectorQr" class="qr" alt="Scan to open the projector page" width="160" height="160" hidden />
+            <div class="muted" id="projectorShort"></div>
+          </div>
+          <div class="status" id="linkStatus"></div>
+        </div>
       </div>
 
       <div class="card">
@@ -87,11 +118,21 @@
       </div>
 
       <div class="card">
+        <h2>Saved responses <button id="savedRefresh" style="float:right;min-height:32px;padding:4px 10px;" title="Refresh">↻</button></h2>
+        <div class="muted">Every line the pumpkin speaks is remembered. Click to replay it instantly — no waiting on a fresh reply. ★ pins a keeper.</div>
+        <div id="savedList" class="fieldset"></div>
+      </div>
+
+      <div class="card">
         <h2>Phone remote</h2>
-        <div class="muted">Open on your phone (same login) to talk into the pumpkin from anywhere.</div>
+        <div class="muted">Open on your phone (same login) to talk into the pumpkin from anywhere. Scan the code with the phone's camera, or copy the link.</div>
         <div class="linkbox fieldset">
           <input id="remoteUrl" type="text" readonly />
           <button id="copyRemote">Copy</button>
+        </div>
+        <div class="qrwrap">
+          <img id="remoteQr" class="qr" alt="Scan to open the phone remote" width="160" height="160" hidden />
+          <div class="muted" id="remoteHint"></div>
         </div>
       </div>
     </div>
@@ -153,10 +194,26 @@
       motion: [['motion.idleBob','Bob',0,40,1],['motion.bobSpeed','Bob speed',0,2,0.01],['motion.sway','Sway',0,8,0.1],['motion.blinkPerMin','Blink/min',0,40,1],['motion.gaze','Gaze',0,1,0.01],['motion.mouthReactivity','Mouth react',0,2,0.01],['motion.flicker','Flicker',0,1,0.01],['glow.blur','Glow blur',0,80,1],['glow.intensity','Glow intensity',0,2,0.01]],
     };
     var channelSeed = window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : Date.now().toString(36)+Math.random().toString(36).slice(2);
-    var S = { mode:'mimic', preset:null, room:null, token:null, guest:null, demoChannel:'pumpkin-demo-'+channelSeed, demoBus:null, sessionReady:null };
+    var S = { mode:'mimic', preset:null, room:null, token:null, guest:null, demoChannel:'pumpkin-demo-'+channelSeed, demoBus:null, sessionReady:null, links:null, linkTimer:null };
     var face, audio, previewSpeaking=false;
+    var LINK_DEBOUNCE_MS = 300;
 
     function $(s){ return document.querySelector(s); }
+    /**
+     * The pairing key three surfaces independently derive. MUST match the server's roomSlug()
+     * byte-for-byte — dashes are trimmed AFTER the 40-char slice so roomSlug(roomSlug(x)) === roomSlug(x).
+     * Only used for the browser demo and for the degraded fallback; the authoritative slug comes
+     * from GET /api/pumpkin/links.
+     */
+    function roomSlug(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40).replace(/(^-|-$)/g,'')||'main'; }
+    /**
+     * Resolve a path against this page's own document base. Used ONLY for the same-device browser
+     * demo and for the degraded fallback below — never for a real cross-device link. This browser
+     * only knows the address the cockpit happens to be open on, which on the operator's laptop is
+     * localhost: a link built from it is dead on arrival on a phone. The server knows the public
+     * origin, which is why /api/pumpkin/links exists.
+     */
+    function absoluteFromHere(pathAndQuery){ var a=document.createElement('a'); a.href=pathAndQuery; return a.href; }
     function api(p,o){
       o=o||{}; o.credentials='include'; o.headers=Object.assign({'Content-Type':'application/json'},o.headers||{});
       return fetch(p,o).then(function(r){ return r.json().catch(function(){return{};}).then(function(j){
@@ -204,7 +261,7 @@
           $('#saveLook').textContent='Save look on this device…';
           $('#copyRemote').textContent='Copy demo remote';
         }
-        updateRemoteUrl();
+        return refreshLinks();
       });
     }
     function afterSession(fn){ return S.sessionReady.then(fn); }
@@ -254,19 +311,36 @@
       });
     }
 
-    function setMode(m){ S.mode=(m==='autonomous'?'autonomous':'mimic'); $('#mMimic').classList.toggle('on',S.mode==='mimic'); $('#mAuto').classList.toggle('on',S.mode==='autonomous'); }
+    function setMode(m){ S.mode=(m==='autonomous'?'autonomous':'mimic'); $('#mMimic').classList.toggle('on',S.mode==='mimic'); $('#mAuto').classList.toggle('on',S.mode==='autonomous'); scheduleRefreshLinks(); }
     function ensureRoom(){
-      var label=$('#roomLabel').value||'Main';
+      var label=currentLabel();
       return api('/api/pumpkin/rooms/register',{method:'POST',body:JSON.stringify({label:label})}).then(function(j){ S.room=j.room; S.token=j.token; return j; });
     }
 
+    function openProjector(query,okMsg,extra){
+      var opened=window.open('/pumpkin/'+query,'_blank');
+      $('#dispStatus').textContent=(opened?okMsg:'Your browser blocked the projector tab. Allow pop-ups and try again.')+(extra||'');
+    }
     function launch(){
       return afterSession(function(){
-        var name=$('#presetSel').value||(S.preset&&S.preset.name)||'inflatable'; var label=encodeURIComponent($('#roomLabel').value||'Main');
-        var query='?preset='+encodeURIComponent(name)+'&mode='+S.mode+'&room='+label;
-        if(S.guest){ rememberDemoPreset(S.preset); query+='&demo=1&channel='+encodeURIComponent(S.demoChannel); }
-        var opened=window.open('/pumpkin/'+query,'_blank');
-        $('#dispStatus').textContent=opened ? (S.guest?'Browser-demo projector launched in a new tab.':'Projector launched in a new tab.') : 'Your browser blocked the projector tab. Allow pop-ups and try again.';
+        var name=currentPresetName(), label=currentLabel();
+        if(S.guest){
+          rememberDemoPreset(S.preset);
+          openProjector('?preset='+encodeURIComponent(name)+'&mode='+S.mode+'&room='+encodeURIComponent(label)+'&demo=1&channel='+encodeURIComponent(S.demoChannel),'Browser-demo projector launched in a new tab.');
+          return renderDemoLinks();
+        }
+        // Save these as the defaults FIRST: the short-form projector URL ({origin}/pumpkin/ with no
+        // query at all) reads them back, which is what lets the awkward projector device be typed on
+        // once instead of every time the look or room changes.
+        var warn='';
+        return api('/api/pumpkin/settings',{method:'PUT',body:JSON.stringify({activePreset:name,mode:S.mode,roomLabel:label})})
+          .catch(function(err){ warn=' Defaults were not saved ('+message(err,'settings update failed')+'), so the short link may not restore this room.'; })
+          .then(function(){ return refreshLinks(); })
+          .then(function(){
+            // Launch on the SERVER's slug, not the raw label — the projector must land in the exact
+            // room the phone remote and the swarm will push into.
+            openProjector('?preset='+encodeURIComponent(name)+'&mode='+S.mode+'&room='+encodeURIComponent(S.room||roomSlug(label)),'Projector launched in a new tab.',warn);
+          });
       });
     }
     function pushLookMode(){
@@ -296,6 +370,7 @@
           var reply=kind==='ask'?guestReply(text):{say:text,expression:'neutral',intensity:.6};
           S.demoBus.post({type:'speak',say:reply.say,expression:reply.expression,intensity:reply.intensity});
           speakPreview(reply.say);
+          localRemember(reply,kind==='ask'?'autonomous':'mimic');
           $('#sayStatus').textContent=(kind==='ask'?'🎃 “'+reply.say+'”':'Spoken in the live preview.')+' The browser-demo projector received it too.';
           return;
         }
@@ -305,11 +380,88 @@
         }).then(function(j){
           var spoken=(j&&j.reply&&j.reply.say)||text;
           speakPreview(spoken);
-          if(j && j.listeners>0) $('#sayStatus').textContent='Spoken on '+j.listeners+' screen(s).';
-          else $('#sayStatus').textContent='Spoken in preview — no projector is listening on “'+($('#roomLabel').value||'Main')+'” yet.';
-          if(j && j.reply && j.reply.say) $('#sayStatus').textContent += ' 🎃 “'+j.reply.say+'”';
+          var tail=(j&&j.reply&&j.reply.say)?' 🎃 “'+j.reply.say+'”':'';
+          if(j && j.listeners>0) $('#sayStatus').textContent='Spoken on '+j.listeners+' screen(s).'+tail;
+          else withLiveRooms('Spoken in preview — no projector is listening on “'+currentLabel()+'” yet.'+tail,'#sayStatus');
+          loadSaved();
         }).catch(function(err){ $('#sayStatus').textContent=message(err,'Failed to send.'); });
       });
+    }
+
+    /**
+     * Append the rooms that ARE live to a "nobody is listening" message. A room-name mismatch (the
+     * projector on "front-porch", this box typed as "Front Porch 2") is otherwise indistinguishable
+     * from a dead prop — naming the live rooms makes it visible in one glance.
+     */
+    function withLiveRooms(baseMsg,sel){
+      $(sel).textContent=baseMsg;
+      return api('/api/pumpkin/rooms').then(function(j){
+        var live=(j.rooms||[]).filter(function(r){ return r.live; });
+        $(sel).textContent=baseMsg+(live.length
+          ? ' Live projector rooms right now: '+live.map(function(r){ return '“'+r.label+'” ('+r.room+')'; }).join(', ')+'.'
+          : ' No projector page is registered at all — open the Projector link on the projector device.');
+      }).catch(function(){ /* hint only; the base message already told the operator what happened */ });
+    }
+
+    // ── Saved responses playlist: click = instant replay (server remembers every spoken line). ──
+    var LOCAL_SAVED_KEY='oshal.pumpkin.demo.responses.v1';
+    function truncSaved(s){ s=String(s||''); return s.length>80?s.slice(0,77)+'…':s; }
+    function localSaved(){ try{ var rows=JSON.parse(window.localStorage.getItem(LOCAL_SAVED_KEY)||'[]'); return Array.isArray(rows)?rows:[]; }catch(e){ return []; } }
+    function localStoreSaved(rows){ try{ window.localStorage.setItem(LOCAL_SAVED_KEY,JSON.stringify(rows.slice(0,40))); }catch(e){} }
+    function localRemember(reply,source){
+      if(!reply||!reply.say) return;
+      var rows=localSaved().filter(function(r){ return String(r.say||'').toLowerCase()!==String(reply.say).toLowerCase(); });
+      rows.unshift({ id:'local-'+Date.now(), say:reply.say, expression:reply.expression||'neutral', intensity:(reply.intensity==null?0.6:reply.intensity), source:source||'mimic', pinned:false });
+      localStoreSaved(rows); renderSaved(rows);
+    }
+    function loadSaved(){
+      if(S.guest){ renderSaved(localSaved()); return; }
+      return api('/api/pumpkin/responses').then(function(j){ renderSaved(j.responses||[]); }).catch(function(){ /* playlist degrades quietly */ });
+    }
+    function renderSaved(rows){
+      var host=$('#savedList'); host.innerHTML='';
+      if(!rows.length){ var e=document.createElement('div'); e.className='savedEmpty'; e.textContent='Nothing saved yet — every line the pumpkin speaks lands here automatically.'; host.appendChild(e); return; }
+      rows.forEach(function(r){
+        var row=document.createElement('div'); row.className='savedRow';
+        var play=document.createElement('button'); play.className='play'; play.title='Replay on the projector room';
+        play.textContent='🎃 '+truncSaved(r.say);
+        var src=document.createElement('span'); src.className='src'; src.textContent=(r.source||'')+(r.playCount?(' · played '+r.playCount+'×'):''); play.appendChild(src);
+        play.onclick=function(){ replaySaved(r); };
+        var pin=document.createElement('button'); pin.className='pin'+(r.pinned?' on':''); pin.textContent=r.pinned?'★':'☆'; pin.title=r.pinned?'Unpin':'Pin (keep forever)';
+        pin.onclick=function(){ togglePinSaved(r); };
+        var del=document.createElement('button'); del.className='del'; del.textContent='✕'; del.title='Delete saved line';
+        del.onclick=function(){ deleteSaved(r); };
+        row.appendChild(play); row.appendChild(pin); row.appendChild(del); host.appendChild(row);
+      });
+    }
+    function replaySaved(r){
+      return afterSession(function(){
+        if(S.guest){
+          S.demoBus.post({type:'speak',say:r.say,expression:r.expression||'neutral',intensity:(r.intensity==null?0.6:r.intensity)});
+          speakPreview(r.say);
+          $('#sayStatus').textContent='🎃 replayed “'+truncSaved(r.say)+'” (browser demo).';
+          return;
+        }
+        $('#sayStatus').textContent='Replaying…';
+        return ensureRoom().then(function(){
+          return api('/api/pumpkin/rooms/replay',{method:'POST',body:JSON.stringify({room:S.room,token:S.token,id:r.id})});
+        }).then(function(j){
+          speakPreview(r.say);
+          if(j && j.listeners>0) $('#sayStatus').textContent='🎃 Replayed on '+j.listeners+' screen(s).';
+          else withLiveRooms('Replayed in preview — no projector is listening on “'+currentLabel()+'” yet.','#sayStatus');
+          loadSaved();
+        }).catch(function(err){ $('#sayStatus').textContent=message(err,'Replay failed.'); });
+      });
+    }
+    function togglePinSaved(r){
+      if(S.guest){ var rows=localSaved(); rows.forEach(function(x){ if(x.id===r.id) x.pinned=!x.pinned; }); localStoreSaved(rows); renderSaved(rows); return; }
+      api('/api/pumpkin/responses/'+encodeURIComponent(r.id),{method:'PATCH',body:JSON.stringify({pinned:!r.pinned})})
+        .then(loadSaved).catch(function(err){ $('#sayStatus').textContent=message(err,'Pin failed.'); });
+    }
+    function deleteSaved(r){
+      if(S.guest){ localStoreSaved(localSaved().filter(function(x){ return x.id!==r.id; })); renderSaved(localSaved()); return; }
+      api('/api/pumpkin/responses/'+encodeURIComponent(r.id),{method:'DELETE'})
+        .then(loadSaved).catch(function(err){ $('#sayStatus').textContent=message(err,'Delete failed.'); });
     }
 
     function speakPreview(line){
@@ -345,14 +497,73 @@
       });
     }
 
-    function updateRemoteUrl(){
-      var url=window.location.origin+'/api/pumpkin/remote?room='+encodeURIComponent($('#roomLabel').value||'Main');
-      if(S.guest) url+='&demo=1&channel='+encodeURIComponent(S.demoChannel);
-      $('#remoteUrl').value=url;
+    // ── Device links: the SERVER builds every URL (it knows the public origin and owns roomSlug). ──
+    function currentLabel(){ return ($('#roomLabel').value||'').trim()||'Main'; }
+    function currentPresetName(){ return $('#presetSel').value||(S.preset&&S.preset.name)||'inflatable'; }
+    /** Point an <img> at a server-rendered QR, or hide it. A missing/failed encoder must not leave a
+     *  broken-image icon standing in for a code somebody is about to try to scan. */
+    function setQr(id,src,altHint){
+      var img=$('#'+id);
+      if(!src){ img.onerror=null; img.onload=null; img.hidden=true; img.removeAttribute('src'); return; }
+      if(img.getAttribute('src')===src) return;   // same code already on screen — don't re-flash it
+      img.onerror=function(){ img.hidden=true; if(altHint) $(altHint).textContent='QR code unavailable — copy the link instead.'; };
+      img.onload=function(){ img.hidden=false; };
+      img.setAttribute('src',src);                // compare-by-attribute: img.src resolves to absolute
     }
-    function copyRemote(){
-      var input=$('#remoteUrl');
-      function done(ok){ $('#dispStatus').textContent=ok?(S.guest?'Demo remote link copied. Open it in another tab on this device.':'Phone remote link copied.'):'Copy was blocked. Select the link and copy it manually.'; }
+    function scheduleRefreshLinks(){
+      if(!S.sessionReady) return;                       // init wires handlers before the session resolves
+      if(S.linkTimer) window.clearTimeout(S.linkTimer);
+      S.linkTimer=window.setTimeout(function(){ S.linkTimer=null; refreshLinks(); },LINK_DEBOUNCE_MS);
+    }
+    /**
+     * Ask the server for every device URL. It returns the canonical room slug plus ABSOLUTE
+     * projector/remote URLs (built from APP_URL, so they open on a phone) and RELATIVE QR paths
+     * (they are <img src> inside the cockpit iframe, so they must resolve against this host).
+     */
+    function refreshLinks(){
+      if(S.guest){ renderDemoLinks(); return Promise.resolve(); }
+      var q='?label='+encodeURIComponent(currentLabel())
+           +'&mode='+encodeURIComponent(S.mode)
+           +'&preset='+encodeURIComponent(currentPresetName());
+      return api('/api/pumpkin/links'+q).then(function(j){
+        S.links=j; if(j.room) S.room=j.room;
+        $('#projectorUrl').value=j.projectorUrl||'';
+        $('#remoteUrl').value=j.remoteUrl||'';
+        $('#projectorShort').textContent=j.projectorShortUrl
+          ? 'Short form — type this on the projector device and it picks up the room, look and mode you saved with Launch: '+j.projectorShortUrl
+          : '';
+        $('#remoteHint').textContent='Room “'+(j.label||currentLabel())+'” ('+(j.room||'')+'). Same login as the projector.';
+        setQr('projectorQr',j.projectorQrUrl,'#projectorShort');
+        setQr('remoteQr',j.remoteQrUrl,'#remoteHint');
+        $('#linkStatus').textContent='';
+      }).catch(function(err){ renderFallbackLinks(err); });
+    }
+    /** The guest demo has no server session and is deliberately same-device: build locally, no QR. */
+    function renderDemoLinks(){
+      var demoTail='&demo=1&channel='+encodeURIComponent(S.demoChannel);
+      $('#remoteUrl').value=absoluteFromHere('/api/pumpkin/remote?room='+encodeURIComponent(currentLabel())+demoTail);
+      $('#projectorUrl').value=absoluteFromHere('/pumpkin/?preset='+encodeURIComponent(currentPresetName())+'&mode='+S.mode+'&room='+encodeURIComponent(currentLabel())+demoTail);
+      $('#projectorShort').textContent='Browser demo — these links only work in this browser, on this device. Sign in for real cross-device links and QR codes.';
+      $('#remoteHint').textContent='Browser demo remote: open it in another tab here.';
+      setQr('projectorQr',null); setQr('remoteQr',null);
+      $('#linkStatus').textContent='';
+    }
+    /** Degraded, but LOUD: a link built in this browser may be a localhost address a phone cannot reach. */
+    function renderFallbackLinks(err){
+      var room=S.room||roomSlug(currentLabel());
+      $('#projectorUrl').value=absoluteFromHere('/pumpkin/?preset='+encodeURIComponent(currentPresetName())+'&mode='+S.mode+'&room='+encodeURIComponent(room)+'&listen=ptt');
+      $('#remoteUrl').value=absoluteFromHere('/api/pumpkin/remote?room='+encodeURIComponent(room));
+      $('#projectorShort').textContent='';
+      $('#remoteHint').textContent='';
+      setQr('projectorQr',null); setQr('remoteQr',null);
+      $('#linkStatus').textContent=(err&&err.status===401)
+        ? 'Your session expired — reload this page and sign in again. The link below is this browser’s own address and may not work on another device.'
+        : message(err,'Could not reach /api/pumpkin/links')+' — showing this browser’s own address instead. If the cockpit is open on localhost, that link will NOT open on a phone.';
+    }
+    /** One clipboard implementation for both link boxes (Clipboard API, execCommand fallback). */
+    function copyInput(id,okMsg){
+      var input=$('#'+id);
+      function done(ok){ $('#linkStatus').textContent=ok?okMsg:'Copy was blocked. Select the link and copy it manually.'; }
       if(window.navigator.clipboard&&window.navigator.clipboard.writeText){
         window.navigator.clipboard.writeText(input.value).then(function(){done(true);}).catch(function(){ input.select(); var ok=false; try{ok=document.execCommand('copy');}catch(e){} done(ok); });
       }else{ input.select(); var ok=false; try{ok=document.execCommand('copy');}catch(e){} done(ok); }
@@ -378,11 +589,16 @@
       $('#launch').onclick=launch; $('#apply').onclick=pushLookMode;
       $('#btnSay').onclick=function(){sendLine('say');}; $('#btnAsk').onclick=function(){sendLine('ask');};
       $('#testVoice').onclick=testVoice; $('#saveLook').onclick=saveLook;
-      $('#presetSel').onchange=function(e){ var o=e.target.selectedOptions[0]; if(o&&o.__p) applyPreset(o.__p); };
-      $('#copyRemote').onclick=copyRemote;
-      $('#roomLabel').addEventListener('input',updateRemoteUrl);
+      $('#presetSel').onchange=function(e){ var o=e.target.selectedOptions[0]; if(o&&o.__p) applyPreset(o.__p); scheduleRefreshLinks(); };
+      $('#copyRemote').onclick=function(){ copyInput('remoteUrl',S.guest?'Demo remote link copied. Open it in another tab on this device.':'Phone remote link copied.'); };
+      $('#copyProjector').onclick=function(){ copyInput('projectorUrl','Projector link copied. Paste it into the projector device’s browser.'); };
+      $('#savedRefresh').onclick=function(){loadSaved();};
+      $('#roomLabel').addEventListener('input',scheduleRefreshLinks);
       S.sessionReady=resolveSession();
-      S.sessionReady.then(function(){ return loadPresetList(); }).catch(function(err){ $('#dispStatus').textContent=message(err,'Could not load Pumpkin looks.'); });
+      S.sessionReady
+        .then(function(){ loadSaved(); return loadPresetList(); })
+        .then(function(){ scheduleRefreshLinks(); })   // the preset name is only known once the list loads
+        .catch(function(err){ $('#dispStatus').textContent=message(err,'Could not load Pumpkin looks.'); });
     }
     if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
   })();

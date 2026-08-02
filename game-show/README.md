@@ -5,16 +5,25 @@ and takes a podium, and the same synced state renders as a broadcast big screen,
 buzzer, a host desk, or a spectator view.
 
 The **plug-in engine** below is specified in
-[ADR-112 — game shows are plug-ins](https://github.com/emeraldcoastsystemsgroup/open-shal/blob/main/docs/adr/112-game-shows-as-plugins.md):
-one show-agnostic engine, games as modules, adding Wheel of Fortune or Whammy never forks it.
+[ADR-112 — game shows are plug-ins](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/adr/112-game-shows-as-plugins.md):
+one show-agnostic engine, games as modules, adding a show never forks it.
 
-**Status: built, installed, and live-verified on the local swarm.** A full Family Feud round
-has been played end to end against the real host bot (survey generated, buzz locked, fuzzy
-answer judged, three strikes, steal, crown). Jeopardy's board now generates live too — a real
-6×5 board with values, one Daily Double, and usable clues, parsed and mounted (~41s for the
-generation call, so the host desk should expect a wait). The round clock and the host override
-panel are live-proven against a real room. **Still not exercised in a browser on real devices**
-— that is the one remaining P0 and it needs a human, a TV and two phones.
+**Status: four shows, each with its own television set, playable solo against AI
+contestants, browser-testable end to end.** Family Feud (with **Fast Money**),
+Jeopardy (with **Double Jeopardy**), **Wheel of Fortune**, and **Whammy!** all run on the
+one engine. A full Feud round is played by an automated browser spec against the real
+surfaces (`npm run test:browser`), and the **rehearsal view** plays the whole studio —
+big screen, host desk, one clicker per podium, audience — in ONE browser window, so a
+playthrough needs no TV and no phones. The remaining human step is taste, not function:
+play a round on an actual TV + phones and see that it *feels* right.
+
+Three layers, each independently extendable:
+
+| Layer | What it owns | Add a show by… |
+|---|---|---|
+| **Engine** (`lib/`) | rooms, buzzer, clock, director, host dispatch, NPC actuation | nothing — it is show-agnostic |
+| **Rules** (`lib/shows/<id>.js`) | one game's mechanics, prompts, judge shape, AI brain | one module + one `register()` |
+| **Set** (`ui/gs-show-<id>.js` + `ui/gs-set-<id>.css`) | that show's board on camera | one renderer + one stylesheet |
 
 ## Nothing can hang, and nothing can wedge
 
@@ -24,61 +33,227 @@ Two engine primitives, both show-agnostic, both inherited free by any show added
   (`windowFor`) and what a lapse means (`onTimeout`); the engine keeps time. **There is
   no scheduler** — the deadline lives in the state and the sync poll IS the tick,
   resolved under the room lock, so two clients racing the same deadline resolve it
-  exactly once. Every lapse routes through an *existing* applier (a dead Feud answer is
-  the judged-miss path; a dead Jeopardy response is `applyClueRuling(false)`), so a
-  timeout can never leave the board somewhere a played beat could not.
-- **Host overrides** (`lib/host-override.js`). The shared half — extend / pause / resume
-  the clock, `forceTimeout`, `endGame` — works in every show, including one that
-  implements nothing optional. `forceTimeout` is the universal unstick: it produces
-  exactly the board a real lapse would. The show half (re-open the buzzer, force-reveal,
-  skip, hand over control) is delegated. Owner-only, and **every override writes a
-  milestone event** — a game that silently rearranges itself is worse than a stuck one.
+  exactly once. Every lapse routes through an *existing* applier, so a timeout can never
+  leave the board somewhere a played beat could not. A lapse that resolves into the
+  SAME open window (Whammy's multi-press turn) restarts the clock — found by show #4,
+  guarded in `tests/timers.test.js`.
+- **Host overrides** (`lib/host-override.js`). Extend / pause / resume the clock,
+  `forceTimeout` (the universal unstick), `endGame` — plus per-show recovery (re-open
+  the buzzer, force-reveal, skip, hand over control). Owner-only, every override logged.
 
 ## Shows are plug-ins, not forks
 
-The engine is show-agnostic. A show is ONE module in `lib/shows/*.js` implementing the
-`Show` interface (see the JSDoc in `lib/shows/show-registry.js`), plus one renderer in
-`ui/gs-surfaces.js`. Everything else — rooms, podiums, presence, the buzzer, the cutaway
-director, the interview beat, sync, the host bot, TTS — is shared and untouched.
+A show is ONE module in `lib/shows/*.js` implementing the `Show` interface (JSDoc in
+`lib/shows/show-registry.js`) plus ONE client file `ui/gs-show-<id>.js` registering its
+renderer and phase tables via `GS.registerShowUi` (`ui/gs-shows.js` — the per-show
+registry that replaced the old lookup tables in `gs-surfaces.js`, exactly the collapse
+ADR-112 predicted show #3 would force). Everything else is shared and untouched.
 
 | Piece | File | Show-agnostic? |
 |---|---|---|
 | Generalized buzzer (server decides first press by write order) | `lib/buzzer.js` | yes |
+| Round clock / no-scheduler deadlines | `lib/clock.js` | yes |
 | Cutaway director (shots are data) | `lib/director.js` | yes |
 | Interview beat (host asks, human really answers) | `lib/interview.js` | yes |
-| Rooms / podiums / sync / presence / `mutate()` | `lib/room-service.js` | yes |
-| Host-bot dispatch, judging, spoken-line sanitizing | `lib/host-service.js` | yes |
-| Family Feud | `lib/shows/family-feud.js` | the show |
-| Jeopardy | `lib/shows/jeopardy.js` | the show |
+| Rooms / podiums / sync / presence / `mutate()` / reactions / retention | `lib/room-service.js` | yes |
+| Host-bot dispatch, judging (LLM + local pre-judge), manual content, cost | `lib/host-service.js` | yes |
+| Single-TTS-speaker election | `lib/speaker-lease.js` | yes |
+| NPC contestants — skills, timing, poll-driven actuation | `lib/npc.js` | yes |
+| Broadcast chrome — set frame, podium characters, sfx, opening titles | `ui/gs-play.js` | yes |
+| Family Feud + Fast Money | `lib/shows/family-feud.js`, `feud-fast-money.js` | the show |
+| Jeopardy + Double Jeopardy | `lib/shows/jeopardy.js` | the show |
+| Wheel of Fortune | `lib/shows/wheel.js` | the show |
+| Whammy! (Press Your Luck) | `lib/shows/whammy.js` | the show |
 
-Adding **Wheel of Fortune** = `lib/shows/wheel.js` + `register()` + a renderer entry in
-`BOARDS`/`ANSWER_PHASES`/`WAGER_PHASES`/`START_PHASES`. Nothing else changes.
+The `Show` interface grew as shows #2–#4 landed, and every addition is **optional** —
+a show that implements none of them still runs, it just gives up the feature:
 
-> Adding show #2 (Jeopardy) is what exposed the engine's last two Feud-specific
-> assumptions. **Expect show #3 to find the next one — build it, don't theorize.**
+| Optional member | Gives the show | Absent means |
+|---|---|---|
+| `canGenerate` / `canAnswer` / `isGameOver` | phase gating without leaking phase names into the engine | the engine's permissive defaults |
+| `windowFor` / `onTimeout` | timed windows on the shared clock | no beat can time out (a walk-away hangs the round) |
+| `override` | show-specific host recovery | only the universal unstick (`forceTimeout`, `endGame`) |
+| `localJudge` | free exact-match rulings, no LLM call | every guess costs an LLM judge round-trip |
+| `npcMove` | AI contestants that actually play it | NPC podiums idle into the round clock like an AFK human |
+
+## Solo play — AI contestants
+
+**One person can run a whole game night.** `🤖 Solo night` fills the stage: you take a
+podium and skill-tiered AI players take the rest (a good one on your side too). They
+buzz, answer, pick clues, spin, buy vowels, solve, wager, and press their luck.
+
+- **Zero LLM calls.** An NPC decides against the board the *server already holds*, so
+  solo play is free to run, works under `FORCE_LLM_PROVIDER=noop`, and is exactly
+  reproducible in tests.
+- **No scheduler.** The sync poll IS the tick — same doctrine as the round clock. A due
+  move applies under the room lock on whichever surface polls next; racers no-op.
+- **The seat identity is the skill.** An NPC is a synthetic `npc:<skill>:<uuid>` subject
+  (`sharp` | `casual` | `wild`) — no schema change, and the skill travels wherever seats do.
+- **Timing is deliberate, not instant.** Humans get a head start, a room-wide pace floor
+  keeps a team of bots from machine-gunning, and priority rotates so one eager bot cannot
+  hog every beat. A *shy* roll buzzes **late, never never** — a stage of silently-shy bots
+  was 20 seconds of dead air (found live, guarded in `tests/npc.test.js`).
+- Bots stay quiet while an interview is live, and a paused game freezes them too.
+
+## The broadcast layer
+
+Opening the app puts you in front of a **television show**, not a control panel — the
+admin surface is the host desk, and nothing else. `ui/gs-play.js` is show-agnostic chrome:
+
+- **The set frame** — marquee, light beams, stage floor, and the show's board center-stage.
+- **Podium characters** — each player is a face (camera still, avatar, or nameplate) on a
+  drawn team-colored podium with an LED nameplate and a live score. Default avatars are
+  deduped across the roster so two rivals never share a face.
+- **Sound** — `GS.sfx` is a small WebAudio cue synth (no assets, no CDN): reveals ding,
+  misses buzz, wins get a fanfare and applause. Cues are scored from the room event log
+  via the `GS.onBeat` hook in `gs-core.js`, so a beat any surface can see is a beat it can play.
+- **Opening titles** once per game — and the show is *announced*: the first round start
+  auto-dispatches the host's `intro` line, so the speaker surface voices the open with
+  the titles (caption-only when TTS is unavailable, backlog #4). The lower-third host
+  caption renders *nothing* when the host has not spoken (an empty caption bar reads as
+  a broken box).
+- **One screen, never a scroll.** With the action dock pinned, the frame above it
+  compresses to fit — a fixed dock must never knife through the podium row.
+
+Each show dresses that frame with its own set (`ui/gs-set-<id>.css`, scoped by
+`body[data-gs-show=<id>]`): Feud's gold flip-card board with a three-slot strike tray and
+giant X slams; Jeopardy's monitor wall and full-set clue takeovers; a real 17-segment SVG
+**wheel that spins** and parks on the outcome, over a tile puzzle wall; Whammy's ring
+board with a chasing arcade light and a 😈 that drains your bank to $0.
+
+**The render-loop rule any new set must follow:** the DOM is rebuilt on every changed poll
+(~1.4 s). Continuous animation = ONE module-level ticker repainting existing nodes **by
+id** (never creating them); one-shot animation = a module-level *last-seen* comparison
+(serial, strike count, revealed mask). A renderer that starts an interval per render
+stacks timers until the page dies.
+
+## What the host can do beyond the AI
+
+- **Play your own questions.** The host desk's "✍ Use my own questions" panel takes a
+  plain-text Feud survey (or any show's generated-JSON shape) and runs it through the
+  same validation the model's output gets — game night with YOUR questions, zero LLM.
+- **Exact answers rule free.** `show.localJudge` rules an exact text/alias hit without
+  an LLM call; only fuzzy guesses go to the lenient AI judge. Cheaper, instant, and the
+  deterministic rail the automated browser playthrough rides.
+- **See the tab.** The host desk shows this room's real spend (from `chat_tasks`,
+  keyed by the room-scoped host task ids) — backlog #15.
 
 ## Surfaces
 
-One synced state, selected by `?view=`: `tv` (broadcast, no controls), `stage`
-(desktop/solo), `clicker` (phone buzzer), `host` (MC desk + hotseat), `audience`, `help`.
+One synced state, selected by `?view=`. **Players see the SHOW, never an admin page**
+(2026-07-26 rebuild, audited against the DnD table as the quality bar):
+
+- `stage` — the broadcast picture full-bleed with a floating bottom **action dock**
+  that appears only when it's your moment (buzz bar, answer pad, wager, spin). The
+  dock lives on `document.body`, pinned inside the viewport — the audit measured the
+  old buzzer at 933px in an 844px phone viewport mid-buzz-window; that class of bug
+  is now asserted against in the browser spec.
+- `clicker` — the **buzzer mode**: one giant button that explains itself when it's
+  dark, with the answer pad docked below. A phone picks show-vs-buzzer on first
+  join and can switch anytime (🔴/📺); `&as=<seatId>` pins a hotseat podium (owner-only).
+- `tv` — broadcast chrome; the lobby phase is the invitation: giant join code + a
+  **scannable QR** (`GET /qr`, served with the platform's qrcode dep) + live podiums.
+  An idle TV self-onboards when a room appears.
+- `host` — the MC's tools: one ▶ button, the answer key, your-own-questions, podium
+  and AI-player admin; the phase pills, overrides, hotseat, interview, cutaway
+  previews and cost fold into a 🔧 Show-tools drawer.
+- `audience` (watch + broadcast reactions, no operator chrome), `help`, and
+  **`rehearsal`** — every surface as live iframes over one room, in one window.
+
+**Joining is two gestures:** scan the QR on the TV → the deep link auto-joins and
+seats you (zero taps) → pick your mode/team. Waits are narrated in-world ("The host
+is writing your questions… 15–40s") instead of silent buttons.
+
+Answers can be **spoken**: the answer box grows a 🎤 button where the Web Speech API
+exists (Chrome/Edge); the transcript submits as the guess. Typing stays the fallback
+everywhere else — feature-detected, never required.
+
+Exactly **one device per room speaks** the host's lines (backlog #8): speaker surfaces
+claim a short-TTL lease each poll (TV outranks the host desk), lines queue instead of
+overlapping, and everyone else stays caption-only.
+
+All surfaces load the swarm control plane's saved theme and follow live theme changes.
+The mobile layouts scroll vertically, collapse boards to one readable column, preserve
+44px touch targets, and stack the one-window rehearsal studio instead of clipping its
+visualizations off-screen.
+
+### Broadcast cutaways
+
+The semantic director now drives six reusable full-screen transitions: show open,
+buzzer race, team huddle, interview, strike, and celebration. Each transition has a
+zero-dependency HTML/CSS animation, including a reduced-motion treatment. If a matching
+silent MP4 exists under `ui/cutaways/`, the player uses it automatically; missing,
+blocked, or failed video always reveals the local animation underneath. The Host Desk
+has preview buttons for auditioning every transition without advancing a round.
+
+The asset contract is documented in `ui/cutaways/README.md`. This keeps rendered Google
+Vids clips swappable and optional rather than making game play depend on a media worker.
+
+### Buzz fairness (backlog #17 — deliberate trade-off)
+
+First-press is decided by **server write order** under the room lock. This favors
+low-latency devices by design: the app is **local-play-first** (a living room on one
+Wi-Fi, skews of a few ms), and a collect-window scheme would add 150–300 ms of dead air
+to every single buzz to protect a case (mixed remote play) the presence camera and TTS
+paths don't really serve anyway. If remote play ever becomes a real mode, the buzzer is
+one module — a ranked collect window slots into `lib/buzzer.js` without touching shows.
 
 ## Run the tests
 
-`npm test` runs all five suites (167 checks). Store-repo specs still have **no CI runner**,
-so this is a command a human has to type — see backlog item 12.
+`npm test` runs all thirteen engine suites (548 checks) — no dependencies, plain node.
+They also run in CI on every store-repo PR (`.github/workflows/store-ci.yml`, backlog #12).
 
 ```bash
 npm test
 node tests/game-show-engine.test.js   # 35 — buzzer, face-off, strikes, steal, scoring
-node tests/jeopardy.test.js           # 41 — board, ring-in, Daily Double, final wagering
-node tests/host-guards.test.js        # 19 — spoken-line sanitizing, tolerant JSON
-node tests/timers.test.js             # 40 — windows, lapses, pause/extend, no beat hangs
+node tests/npc.test.js                # 60 — skills, due-timing, pacing, all four show brains
+node tests/jeopardy.test.js           # 55 — board, ring-in, Daily Double, DOUBLE JEOPARDY, final
+node tests/host-guards.test.js        # 25 — spoken-line sanitizing, tolerant JSON, auto-narrated open
+node tests/timers.test.js             # 42 — windows, lapses, pause/extend, expired-restamp
 node tests/overrides.test.js          # 32 — clock control, universal unstick, per-show recovery
+node tests/fast-money.test.js         # 46 — gate, runs, duplicates, handoff, 200-point bonus
+node tests/speaker-lease.test.js      # 13 — one voice per room, TV priority, TTL self-heal
+node tests/wheel.test.js              # 90 — turn claim, spins, letters, vowels, solve
+node tests/whammy.test.js             # 87 — lazy spins, whammy knockout, pass-to-leader
+node tests/whammy-set.test.js         # 36 — the REAL set renderer in a vm: closed ring at 8-12 panels, current-beat centre screen
+node tests/leaderboard.test.js        # 13 — caller-scoped hall-of-fame read, lobby shape
+node tests/cutaways.test.js           # 14 — catalog, state selection, media allowlist
 ```
 
-Both newer suites **locate** clues rather than assuming a slot: Jeopardy's Daily Double
-lands at random, so a hard-coded `[0][0]` passes nine runs in ten and then fails for no
-reason. Keep that habit when adding show #3.
+`tests/npc.test.js` plays full NPC-vs-NPC Feud, Wheel, and Whammy rounds in-process, so
+"solo night actually finishes a game" is a guard, not a hope.
+
+**The browser playthrough** (the P0 that used to need a human, a TV and two phones):
+
+```bash
+# Against the local stack (live auth): mint a PAT, then
+GS_PAT=oshal_pat_... npm run test:browser
+# Against a MOCK_OIDC dev server: just
+GS_BASE_URL=http://localhost:35457 npm run test:browser
+# Watch it play: GS_HEADED=1
+```
+
+It opens the real tv / host / two pinned clickers / audience pages, plays a full Feud
+round deterministically (manual survey + exact answers → localJudge; a miss via the
+host's "move it along"), asserts the reveals, the celebration, the reaction broadcast,
+and the $0.00 cost chip, and screenshots the rehearsal grid. Playwright resolves from
+the core repo checkout (or `PLAYWRIGHT_MODULE`).
+
+Random content (Daily Double slots, wheel segments, whammy stops) is **located, never
+assumed** — keep that habit in new specs.
+
+**The set photographer** (`npm run test:shots`) stages every show at photogenic beats and
+screenshots both `?view=tv` and `?view=stage` into `_playthrough-shots/sets/`. It asserts
+nothing about pixels — it exists so a human (or a review agent) can *look* at four sets in
+one pass instead of hand-driving four games. Same env contract as the playthrough.
+Staging is deterministic (backlog #9): scripted actions run with no NPC seated, the
+round clock is paused before any page opens (a paused timer freezes NPC actuation and
+timeouts), and the 🤖 sharp podium is seated only after the live beat is staged — so
+the bot character renders without ever being able to take the beat first.
+
+```bash
+GS_PAT=oshal_pat_... npm run test:shots
+```
 
 ## Deploy locally
 
@@ -94,99 +269,104 @@ docker restart oshal-local-api    # boot auto-loader picks up deployed-apps/
 Node caches `require`s and the route factory reads UI sources once at mount, so **any**
 change needs the restart (or a `POST /api/swarm/apps/load` with a PAT).
 
+## Data retention
+
+- Ending a game **prunes its presence frames** immediately and **snapshots final
+  standings** into `gameshow_seats.score` (state jsonb stays authoritative during play;
+  backlog #13/#19). The lobby's 🏆 **Hall of fame** reads those snapshots back —
+  `GET /leaderboard`, caller-scoped to games you hosted or played (#11).
+- Rooms ended 7+ days ago purge opportunistically on create/list, cascading state,
+  seats, events, and presence (backlog #14 — same no-scheduler pattern as the clock).
+- Camera capture backs off to ~6 s while the director holds a plain board shot.
+
 ---
 
 # Backlog — next steps
 
-Ordered. Each has a done-when so scope isn't re-guessed.
+Ordered. Each has a done-when so scope isn't re-guessed. Items marked **[judged]** came
+out of the 2026-07-26 screenshot review panel and are recorded as *reported*, not
+reproduced — confirm the shot before you spend a fix on it.
 
 ## P0 — blocking real use
 
-1. **Browser playthrough on real devices.** ← **the only P0 left**
-   Done when: a host on a laptop + two phones + a TV play one full Feud round; podium
-   presence, buzz race, captions and celebration all render correctly on each surface.
+1. **Real-device feel pass.** The mechanics are browser-proven (`npm run test:browser`
+   + the rehearsal view) and every set has been photographed (`npm run test:shots`);
+   what's left is the couch test.
+   Done when: a host on a laptop + two phones + a TV play one full round of any show and
+   the pacing/readability feel right at TV distance.
 
-2. ~~**Round/answer timers.**~~ **DONE 2026-07-22.** `lib/clock.js` + `windowFor`/`onTimeout`
-   per show; countdown chip on every surface and a big ring on the TV, all counting to the
-   *server* deadline via a per-poll skew measurement. Live-proven: a clue nobody rang in on
-   retired itself on the next poll. Guard: `tests/timers.test.js`.
+2. **Live-test the interview beat + spoken answers on a phone.** The interview
+   round-trip and the 🎤 answer path are built and unit/browser-covered, but a real
+   mic + a real host-bot reaction have not been exercised together.
+   Done when: a contestant answers an interview question by voice and the host reacts,
+   on a phone.
 
-3. ~~**Host override controls (stuck-game recovery).**~~ **DONE 2026-07-22.** Host desk panel:
-   +30s / pause / resume / "move it along", re-open buzzer, force-reveal, skip round or clue,
-   clear a strike, hand over control, remove a podium, end the game. Live-proven including
-   the paused-clock case. Guard: `tests/overrides.test.js`.
+## P1 — the set still has seams on camera
 
-4. **Live-test the interview beat.** *(Jeopardy generation half DONE 2026-07-22 — a real 6×5
-   board generated, parsed, and mounted; a lapsed clue and the overrides were driven against
-   the live room.)* Still unproven live: a clue rung in and ruled by a human, and the
-   interview round-trip.
-   Done when: a contestant rings in and the host bot rules the response, and an interview
-   question → human answer → host reaction completes.
+6. **Motion-avatar presence module (the shark).** The slot already exists in
+   `ui/gs-presence.js` `tile()`.
+   Done when: a player can pick an avatar that tracks their head/mouth from the camera
+   and renders in place of the still, with no change to any other module.
 
-## P1 — makes it feel like a real show
+7. **The rendered cutaway MP4s.** The six transitions all have CSS fallbacks today and
+   the asset contract is documented (`ui/cutaways/README.md`); the Google Vids render was
+   dispatched to a desktop node and has not landed.
+   Done when: the named MP4s exist under `ui/cutaways/` and the player prefers them, with
+   the CSS animation still covering a missing or blocked file.
 
-5. **Speak your answer instead of typing it.** The phone should listen.
-   Done when: the clicker uses the Web Speech API to transcribe and submit a guess, with a
-   typed fallback when unsupported or denied.
+## P2 — test coverage and operability
 
-6. **Fast Money (Feud endgame).** The signature round is missing.
-   Done when: two players answer five generated questions against a clock, scores combine
-   toward 200, and the surface shows the classic reveal.
+8. **Only Feud has a browser spec.** `tests/browser-playthrough.test.js` plays a full
+   Feud round on real surfaces; Jeopardy, Wheel, and Whammy are covered by unit suites and
+   by *screenshots*, which assert nothing.
+   Done when: one browser spec per show drives its signature beat end to end (Jeopardy: a
+   ring-in and a Daily Double wager; Wheel: a spin, a consonant, a solve; Whammy: a press
+   and a whammy), reusing the deterministic manual-content rail.
 
-7. **Double Jeopardy round.** Jeopardy plays one board then the final.
-   Done when: a second board generates at doubled values before Final Jeopardy.
-
-8. **Elect a single TTS speaker + queue lines.** Every speaker surface currently requests
-   its own audio — duplicate cost and overlapping playback.
-   Done when: exactly one device per room synthesizes, lines queue instead of overlapping,
-   and the rest stay caption-only.
-
-## P2 — the modular payoff
-
-9. **Wheel of Fortune module.** Also the best stress test of the interface: letter guessing
-   needs no LLM judge, only puzzle generation.
-   Done when: puzzle board, spin, buy-a-vowel, and solve play through with the shared
-   buzzer/director untouched.
-
-10. **Whammy / Press Your Luck module.**
-    Done when: the light-chase board, spin/stop, whammy loss and banked cash play through.
-
-11. **Motion-avatar presence module (the shark).** The slot already exists in
-    `ui/gs-presence.js` `tile()`.
-    Done when: a player can pick an avatar that tracks their head/mouth from the camera and
-    renders in place of the still, with no change to any other module.
-
-## P3 — hygiene and operability
-
-12. **Wire a test runner.** *(Half done 2026-07-22: `npm test` runs all five suites, 167
-    checks — but it still only runs if a human types it.)*
-    Done when: a CI job (or the core gate) runs the package suites and fails red on a break.
-
-13. **Presence frame retention.** Every player writes a ~30KB JPEG to Postgres every 2.2s
-    with no pruning.
-    Done when: frames are pruned on room end, cadence backs off when no shot features
-    podiums, and a size cap is enforced.
-
-14. **Ended-room cleanup.** `gameshow_*` rows accumulate forever.
-    Done when: ending a game purges or archives its state/events/presence on a retention
-    policy.
-
-15. **Per-room cost visibility.** Host-bot calls bill the room owner invisibly.
-    Done when: the host desk shows this game's spend from `chat_tasks`.
-
-16. **Broadcast audience reactions.** Emoji are local-only; nobody else sees them.
-    Done when: a reaction is an event other surfaces render.
-
-17. **Buzz fairness for remote players.** First-press is decided by server write order,
-    which favors low-latency devices.
-    Done when: presses collect for a short window and rank with clock-skew correction, or
-    the trade-off is deliberately documented as local-play-first.
-
-18. **Push and install via the sanctioned path.** Currently installed by `docker cp`.
+10. **Push and install via the sanctioned path.** Currently installed by `docker cp`.
     Done when: the package is pushed and installed via `scripts/oshal-app.js install
     game-show --ref main`, leaving a provenance stamp.
 
-19. **Decide `gameshow_seats.score`.** Currently an unused column (state jsonb is
-    authoritative in play).
-    Done when: it either persists an end-of-game snapshot for a cross-game leaderboard, or
-    is dropped.
+## Done (2026-07-31 backlog pass — v0.10.0)
+
+- ~~Whammy's ring breaks under 12 panels~~ (#3) → dimmed filler cells close the ring at
+  every count the generator allows (8–12); guarded by `tests/whammy-set.test.js`, which
+  drives the real renderer in a vm (the shot-based verification the item asked for still
+  needs a live stack — the vm guard asserts the exact DOM the shot would photograph)
+- ~~The show opens in silence~~ (#4) → the first round start auto-dispatches the host's
+  `intro` line, fire-and-forget; the speaker-lease surface voices it with the titles,
+  caption-only when TTS is unavailable (guarded in `tests/host-guards.test.js`)
+- ~~Whammy's centre screen can hold a stale readout~~ (#5) → a stop/whammy readout is a
+  timed beat: the ticker hands the screen back to the attract marquee, a page opened
+  mid-game starts on attract, and no readout renders outside the lights phase
+  (`tests/whammy-set.test.js`)
+- ~~The set photographer races the NPC~~ (#9) → deterministic staging: no NPC during
+  scripted actions, clock paused before any page opens, NPC seated last and frozen
+- ~~Cross-game leaderboard surface~~ (#11) → `GET /leaderboard` (caller-scoped over the
+  `gameshow_seats.score` snapshots) + the lobby's 🏆 Hall of fame panel
+  (`tests/leaderboard.test.js`)
+
+## Done (2026-07-25 → 07-26 — see git history)
+
+- ~~Solo play against AI~~ → `lib/npc.js` + `npcMove` brains in all four shows, zero LLM
+  (v0.6.0 Feud/Jeopardy, v0.7.0 Wheel/Whammy/Fast Money)
+- ~~The lobby was unreachable~~ → auto-resume no longer traps you in the last room;
+  ☰ New game + an open-games list with Resume/End (v0.6.0)
+- ~~"All I could get to were admin screens"~~ → the broadcast layer: set frame, podium
+  characters, sfx, opening titles, and a real set per show (v0.9.0)
+- ~~Players saw an admin page~~ → full-bleed play view, pinned action dock, buzzer mode,
+  zero-tap QR join (v0.8.0)
+
+## Done (2026-07-24 backlog burn-down — see git history for the change set)
+
+- ~~Browser playthrough~~ → automated (`tests/browser-playthrough.test.js`) + the
+  one-window rehearsal view; Jeopardy generation half was already live-proven 07-22.
+- ~~Round/answer timers~~ (07-22) · ~~Host override controls~~ (07-22)
+- ~~Speak your answer~~ → 🎤 on every answer box, typed fallback (#5)
+- ~~Fast Money~~ (#6) · ~~Double Jeopardy~~ (#7) · ~~single TTS speaker + queue~~ (#8)
+- ~~Wheel of Fortune~~ (#9) · ~~Whammy / Press Your Luck~~ (#10)
+- ~~Test runner in CI~~ → store-repo PR workflow (#12)
+- ~~Presence frame retention~~ (#13) · ~~Ended-room cleanup~~ (#14)
+- ~~Per-room cost visibility~~ (#15) · ~~Broadcast audience reactions~~ (#16)
+- ~~Buzz fairness~~ → documented as a deliberate local-play-first trade-off (#17)
+- ~~Decide `gameshow_seats.score`~~ → end-of-game snapshot, leaderboard hook (#19)

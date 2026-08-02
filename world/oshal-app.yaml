@@ -41,12 +41,12 @@ description: >-
   sentiment graph (political + economic + outlet-kind axes), entity co-mention graph,
   and historical series. Ask the analyst "what's the press saying about X" and get a
   structured, bias-contextualized read, not a misleading average.
-version: 1.0.0
+version: 1.0.2
 status: active
 
 source:
   type: git-subdir
-  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: world
   ref: main
 

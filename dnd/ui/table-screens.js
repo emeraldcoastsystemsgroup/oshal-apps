@@ -26,6 +26,7 @@
  * 2026-07-23 09:30:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Release stale completed-action locks, expose Attack From Here, and add functional spoken-action, dice-math, and NPC-pace controls.
  * 2026-07-23 11:21:50 | roger.murphy@emeraldcoastsystemsgroup.com  | Keep post-action movement live during narration and label the voice panel as Dungeon Master Settings.
  * 2026-07-23 12:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Require an explicit campaign choice before party building and activate the saved campaign's authored world on resume.
+ * 2026-07-27 22:05:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Confirm a successful join on the join screen itself, report a failed table load instead of freezing on the code, and show a joined player their seat rather than the host's join-code instructions.
  */
 
 'use strict';
@@ -507,7 +508,22 @@ function showJoin(prefill) {
     <p><input id="joinCode" value="${esc(invited)}" placeholder="e.g. 7F3A2C" maxlength="6" style="text-transform:uppercase;background:#0f0c0a;border:1px solid var(--line);border-radius:10px;color:var(--ink);padding:12px;font-size:20px;text-align:center;letter-spacing:4px;width:220px"></p>
     <button class="big" id="ovDoJoin">Sit at the Table</button> <button class="big ghost" id="ovBack">Back</button><p id="joinErr" style="color:var(--blood)"></p>`);
   $('ovBack').onclick = showTitle;
-  $('ovDoJoin').onclick = async () => { const r = await api('/join', { method: 'POST', body: JSON.stringify({ code: $('joinCode').value }) }); if (!r.ok) { $('joinErr').textContent = r.error || 'Could not join.'; return; } try { history.replaceState(null, '', location.pathname); } catch (_e) {} await enterCampaign(r.campaignId); if (!myClaims().length) showHeroes(true); };
+  $('ovDoJoin').onclick = () => void submitJoinCode();
+}
+
+/** @description Seat this device at a shared table and always report the outcome on the join screen. */
+async function submitJoinCode() {
+  const button = $('ovDoJoin'), fail = (message) => { if ($('joinErr')) $('joinErr').textContent = message; if (button) button.disabled = false; };
+  if (button) { button.disabled = true; button.textContent = 'Sitting down…'; }
+  if ($('joinErr')) $('joinErr').textContent = '';
+  const r = await api('/join', { method: 'POST', body: JSON.stringify({ code: $('joinCode').value }) }).catch(() => null);
+  if (button) button.textContent = 'Sit at the Table';
+  if (!r || !r.ok) { fail((r && r.error) || 'Could not reach the table. Check the code and try again.'); return; }
+  try { history.replaceState(null, '', location.pathname); } catch (_e) {}
+  const entered = await enterCampaign(r.campaignId).catch(() => false);
+  if (!entered) { fail('You are seated, but this table did not load. Tap Sit at the Table again.'); return; }
+  banner(`You are at the table — ${campaign && campaign.name ? campaign.name : 'the campaign'}.`);
+  if (!myClaims().length) showHeroes(true);
 }
 function acceptClaimResponse(result) {
   if (!result || !result.ok) return false;
@@ -545,6 +561,13 @@ function showHeroes(claiming) {
   document.querySelectorAll('[data-claim]').forEach((b) => { b.onclick = () => claimCharacter(b.dataset.claim, false); });
   bindHostSeatReleaseControls('party');
 }
+/** @description Return this device's claimed hero name, so a joined player sees who they are playing. */
+function seatedHeroName() {
+  const slug = myClaims()[0];
+  if (!slug) return '';
+  const sheet = boardSheets[slug] || (content.heroes || []).find((h) => h.id === slug);
+  return (sheet && sheet.name) || slug;
+}
 function showLobby() {
   if (!campaign || !board) return;
   const acceptingClaims = board.mode === 'setup';
@@ -564,15 +587,20 @@ function showLobby() {
       : '<p class="lobby-wait"><span class="spin"></span> Waiting for the host to start the quest…</p>'
     : '<p class="lobby-wait">Quest in progress · claims locked</p>';
   const importControl = acceptingClaims ? '<button class="big ghost" id="ovLobbyImport">Import My Character</button>' : '';
-  overlay(`<div class="lobby-code"><span>Multiplayer join code</span><strong>${esc(campaign.join_code || '')}</strong><button id="copyJoin">Copy</button></div>
-    <h1>${acceptingClaims ? 'Choose your character' : 'The Party'}</h1><p>${campaign.is_owner ? 'Share the code and claim your hero, then start when the table is ready.' : 'Pick the one hero you will control. Your phone will light up when it is your turn.'} Unclaimed heroes are labeled <b>AI Companion</b>: you can inspect them, but only the host automation moves and casts for them.</p>
-    <div class="join-steps"><b>How friends join</b><ol><li>Tap <b>Copy Invite Link</b> and send it.</li><li>Your friend signs in and opens the link.</li><li>They choose one available hero; the rest stay AI Companions.</li></ol></div>
+  // The join code and the "how friends join" steps are HOST instructions. A player
+  // who just typed that code needs the opposite: confirmation that they landed.
+  const header = campaign.is_owner
+    ? `<div class="lobby-code"><span>Multiplayer join code</span><strong>${esc(campaign.join_code || '')}</strong><button id="copyJoin">Copy</button></div>
+      <div class="join-steps"><b>How friends join</b><ol><li>Tap <b>Copy Invite Link</b> and send it.</li><li>Your friend signs in and opens the link.</li><li>They choose one available hero; the rest stay AI Companions.</li></ol></div>`
+    : `<div class="lobby-code seated"><span>✓ You are seated at this table</span><strong>${esc(seatedHeroName() || 'Choose your hero')}</strong><small>${esc(campaign.name || 'Campaign')} · ${acceptingClaims ? 'the host starts when the party is ready' : 'quest in progress'}</small></div>`;
+  overlay(`${header}
+    <h1>${acceptingClaims ? 'Choose your character' : 'The Party'}</h1><p>${campaign.is_owner ? 'Share the code and claim your hero, then start when the table is ready.' : 'Pick the one hero you will control. Your phone will light up when it is your turn, and this screen clears by itself the moment the host begins.'} Unclaimed heroes are labeled <b>AI Companion</b>: you can inspect them, but only the host automation moves and casts for them.</p>
     ${waitingSeats}<div class="herogrid lobby-grid">${cards}</div>
-    <div class="lobby-actions">${ownerControls}<button class="big ghost" id="copyInvite">Copy Invite Link</button>${importControl}<button class="big ghost" id="ovLobbyClose">Look at the board</button><button class="big ghost" id="ovLobbyQuit">Quit to My Games</button>${campaign.is_owner ? '' : '<button class="big ghost" id="ovLobbyLeave">Leave Campaign</button>'}</div>`, 'lobby');
+    <div class="lobby-actions">${ownerControls}${campaign.is_owner ? '<button class="big ghost" id="copyInvite">Copy Invite Link</button>' : ''}${importControl}<button class="big ghost" id="ovLobbyClose">Look at the board</button><button class="big ghost" id="ovLobbyQuit">Quit to My Games</button>${campaign.is_owner ? '' : '<button class="big ghost" id="ovLobbyLeave">Leave Campaign</button>'}</div>`, 'lobby');
   document.querySelectorAll('[data-lobby-claim]').forEach((b) => { b.onclick = () => claimCharacter(b.dataset.lobbyClaim, true); });
   bindHostSeatReleaseControls('lobby');
-  $('copyJoin').onclick = async () => { try { await navigator.clipboard.writeText(campaign.join_code || ''); banner('Join code copied.'); } catch (_e) { banner(`Join code: ${campaign.join_code}`); } };
-  $('copyInvite').onclick = async () => { const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('join', campaign.join_code || ''); try { await navigator.clipboard.writeText(u.toString()); banner('Invite link copied — send it to a friend.'); } catch (_e) { banner(`Invite link: ${u}`); } };
+  if ($('copyJoin')) $('copyJoin').onclick = async () => { try { await navigator.clipboard.writeText(campaign.join_code || ''); banner('Join code copied.'); } catch (_e) { banner(`Join code: ${campaign.join_code}`); } };
+  if ($('copyInvite')) $('copyInvite').onclick = async () => { const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('join', campaign.join_code || ''); try { await navigator.clipboard.writeText(u.toString()); banner('Invite link copied — send it to a friend.'); } catch (_e) { banner(`Invite link: ${u}`); } };
   if ($('ovLobbyImport')) $('ovLobbyImport').onclick = () => showImportCharacter('lobby');
   $('ovLobbyClose').onclick = closeOverlay;
   $('ovLobbyQuit').onclick = () => void quitToGameMenu();

@@ -1,0 +1,2281 @@
+{
+  "schemaVersion": 1,
+  "ventureId": "pumpkin-projection-prop",
+  "title": "Projected Talking Jack-o'-Lantern - inflatable Halloween prop",
+  "oneLiner": "An inflatable pumpkin with a projector inside it that throws an animated, lip-syncing jack-o'-lantern face onto a translucent panel in its skin. A kid talks to it; it answers in character.",
+  "provenance": {
+    "compiledAt": "2026-08-01",
+    "compiledBy": "roger.murphy@emeraldcoastsystemsgroup.com",
+    "posture": "PRE-QUOTE ESTIMATE",
+    "postureMeaning": "No supplier has been contacted. No quote has been received. No unit has been built. Every cost in this file is a researched BAND or a stated ESTIMATE, never a quoted price. Nothing here constitutes a manufacturing commitment.",
+    "trackRecord": "none - this venture has never been produced or sold",
+    "howToUpgrade": "Every record with needsQuote:true is a line where a real supplier quote replaces the band. The engine must report the share of landed cost still resting on needsQuote lines; that share is the honest confidence in the whole plan."
+  },
+  "currency": "USD",
+  "confidenceScale": {
+    "high": "Directly observed on a primary/retail surface, or computed from first principles with inputs of at least medium confidence.",
+    "medium": "Reported by a credible secondary source (trade guide, compliance lab, freight broker) as a market range; consistent across more than one source.",
+    "low": "Single source, or an inference from an adjacent category. Treat as a placeholder that a quote must replace."
+  },
+  "sources": {
+    "S1": {
+      "label": "Alibaba electronics buying guide - DLP pico projector module (OEM module tiers)",
+      "url": "https://electronics.alibaba.com/buyingguides/dlp-pico-projector-module-guide-what-you-actually-need",
+      "retrievedAt": "2026-08-01",
+      "kind": "trade-guide"
+    },
+    "S2": {
+      "label": "Alibaba mini projector wholesale guide (entry/mid/high wholesale tiers)",
+      "url": "https://electronics.alibaba.com/product/mini-projector-wholesale",
+      "retrievedAt": "2026-08-01",
+      "kind": "trade-guide"
+    },
+    "S3": {
+      "label": "Walmart - Gemmy Projection Airblown Inflatable Fire and Ice Frightening Pumpkin Giant Scene, 12 ft",
+      "url": "https://www.walmart.com/ip/Gemmy-Projection-Airblown-Inflatable-Fire-and-Ice-Frightening-Pumpkin-Giant-Scene-RRY-12-ft-Tall/530253600",
+      "retrievedAt": "2026-08-01",
+      "kind": "retail-listing"
+    },
+    "S4": {
+      "label": "The Home Depot - Halloween Animatronics category",
+      "url": "https://www.homedepot.com/b/Holiday-Decorations-Halloween-Decorations-Halloween-Animatronics/N-5yc1vZ2fkowjy",
+      "retrievedAt": "2026-08-01",
+      "kind": "retail-listing"
+    },
+    "S5": {
+      "label": "Lowe's - Halloween Animatronics category",
+      "url": "https://www.lowes.com/pl/halloween-decorations/animatronic/4294586669-4294619964",
+      "retrievedAt": "2026-08-01",
+      "kind": "retail-listing"
+    },
+    "S6": {
+      "label": "Amazon - HoliScapes USB Projector Kit (AtmosFX Jack-O-Lantern Jamboree + projector + 48x72 holographic screen)",
+      "url": "https://www.amazon.com/HoliScapes%C2%AE-USB-Projector-Jack-Lantern/dp/B0DD2MW42S",
+      "retrievedAt": "2026-08-01",
+      "kind": "retail-listing"
+    },
+    "S7": {
+      "label": "The Home Depot - Joyfy 8 ft Halloween Pumpkin/Ghost/Vampire/Witch Inflatable",
+      "url": "https://homedepot.com/p/Joyfy-8-Ft-Halloween-Pumpkin-Ghost-Vampire-Witch-Inflatable-31975-B/335155909",
+      "retrievedAt": "2026-08-01",
+      "kind": "retail-listing"
+    },
+    "S8": {
+      "label": "Compliance Testing - How much does FCC testing cost",
+      "url": "https://compliancetesting.com/how-much-does-fcc-testing-cost/",
+      "retrievedAt": "2026-08-01",
+      "kind": "compliance-lab"
+    },
+    "S9": {
+      "label": "Jettest - FCC certification cost breakdown 2026",
+      "url": "https://www.jettest.net/blog/explained-what-is-fcc-certification-cost-breakdown-2026",
+      "retrievedAt": "2026-08-01",
+      "kind": "compliance-lab"
+    },
+    "S10": {
+      "label": "Compliance Gate - CPSIA and ASTM F963-23 product lab testing",
+      "url": "https://www.compliancegate.com/cpsia-product-lab-testing/",
+      "retrievedAt": "2026-08-01",
+      "kind": "compliance-guide"
+    },
+    "S11": {
+      "label": "eCFR 16 CFR 1200.2 - Definition of children's product",
+      "url": "https://www.ecfr.gov/current/title-16/chapter-II/subchapter-B/part-1200/section-1200.2",
+      "retrievedAt": "2026-08-01",
+      "kind": "regulation-primary"
+    },
+    "S12": {
+      "label": "CPSC - Children's Products business guidance",
+      "url": "https://www.cpsc.gov/Business--Manufacturing/Business-Education/Childrens-Products",
+      "retrievedAt": "2026-08-01",
+      "kind": "regulator-primary"
+    },
+    "S13": {
+      "label": "Komaspec - UL vs ETL vs CSA certification",
+      "url": "https://www.komaspec.com/about-us/blog/ul-vs-etl-vs-csa-certification/",
+      "retrievedAt": "2026-08-01",
+      "kind": "trade-guide"
+    },
+    "S14": {
+      "label": "Jingsourcing - ETL vs UL certification cost",
+      "url": "https://jingsourcing.com/b-etl-ul-certification/",
+      "retrievedAt": "2026-08-01",
+      "kind": "trade-guide"
+    },
+    "S15": {
+      "label": "US Tariff Rates - import duty on toys and games from China (HTS + Section 301)",
+      "url": "https://ustariffrates.com/import/toys/from/china",
+      "retrievedAt": "2026-08-01",
+      "kind": "tariff-reference"
+    },
+    "S16": {
+      "label": "Gateway Lines - complete guide to Section 301 China tariffs in 2026",
+      "url": "https://gatewaylines.com/press-releases/complete-guide-to-section-301-china-tariffs-in-2026",
+      "retrievedAt": "2026-08-01",
+      "kind": "tariff-reference"
+    },
+    "S17": {
+      "label": "Suaid Global - ocean freight rates 2026 (FCL and LCL by route)",
+      "url": "https://suaidglobal.com/insights/ocean-freight-rates-2026/",
+      "retrievedAt": "2026-08-01",
+      "kind": "freight-broker"
+    },
+    "S18": {
+      "label": "AMZ Prep - Amazon FBA fees 2026 full breakdown",
+      "url": "https://amzprep.com/amazon-fba-fees/",
+      "retrievedAt": "2026-08-01",
+      "kind": "channel-fee-guide"
+    },
+    "S19": {
+      "label": "Selling From The Beach - 2026 Amazon fee cheat sheet by category",
+      "url": "https://sellingfromthebeach.com/2026-amazon-fee-cheat-sheet.html",
+      "retrievedAt": "2026-08-01",
+      "kind": "channel-fee-guide"
+    },
+    "S20": {
+      "label": "Cool Nerds Marketing - how to pitch a retail buyer (category review windows)",
+      "url": "https://coolnerdsmarketing.com/what-retail-buyers-care-about/",
+      "retrievedAt": "2026-08-01",
+      "kind": "trade-guide"
+    },
+    "S21": {
+      "label": "Target Accelerators - the seasonal retail cycle",
+      "url": "https://accelerators.target.com/learning-center/the-seasonal-retail-cycle-from-holiday-to-back-to-school-heres-what-every-founder-should-know/",
+      "retrievedAt": "2026-08-01",
+      "kind": "retailer-primary"
+    },
+    "S22": {
+      "label": "Alibaba - holographic rear projection fabric guide (throw ratio and transmittance guidance)",
+      "url": "https://electronics.alibaba.com/buyingguides/holographic-rear-projection-fabric-guide",
+      "retrievedAt": "2026-08-01",
+      "kind": "trade-guide"
+    },
+    "S23": {
+      "label": "Raspberry Pi - Compute Module 5 product page and pricing",
+      "url": "https://www.raspberrypi.com/products/compute-module-5/",
+      "retrievedAt": "2026-08-01",
+      "kind": "vendor-primary"
+    },
+    "S24": {
+      "label": "Made-in-China - Halloween inflatables wholesale suppliers",
+      "url": "https://www.made-in-china.com/products-search/hot-china-products/Halloween_Inflatables.html",
+      "retrievedAt": "2026-08-01",
+      "kind": "supplier-directory"
+    },
+    "S25": {
+      "label": "Made-in-China - inflatable electric blower wholesale suppliers",
+      "url": "https://www.made-in-china.com/products-search/hot-china-products/Wholesale_Inflatable_Electric_Blower.html",
+      "retrievedAt": "2026-08-01",
+      "kind": "supplier-directory"
+    },
+    "S26": {
+      "label": "Spirit Halloween - Join Spirit / vendor information",
+      "url": "https://www.spirithalloween.com/content.jsp?pageName=JoinSpirit",
+      "retrievedAt": "2026-08-01",
+      "kind": "retailer-primary"
+    },
+    "S27": {
+      "label": "Eurofins - mastering the US CPSIA Children's Product Certificate",
+      "url": "https://www.eurofins.com/en/consumer-product-testing/softlines-hardlines/news-articles/mastering-us-cpsia-children-s-product-certificate-a-compliance-manager-s-guide/",
+      "retrievedAt": "2026-08-01",
+      "kind": "compliance-lab"
+    },
+    "S28": {
+      "label": "Yahoo Shopping - Walmart 8-foot pumpkin inflatable at 40 USD (from 100 USD)",
+      "url": "https://shopping.yahoo.com/home-garden/outdoor/articles/walmarts-8-foot-pumpkin-inflatable-094500051.html",
+      "retrievedAt": "2026-08-01",
+      "kind": "retail-listing"
+    },
+    "REPO": {
+      "label": "The shipped pumpkin software in this platform",
+      "url": "repo:oshal-apps/pumpkin + repo:oshal/src/pages/pumpkin",
+      "retrievedAt": "2026-08-01",
+      "kind": "first-party-inspection"
+    },
+    "CALC": {
+      "label": "Derived in this file from other assumptions by the stated formula",
+      "url": "internal:derivation",
+      "retrievedAt": "2026-08-01",
+      "kind": "computation"
+    },
+    "S29": {
+      "label": "Walmart - HoliScapes USB Projector Kit (AtmosFX Jack-O-Lantern Jamboree + projector + 48x72 holographic screen), the SAME kit as S6 on a different surface",
+      "url": "https://www.walmart.com/ip/HoliScapes-USB-Projector-Kit-AtmosFX-Jack-O-Lantern-Jamboree-USB-Projector-48-x-72-Large-White-Holographic-Screen/8956307074",
+      "retrievedAt": "2026-08-02",
+      "kind": "retail-listing"
+    },
+    "S30": {
+      "label": "Home Depot - HoliScapes USB Projector Kit (AtmosFX Jack-O-Lantern + projector + 48x72 screen)",
+      "url": "https://www.homedepot.com/p/HoliScapes-USB-Projector-Kit-AtmosFX-Jack-O-Lantern-USB-Projector-48-in-x-72-in-Large-White-Holographic-Screen-Atmos-Kit-JOL-P-48x72/331582516",
+      "retrievedAt": "2026-08-02",
+      "kind": "retail-listing"
+    }
+  },
+  "softwareBaseline": {
+    "note": "What already exists, established by reading the code - not by asking a model. This is the only part of the venture with a real as-built status.",
+    "exists": [
+      {
+        "id": "SW-1",
+        "what": "Full-screen procedural jack-o'-lantern face renderer, HTML5 canvas, 60fps, at /pumpkin/",
+        "evidence": "repo:oshal/src/pages/pumpkin/pumpkin-app.js (863 lines), pumpkin-face.js",
+        "sourceId": "REPO",
+        "confidence": "high"
+      },
+      {
+        "id": "SW-2",
+        "what": "The 'inflatable' preset renders a PURE BLACK background (#000000) so only the carved features emit light; the pumpkin body colour comes from the fabric itself, not the projector",
+        "evidence": "BUILTIN_PRESETS.inflatable in pumpkin-engine-presets.ts: colors.background '#000000', feature '#ffb020', featureHot '#fff3c0', glow.blur 44",
+        "sourceId": "REPO",
+        "confidence": "high",
+        "whyItMatters": "This is the single most favourable engineering fact in the venture. A mostly-black frame means a cheap low-contrast projector's black level lands below the ambient-lit fabric, so no visible rectangle. See gate TG-3."
+      },
+      {
+        "id": "SW-3",
+        "what": "Lip-sync driven by real per-frame RMS of the OUTPUT audio (WebAudio AnalyserNode), not a canned mouth loop",
+        "evidence": "pumpkin-audio.js speak() -> AnalyserNode -> amplitude callback",
+        "sourceId": "REPO",
+        "confidence": "high"
+      },
+      {
+        "id": "SW-4",
+        "what": "Two conversation modes: mimic (mic -> STT -> speak back, zero LLM) and autonomous (guest speech -> pumpkin-bot -> in-character reply)",
+        "evidence": "pumpkin/oshal-app.yaml, pumpkin-app.js turn machine",
+        "sourceId": "REPO",
+        "confidence": "high"
+      },
+      {
+        "id": "SW-5",
+        "what": "A DETERMINISTIC zero-cost in-character reply bank already exists for the public demo path",
+        "evidence": "demoReply() in pumpkin-app.js - keyed on trick/treat/candy, name, scary/spooky/boo, plus a rotating fallback set",
+        "sourceId": "REPO",
+        "confidence": "high",
+        "whyItMatters": "This is the shipping answer for a retail SKU that must work with no cloud account and no per-utterance token cost. See risk R-4."
+      },
+      {
+        "id": "SW-6",
+        "what": "Unattended-night hardening: self-healing SSE room link with jittered backoff, self-echo rejection, single-flight replies, a 45s think deadline, speak queue, screen Wake Lock",
+        "evidence": "pumpkin-app.js change-log entries 3 and 4",
+        "sourceId": "REPO",
+        "confidence": "high"
+      },
+      {
+        "id": "SW-7",
+        "what": "Swarm control door POST /api/pumpkin/speak (service-secret only) plus two manifest-declared tools",
+        "evidence": "pumpkin/oshal-app.yaml tools block",
+        "sourceId": "REPO",
+        "confidence": "high"
+      }
+    ],
+    "doesNotExistAndBlocksRetail": [
+      {
+        "id": "SW-GAP-1",
+        "what": "The projector page requires an OIDC sign-in with a HARD 24-hour absolute session cap that nothing resets. When it expires the prop shows a 'Signed out' panel and a human must walk to the device and sign in again.",
+        "evidence": "pumpkin/README.md night-of runbook step 1",
+        "sourceId": "REPO",
+        "confidence": "low",
+        "severity": "blocker-for-retail",
+        "whyItMatters": "A consumer product cannot require a daily browser sign-in to a self-hosted identity provider. A retail SKU needs either a device-token pairing rail or a fully local offline runtime.",
+        "mitigationCandidates": [
+          "Wire the existing core /api/tv/pair/* 30-day device-token rail to pumpkin (README says this is explicitly NOT built)",
+          "Ship a fully local runtime with no server dependency for the mimic + deterministic-reply modes"
+        ],
+        "engineeringEstimateWeeks": {
+          "low": 3,
+          "high": 8
+        },
+        "estimateBasis": "ESTIMATE - no scoping session has been held. Range reflects device-token rail (low) vs a standalone local runtime (high).",
+        "needsQuote": true
+      },
+      {
+        "id": "SW-GAP-2",
+        "what": "Autonomous mode costs LLM tokens per utterance, charged to whoever owns the account. There is no per-unit funding model.",
+        "evidence": "executeBotOrInline -> chat_tasks cost capture",
+        "sourceId": "REPO",
+        "confidence": "high",
+        "severity": "business-model-blocker",
+        "whyItMatters": "At retail this is a recurring COGS per unit with no revenue attached. Forces one of: a subscription, an on-device small model, or shipping the deterministic reply bank (SW-5) as the default and making AI an opt-in upsell."
+      },
+      {
+        "id": "SW-GAP-3",
+        "what": "No enclosure, no mechanical design, no thermal or ingress design, no packaging, no manufacturing partner, no certification.",
+        "sourceId": "REPO",
+        "confidence": "high",
+        "severity": "the-entire-hardware-venture"
+      }
+    ]
+  },
+  "variants": [
+    {
+      "id": "V-A",
+      "name": "Self-contained unit",
+      "tier": "premium",
+      "description": "Everything in the box: inflatable envelope with a translucent projection panel, blower, short-throw projector, compute module running the face locally, speaker, mic, power distribution, stakes. Plug into one outdoor GFCI outlet and it works.",
+      "competesIn": "animatronics shelf",
+      "requires": [
+        "SW-GAP-1",
+        "SW-GAP-2"
+      ],
+      "strategicNote": "Its landed cost pushes retail to roughly 3x the dominant inflatable price anchor, so it cannot be merchandised as an inflatable. It must be merchandised as an animatronic, where the observed shelf band is 169 to 399 USD."
+    },
+    {
+      "id": "V-B",
+      "name": "BYO-device kit",
+      "tier": "value",
+      "description": "Inflatable envelope with translucent projection panel, blower, stakes, an internal universal projector cradle, and a printed card with a QR to the software. The customer supplies their own projector (or phone plus a cheap projector) and their own network.",
+      "competesIn": "inflatables shelf",
+      "requires": [],
+      "strategicNote": "Lands near the observed inflatable price anchor with the software as the differentiator. The customer absorbs the single largest BOM line. This may be the real business; the engine should be able to reach that conclusion from the numbers rather than being told it."
+    },
+    {
+      "id": "V-C",
+      "name": "Software only",
+      "tier": "entry",
+      "description": "No hardware at all. A seasonal licence to the face renderer, presets and voice, for a customer who already owns a projector and a screen or an inflatable.",
+      "competesIn": "digital decoration downloads",
+      "requires": [],
+      "strategicNote": "Near-zero COGS, no tariff exposure, no certification, no inventory, no seasonal working capital. The observed comparable digital-decoration download price is 24.99 USD. It is the only tier that can ship this season."
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-VOL-1",
+      "group": "volume",
+      "label": "First-production-run unit volume used for BOM pricing",
+      "value": 5000,
+      "unit": "units",
+      "sourceId": "CALC",
+      "confidence": "low",
+      "method": "ESTIMATE - chosen as a typical first-order MOQ tier for a China-sourced seasonal hardgood. Not derived from any demand forecast.",
+      "needsQuote": true,
+      "note": "Every unitCostBand in the BOM is stated AT THIS QUANTITY. Changing it invalidates every band."
+    },
+    {
+      "id": "A-VOL-2",
+      "group": "volume",
+      "label": "Pilot-run volume for a first retail test",
+      "value": 500,
+      "unit": "units",
+      "sourceId": "CALC",
+      "confidence": "low",
+      "method": "ESTIMATE",
+      "needsQuote": true,
+      "note": "At 500 units expect component costs 25 to 60 percent above the 5000-unit band and tooling amortised over 10x fewer units."
+    },
+    {
+      "id": "A-GEO-1",
+      "group": "optics",
+      "label": "Target projected face width on the panel",
+      "value": 28,
+      "unit": "in",
+      "sourceId": "CALC",
+      "confidence": "medium",
+      "method": "ESTIMATE from the design intent - a face readable from the sidewalk of a suburban yard, roughly 25 to 35 ft away."
+    },
+    {
+      "id": "A-GEO-2",
+      "group": "optics",
+      "label": "Projector throw ratio, cheap mini-projector class",
+      "band": {
+        "low": 1.2,
+        "high": 1.5
+      },
+      "unit": "ratio (throw distance / image width)",
+      "sourceId": "S2",
+      "confidence": "medium",
+      "method": "Market observation - the low-cost LCD mini-projector class is built around a ~1.2 to 1.5 throw ratio.",
+      "note": "This is the constraint that decides whether the product closes geometrically. See gate TG-1."
+    },
+    {
+      "id": "A-GEO-3",
+      "group": "optics",
+      "label": "Short-throw lens ratio required to close the geometry in a 6 ft envelope",
+      "band": {
+        "low": 0.5,
+        "high": 0.8
+      },
+      "unit": "ratio",
+      "sourceId": "S22",
+      "confidence": "medium",
+      "method": "Trade guidance: short-throw projectors in the 0.4 to 0.6 range work best behind fabric.",
+      "needsQuote": true,
+      "note": "NO supplier has confirmed that a 0.5-0.8 throw ratio is available in the 28-55 USD wholesale class. This is the single highest-leverage open question in the whole venture."
+    },
+    {
+      "id": "A-GEO-4",
+      "group": "optics",
+      "label": "Usable internal throw path, projector mount to panel, 6 ft tall envelope, horizontal firing",
+      "value": 34,
+      "unit": "in",
+      "sourceId": "CALC",
+      "confidence": "low",
+      "method": "ESTIMATE - a 6 ft tall pumpkin body is roughly 48 in wide externally; subtract the projector body, the base plinth and clearance for the fabric to move under blower pressure."
+    },
+    {
+      "id": "A-GEO-5",
+      "group": "optics",
+      "label": "Usable internal throw path if the projector fires UP the long axis from the base to an angled panel",
+      "value": 60,
+      "unit": "in",
+      "sourceId": "CALC",
+      "confidence": "low",
+      "method": "ESTIMATE - trades the throw-ratio problem for a keystone-correction problem. Likely what the incumbent does.",
+      "note": "This is the primary mitigation for TG-1 and it costs nothing in BOM - only in mechanical design and keystone quality."
+    },
+    {
+      "id": "A-OPT-1",
+      "group": "photometry",
+      "label": "Projector output, honest measured brightness",
+      "band": {
+        "low": 150,
+        "high": 400
+      },
+      "unit": "ANSI lumens",
+      "sourceId": "S2",
+      "confidence": "medium",
+      "method": "Market observation of the mid-range wholesale mini-projector tier.",
+      "dataQualityWarning": "Vendors in this class routinely quote marketing 'lumens' 3 to 5x above measured ANSI lumens. A 600-lumen listing is commonly a ~150 ANSI unit. Any quote MUST be specified and accepted in ANSI lumens with a test report, or the whole photometric model is wrong."
+    },
+    {
+      "id": "A-OPT-2",
+      "group": "photometry",
+      "label": "Projector on/off contrast ratio, honest",
+      "band": {
+        "low": 200,
+        "high": 1000
+      },
+      "unit": "ratio",
+      "sourceId": "S2",
+      "confidence": "low",
+      "method": "ESTIMATE for cheap single-panel LCD. Listings claiming 10000:1 are dynamic or unqualified.",
+      "dataQualityWarning": "Same inflation problem as lumens."
+    },
+    {
+      "id": "A-OPT-3",
+      "group": "photometry",
+      "label": "Translucent projection panel transmittance",
+      "band": {
+        "low": 0.18,
+        "high": 0.35
+      },
+      "unit": "fraction",
+      "sourceId": "S22",
+      "confidence": "low",
+      "method": "ESTIMATE from rear-projection fabric guidance. Standard 210D coated oxford inflatable fabric is far more opaque than this; a purpose-made panel is required.",
+      "needsQuote": true,
+      "note": "This is a distinct BOM line, not 'the inflatable'. Projecting onto standard inflatable fabric will not work."
+    },
+    {
+      "id": "A-OPT-4",
+      "group": "photometry",
+      "label": "Feature duty cycle - fraction of the frame that is lit at all in the 'inflatable' preset",
+      "band": {
+        "low": 0.08,
+        "high": 0.15
+      },
+      "unit": "fraction",
+      "sourceId": "REPO",
+      "confidence": "medium",
+      "method": "ESTIMATE from the preset geometry: two triangular eyes at eyeSize 0.5 plus a jagged mouth at mouthWidth 0.72 on an otherwise pure-black frame.",
+      "modelingNote": "IMPORTANT - for a single-panel imager this does NOT reduce per-pixel illuminance. A lit pixel emits the same whether its neighbours are on or off. Duty cycle reduces total flux and therefore heat and perceived glare, not feature brightness. The engine must not multiply feature luminance by this number."
+    },
+    {
+      "id": "A-OPT-5",
+      "group": "photometry",
+      "label": "Ambient illuminance, suburban yard, full dark",
+      "band": {
+        "low": 1,
+        "high": 10
+      },
+      "unit": "lux",
+      "sourceId": "CALC",
+      "confidence": "medium",
+      "method": "ESTIMATE - standard photometric reference values for a street-lit residential yard after astronomical twilight."
+    },
+    {
+      "id": "A-OPT-6",
+      "group": "photometry",
+      "label": "Ambient illuminance, civil twilight",
+      "value": 30,
+      "unit": "lux",
+      "sourceId": "CALC",
+      "confidence": "medium",
+      "method": "Standard photometric reference."
+    },
+    {
+      "id": "A-OPT-7",
+      "group": "photometry",
+      "label": "Ambient illuminance, one hour before sunset",
+      "value": 1000,
+      "unit": "lux",
+      "sourceId": "CALC",
+      "confidence": "medium",
+      "method": "Standard photometric reference."
+    },
+    {
+      "id": "A-OPT-8",
+      "group": "photometry",
+      "label": "Diffuse reflectance of the orange inflatable fabric",
+      "value": 0.5,
+      "unit": "fraction",
+      "sourceId": "CALC",
+      "confidence": "low",
+      "method": "ESTIMATE for a mid-tone orange coated polyester."
+    },
+    {
+      "id": "A-THM-1",
+      "group": "thermal",
+      "label": "Projector electrical power draw",
+      "band": {
+        "low": 30,
+        "high": 60
+      },
+      "unit": "W",
+      "sourceId": "S2",
+      "confidence": "medium",
+      "method": "ESTIMATE for a 150-400 ANSI lumen LED projector."
+    },
+    {
+      "id": "A-THM-2",
+      "group": "thermal",
+      "label": "Fraction of projector electrical power that becomes heat",
+      "value": 0.95,
+      "unit": "fraction",
+      "sourceId": "CALC",
+      "confidence": "high",
+      "method": "First principles - optical output is a negligible fraction of input power at this efficiency."
+    },
+    {
+      "id": "A-THM-3",
+      "group": "thermal",
+      "label": "Continuous blower airflow through the envelope",
+      "band": {
+        "low": 100,
+        "high": 400
+      },
+      "unit": "CFM",
+      "sourceId": "S25",
+      "confidence": "low",
+      "method": "ESTIMATE for the blower class used in cold-air Halloween inflatables.",
+      "whyItMatters": "A cold-air inflatable is NOT sealed. The blower runs continuously and the fabric leaks by design, so the interior gets a constant stream of outdoor air. This is why the thermal gate passes."
+    },
+    {
+      "id": "A-PWR-1",
+      "group": "power",
+      "label": "Blower power draw",
+      "band": {
+        "low": 60,
+        "high": 180
+      },
+      "unit": "W",
+      "sourceId": "S25",
+      "confidence": "medium",
+      "method": "ESTIMATE from the 0.5 to 1.5 A at 120 V class."
+    },
+    {
+      "id": "A-PWR-2",
+      "group": "power",
+      "label": "Compute module power draw",
+      "band": {
+        "low": 5,
+        "high": 12
+      },
+      "unit": "W",
+      "sourceId": "S23",
+      "confidence": "medium",
+      "method": "ESTIMATE - ARM SBC / Android stick class under sustained video decode."
+    },
+    {
+      "id": "A-PWR-3",
+      "group": "power",
+      "label": "Audio amplifier power draw, average",
+      "band": {
+        "low": 5,
+        "high": 15
+      },
+      "unit": "W",
+      "sourceId": "CALC",
+      "confidence": "medium",
+      "method": "ESTIMATE for a 10 W class D driver at conversational duty."
+    },
+    {
+      "id": "A-PWR-4",
+      "group": "power",
+      "label": "Extension cord run from house to prop",
+      "value": 25,
+      "unit": "ft",
+      "sourceId": "CALC",
+      "confidence": "high",
+      "method": "Stated in the operator's requirement."
+    },
+    {
+      "id": "A-PWR-5",
+      "group": "power",
+      "label": "16 AWG copper resistance",
+      "value": 0.004,
+      "unit": "ohm/ft",
+      "sourceId": "CALC",
+      "confidence": "high",
+      "method": "Standard wire table."
+    },
+    {
+      "id": "A-FRT-1",
+      "group": "logistics",
+      "label": "LCL ocean freight rate, China to US West Coast",
+      "band": {
+        "low": 40,
+        "high": 90
+      },
+      "unit": "USD/CBM",
+      "sourceId": "S17",
+      "confidence": "medium",
+      "method": "Broker-published 2026 range.",
+      "note": "CFS handling adds 8 to 15 USD/CBM on top."
+    },
+    {
+      "id": "A-FRT-2",
+      "group": "logistics",
+      "label": "Freight surcharge uplift over base rate (BAF, THC, ISPS, peak season, docs, CAF)",
+      "band": {
+        "low": 0.3,
+        "high": 0.5
+      },
+      "unit": "fraction",
+      "sourceId": "S17",
+      "confidence": "medium",
+      "method": "Broker-published typical surcharge stack.",
+      "whyItMatters": "Peak season surcharge lands exactly when a Halloween product must ship. The engine must apply the HIGH end of this band to any sailing between June and September."
+    },
+    {
+      "id": "A-FRT-3",
+      "group": "logistics",
+      "label": "FCL 40 ft rate, China to US West Coast",
+      "band": {
+        "low": 1850,
+        "high": 5000
+      },
+      "unit": "USD/container",
+      "sourceId": "S17",
+      "confidence": "medium",
+      "method": "Broker-published 2026 spot range across multiple sources."
+    },
+    {
+      "id": "A-FRT-4",
+      "group": "logistics",
+      "label": "Boxed volume, self-contained unit (V-A)",
+      "value": 0.09,
+      "unit": "CBM",
+      "sourceId": "CALC",
+      "confidence": "low",
+      "method": "ESTIMATE - roughly 24 x 16 x 14 in carton for a folded 6 ft envelope plus blower, projector and electronics.",
+      "needsQuote": true
+    },
+    {
+      "id": "A-FRT-5",
+      "group": "logistics",
+      "label": "Boxed volume, BYO-device kit (V-B)",
+      "value": 0.055,
+      "unit": "CBM",
+      "sourceId": "CALC",
+      "confidence": "low",
+      "method": "ESTIMATE - envelope, blower, cradle, stakes only.",
+      "needsQuote": true
+    },
+    {
+      "id": "A-DUT-1",
+      "group": "tariff",
+      "label": "MFN base duty, HTS 9505 festive articles",
+      "band": {
+        "low": 0.0,
+        "high": 0.032
+      },
+      "unit": "fraction",
+      "sourceId": "S15",
+      "confidence": "medium",
+      "method": "Published tariff schedule range for the 9505 chapter."
+    },
+    {
+      "id": "A-DUT-2",
+      "group": "tariff",
+      "label": "Section 301 additional duty, China origin, toys/festive",
+      "band": {
+        "low": 0.075,
+        "high": 0.25
+      },
+      "unit": "fraction",
+      "sourceId": "S15",
+      "confidence": "medium",
+      "method": "List 4A at 7.5 percent for some codes, 25 percent for others; the applicable rate depends on the exact HTS subcode."
+    },
+    {
+      "id": "A-DUT-3",
+      "group": "tariff",
+      "label": "Classification risk - does an inflatable containing a projector classify as 9505 (festive) or 8528 (projector)?",
+      "value": "UNRESOLVED",
+      "unit": "classification",
+      "sourceId": "S15",
+      "confidence": "low",
+      "method": "UNVERIFIED - not settled by any research in this file.",
+      "needsQuote": true,
+      "resolveBy": "A customs broker binding ruling request to CBP, or a broker's written classification opinion. Query that would settle it: request a CBP ruling on an inflatable yard decoration whose principal function includes an integrated video projector.",
+      "whyItMatters": "The swing between 9505-with-7.5-percent and 8528-with-25-percent is roughly 22 percentage points of landed cost on the V-A BOM. That is larger than the entire projected net margin in most scenarios. The engine must run BOTH classifications as scenarios and never present a single landed cost."
+    },
+    {
+      "id": "A-CH-1",
+      "group": "channel",
+      "label": "Amazon referral fee, Home and Kitchen",
+      "value": 0.15,
+      "unit": "fraction",
+      "sourceId": "S19",
+      "confidence": "high",
+      "method": "Published 2026 fee schedule, 0.30 USD minimum per item."
+    },
+    {
+      "id": "A-CH-2",
+      "group": "channel",
+      "label": "Amazon FBA fulfilment fee, small-oversize",
+      "value": 8.66,
+      "unit": "USD/unit",
+      "sourceId": "S18",
+      "confidence": "medium",
+      "method": "Published 2026 fee table."
+    },
+    {
+      "id": "A-CH-3",
+      "group": "channel",
+      "label": "Amazon FBA fuel surcharge",
+      "value": 0.035,
+      "unit": "fraction of fulfilment fee",
+      "sourceId": "S18",
+      "confidence": "medium",
+      "method": "Published April 2026 surcharge."
+    },
+    {
+      "id": "A-CH-4",
+      "group": "channel",
+      "label": "Amazon storage fee, oversize, Oct to Dec",
+      "value": 1.2,
+      "unit": "USD/cu ft/month",
+      "sourceId": "S18",
+      "confidence": "medium",
+      "method": "Published 2026 rate.",
+      "whyItMatters": "The Q4 rate is 2.5x the Jan-Sep rate and it applies in exactly the months a Halloween product sits in the warehouse. The engine must charge Q4 storage on peak inventory, not average."
+    },
+    {
+      "id": "A-CH-5",
+      "group": "channel",
+      "label": "Amazon storage fee, oversize, Jan to Sep",
+      "value": 0.48,
+      "unit": "USD/cu ft/month",
+      "sourceId": "S18",
+      "confidence": "medium",
+      "method": "Published 2026 rate."
+    },
+    {
+      "id": "A-CH-6",
+      "group": "channel",
+      "label": "Big-box retailer gross margin on seasonal hardgoods",
+      "band": {
+        "low": 0.35,
+        "high": 0.5
+      },
+      "unit": "fraction of retail",
+      "sourceId": "S21",
+      "confidence": "low",
+      "method": "ESTIMATE - no retailer has published a margin requirement to this venture.",
+      "needsQuote": true
+    },
+    {
+      "id": "A-CH-7",
+      "group": "channel",
+      "label": "Retailer vendor-programme allowances (co-op advertising, markdown, defective, new-vendor setup, EDI)",
+      "band": {
+        "low": 0.05,
+        "high": 0.15
+      },
+      "unit": "fraction of wholesale",
+      "sourceId": "S20",
+      "confidence": "low",
+      "method": "ESTIMATE - first-time vendors typically absorb a stack of programme allowances that are not in the quoted margin.",
+      "needsQuote": true,
+      "note": "This is the line first-time vendors most often omit from their model."
+    },
+    {
+      "id": "A-CH-8",
+      "group": "channel",
+      "label": "Seasonal returns and markdown reserve",
+      "band": {
+        "low": 0.08,
+        "high": 0.2
+      },
+      "unit": "fraction of units shipped",
+      "sourceId": "CALC",
+      "confidence": "low",
+      "method": "ESTIMATE - a seasonal item that does not sell by Nov 1 has almost no residual value and is marked down hard.",
+      "needsQuote": true
+    },
+    {
+      "id": "A-CAL-1",
+      "group": "calendar",
+      "label": "Lead time to reach out ahead of a retailer category review window",
+      "band": {
+        "low": 3,
+        "high": 4
+      },
+      "unit": "months",
+      "sourceId": "S20",
+      "confidence": "medium",
+      "method": "Trade guidance - showing up after the window means waiting a full year."
+    },
+    {
+      "id": "A-CAL-2",
+      "group": "calendar",
+      "label": "Halloween category review windows relative to the selling season",
+      "value": "Roughly 9 to 12 months ahead. A decision made in October is for NEXT year's set.",
+      "unit": "narrative",
+      "sourceId": "S21",
+      "confidence": "medium",
+      "method": "Seasonal retail cycle guidance.",
+      "whyItMatters": "This is the schedule driver for the entire venture. It means the earliest realistic big-box shelf date for a product not yet designed is two seasons out."
+    },
+    {
+      "id": "A-CAL-3",
+      "group": "calendar",
+      "label": "Consumer purchase window for Halloween decorations",
+      "value": "Late August through September; decorations lead the season and the widest selection is bought before October.",
+      "unit": "narrative",
+      "sourceId": "S21",
+      "confidence": "medium",
+      "method": "Category shopping-behaviour data."
+    },
+    {
+      "id": "A-CAL-4",
+      "group": "calendar",
+      "label": "Certification lead time, UL/ETL listing",
+      "band": {
+        "low": 3,
+        "high": 16
+      },
+      "unit": "weeks",
+      "sourceId": "S13",
+      "confidence": "medium",
+      "method": "Published: 3-4 weeks for a small simple product, several weeks to months for a complete stand-alone consumer product."
+    },
+    {
+      "id": "A-CAL-5",
+      "group": "calendar",
+      "label": "Certification lead time, FCC Part 15",
+      "band": {
+        "low": 1,
+        "high": 4
+      },
+      "unit": "weeks",
+      "sourceId": "S8",
+      "confidence": "medium",
+      "method": "Published typical turnaround."
+    },
+    {
+      "id": "A-CAL-6",
+      "group": "calendar",
+      "label": "Ocean transit and customs clearance, China to US West Coast port of entry",
+      "band": {
+        "low": 2.14,
+        "high": 3.29
+      },
+      "unit": "weeks",
+      "sourceId": "S17",
+      "confidence": "low",
+      "method": "DERIVED FROM S17: 14-18 days sailing plus 1-5 days customs clearance is 15-23 days, which is 2.14-3.29 weeks. An earlier revision of this dataset stated 5-8 weeks graded \"benchmarked\" and needing no quote; the cited page does not say that, and the band also double-counted the distribution-centre receiving leg the engine schedules separately as M-RECEIVING. Inland delivery to the DC is in M-RECEIVING, not here. A freight forwarder booking is what settles it.",
+      "needsQuote": true,
+      "sourceStatedRange": {
+        "low": 2.14,
+        "high": 3.29,
+        "unit": "weeks",
+        "quote": "14-18 days on a direct service Shanghai to Los Angeles, plus 1-5 days for customs clearance and 1-3 days for inland delivery."
+      },
+      "dataQualityWarning": "A published rate card is a market average across carriers and seasons, not a booking. Peak-season rolling, port congestion and a customs hold each push the high end well past this band, and this figure is a direct driver of the pre-revenue cash requirement.",
+      "whyItMatters": "Transit sits directly on the critical path and on the months between paying the factory and being paid by a customer, so it moves the funding requirement more than most cost lines do."
+    },
+    {
+      "id": "A-HR-1",
+      "group": "headcount",
+      "label": "Fully-loaded cost multiplier over base salary (payroll tax, benefits, equipment, space)",
+      "band": {
+        "low": 1.25,
+        "high": 1.4
+      },
+      "unit": "multiplier",
+      "sourceId": "CALC",
+      "confidence": "medium",
+      "method": "Standard employer-burden range."
+    },
+    {
+      "id": "A-HR-2",
+      "group": "headcount",
+      "label": "Roles a hardware venture actually needs that a software team does not have",
+      "value": [
+        "mechanical/industrial designer (enclosure, panel, cradle)",
+        "compliance and certification manager",
+        "sourcing and supplier-quality manager (SRM)",
+        "logistics and customs coordinator",
+        "retail account/sales manager for the category-review cycle",
+        "customer support with a seasonal spike"
+      ],
+      "unit": "list",
+      "sourceId": "CALC",
+      "confidence": "medium",
+      "method": "ESTIMATE from the function list this plan requires.",
+      "note": "Costs deliberately not stated - the engine should price these against a labour-rate assumption the operator supplies, not against a number invented here."
+    },
+    {
+      "id": "A-WC-1",
+      "group": "working-capital",
+      "label": "Supplier payment terms, first-order China supplier",
+      "value": "30 percent deposit on order, 70 percent on bill of lading. No net terms for a new buyer.",
+      "unit": "narrative",
+      "sourceId": "CALC",
+      "confidence": "medium",
+      "method": "ESTIMATE - standard first-order terms.",
+      "needsQuote": true
+    },
+    {
+      "id": "A-WC-2",
+      "group": "working-capital",
+      "label": "Retailer payment terms",
+      "band": {
+        "low": 60,
+        "high": 90
+      },
+      "unit": "days net",
+      "sourceId": "CALC",
+      "confidence": "low",
+      "method": "ESTIMATE.",
+      "needsQuote": true,
+      "whyItMatters": "Combined with A-WC-1 this is the cash trap of a seasonal hardgood: you pay the factory in full months before you ship, and the retailer pays you months after Halloween. The engine must model the cash trough, not just the P&L."
+    }
+  ],
+  "bom": [
+    {
+      "id": "B-01",
+      "variantIds": [
+        "V-A",
+        "V-B"
+      ],
+      "component": "Inflatable envelope",
+      "spec": "6 ft tall pumpkin body, 210D or heavier polyester oxford, coated, sewn seams, printed orange with carved-relief detail; integrated sleeve for the translucent face panel",
+      "qty": 1,
+      "unitCostBand": {
+        "low": 16,
+        "high": 30
+      },
+      "atQty": 5000,
+      "sourceId": "S24",
+      "confidence": "low",
+      "needsQuote": true,
+      "note": "Bracketed against observed finished retail: a plain 8 ft inflatable retails 27 to 70 USD (S7, S28), implying a landed cost well under 20 USD for a simpler envelope. This spec is smaller but adds a panel sleeve and a rigid internal mount."
+    },
+    {
+      "id": "B-02",
+      "variantIds": [
+        "V-A",
+        "V-B"
+      ],
+      "component": "Translucent rear-projection face panel",
+      "spec": "Purpose-made diffusing panel, 18 to 35 percent transmittance, welded or sewn into the envelope front, tensioned so blower pressure does not ripple the image",
+      "qty": 1,
+      "unitCostBand": {
+        "low": 3,
+        "high": 9
+      },
+      "atQty": 5000,
+      "sourceId": "S22",
+      "confidence": "low",
+      "needsQuote": true,
+      "criticality": "gating",
+      "note": "NOT optional and NOT the same fabric as the envelope. Standard coated 210D oxford is far too opaque to rear-project through. Getting this wrong makes the whole product dark."
+    },
+    {
+      "id": "B-03",
+      "variantIds": [
+        "V-A",
+        "V-B"
+      ],
+      "component": "Blower",
+      "spec": "120 V outdoor-rated cold-air blower, 100 to 400 CFM, integrated cord and GFCI-compatible plug",
+      "qty": 1,
+      "unitCostBand": {
+        "low": 6,
+        "high": 14
+      },
+      "atQty": 5000,
+      "sourceId": "S25",
+      "confidence": "medium",
+      "needsQuote": true
+    },
+    {
+      "id": "B-04",
+      "variantIds": [
+        "V-A"
+      ],
+      "component": "Projector - SHORT THROW",
+      "spec": "150 to 400 ANSI lumens (measured, with test report), 720p minimum, throw ratio 0.5 to 0.8, HDMI in, LED light engine with 20000 h rated life, keystone correction",
+      "qty": 1,
+      "unitCostBand": {
+        "low": 28,
+        "high": 85
+      },
+      "atQty": 5000,
+      "sourceId": "S2",
+      "confidence": "low",
+      "needsQuote": true,
+      "criticality": "gating",
+      "isCostDriver": true,
+      "note": "Wholesale tiers observed: entry 7-15 USD, mid-range smart 1080p 25-95 USD, DLP pocket 120-185 USD (S2); DLP OEM modules 85-420 USD (S1). The 28-85 band assumes the mid-range LCD class. THE BAND IS UNSAFE UNTIL A SUPPLIER CONFIRMS SHORT THROW IS AVAILABLE IN IT - the cheap class is built around 1.2-1.5:1. If short throw is only available in the DLP module tier, this line triples and the V-A business case likely fails. See gate TG-1 and risk R-1."
+    },
+    {
+      "id": "B-05",
+      "variantIds": [
+        "V-A"
+      ],
+      "component": "Compute module",
+      "spec": "ARM SBC or Android stick class, HDMI out, 802.11ac WiFi, capable of a hardware-composited kiosk browser at 60fps, MIC input or USB audio",
+      "qty": 1,
+      "unitCostBand": {
+        "low": 12,
+        "high": 45
+      },
+      "atQty": 5000,
+      "sourceId": "S23",
+      "confidence": "medium",
+      "needsQuote": true,
+      "note": "Low end is the OEM Android TV stick class; high end is a Raspberry Pi CM5 (published 45 to 95 USD retail single-unit, S23) which buys long-term supply and a real Linux. The choice is a supply-security vs cost tradeoff, not just a price tradeoff."
+    },
+    {
+      "id": "B-06",
+      "variantIds": [
+        "V-A"
+      ],
+      "component": "Speaker and amplifier",
+      "spec": "10 W class D amp, weather-tolerant full-range driver, mounted at the base firing out through a mesh port",
+      "qty": 1,
+      "unitCostBand": {
+        "low": 4,
+        "high": 11
+      },
+      "atQty": 5000,
+      "sourceId": "CALC",
+      "confidence": "low",
+      "needsQuote": true,
+      "note": "Mounting matters more than the driver: a driver inside the fabric bag is muffled and coloured by the envelope. Base-mounted with an external port."
+    },
+    {
+      "id": "B-07",
+      "variantIds": [
+        "V-A"
+      ],
+      "component": "Microphone",
+      "spec": "Far-field MEMS mic or 2-mic array with basic noise rejection, mounted at the base facing the walkway",
+      "qty": 1,
+      "unitCostBand": {
+        "low": 2,
+        "high": 8
+      },
+      "atQty": 5000,
+      "sourceId": "CALC",
+      "confidence": "low",
+      "needsQuote": true,
+      "note": "Outdoor far-field speech capture at 6 to 10 ft over blower noise is a genuinely hard audio problem. The blower is a continuous broadband noise source located INSIDE the same enclosure. See risk R-5."
+    },
+    {
+      "id": "B-08",
+      "variantIds": [
+        "V-A"
+      ],
+      "component": "Power distribution and internal harness",
+      "spec": "Single-inlet IEC or moulded cord, internal fusing, 12 V and 5 V rails, strain relief, the assembly that a UL/ETL listing actually evaluates",
+      "qty": 1,
+      "unitCostBand": {
+        "low": 6,
+        "high": 16
+      },
+      "atQty": 5000,
+      "sourceId": "CALC",
+      "confidence": "low",
+      "needsQuote": true,
+      "criticality": "certification-relevant",
+      "note": "This is the component the safety listing is really about. Cheapening it is where a certification failure comes from."
+    },
+    {
+      "id": "B-09",
+      "variantIds": [
+        "V-A"
+      ],
+      "component": "Projector housing / ingress enclosure",
+      "spec": "IP44 minimum rigid housing with a sealed optical window, unobstructed intake and exhaust paths, and a cage that keeps fabric off the exhaust",
+      "qty": 1,
+      "unitCostBand": {
+        "low": 4,
+        "high": 14
+      },
+      "atQty": 5000,
+      "sourceId": "CALC",
+      "confidence": "low",
+      "needsQuote": true,
+      "toolingCostBand": {
+        "low": 8000,
+        "high": 30000
+      },
+      "toolingNote": "Injection-mould tooling, ESTIMATE, needsQuote. Amortise over A-VOL-1.",
+      "note": "The blower pulls OUTDOOR air in continuously - humid, sometimes rain-laden. Condensation on a cold optical surface is the realistic overnight failure. See risk R-3."
+    },
+    {
+      "id": "B-10",
+      "variantIds": [
+        "V-B"
+      ],
+      "component": "Universal projector cradle",
+      "spec": "Adjustable internal mount accepting the common mini-projector footprint range, with a cable pass-through gland",
+      "qty": 1,
+      "unitCostBand": {
+        "low": 3,
+        "high": 9
+      },
+      "atQty": 5000,
+      "sourceId": "CALC",
+      "confidence": "low",
+      "needsQuote": true,
+      "toolingCostBand": {
+        "low": 5000,
+        "high": 18000
+      },
+      "toolingNote": "ESTIMATE, needsQuote.",
+      "note": "The whole V-B risk is here: it must fit projectors the customer already owns, and 'universal' is a promise that generates returns when it is not true."
+    },
+    {
+      "id": "B-11",
+      "variantIds": [
+        "V-A",
+        "V-B"
+      ],
+      "component": "Stakes, tethers and guy lines",
+      "spec": "4 steel ground stakes, 4 tethers, sandbag loops",
+      "qty": 1,
+      "unitCostBand": {
+        "low": 1.5,
+        "high": 4
+      },
+      "atQty": 5000,
+      "sourceId": "CALC",
+      "confidence": "medium",
+      "needsQuote": true
+    },
+    {
+      "id": "B-12",
+      "variantIds": [
+        "V-A",
+        "V-B"
+      ],
+      "component": "Storage bag",
+      "spec": "Zippered polyester carry bag",
+      "qty": 1,
+      "unitCostBand": {
+        "low": 1,
+        "high": 3
+      },
+      "atQty": 5000,
+      "sourceId": "CALC",
+      "confidence": "medium",
+      "needsQuote": true
+    },
+    {
+      "id": "B-13",
+      "variantIds": [
+        "V-A",
+        "V-B"
+      ],
+      "component": "Retail carton, insert and print",
+      "spec": "Printed corrugated master carton with moulded pulp or foam insert, retail-facing 4-colour print, UPC, country of origin, safety marks",
+      "qty": 1,
+      "unitCostBand": {
+        "low": 2.5,
+        "high": 6
+      },
+      "atQty": 5000,
+      "sourceId": "CALC",
+      "confidence": "low",
+      "needsQuote": true,
+      "note": "Retailer packaging specs (drop test, ISTA, carton marking, pallet pattern) are a vendor requirement, not a design preference. They can force a respec after the first pitch."
+    },
+    {
+      "id": "B-14",
+      "variantIds": [
+        "V-A",
+        "V-B",
+        "V-C"
+      ],
+      "component": "Printed quick-start and safety literature",
+      "spec": "Multi-language quick start, safety warnings, tracking label, QR to the software",
+      "qty": 1,
+      "unitCostBand": {
+        "low": 0.2,
+        "high": 0.8
+      },
+      "atQty": 5000,
+      "sourceId": "CALC",
+      "confidence": "medium"
+    },
+    {
+      "id": "B-15",
+      "variantIds": [
+        "V-A"
+      ],
+      "component": "IR remote or BLE remote",
+      "spec": "Optional - the phone remote already exists in software, so this is a cost-down candidate",
+      "qty": 1,
+      "unitCostBand": {
+        "low": 1.5,
+        "high": 5
+      },
+      "atQty": 5000,
+      "sourceId": "REPO",
+      "confidence": "medium",
+      "optional": true,
+      "note": "SW-4 already ships a phone remote. Including a physical remote is a merchandising decision, not a functional need."
+    }
+  ],
+  "technicalGates": [
+    {
+      "id": "TG-1",
+      "question": "Does the projector geometry close inside the envelope?",
+      "severity": "product-killer-if-unresolved",
+      "formula": "throwDistanceIn = throwRatio * imageWidthIn; PASS if throwDistanceIn <= usableInternalPathIn",
+      "inputs": [
+        "A-GEO-1",
+        "A-GEO-2",
+        "A-GEO-3",
+        "A-GEO-4",
+        "A-GEO-5"
+      ],
+      "workedCases": [
+        {
+          "case": "cheap 1.2:1 projector, 28 in face, 34 in horizontal path",
+          "throwDistanceIn": 33.6,
+          "usableIn": 34,
+          "marginIn": 0.4,
+          "verdict": "FAIL - 0.4 in of margin is not a design margin, it is a coincidence"
+        },
+        {
+          "case": "cheap 1.5:1 projector, 28 in face, 34 in horizontal path",
+          "throwDistanceIn": 42.0,
+          "usableIn": 34,
+          "marginIn": -8.0,
+          "verdict": "FAIL"
+        },
+        {
+          "case": "short-throw 0.8:1, 28 in face, 34 in horizontal path",
+          "throwDistanceIn": 22.4,
+          "usableIn": 34,
+          "marginIn": 11.6,
+          "verdict": "PASS"
+        },
+        {
+          "case": "short-throw 0.5:1, 28 in face, 34 in horizontal path",
+          "throwDistanceIn": 14.0,
+          "usableIn": 34,
+          "marginIn": 20.0,
+          "verdict": "PASS"
+        },
+        {
+          "case": "cheap 1.5:1 firing UP the long axis to an angled panel, 28 in face, 60 in path",
+          "throwDistanceIn": 42.0,
+          "usableIn": 60,
+          "marginIn": 18.0,
+          "verdict": "PASS - but introduces a keystone/focus-plane problem"
+        }
+      ],
+      "verdict": "CONDITIONAL PASS. A standard 1.2-1.5:1 mini projector does NOT close across the width of a 6 ft envelope at a 28 in face. Two ways out: buy a short-throw lens (unproven at this price point - A-GEO-3 needsQuote) or fire up the long axis and correct keystone (free in BOM, costs mechanical design). The incumbent's existence at 99.99 USD retail (C-1) is evidence the long-axis approach works.",
+      "resolveBy": "Ask three mini-projector suppliers for a 0.5-0.8 throw ratio unit at 5000 pcs with a measured ANSI lumens test report. If none exists under 90 USD, commit to the long-axis geometry and prototype the keystone quality."
+    },
+    {
+      "id": "TG-2",
+      "question": "Is the projected face actually visible in an outdoor yard?",
+      "severity": "product-killer-if-it-fails",
+      "formula": "E_full_lux = ansiLumens / imageArea_m2; featureLuminance_nits = E_full_lux * panelTransmittance / PI; ambientFabricLuminance_nits = ambientLux * fabricReflectance / PI; contrastRatio = featureLuminance / ambientFabricLuminance",
+      "inputs": [
+        "A-OPT-1",
+        "A-OPT-3",
+        "A-OPT-5",
+        "A-OPT-6",
+        "A-OPT-7",
+        "A-OPT-8",
+        "A-GEO-1"
+      ],
+      "constants": {
+        "imageWidthIn": 28,
+        "imageHeightIn": 18.7,
+        "imageArea_m2": 0.338,
+        "PI": 3.14159
+      },
+      "workedCases": [
+        {
+          "case": "250 ANSI, tau 0.25, full dark (5 lux)",
+          "E_full_lux": 740,
+          "featureLuminance_nits": 58.9,
+          "ambientFabricLuminance_nits": 0.8,
+          "contrastRatio": 73.7,
+          "verdict": "PASS - reads as brightly glowing"
+        },
+        {
+          "case": "150 ANSI (low band), tau 0.18 (low band), full dark (5 lux)",
+          "E_full_lux": 444,
+          "featureLuminance_nits": 25.4,
+          "ambientFabricLuminance_nits": 0.8,
+          "contrastRatio": 31.8,
+          "verdict": "PASS - worst-case corner still clearly visible"
+        },
+        {
+          "case": "250 ANSI, tau 0.25, civil twilight (30 lux)",
+          "featureLuminance_nits": 58.9,
+          "ambientFabricLuminance_nits": 4.77,
+          "contrastRatio": 12.3,
+          "verdict": "MARGINAL - visible but washed"
+        },
+        {
+          "case": "250 ANSI, tau 0.25, one hour before sunset (1000 lux)",
+          "featureLuminance_nits": 58.9,
+          "ambientFabricLuminance_nits": 159.2,
+          "contrastRatio": 0.37,
+          "verdict": "FAIL - invisible"
+        }
+      ],
+      "verdict": "PASS after dark, FAIL before dark. The worst-case corner of the input bands still gives 32:1 contrast in a dark yard, so this is robust rather than marginal. Failing in daylight is normal for the whole category and is not a defect - but the packaging and listing copy must say 'after dark' plainly, because a customer who unboxes it at 4pm on Halloween and sees nothing will return it.",
+      "resolveBy": "Nothing. This gate is closed by arithmetic on researched bands. Confirm with a measured panel transmittance once a sample exists."
+    },
+    {
+      "id": "TG-3",
+      "question": "Does a cheap projector's poor black level show a visible glowing rectangle on the pumpkin?",
+      "severity": "would-look-cheap-and-wrong",
+      "formula": "blackIllum_lux = E_full_lux / contrastRatio; blackLuminance_nits = blackIllum_lux * panelTransmittance / PI; INVISIBLE if blackLuminance_nits < ambientFabricLuminance_nits",
+      "inputs": [
+        "A-OPT-1",
+        "A-OPT-2",
+        "A-OPT-3",
+        "A-OPT-5",
+        "A-OPT-8",
+        "SW-2"
+      ],
+      "workedCases": [
+        {
+          "case": "250 ANSI, contrast 800:1, tau 0.25, 5 lux ambient",
+          "blackIllum_lux": 0.925,
+          "blackLuminance_nits": 0.074,
+          "ambientFabricLuminance_nits": 0.8,
+          "ratio": 0.09,
+          "verdict": "INVISIBLE - projected black is 11x DIMMER than the ambient-lit fabric around it"
+        },
+        {
+          "case": "250 ANSI, contrast 200:1 (worst band), tau 0.25, 5 lux ambient",
+          "blackIllum_lux": 3.7,
+          "blackLuminance_nits": 0.295,
+          "ambientFabricLuminance_nits": 0.8,
+          "ratio": 0.37,
+          "verdict": "INVISIBLE - still below the ambient-lit fabric"
+        },
+        {
+          "case": "250 ANSI, contrast 200:1, tau 0.25, 1 lux ambient (very dark rural yard)",
+          "blackIllum_lux": 3.7,
+          "blackLuminance_nits": 0.295,
+          "ambientFabricLuminance_nits": 0.159,
+          "ratio": 1.85,
+          "verdict": "FAINTLY VISIBLE - a dim rectangle in a very dark yard at the worst contrast corner"
+        }
+      ],
+      "verdict": "PASS, and this is a case where doing the arithmetic overturned the intuition. The obvious fear - that a cheap projector paints a grey box on the pumpkin - is wrong in a typical suburban yard because the shipped preset renders a PURE BLACK background (SW-2), so the black field is at 0.07 to 0.30 nits against fabric that ambient light already raises to 0.80 nits. Only at the worst contrast corner in a very dark rural yard does a faint rectangle appear, and a projected soft-edge vignette in the renderer removes even that.",
+      "resolveBy": "Specify contrast >= 400:1 measured on/off in the projector quote, and add a soft-edged vignette to the 'inflatable' preset. Both are cheap.",
+      "engineeringActionForSoftware": "Add a radial soft-edge vignette to the inflatable preset so the frame boundary is never a hard edge. This is a small change to the existing renderer, not new work."
+    },
+    {
+      "id": "TG-4",
+      "question": "Does a projector running for six hours cook the inside of the inflatable?",
+      "severity": "feared-but-resolvable",
+      "formula": "heat_BTUhr = projectorWatts * heatFraction * 3.412; deltaT_F = heat_BTUhr / (1.08 * CFM)",
+      "inputs": [
+        "A-THM-1",
+        "A-THM-2",
+        "A-THM-3"
+      ],
+      "workedCases": [
+        {
+          "case": "45 W projector, 200 CFM blower",
+          "heat_BTUhr": 145.9,
+          "deltaT_F": 0.68,
+          "verdict": "PASS - negligible"
+        },
+        {
+          "case": "60 W projector (high band), 100 CFM blower (low band)",
+          "heat_BTUhr": 194.5,
+          "deltaT_F": 1.8,
+          "verdict": "PASS"
+        },
+        {
+          "case": "60 W projector, 50 CFM effective through the projector zone",
+          "heat_BTUhr": 194.5,
+          "deltaT_F": 3.6,
+          "verdict": "PASS"
+        }
+      ],
+      "verdict": "PASS. A cold-air inflatable is not sealed - the blower runs continuously and the fabric leaks by design (A-THM-3), so the interior is a moving air stream, not an oven. Even a pessimistic 50 CFM through the projector zone gives under 4 degF of bulk rise. The residual risk is LOCAL and mechanical, not thermodynamic: fabric collapsing onto the projector's intake or exhaust when the blower cycles or the prop is knocked. B-09's cage exists for exactly that.",
+      "resolveBy": "Nothing thermodynamic. Validate the mechanical case with a six-hour soak test on the first prototype, instrumented at the projector exhaust, with the fabric deliberately pushed against the housing."
+    },
+    {
+      "id": "TG-5",
+      "question": "Does weather and moisture kill it overnight?",
+      "severity": "likely-warranty-driver",
+      "formula": "qualitative - no closed form",
+      "inputs": [
+        "A-THM-3",
+        "B-09"
+      ],
+      "verdict": "OPEN AND UNRESOLVED. The same continuous airflow that solves the thermal gate is the moisture problem: the blower pulls outdoor air, including humidity, dew and blown rain, straight past the optics for six hours. A warm lens in cold humid air fogs; a cooling lens after shutdown condenses. This is the most likely source of field failures and returns and no arithmetic in this file resolves it.",
+      "resolveBy": "Prototype an overnight dew-cycle test. Design candidates: sealed optical window with the projector's own cooling loop kept separate from the envelope air, a hydrophobic window coating, a small resistive window heater, and an orientation that keeps the window facing down-and-forward so condensate runs off.",
+      "needsQuote": true
+    },
+    {
+      "id": "TG-6",
+      "question": "Is one 25 ft cord to one household outlet enough?",
+      "severity": "low",
+      "formula": "totalW = blowerW + projectorW + computeW + ampW; currentA = totalW / 120; vDrop = 2 * cordFt * currentA * ohmPerFt",
+      "inputs": [
+        "A-PWR-1",
+        "A-PWR-2",
+        "A-PWR-3",
+        "A-PWR-4",
+        "A-PWR-5",
+        "A-THM-1"
+      ],
+      "workedCases": [
+        {
+          "case": "blower 120 W + projector 45 W + compute 8 W + amp 12 W, 25 ft 16 AWG",
+          "totalW": 185,
+          "currentA": 1.54,
+          "vDrop_V": 0.31,
+          "verdict": "PASS - trivial"
+        },
+        {
+          "case": "worst case: blower 180 W + projector 60 W + compute 12 W + amp 15 W",
+          "totalW": 267,
+          "currentA": 2.23,
+          "vDrop_V": 0.45,
+          "verdict": "PASS"
+        }
+      ],
+      "verdict": "PASS with wide margin. One 16 AWG outdoor cord on one GFCI outlet. The real constraint is not electrical, it is that the product must present a SINGLE cord to the customer - which means an internal power distribution board (B-08), which is the assembly the safety listing evaluates."
+    },
+    {
+      "id": "TG-7",
+      "question": "Can it hear a child over the blower, outdoors?",
+      "severity": "core-feature-risk",
+      "formula": "qualitative - no closed form",
+      "inputs": [
+        "B-07",
+        "A-PWR-1",
+        "SW-6"
+      ],
+      "verdict": "OPEN. The blower is a continuous broadband noise source located inside the same enclosure as the microphone, roughly 2 to 4 ft away, running the entire time the prop is up. The software already handles the OTHER hard audio problem well - it hard-stops the mic before its own speech, holds a 900 ms reverb window and rejects self-echo by word overlap (SW-6) - but nothing addresses blower noise, and no measurement exists.",
+      "resolveBy": "Measure SPL at the intended mic position with the blower running. If SNR is inadequate, the fixes are ordered by cost: mic placement outside the envelope on the base, a directional or beamforming array, a push-to-talk button on the prop, or dropping open-mic and shipping the phone remote (SW-4) as the only input path.",
+      "needsQuote": true
+    },
+    {
+      "id": "TG-8",
+      "question": "How does the picture get to the projector - and is streaming the right answer?",
+      "severity": "architecture-decision",
+      "formula": "qualitative - the operator asked for 'a way to stream to the projector'",
+      "options": [
+        {
+          "id": "TG-8a",
+          "approach": "Compute INSIDE the prop (B-05) running a kiosk browser, HDMI to the projector. Network only for the LLM and TTS, not for the pixels.",
+          "verdict": "RECOMMENDED",
+          "why": "Rendering is local, so a WiFi hiccup does not drop the face - it only degrades autonomous replies to the deterministic bank (SW-5). This is the only option that survives six unattended hours."
+        },
+        {
+          "id": "TG-8b",
+          "approach": "Cast or mirror from a phone (Chromecast / AirPlay / Miracast).",
+          "verdict": "REJECT",
+          "why": "Screen mirroring drops, the phone must stay awake and unused for six hours, battery dies, a notification overlays the face, and mirroring latency breaks the audio-driven lip-sync (SW-3) that is the product's whole trick. This is the seductive-sounding option and it is the wrong one."
+        },
+        {
+          "id": "TG-8c",
+          "approach": "Long HDMI or HDMI-over-Cat6 from a laptop in the house.",
+          "verdict": "VIABLE FOR V-B / DIY ONLY",
+          "why": "Cheap and reliable, but it ties up a laptop and runs a cable across a yard people walk through. Acceptable for an enthusiast, not for a retail SKU."
+        }
+      ],
+      "verdict": "The operator's word 'stream' should be read as 'get the picture there', and the correct answer is NOT to stream pixels at all - it is to move the renderer inside the prop and stream only the small amount of text and audio that autonomous mode needs. That decision drives B-05 into the BOM and is the main reason V-A costs what it costs."
+    }
+  ],
+  "regulatory": [
+    {
+      "id": "R-FCC",
+      "regime": "FCC Part 15",
+      "applies": "V-A only",
+      "basis": "The unit contains a compute module with WiFi (intentional radiator, Part 15C) and digital circuitry (unintentional radiator, Part 15B). V-B and V-C contain no radio and no digital circuitry of their own.",
+      "costBand": {
+        "low": 600,
+        "high": 12000
+      },
+      "costNote": "Published ranges: 600-5000 USD for a non-wireless unintentional radiator; 1000-4000 USD for Bluetooth; 6500-12000 USD for WiFi-integrated (S8, S9). A WiFi module that is ALREADY FCC-certified as a module can be used under its existing grant, collapsing this to the Part 15B host test only.",
+      "leadTimeWeeksBand": {
+        "low": 1,
+        "high": 4
+      },
+      "sourceId": "S9",
+      "confidence": "medium",
+      "needsQuote": true,
+      "costDownLever": "Buy a pre-certified WiFi module with a modular grant. This is the single biggest certification cost-down available and it is a sourcing decision, not a compliance decision."
+    },
+    {
+      "id": "R-SAFETY",
+      "regime": "UL or ETL listing (NRTL safety listing)",
+      "applies": "V-A and V-B (both contain a mains-powered blower)",
+      "basis": "A mains-connected consumer product sold at US retail. Major retailers stock both UL and ETL; ETL typically costs 20-30 percent less and is 20-30 percent faster.",
+      "costBand": {
+        "low": 3500,
+        "high": 50000
+      },
+      "costNote": "Published: Type L (complete stand-alone consumer product) 5000-50000 USD; ETL 20-30 percent less (S13, S14). A design that uses an ALREADY-LISTED blower and an already-listed external power supply, with the only new assembly being a low-voltage harness, sits at the bottom of this range.",
+      "leadTimeWeeksBand": {
+        "low": 3,
+        "high": 16
+      },
+      "sourceId": "S13",
+      "confidence": "medium",
+      "needsQuote": true,
+      "costDownLever": "Use a pre-listed blower and a pre-listed external PSU. Keep every mains-voltage node inside already-listed components so the new assembly is low-voltage only.",
+      "recurringCost": "Listings carry annual factory follow-up inspection fees that the engine must model as an ongoing cost, not a one-time cost.",
+      "recurringNeedsQuote": true
+    },
+    {
+      "id": "R-CPSIA",
+      "regime": "CPSIA / children's product determination",
+      "applies": "CONDITIONAL - and the condition is a marketing decision, not an engineering one",
+      "basis": "16 CFR 1200.2. CPSC's stated position is that most holiday and seasonal decorations are NOT children's products even though they appeal to children. But the determination is a four-factor test: (1) the manufacturer's stated intended use, (2) how it is represented in packaging, promotion and advertising, (3) whether consumers commonly recognise it as for children 12 and under, (4) the Age Determination Guidelines.",
+      "theTrap": "This product's core selling proposition is 'a kid talks to it and it answers'. Writing that on the box is factor (2) and arguably factor (1). The marketing copy is what decides whether CPSIA applies - and therefore whether the venture takes on third-party lab testing, a Children's Product Certificate, permanent tracking labels, and component-level lead and phthalate testing on every material.",
+      "costBandIfApplies": {
+        "low": 380,
+        "high": 1200
+      },
+      "costNote": "Lab testing for a standard toy CPC covering ASTM F963 and CPSIA lead and phthalates: 380-500 USD depending on test-item count; other labs quote 500-1200 USD (S10). Per-material and per-production-lot, not once.",
+      "leadTimeDaysBand": {
+        "low": 7,
+        "high": 10
+      },
+      "sourceId": "S11",
+      "secondarySourceIds": [
+        "S10",
+        "S12",
+        "S27"
+      ],
+      "confidence": "medium",
+      "needsQuote": true,
+      "mitigation": "Market it as a YARD DECORATION for the homeowner, not a toy for the child. Label it as an adult-assembled decoration, do not depict a child operating it on the packaging, do not place it in a toy aisle. That keeps it in the 'seasonal decoration' interpretation. This is a deliberate, reversible marketing constraint with a real dollar value attached - the engine should price both branches.",
+      "engineMustModel": "Two scenarios: NOT-a-children's-product (no CPC cost, no tracking label, marketing copy constrained) and IS-a-children's-product (CPC testing per lot, tracking labels, ASTM F963 mechanical and flammability testing, marketing copy unconstrained)."
+    },
+    {
+      "id": "R-EFILE",
+      "regime": "CBP eFiling of certificates of compliance",
+      "applies": "V-A and V-B",
+      "basis": "Beginning 8 July 2026, importers of most regulated consumer products must electronically file certificates of compliance with CBP via the PGA Message Set.",
+      "costBand": {
+        "low": 0,
+        "high": 2500
+      },
+      "costNote": "ESTIMATE - broker setup and per-entry handling. Mostly a process cost, not a fee.",
+      "sourceId": "S10",
+      "confidence": "medium",
+      "needsQuote": true,
+      "note": "This is live NOW, ahead of any plausible first shipment. It is a customs-broker capability requirement, not an optional nicety."
+    },
+    {
+      "id": "R-PROP65",
+      "regime": "California Proposition 65",
+      "applies": "V-A and V-B",
+      "basis": "Any product sold into California containing listed substances. Relevant candidates: phthalates in PVC or coated fabric, lead in solder and wire insulation, BPA in plastics.",
+      "costBand": {
+        "low": 500,
+        "high": 3000
+      },
+      "costNote": "ESTIMATE - substance testing plus label design. Many importers default to a warning label as insurance, which costs nothing but can suppress conversion.",
+      "sourceId": "CALC",
+      "confidence": "low",
+      "needsQuote": true
+    },
+    {
+      "id": "R-RETAILER",
+      "regime": "Retailer vendor requirements",
+      "applies": "any big-box channel",
+      "basis": "Separate from and additive to all federal requirements. Typically includes: a supplier agreement, EDI capability, GS1 UPC/GTIN, insurance certificates naming the retailer, a social-compliance factory audit, packaging and drop-test (ISTA) conformance, carton marking and pallet patterns, and a chargeback schedule for every deviation.",
+      "costBand": {
+        "low": 5000,
+        "high": 40000
+      },
+      "costNote": "ESTIMATE for a first-time vendor's setup year including EDI, audit, insurance and testing. No retailer has quoted this venture.",
+      "leadTimeWeeksBand": {
+        "low": 8,
+        "high": 26
+      },
+      "sourceId": "S20",
+      "confidence": "low",
+      "needsQuote": true,
+      "note": "This is the category of cost first-time vendors most reliably omit. It is not a tax on the product; it is the cost of being allowed to sell to the account at all, and it is largely incurred BEFORE the first PO."
+    }
+  ],
+  "channels": [
+    {
+      "id": "CH-1",
+      "name": "Direct to consumer (own storefront)",
+      "fits": [
+        "V-A",
+        "V-B",
+        "V-C"
+      ],
+      "grossMarginPotential": "highest",
+      "feeModel": {
+        "paymentProcessing": 0.029,
+        "paymentFixed": 0.3,
+        "shippingBorne": "seller or customer",
+        "note": "ESTIMATE, standard card rates"
+      },
+      "customerAcquisitionCost": {
+        "band": {
+          "low": 20,
+          "high": 80
+        },
+        "unit": "USD/order",
+        "sourceId": "CALC",
+        "confidence": "low",
+        "needsQuote": true,
+        "note": "For a seasonal product with a 6-week purchase window and no brand, paid acquisition is the whole game and CAC is the number most likely to sink the model. This band is an ESTIMATE with no campaign data behind it."
+      },
+      "calendarConstraint": "Traffic must be bought in the late-August-to-September window (A-CAL-3). Outside it, near-zero intent.",
+      "confidence": "low"
+    },
+    {
+      "id": "CH-2",
+      "name": "Amazon FBA",
+      "fits": [
+        "V-A",
+        "V-B"
+      ],
+      "feeModel": {
+        "referralFee": 0.15,
+        "fulfilmentFee": 8.66,
+        "fuelSurcharge": 0.035,
+        "storageQ4PerCuFtMonth": 1.2,
+        "storageOffPeakPerCuFtMonth": 0.48
+      },
+      "sourceId": "S18",
+      "secondarySourceIds": [
+        "S19"
+      ],
+      "confidence": "medium",
+      "theSeasonalTrap": "A bulky seasonal item pays the 2.5x Q4 storage rate (1.20 vs 0.48 USD/cu ft/month) during exactly the months it is sitting in the warehouse waiting for October. And inventory that does not clear by 1 November sits at the peak rate through December for a product nobody wants until next August. The engine must charge storage on PEAK inventory in Q4, not on average inventory across the year - averaging hides the entire problem.",
+      "referenceDataPoint": "A 30 USD bulky home item can lose roughly 47 percent of revenue to fees before storage or advertising (S18). That is a warning about the V-B price point specifically.",
+      "calendarConstraint": "Inventory must be received at FBA by early September; Q4 inbound restrictions and receiving delays are real and the deadline is not negotiable."
+    },
+    {
+      "id": "CH-3",
+      "name": "Big-box seasonal (Home Depot, Lowe's, Walmart, Target)",
+      "fits": [
+        "V-A",
+        "V-B"
+      ],
+      "marginModel": {
+        "retailerGrossMargin": {
+          "low": 0.35,
+          "high": 0.5
+        },
+        "programmeAllowances": {
+          "low": 0.05,
+          "high": 0.15
+        }
+      },
+      "sourceId": "S21",
+      "derivedFromAssumptions": [
+        "A-CH-6",
+        "A-CH-7"
+      ],
+      "confidence": "low",
+      "needsQuote": true,
+      "calendarConstraint": "Category review windows sit roughly 9 to 12 months ahead of the selling season (A-CAL-2) and outreach must start 3 to 4 months before the window (A-CAL-1). Compounded, first contact for a Halloween 2028 set happens around Q3 2027. THIS IS THE SCHEDULE DRIVER FOR THE ENTIRE VENTURE.",
+      "firstTimeVendorReality": "A first-time vendor with no listing, no certification, no factory audit and no production history is not a candidate for a category review. The realistic sequence is: prove sell-through in CH-1/CH-2 for one season, then pitch with data.",
+      "observedPricePoints": [
+        {
+          "what": "Halloween animatronics band",
+          "band": {
+            "low": 169.99,
+            "high": 399.99
+          },
+          "sourceId": "S4",
+          "secondarySourceIds": [
+            "S5"
+          ],
+          "confidence": "high",
+          "examples": [
+            "Wicked Woods Burlap Twins animatronic 329.99",
+            "Groundbreaker Skeleton colour-changing 399.99",
+            "3.5 ft Animated Chucky 249.95",
+            "Ms Plague Doctor animatronic 249.00",
+            "Haunted Living 3 ft Animated LED Skeleton 169.99"
+          ]
+        },
+        {
+          "what": "Plain 8 ft Halloween inflatable band",
+          "band": {
+            "low": 26.96,
+            "high": 69.99
+          },
+          "sourceId": "S7",
+          "secondarySourceIds": [
+            "S28"
+          ],
+          "confidence": "high",
+          "note": "Walmart 8 ft stacked-pumpkin inflatable observed at 40 USD marked down from 100; Home Depot Joyfy 8 ft at 69.99."
+        }
+      ]
+    },
+    {
+      "id": "CH-4",
+      "name": "Seasonal specialty (Spirit Halloween and similar pop-ups)",
+      "fits": [
+        "V-A"
+      ],
+      "sourceId": "S26",
+      "confidence": "low",
+      "needsQuote": true,
+      "note": "Spirit sources heavily through OEM bases in Asia and places early orders on projections with flexible scale-up terms. That is a fit for a manufacturer, not for a first-time brand. Their public-facing vendor pages are oriented to consignment store operators, not product vendors - reaching a buyer requires a different door than the website.",
+      "calendarConstraint": "Same or earlier than CH-3."
+    },
+    {
+      "id": "CH-5",
+      "name": "Digital download / app store",
+      "fits": [
+        "V-C"
+      ],
+      "feeModel": {
+        "platformFee": {
+          "low": 0.15,
+          "high": 0.3
+        },
+        "note": "ESTIMATE, standard app-store and digital-marketplace rates"
+      },
+      "confidence": "medium",
+      "note": "Zero COGS, zero tariff, zero certification, zero inventory, zero seasonal working capital, and it can ship THIS season. The observed comparable is the AtmosFX digital decoration download at 24.99 USD (S6). It is the only tier whose schedule is not governed by A-CAL-2."
+    }
+  ],
+  "competitors": [
+    {
+      "id": "C-1",
+      "name": "Gemmy",
+      "product": "Projection Airblown Inflatable, Fire and Ice Frightening Pumpkin Giant Scene, 12 ft",
+      "priceObserved": 99.99,
+      "priceSourceId": "S3",
+      "confidence": "high",
+      "whatItDoes": "An internally-lit inflatable with a rotating kaleidoscope LED projection unit throwing swirling colour onto the skin. Also sold as a standalone Fire and Ice projection spotlight accessory.",
+      "whatItDoesNot": "It projects a colour pattern, not a rendered face. It does not lip-sync, does not listen, does not speak, and does not respond.",
+      "structuralNote": "The gap is not a feature Gemmy has declined to add - it is a different product architecture. A rotating gobo has no frame buffer, no audio pipeline and no compute, so no amount of iteration on that light unit produces a face that talks. Closing the gap means adding a video engine, a renderer, an audio path and a network stack - which is the BOM difference between their 99.99 USD unit and this venture's V-A.",
+      "whatItProvesForUs": "This is the most valuable competitive fact in the file, and it is good news. It establishes that a projector inside a cold-air inflatable, outdoors, for a full Halloween season, at a 99.99 USD RETAIL price, is a solved manufacturing problem. The geometry, the thermal behaviour, the weather tolerance and the retail acceptance are all demonstrated by a shipping product. This venture is not inventing the physical form factor - it is putting a different light engine inside a proven one.",
+      "whatItCostsUs": "It also sets the price anchor on the inflatables shelf at 99.99 USD. V-A cannot be merchandised there."
+    },
+    {
+      "id": "C-2",
+      "name": "AtmosFX (and licensed kit assemblers such as HoliScapes)",
+      "product": "Digital decoration content plus projector-and-screen kits, including Jack-O-Lantern Jamboree",
+      "priceObserved": 229.99,
+      "priceComparisonPoints": [
+        {
+          "what": "HoliScapes USB projector kit with Jack-O-Lantern Jamboree, 720p LED projector, remote, wide-angle lens, 48x72 in translucent screen - marketplace listing",
+          "price": 414.99,
+          "sourceId": "S6",
+          "role": "bundle-marketplace"
+        },
+        {
+          "what": "The SAME kit at a mass retailer",
+          "price": 229.99,
+          "sourceId": "S29",
+          "role": "bundle-mass-retail"
+        },
+        {
+          "what": "The same kit at a home-improvement retailer",
+          "price": 229.0,
+          "sourceId": "S30",
+          "role": "bundle-home-improvement"
+        },
+        {
+          "what": "AtmosFX Jack-O-Lantern Jamboree digital decoration, content only",
+          "price": 24.99,
+          "sourceId": "S6",
+          "role": "content-only"
+        }
+      ],
+      "confidence": "high",
+      "whatItDoes": "Pre-rendered video loops projected onto a flat translucent screen in a window or doorway. Very high production quality.",
+      "whatItDoesNot": "The content is pre-rendered video. It cannot respond to a specific child, cannot say a name, cannot answer a question, and its mouth is not driven by anything that is happening in the yard.",
+      "structuralNote": "A pre-rendered library and a real-time procedural renderer are different things. A video file cannot lip-sync to a sentence that did not exist when the file was made; the shipped renderer here drives the mouth from the live RMS of the audio it is speaking (SW-3). That difference is architectural, not a matter of adding more loops to the library.",
+      "whatItProvesForUs": "It brackets what a projector-plus-screen Halloween bundle sells for direct, at 229.99-414.99 USD depending on the surface - a band that straddles the V-A target rather than sitting above it - and it validates a 24.99 USD price for content alone, which is the V-C comparable.",
+      "whatItCostsUs": "It sets a very high production-quality bar for the visuals. A procedural face has to look deliberately stylised and good, not like a cheaper version of rendered video.",
+      "priceObservedBand": {
+        "low": 229.99,
+        "high": 414.99
+      },
+      "priceDispersionNote": "The identical kit sells at 229.99 USD at a mass retailer and 414.99 USD on a marketplace listing - a 1.8x spread on the same box. Recording only the higher surface is how a comparable becomes an argument. The verdict of this plan turns on this number, so both ends are modelled and the low end is the one to plan against: it is the price a customer comparing the two would pay."
+    },
+    {
+      "id": "C-3",
+      "name": "The animatronics shelf generally",
+      "product": "Motion- and sound-activated animated props (skeletons, dolls, groundbreakers)",
+      "priceObserved": null,
+      "priceBandObserved": {
+        "low": 169.99,
+        "high": 399.99
+      },
+      "priceSourceId": "S4",
+      "secondarySourceIds": [
+        "S5"
+      ],
+      "confidence": "high",
+      "whatItDoes": "Triggered by a motion sensor, plays one of a small set of canned audio lines with a servo-driven motion sequence.",
+      "whatItDoesNot": "It plays back; it does not converse. The line it says is unrelated to anything the visitor said.",
+      "structuralNote": "This is the shelf V-A must be merchandised on and the price band it must land in. The differentiation claim that survives scrutiny is narrow and true: the props on this shelf respond to PRESENCE, this one can respond to WORDS. State it that way and it is defensible."
+    }
+  ],
+  "criticalRisks": [
+    {
+      "id": "R-1",
+      "title": "Short-throw optics may not exist at the assumed price",
+      "gate": "TG-1",
+      "bomLine": "B-04",
+      "severity": "high",
+      "impact": "If a 0.5-0.8 throw ratio is only available in the 120-420 USD DLP module tier, the V-A BOM rises by roughly 70 to 340 USD per unit and the V-A business case very likely fails.",
+      "mitigation": "Fire up the long axis and correct keystone (A-GEO-5), which costs mechanical design instead of BOM.",
+      "resolveBy": "Three supplier quotes with measured ANSI lumens and stated throw ratio.",
+      "needsQuote": true
+    },
+    {
+      "id": "R-2",
+      "title": "Tariff classification is unresolved and the swing exceeds the margin",
+      "gate": null,
+      "assumption": "A-DUT-3",
+      "severity": "high",
+      "impact": "Roughly 22 percentage points of landed cost between the 9505-festive and 8528-projector classifications - larger than the projected net margin in most scenarios.",
+      "mitigation": "None available by design choice; it is a legal classification question.",
+      "resolveBy": "A CBP binding ruling request, or a customs broker's written classification opinion, BEFORE any purchase order.",
+      "needsQuote": true
+    },
+    {
+      "id": "R-3",
+      "title": "Moisture and condensation on the optics",
+      "gate": "TG-5",
+      "severity": "high",
+      "impact": "The most likely field-failure and returns driver. It fails at night, unattended, which is the worst possible failure mode for the customer experience.",
+      "mitigation": "Sealed optical window, separated cooling path, hydrophobic coating, window heater, downward-facing orientation.",
+      "resolveBy": "Overnight dew-cycle prototype test.",
+      "needsQuote": true
+    },
+    {
+      "id": "R-4",
+      "title": "The AI is a per-unit recurring cost with no revenue attached",
+      "gap": "SW-GAP-2",
+      "severity": "high",
+      "impact": "Every autonomous utterance costs LLM and TTS tokens charged to someone. At retail there is no account, no subscription and no billing relationship.",
+      "mitigation": "Ship the deterministic reply bank that ALREADY EXISTS (SW-5) as the retail default, and make cloud AI an opt-in upsell for owners who connect an account. This turns a recurring COGS into optional recurring revenue.",
+      "resolveBy": "A product decision, plus wiring the existing demoReply path as the default for an unpaired unit."
+    },
+    {
+      "id": "R-5",
+      "title": "Far-field speech capture over blower noise is unmeasured",
+      "gate": "TG-7",
+      "severity": "medium-high",
+      "impact": "If the prop cannot hear a child from the walkway, the headline feature does not work and the product is an expensive light.",
+      "mitigation": "Ordered by cost: mic placement, directional array, push-to-talk on the prop, or ship the existing phone remote (SW-4) as the only input.",
+      "resolveBy": "SPL measurement at the mic position with the blower running.",
+      "needsQuote": true
+    },
+    {
+      "id": "R-6",
+      "title": "The software cannot run unattended without a daily sign-in",
+      "gap": "SW-GAP-1",
+      "severity": "blocker-for-retail",
+      "impact": "A 24-hour hard session cap means the prop dies mid-party and needs a human at the device. Unacceptable in a retail product.",
+      "mitigation": "Wire the device-token pairing rail, or ship a fully local runtime.",
+      "resolveBy": "A scoping session; estimated 3 to 8 weeks, ESTIMATE with low confidence.",
+      "needsQuote": true
+    },
+    {
+      "id": "R-7",
+      "title": "The children's-product determination is decided by marketing copy",
+      "regulatory": "R-CPSIA",
+      "severity": "medium",
+      "impact": "Writing the product's most compelling selling line on the box may pull it into CPSIA scope, adding per-lot lab testing, a Children's Product Certificate and permanent tracking labels.",
+      "mitigation": "Position as a yard decoration for the homeowner; do not depict a child operating it; stay out of the toy aisle.",
+      "resolveBy": "A compliance opinion on the intended packaging copy BEFORE the packaging is printed."
+    },
+    {
+      "id": "R-8",
+      "title": "Seasonal working-capital trough",
+      "assumptions": [
+        "A-WC-1",
+        "A-WC-2"
+      ],
+      "severity": "high",
+      "impact": "The factory is paid in full at bill of lading, months before the season; the retailer pays 60 to 90 days after it. Peak cash need lands before any revenue arrives, and unsold inventory has near-zero residual value after 1 November.",
+      "mitigation": "Smaller first run, DTC-first to collect cash at the point of sale, and a returns/markdown reserve modelled explicitly.",
+      "resolveBy": "The engine must produce a monthly cash-flow trough figure, not just an annual P&L. An annual P&L on a seasonal product hides the only number that can kill the company."
+    },
+    {
+      "id": "R-9",
+      "title": "The category-review calendar puts a big-box shelf two seasons out",
+      "assumptions": [
+        "A-CAL-1",
+        "A-CAL-2"
+      ],
+      "severity": "medium",
+      "impact": "For a product that does not yet exist, the earliest realistic big-box shelf date is two Halloweens away. Any plan that assumes a big-box launch next season is wrong.",
+      "mitigation": "Sequence the channels: V-C ships this season at near-zero cost, V-B/DTC next season builds sell-through data, big-box the season after with that data in hand."
+    }
+  ],
+  "goldenVectors": {
+    "purpose": "Hand-derived expected values for the engine's deterministic calculators. These are regression guards: they assert the engine's ARITHMETIC, computed independently of the engine. Any engine change that moves these numbers without a corresponding assumption change is a bug.",
+    "vectors": [
+      {
+        "id": "GV-1",
+        "calculator": "throwDistance",
+        "inputs": {
+          "throwRatio": 1.2,
+          "imageWidthIn": 28
+        },
+        "expected": {
+          "throwDistanceIn": 33.6
+        },
+        "tolerance": 0.01
+      },
+      {
+        "id": "GV-2",
+        "calculator": "throwDistance",
+        "inputs": {
+          "throwRatio": 0.5,
+          "imageWidthIn": 28
+        },
+        "expected": {
+          "throwDistanceIn": 14.0
+        },
+        "tolerance": 0.01
+      },
+      {
+        "id": "GV-3",
+        "calculator": "featureLuminance",
+        "inputs": {
+          "ansiLumens": 250,
+          "imageArea_m2": 0.338,
+          "panelTransmittance": 0.25
+        },
+        "expected": {
+          "fullFieldIlluminance_lux": 739.64,
+          "featureLuminance_nits": 58.85
+        },
+        "tolerance": 0.5
+      },
+      {
+        "id": "GV-4",
+        "calculator": "ambientFabricLuminance",
+        "inputs": {
+          "ambientLux": 5,
+          "fabricReflectance": 0.5
+        },
+        "expected": {
+          "luminance_nits": 0.796
+        },
+        "tolerance": 0.005
+      },
+      {
+        "id": "GV-5",
+        "calculator": "blackLevelVisibility",
+        "inputs": {
+          "fullFieldIlluminance_lux": 739.64,
+          "contrastRatio": 800,
+          "panelTransmittance": 0.25,
+          "ambientFabricLuminance_nits": 0.796
+        },
+        "expected": {
+          "blackLuminance_nits": 0.0736,
+          "visible": false
+        },
+        "tolerance": 0.001
+      },
+      {
+        "id": "GV-6",
+        "calculator": "thermalRise",
+        "inputs": {
+          "projectorWatts": 45,
+          "heatFraction": 0.95,
+          "cfm": 200
+        },
+        "expected": {
+          "heat_BTUhr": 145.9,
+          "deltaT_F": 0.675
+        },
+        "tolerance": 0.02
+      },
+      {
+        "id": "GV-7",
+        "calculator": "powerBudget",
+        "inputs": {
+          "blowerW": 120,
+          "projectorW": 45,
+          "computeW": 8,
+          "ampW": 12,
+          "volts": 120,
+          "cordFt": 25,
+          "ohmPerFt": 0.004
+        },
+        "expected": {
+          "totalW": 185,
+          "currentA": 1.5417,
+          "voltageDrop_V": 0.3083
+        },
+        "tolerance": 0.001
+      },
+      {
+        "id": "GV-8",
+        "calculator": "bomRollUp",
+        "note": "V-A at 5000 units, excluding tooling amortisation and the optional remote B-15. Hand-verified against the bom array on 2026-08-01.",
+        "inputs": {
+          "variantId": "V-A",
+          "includeOptional": false
+        },
+        "expected": {
+          "lines": 13,
+          "lineIds": [
+            "B-01",
+            "B-02",
+            "B-03",
+            "B-04",
+            "B-05",
+            "B-06",
+            "B-07",
+            "B-08",
+            "B-09",
+            "B-11",
+            "B-12",
+            "B-13",
+            "B-14"
+          ],
+          "exWorksLow": 86.2,
+          "exWorksMid": 166.0,
+          "exWorksHigh": 245.8
+        },
+        "tolerance": 0.01,
+        "rationale": "The band is 2.85x wide from low to high. An engine that collapses this to a point estimate has destroyed the only honest thing about it."
+      },
+      {
+        "id": "GV-9",
+        "calculator": "bomRollUp",
+        "note": "V-B at 5000 units, excluding tooling. Asserts LINE SELECTION, which is what a variant-filter bug breaks.",
+        "inputs": {
+          "variantId": "V-B",
+          "includeOptional": false
+        },
+        "expected": {
+          "lines": 8,
+          "lineIds": [
+            "B-01",
+            "B-02",
+            "B-03",
+            "B-10",
+            "B-11",
+            "B-12",
+            "B-13",
+            "B-14"
+          ],
+          "exWorksLow": 33.2,
+          "exWorksMid": 54.5,
+          "exWorksHigh": 75.8
+        },
+        "tolerance": 0.01
+      },
+      {
+        "id": "GV-10",
+        "calculator": "landedCost",
+        "note": "Tariff classification scenario spread on the V-A midpoint - the engine must return BOTH branches, never one.",
+        "inputs": {
+          "exWorksUnitCost": 166.0,
+          "dutyScenarios": [
+            0.075,
+            0.25
+          ]
+        },
+        "expected": {
+          "dutyLow_USD": 12.45,
+          "dutyHigh_USD": 41.5,
+          "spread_USD": 29.05
+        },
+        "tolerance": 0.01,
+        "rationale": "29.05 USD of unresolved duty on a unit whose entire target net margin is smaller than that. This single number is why A-DUT-3 is ranked second in openQuestionsRankedByLeverage."
+      },
+      {
+        "id": "GV-11",
+        "calculator": "traceability",
+        "note": "The honesty guard. Asserts the engine can report what share of landed cost rests on lines that have never been quoted.",
+        "inputs": {
+          "variantId": "V-A"
+        },
+        "expected": {
+          "everyBomLineHasNeedsQuoteFlag": true,
+          "needsQuoteShareOfExWorks_min": 0.95
+        },
+        "rationale": "For V-A every single BOM line is needsQuote:true except B-14. If the engine ever reports a needsQuote share near zero it has lost the provenance, and a plan that has lost its provenance is exactly the hallucinated bill of materials this whole architecture exists to prevent."
+      }
+    ]
+  },
+  "sanityExpectations": {
+    "purpose": "An INDEPENDENT hand-check, computed outside the engine on 2026-08-01, recorded so a human can tell whether the engine is working and so this finding is not lost. These are NOT engine outputs and must never be presented as the plan's conclusions - the engine recomputes them from the assumptions above and its numbers are the authority. If the engine disagrees with these by more than a few percent, one of the two is broken and that must be resolved before any output is trusted.",
+    "method": "landed = exWorks + freight + duty + broker, where freight = (lclRate + cfsHandling) * (1 + surcharge) * boxedCBM. Required retail through big-box = landed / (1 - vendorGrossMargin 0.40) / (1 - retailerGrossMargin 0.45). Required retail through DTC = landed / (1 - 0.38 for payment fees, CAC and returns reserve combined).",
+    "checks": [
+      {
+        "scenario": "V-A midpoint, 25 percent duty, peak-season freight",
+        "exWorks": 166.0,
+        "freight": 10.33,
+        "duty": 41.5,
+        "landed": 219.83,
+        "requiredRetailBigBox": 666.15,
+        "requiredRetailDTC": 354.56
+      },
+      {
+        "scenario": "V-A midpoint, 7.5 percent duty, peak-season freight",
+        "exWorks": 166.0,
+        "freight": 10.33,
+        "duty": 12.45,
+        "landed": 190.78,
+        "requiredRetailBigBox": 578.12,
+        "requiredRetailDTC": 307.71
+      },
+      {
+        "scenario": "V-A simultaneous LOW corner of every band, 7.5 percent duty, low freight",
+        "exWorks": 86.2,
+        "freight": 5.62,
+        "duty": 6.47,
+        "landed": 100.29,
+        "requiredRetailBigBox": 303.91,
+        "requiredRetailDTC": 161.76
+      },
+      {
+        "scenario": "V-A simultaneous HIGH corner, 25 percent duty, peak freight",
+        "exWorks": 245.8,
+        "freight": 14.18,
+        "duty": 61.45,
+        "landed": 323.43,
+        "requiredRetailBigBox": 980.09,
+        "requiredRetailDTC": 521.66
+      },
+      {
+        "scenario": "V-B midpoint, 25 percent duty, peak freight",
+        "exWorks": 54.5,
+        "freight": 6.31,
+        "duty": 13.63,
+        "landed": 76.44,
+        "requiredRetailBigBox": 231.64,
+        "requiredRetailDTC": 123.29
+      },
+      {
+        "scenario": "V-B simultaneous LOW corner, 7.5 percent duty, low freight",
+        "exWorks": 33.2,
+        "freight": 3.43,
+        "duty": 2.49,
+        "landed": 41.12,
+        "requiredRetailBigBox": 124.61,
+        "requiredRetailDTC": 66.32
+      }
+    ],
+    "observedCeilings": {
+      "animatronicsShelfHigh": 399.99,
+      "inflatablesShelfHigh": 69.99,
+      "incumbentProjectionInflatableAnchor": 99.99,
+      "projectorPlusScreenBundleDTC": 414.99,
+      "digitalContentOnly": 24.99
+    },
+    "whatTheArithmeticSays": [
+      "V-A CANNOT reach a big-box shelf. At midpoint it needs 578 to 666 USD of retail price against an observed animatronics ceiling of 399.99 USD - it misses by 45 to 67 percent. It fits only if every single band lands at its low corner simultaneously (303.91 USD), and hitting thirteen low corners at once is not a plan, it is a wish.",
+      "V-A DOES work direct-to-consumer at roughly 349 USD, where the midpoint requirement is 308 to 355 USD. That is a real, defensible premium product - it just is not a retail-shelf product.",
+      "V-B cannot reach a big-box shelf either. At midpoint it needs 232 USD against a 69.99 USD inflatables ceiling and a 99.99 USD incumbent anchor. At its low corner it needs 125 USD, still above the anchor.",
+      "V-B works direct-to-consumer at 99 to 129 USD ONLY near the low corner (66 USD required) and is marginal at midpoint (123 USD required). The swing factor is customer acquisition cost, which has no data behind it at all.",
+      "V-C is the only tier with no COGS, no tariff exposure, no certification, no inventory, no seasonal cash trough and no dependence on the 9-to-12-month category-review calendar. It is the only tier that can ship this season."
+    ],
+    "impliedSequence": "V-C this season to establish demand and buy CAC data at near-zero risk; V-B direct next season if the CAC data supports it; V-A as a premium DTC product, not a shelf product. Big-box is not reachable at any BOM corner that is not the simultaneous best case, and the category-review calendar (A-CAL-2) puts it two seasons out regardless. The engine should reach this conclusion from the numbers - it must not be told it.",
+    "confidence": "The DIRECTION of these conclusions is robust: the gaps are 45 to 230 percent, far larger than the uncertainty in any single band. The absolute figures are not robust - 99.7 percent of the V-A ex-works cost sits on lines that have never been quoted."
+  },
+  "engineRequirements": {
+    "note": "What the calculators must do for this dataset to be usable. Stated as requirements on the engine, not as results.",
+    "mustCompute": [
+      "BOM roll-up per variant at a stated quantity, carrying low/mid/high through every line rather than collapsing to a point estimate",
+      "Tooling amortisation over the run volume as a separate visible line",
+      "Landed cost = ex-works + freight (with the peak-season surcharge branch) + duty (BOTH classification scenarios) + broker and inbound",
+      "Margin waterfall from retail price down through channel fees, retailer margin, programme allowances, returns reserve, landed cost",
+      "Volume/price curve and break-even units per variant per channel",
+      "MONTHLY cash flow with an explicit peak-trough figure - an annual P&L on a seasonal product hides the number that kills the company",
+      "Working capital timing from supplier deposit through bill-of-lading payment, transit, warehouse dwell, sell-through and retailer payment terms",
+      "Headcount cost from a role list times a labour-rate assumption the operator supplies",
+      "Certification cost and lead time rolled onto the critical path, since A-CAL-2 makes schedule the binding constraint, not cost"
+    ],
+    "mustNeverDo": [
+      "Present a single landed cost while A-DUT-3 is UNRESOLVED",
+      "Average Q4 storage across the year (A-CH-4)",
+      "Multiply feature luminance by the duty cycle (A-OPT-4 modelingNote)",
+      "Report a total that hides how much of it rests on needsQuote lines (GV-11)",
+      "Accept a vendor 'lumens' figure that is not stated as measured ANSI lumens (A-OPT-1 dataQualityWarning)"
+    ]
+  },
+  "openQuestionsRankedByLeverage": [
+    {
+      "rank": 1,
+      "id": "A-GEO-3 / B-04",
+      "question": "Is a 0.5-0.8 throw ratio projector available at 5000 pcs for under 90 USD with a measured ANSI lumens report?",
+      "settledBy": "Three supplier RFQs",
+      "ifNo": "Commit to the long-axis geometry (A-GEO-5) and prototype keystone quality."
+    },
+    {
+      "rank": 2,
+      "id": "A-DUT-3",
+      "question": "Does an inflatable containing a projector classify under HTS 9505 or 8528?",
+      "settledBy": "CBP binding ruling or a broker's written opinion",
+      "ifWrong": "22 points of landed cost, larger than the projected margin."
+    },
+    {
+      "rank": 3,
+      "id": "SW-GAP-1",
+      "question": "How does a retail unit run six unattended hours without an OIDC sign-in?",
+      "settledBy": "A scoping session on the device-token rail vs a local runtime"
+    },
+    {
+      "rank": 4,
+      "id": "TG-5",
+      "question": "Does the optical window survive an overnight dew cycle?",
+      "settledBy": "A prototype and a dew-cycle test"
+    },
+    {
+      "rank": 5,
+      "id": "TG-7",
+      "question": "What is the SNR at the mic position with the blower running?",
+      "settledBy": "An SPL measurement"
+    },
+    {
+      "rank": 6,
+      "id": "A-OPT-3 / B-02",
+      "question": "What is the actual transmittance of a manufacturable panel sewn into an inflatable under blower pressure?",
+      "settledBy": "A fabric sample and a light-meter reading"
+    },
+    {
+      "rank": 7,
+      "id": "CH-1 CAC",
+      "question": "What does it cost to acquire a customer for a 300 USD seasonal prop in a six-week window?",
+      "settledBy": "A small paid test in the V-C or V-B season, which is another reason to sequence the tiers"
+    }
+  ]
+}

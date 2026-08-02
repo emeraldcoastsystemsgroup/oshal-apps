@@ -4,6 +4,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-22 02:18:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Generalized round clock: a show-agnostic deadline primitive so no beat can hang forever. Shows DECLARE their windows (windowFor) and what a lapse MEANS (onTimeout); the engine only keeps time. Deadlines live in the state and expire lazily under the room lock — there is no scheduler.
+ * 2026-07-24 13:30:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Restart an EXPIRED same-key window on re-stamp. Found by show #4 (Whammy): a lapse that resolves into a state with the same window still open (one turn, several presses) kept the dead deadline, so every poll re-fired the timeout — an AFK player machine-gunned a press per poll instead of one per window. A live same-key window still never restarts (the original regression this file guards).
  */
 
 'use strict';
@@ -63,7 +64,11 @@ function stamp(state, show, now = Date.now()) {
   if (!window || !Number(window.ms)) return clear(state);
   const key = windowKey(state, window);
   const current = state.timer;
-  if (current && current.key === key) return state;   // same window — never restart the clock
+  // Same LIVE window — never restart the clock (an unrelated write must not grant
+  // fresh time). But a same-key window that has already LAPSED means the show
+  // resolved the lapse into a state where the window is open again (e.g. one
+  // Whammy turn, several presses): that is a new race and gets a new deadline.
+  if (current && current.key === key && !(Number(now) >= Number(current.endsAt) && !current.pausedAt)) return state;
   return {
     ...state,
     timer: {

@@ -1,0 +1,42 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Bubblebop Reef — ep-01 "The Bubble Bell" delivered 2026-07-08. Its intro clip is
+# cached on the render node.
+# ─────────────────────────────────────────────────────────────────────────────
+
+slug: bubblebop-reef
+title: Bubblebop Reef
+scenesPerEpisode: 4
+orientation: Landscape
+introClip: 06-bubblebop-reef-intro-FINAL.mp4
+
+premise: |
+  Bubblebop Reef is a friendly underwater village of coral porches, kelp kites and pearl lights.
+  Bibi Bubble and friends are collecting glow pearls to light the reef without startling the shy
+  sea creatures, and every episode the excitement itself is the obstacle: somebody is too loud, too
+  fast, or too helpful. Soft, round, and quiet-funny — the reef is never in danger, only overexcited.
+
+styleLock: >-
+  soft 3D clay-and-foam reef miniatures, translucent bubbles, gentle ocean light, round plush-like
+  characters, no lens effects
+
+cast:
+  - name: Bibi Bubble
+    description: round bubble kid with tiny fins; curious and instantly overexcited.
+  - name: Koro Coral
+    description: sturdy little coral builder with blunt arms; careful and proud of gentle shapes.
+  - name: Momo Manta
+    description: young manta ray with wide soft wings; thoughtful, musical, and slow to startle.
+  - name: Pearl Peb
+    description: tiny round pearl with a soft glow; shines brighter whenever somebody includes her.
+
+jokeSeeds:
+  - The bubble bell is rung so enthusiastically that every shy creature hides at once.
+  - Koro Coral builds a very safe ramp and nobody can work out which way is up.
+  - Momo Manta glides in slowly to help and arrives after the problem is solved.
+  - Pearl Peb is the light everyone is searching for, and she is standing right there.
+  - Bibi practises being quiet out loud.
+  - A kelp kite gets away and politely returns on its own.
+  - The reef votes on the pearl's placement and every vote is a different shelf.
+  - Somebody counts the pearls twice and gets one more than there are.
+  - The shy creatures organise their own surprise party and nobody notices for three scenes.
+  - The lights go on and everyone agrees it was much easier than that.

@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<!--
+  Payroll surface — run an ADP-style payroll over your own roster. Self-contained
+  iframe page served by createPayrollRoutes at /api/payroll/. All work is
+  auth-gated server-side; every dollar is computed by the deterministic engine
+  (no LLM). Approving a run requires the explicit confirm — the server returns
+  428 without it. oshal records payroll; it does not move funds.
+-->
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Payroll</title>
+<script>
+  (() => {
+    const supported = ['midnight','daylight','ocean','sakura','forest','gray','black','light-blue','aurora','graphite','amber'];
+    try {
+      const saved = localStorage.getItem('cockpit-theme');
+      if (saved && supported.includes(saved)) {
+        document.documentElement.setAttribute('data-theme', saved);
+      }
+    } catch (_) {}
+  })();
+</script>
+<link rel="stylesheet" href="/fonts/codicon.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/midnight.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/daylight.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/ocean.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/sakura.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/forest.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/gray.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/black.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/light-blue.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/aurora.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/graphite.css" />
+<link rel="stylesheet" href="/cockpit/css/themes/amber.css" />
+<style>
+  :root {
+    color-scheme: light dark;
+    --pr-bg: var(--bg-primary, #0f1417);
+    --pr-panel: var(--bg-card, #151b20);
+    --pr-panel-2: var(--bg-secondary, #1c252b);
+    --pr-control: color-mix(in srgb, var(--pr-panel-2) 76%, var(--pr-bg));
+    --pr-line: var(--border-color, #28333a);
+    --pr-text: var(--text-primary, #e9f0f4);
+    --pr-muted: var(--text-secondary, #90a4b0);
+    --pr-accent: var(--accent-primary, #3aa0ff);
+    --pr-accent-2: var(--accent-primary-hover, #9ed0ff);
+    --pr-danger: #ff8b8b;
+    --pr-ok: #37d27f;
+    --pr-shadow: 0 18px 48px rgba(15, 23, 42, .12);
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; color:var(--pr-text);
+    background:
+      radial-gradient(circle at 18% 14%, color-mix(in srgb, var(--pr-accent) 14%, transparent), transparent 32rem),
+      linear-gradient(135deg, var(--pr-bg), color-mix(in srgb, var(--pr-bg) 72%, var(--pr-panel)));
+  }
+  .page { width:min(1080px, calc(100% - 36px)); margin:0 auto; padding:26px 0 70px; }
+  .head { display:flex; align-items:center; gap:14px; padding:20px 22px; border:1px solid var(--pr-line); border-radius:14px;
+          background:color-mix(in srgb, var(--pr-panel) 86%, transparent); box-shadow:var(--pr-shadow); margin-bottom:6px; }
+  .head .ico { display:grid; place-items:center; width:44px; height:44px; border-radius:12px;
+               background:color-mix(in srgb, var(--pr-accent) 22%, transparent); color:var(--pr-accent-2); font-size:22px; }
+  h1 { font-size:22px; margin:0; }
+  .sub { color:var(--pr-muted); font-size:13px; margin:10px 2px 16px; line-height:1.5; }
+  .tabs { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+  .tab { background:var(--pr-panel-2); border:1px solid var(--pr-line); border-radius:10px; padding:10px 16px; cursor:pointer;
+         font-size:14px; font-weight:600; color:var(--pr-text); display:flex; gap:8px; align-items:center; }
+  .tab.active { border-color:var(--pr-accent); color:var(--pr-accent-2); }
+  .panel { background:color-mix(in srgb, var(--pr-panel) 92%, transparent); border:1px solid var(--pr-line); border-radius:14px;
+           padding:22px; margin-bottom:16px; }
+  .panel h2 { font-size:16px; margin:0 0 12px; }
+  .btn { border:none; border-radius:8px; padding:9px 15px; cursor:pointer; font-size:13px; font-weight:600; }
+  .btn.primary { background:var(--pr-accent); color:#03121f; }
+  .btn.ghost { background:var(--pr-control); border:1px solid var(--pr-line); color:var(--pr-text); }
+  .btn.danger { background:transparent; border:1px solid var(--pr-danger); color:var(--pr-danger); }
+  .btn:disabled { opacity:.5; cursor:default; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; align-items:end; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:12px; }
+  .field { display:block; }
+  .field span { display:block; font-size:12px; color:var(--pr-muted); margin-bottom:5px; }
+  .field input, .field select { width:100%; padding:9px; background:var(--pr-control); border:1px solid var(--pr-line);
+    border-radius:8px; color:var(--pr-text); font-size:14px; }
+  .field.chk { display:flex; align-items:center; gap:8px; }
+  .field.chk input { width:auto; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; color:var(--pr-muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.4px;
+       padding:6px 8px; border-bottom:1px solid var(--pr-line); }
+  td { padding:7px 8px; border-bottom:1px solid var(--pr-line); }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  td input.cell { width:76px; padding:5px 6px; background:var(--pr-control); border:1px solid var(--pr-line); border-radius:6px;
+    color:var(--pr-text); font-size:13px; text-align:right; }
+  tfoot td { font-weight:700; border-top:2px solid var(--pr-line); }
+  .chip { display:inline-block; border-radius:20px; padding:3px 10px; font-size:11px; font-weight:600; }
+  .chip.draft { background:color-mix(in srgb, var(--pr-accent) 18%, transparent); color:var(--pr-accent-2); }
+  .chip.paid { background:color-mix(in srgb, var(--pr-ok) 18%, transparent); color:var(--pr-ok); }
+  .err { color:var(--pr-danger); font-size:13px; }
+  .ok { color:var(--pr-ok); font-size:13px; }
+  .muted { color:var(--pr-muted); }
+  .spin { color:var(--pr-muted); font-size:14px; padding:28px 0; text-align:center; }
+  a.link { color:var(--pr-accent-2); cursor:pointer; text-decoration:underline; }
+  .stub { background:#fff; color:#111; border-radius:10px; padding:26px; max-width:720px; }
+  .stub h3 { margin:0; font-size:18px; }
+  .stub .small { font-size:11px; color:#555; }
+  .stub table { font-size:12px; }
+  .stub th { color:#555; border-color:#ddd; }
+  .stub td { border-color:#eee; }
+  .stub .net { font-size:20px; font-weight:800; margin-top:12px; }
+  .notice { font-size:12px; color:var(--pr-muted); border:1px dashed var(--pr-line); border-radius:10px; padding:10px 12px; margin-top:10px; }
+  @media print {
+    body * { visibility:hidden; }
+    #stubPrint, #stubPrint * { visibility:visible; }
+    #stubPrint { position:absolute; inset:0; }
+  }
+  @media (max-width:640px) {
+    .page { width:calc(100% - 20px); }
+    .panel { padding:14px 12px; }
+    .field input { font-size:16px; }
+    table { display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="head">
+    <span class="ico"><i class="codicon codicon-organization"></i></span>
+    <div>
+      <h1>Payroll</h1>
+      <div class="muted" style="font-size:12px" id="hdrCompany">&nbsp;</div>
+    </div>
+  </div>
+  <div class="sub">Employees → pay runs → stubs → reports. Every dollar comes from the deterministic tax engine
+    (tax year <span id="taxYear">—</span>) — oshal records payroll; it does not move funds or file returns.</div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="employees"><i class="codicon codicon-account"></i> Employees</div>
+    <div class="tab" data-tab="runs"><i class="codicon codicon-play-circle"></i> Run payroll</div>
+    <div class="tab" data-tab="stubs"><i class="codicon codicon-file"></i> Pay stubs</div>
+    <div class="tab" data-tab="reports"><i class="codicon codicon-graph"></i> Reports</div>
+    <div class="tab" data-tab="filing"><i class="codicon codicon-law"></i> Pay &amp; file</div>
+    <div class="tab" data-tab="settle"><i class="codicon codicon-inbox"></i> Settlement</div>
+    <div class="tab" data-tab="settings"><i class="codicon codicon-gear"></i> Settings</div>
+  </div>
+
+  <div id="msg"></div>
+
+  <!-- ── Employees ─────────────────────────────────────────────────────── -->
+  <div class="view" id="view-employees">
+    <div class="panel">
+      <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:10px">
+        <h2 style="margin:0">Roster</h2>
+        <button class="btn primary" onclick="openEmpForm()">Add employee</button>
+      </div>
+      <div id="empList" class="spin">Loading…</div>
+    </div>
+    <div class="panel" id="empForm" style="display:none">
+      <h2 id="empFormTitle">Add employee</h2>
+      <div class="grid">
+        <label class="field"><span>First name</span><input id="e_first" /></label>
+        <label class="field"><span>Last name</span><input id="e_last" /></label>
+        <label class="field"><span>Email</span><input id="e_email" /></label>
+        <label class="field"><span>Pay type</span>
+          <select id="e_type" onchange="empTypeSwap()"><option value="hourly">Hourly</option><option value="salary">Salary</option></select></label>
+        <label class="field" id="f_salary" style="display:none"><span>Annual salary ($)</span><input id="e_salary" type="number" min="0" step="0.01" /></label>
+        <label class="field" id="f_rate"><span>Hourly rate ($)</span><input id="e_rate" type="number" min="0" step="0.01" /></label>
+        <label class="field" id="f_hours"><span>Default hours / period</span><input id="e_hours" type="number" min="0" step="0.01" value="80" /></label>
+        <label class="field"><span>Birth date (401k catch-up tier)</span><input id="e_birth" type="date" /></label>
+        <label class="field"><span>Hire date</span><input id="e_hire" type="date" /></label>
+        <label class="field"><span>Termination date</span><input id="e_term" type="date" /></label>
+        <label class="field"><span>W-4 filing status</span>
+          <select id="e_filing"><option value="single">Single / MFS</option><option value="married">Married filing jointly</option><option value="hoh">Head of household</option></select></label>
+        <label class="field chk"><input id="e_step2" type="checkbox" /><span style="margin:0">W-4 Step 2 (two jobs)</span></label>
+        <label class="field chk"><input id="e_exempt" type="checkbox" /><span style="margin:0">W-4 exempt from federal withholding</span></label>
+        <label class="field"><span>W-4 Step 3 credits ($/yr)</span><input id="e_dep" type="number" min="0" step="0.01" value="0" /></label>
+        <label class="field"><span>W-4 4a other income ($/yr)</span><input id="e_other" type="number" min="0" step="0.01" value="0" /></label>
+        <label class="field"><span>W-4 4b deductions ($/yr)</span><input id="e_ded" type="number" min="0" step="0.01" value="0" /></label>
+        <label class="field"><span>W-4 4c extra withholding ($/period)</span><input id="e_extra" type="number" min="0" step="0.01" value="0" /></label>
+        <label class="field"><span>401(k) pre-tax (%)</span><input id="e_k401" type="number" min="0" max="100" step="0.1" value="0" /></label>
+        <label class="field"><span>Roth (%)</span><input id="e_roth" type="number" min="0" max="100" step="0.1" value="0" /></label>
+        <label class="field"><span>Health premium ($/period)</span><input id="e_health" type="number" min="0" step="0.01" value="0" /></label>
+        <label class="field"><span>Other post-tax ($/period)</span><input id="e_post" type="number" min="0" step="0.01" value="0" /></label>
+        <label class="field"><span>Garnishment ($/period) — CCPA-capped</span><input id="e_garn" type="number" min="0" step="0.01" value="0" /></label>
+        <label class="field"><span>Work state</span><input id="e_statecode" maxlength="2" placeholder="FL" oninput="stateHint()" /></label>
+        <label class="field"><span>State tax rate (%) — used only if unsupported</span><input id="e_state" type="number" min="0" max="100" step="0.01" value="0" /></label>
+        <label class="field"><span>State allowances (e.g. IL-W-4)</span><input id="e_allow" type="number" min="0" step="1" value="0" /></label>
+        <label class="field"><span>Tipped occupation code (W-2 14b)</span><input id="e_occ" maxlength="8" /></label>
+      </div>
+      <div class="notice" id="stateHint">Enter a work state to see whether payroll has a verified withholding table for it.</div>
+      <details style="margin-top:12px">
+        <summary class="muted" style="cursor:pointer;font-size:13px">Prior year-to-date (only if you switched payroll systems mid-year)</summary>
+        <div class="notice">These feed the wage-base caps so Social Security, FUTA and the 401(k) limit stay correct for the rest of the year.
+          They are deliberately <b>excluded</b> from the W-2 preview — your previous provider issues its own W-2.</div>
+        <div class="grid" style="margin-top:10px">
+          <label class="field"><span>Prior YTD tax year</span><input id="p_year" type="number" min="2000" step="1" /></label>
+          <label class="field"><span>Prior YTD taxable wages ($)</span><input id="p_wages" type="number" min="0" step="0.01" value="0" /></label>
+          <label class="field"><span>Prior YTD SS-taxable ($)</span><input id="p_sstax" type="number" min="0" step="0.01" value="0" /></label>
+          <label class="field"><span>Prior YTD 401(k) deferrals ($)</span><input id="p_def" type="number" min="0" step="0.01" value="0" /></label>
+          <label class="field"><span>Prior YTD supplemental ($)</span><input id="p_supp" type="number" min="0" step="0.01" value="0" /></label>
+        </div>
+      </details>
+      <div class="row" style="margin-top:14px">
+        <button class="btn primary" id="empSaveBtn" onclick="saveEmployee(this)">Save</button>
+        <button class="btn ghost" onclick="closeEmpForm()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Runs ──────────────────────────────────────────────────────────── -->
+  <div class="view" id="view-runs" style="display:none">
+    <div class="panel">
+      <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:10px">
+        <h2 style="margin:0">Pay runs</h2>
+        <div class="row">
+          <label class="field"><span>Period start</span><input id="r_start" type="date" /></label>
+          <label class="field"><span>Period end</span><input id="r_end" type="date" /></label>
+          <label class="field"><span>Pay date</span><input id="r_pay" type="date" /></label>
+          <button class="btn primary" onclick="createRun(this)">New pay run</button>
+        </div>
+      </div>
+      <div id="runList" class="spin">Loading…</div>
+    </div>
+    <div class="panel" id="runDetail" style="display:none"></div>
+  </div>
+
+  <!-- ── Stubs ─────────────────────────────────────────────────────────── -->
+  <div class="view" id="view-stubs" style="display:none">
+    <div class="panel">
+      <h2>Pay stub</h2>
+      <div class="row">
+        <label class="field" style="min-width:260px"><span>Pay run</span><select id="stubRun"></select></label>
+        <label class="field" style="min-width:220px"><span>Employee</span><select id="stubEmp"></select></label>
+        <button class="btn primary" onclick="loadStub()">View stub</button>
+        <button class="btn ghost" onclick="window.print()">Print</button>
+      </div>
+      <div id="stubPrint" style="margin-top:16px"></div>
+    </div>
+  </div>
+
+  <!-- ── Reports ───────────────────────────────────────────────────────── -->
+  <div class="view" id="view-reports" style="display:none">
+    <div class="panel">
+      <h2>Tax liability by quarter</h2>
+      <div class="row">
+        <label class="field" style="width:120px"><span>Year</span><input id="repYear" type="number" /></label>
+        <button class="btn primary" onclick="loadLiability()">Load</button>
+      </div>
+      <div id="liabilityOut" style="margin-top:12px"></div>
+    </div>
+    <div class="panel">
+      <h2>W-2 preview <span class="chip draft">preview — not a filing</span></h2>
+      <div class="row">
+        <label class="field" style="min-width:220px"><span>Employee</span><select id="w2Emp"></select></label>
+        <button class="btn primary" onclick="loadW2()">Load</button>
+      </div>
+      <div id="w2Out" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <!-- ── Pay & file ────────────────────────────────────────────────────── -->
+  <div class="view" id="view-filing" style="display:none">
+    <div class="panel">
+      <h2>Direct deposit (ACH)</h2>
+      <div class="notice">oshal generates the NACHA file; <b>your own bank executes it</b>. No money moves
+        through oshal and no third party is involved. Send a zero-dollar <b>prenote</b> first if your bank
+        wants accounts validated before a live run.</div>
+      <div class="row" style="margin-top:10px">
+        <label class="field" style="min-width:280px"><span>Paid run</span><select id="achRun"></select></label>
+        <button class="btn primary" onclick="buildAch(false, this)">Download .ach file</button>
+        <button class="btn ghost" onclick="buildAch(true, this)">Prenote (zero dollar)</button>
+      </div>
+      <div id="achOut"></div>
+    </div>
+    <div class="panel">
+      <h2>Tax forms</h2>
+      <div class="notice">Worksheets carrying the exact numbered line values. oshal does <b>not</b> transmit
+        to the IRS or SSA — you or your filing service transcribe these onto the return.</div>
+      <div class="row" style="margin-top:10px">
+        <label class="field" style="width:110px"><span>Year</span><input id="fYear" type="number" /></label>
+        <label class="field" style="width:110px"><span>Quarter</span>
+          <select id="fQtr"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+        <button class="btn primary" onclick="loadForm941()">Form 941</button>
+        <button class="btn primary" onclick="loadForm940()">Form 940</button>
+        <button class="btn primary" onclick="loadFormRt6()">FL RT-6</button>
+      </div>
+      <div id="formOut" style="margin-top:12px"></div>
+    </div>
+    <div class="panel">
+      <h2>Electronic W-2 filing (SSA EFW2)</h2>
+      <div class="notice">Builds the machine-readable file you upload to SSA <b>Business Services
+        Online</b>. Run it through <b>AccuWage Online</b> first — AccuWage checks the format, not
+        whether names and Social Security numbers match SSA records. Producing the file decrypts every
+        SSN, so it asks you to confirm.
+        <b>The layout is verified per tax year and an unverified year is refused</b> rather than
+        guessed: tax year 2026 adds Box 12 codes TT and TP, which have no field in the 2025 layout.</div>
+      <div class="row" style="margin-top:10px">
+        <label class="field" style="width:110px"><span>Tax year</span><input id="efwYear" type="number" value="2025" /></label>
+        <button class="btn primary" onclick="buildEfw2(this)">Download W2REPORT</button>
+      </div>
+      <div id="efwOut" style="margin-top:12px"></div>
+    </div>
+    <div class="panel">
+      <h2>W-2</h2>
+      <div class="row">
+        <label class="field" style="min-width:220px"><span>Employee</span><select id="w2DocEmp"></select></label>
+        <button class="btn primary" onclick="buildW2(this)">Produce W-2</button>
+        <button class="btn ghost" onclick="window.print()">Print</button>
+      </div>
+      <div id="w2DocOut" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <!-- ── Settlement ────────────────────────────────────────────────────── -->
+  <div class="view" id="view-settle" style="display:none">
+    <div class="panel">
+      <h2>Did everyone actually get paid?</h2>
+      <div class="notice">Approving a run says who <i>should</i> be paid. A deposit can still come back
+        days later — <b>R02 account closed</b>, <b>R03 no account</b> — and until that return is imported
+        a failed deposit looks exactly like a successful one.</div>
+      <div class="row" style="margin-top:10px">
+        <label class="field" style="min-width:280px"><span>Paid run</span><select id="setRun"></select></label>
+        <button class="btn primary" onclick="loadSettlement(this)">Show settlement</button>
+      </div>
+      <div id="setOut" style="margin-top:12px"></div>
+    </div>
+    <div class="panel">
+      <h2>Import returns and notifications of change</h2>
+      <div class="notice">Paste the return file your bank sends back. A <b>return</b> means the money came
+        back and that person is unpaid. A <b>notification of change</b> means the opposite — the payment
+        succeeded and the bank is correcting the details for next time.</div>
+      <textarea id="retFile" rows="6" placeholder="Paste the .ach return file here"
+        style="width:100%;margin-top:10px;font-family:var(--vscode-editor-font-family,monospace);font-size:12px"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button class="btn primary" onclick="importReturns(this)">Import</button>
+      </div>
+      <div id="retOut" style="margin-top:12px"></div>
+    </div>
+    <div class="panel">
+      <h2>Print checks</h2>
+      <div class="notice">Allocates check numbers from your sequence — a number, once issued, is never
+        reused. <b>No MICR line is generated.</b> Print onto your bank's pre-encoded check stock: the
+        standard that governs the MICR band is not public, the available vendor documentation
+        contradicts itself on field positions, and a line one position out is rejected by the bank's
+        reader or posted to the wrong account.</div>
+      <div class="row" style="margin-top:10px">
+        <label class="field" style="min-width:280px"><span>Paid run</span><select id="chkRun"></select></label>
+        <button class="btn primary" onclick="issueChecks(this)">Allocate &amp; print</button>
+      </div>
+      <div id="chkOut" style="margin-top:12px"></div>
+    </div>
+    <div class="panel">
+      <h2>Banking calendar</h2>
+      <div class="notice">Two calendars, because they disagree. The <b>Federal Reserve</b> decides whether
+        payroll funds; the <b>IRS</b> decides when a deposit is due. A holiday on a Saturday costs the Fed
+        nothing but still moves the IRS deadline, and DC Emancipation Day moves the deadline while the
+        banks stay open.</div>
+      <div class="row" style="margin-top:10px">
+        <label class="field" style="width:150px"><span>Pay date</span><input id="calDate" type="date" /></label>
+        <button class="btn primary" onclick="checkPayDate(this)">Will it fund?</button>
+        <label class="field" style="width:110px"><span>Year</span><input id="calYear" type="number" /></label>
+        <button class="btn ghost" onclick="loadHolidays(this)">Show holidays</button>
+      </div>
+      <div id="calOut" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <!-- ── Settings ──────────────────────────────────────────────────────── -->
+  <div class="view" id="view-settings" style="display:none">
+    <div class="panel">
+      <h2>Company settings</h2>
+      <div class="grid">
+        <label class="field"><span>Company name</span><input id="c_name" /></label>
+        <label class="field"><span>Pay frequency</span>
+          <select id="c_freq"><option value="weekly">Weekly</option><option value="biweekly">Biweekly</option>
+            <option value="semimonthly">Semimonthly</option><option value="monthly">Monthly</option></select></label>
+        <label class="field"><span>State</span><input id="c_state" maxlength="2" /></label>
+        <label class="field"><span>SUTA rate (%)</span><input id="c_suta" type="number" min="0" max="100" step="0.01" /></label>
+        <label class="field"><span>SUTA wage base ($)</span><input id="c_sutabase" type="number" min="0" step="0.01" /></label>
+        <label class="field"><span>FUTA credit reduction (%)</span><input id="c_futacr" type="number" min="0" max="100" step="0.1" /></label>
+        <label class="field chk"><input id="c_shift" type="checkbox" /><span style="margin:0">Shift a weekend pay date to the prior Friday</span></label>
+        <label class="field"><span>Legal name (for W-2 / 941)</span><input id="c_legal" /></label>
+        <label class="field"><span>EIN</span><input id="c_ein" placeholder="12-3456789" /></label>
+        <label class="field"><span>Address</span><input id="c_addr" /></label>
+        <label class="field"><span>City</span><input id="c_city" /></label>
+        <label class="field"><span>ZIP</span><input id="c_zip" /></label>
+        <label class="field"><span>Depositor status</span>
+          <select id="c_dep"><option value="monthly">Monthly</option><option value="semiweekly">Semiweekly</option></select></label>
+        <label class="field"><span>Your bank's routing number (ACH)</span><input id="c_odfi" /></label>
+        <label class="field"><span>Your bank's name</span><input id="c_odfiname" /></label>
+        <label class="field"><span>ACH company ID (usually 1 + EIN)</span><input id="c_achid" /></label>
+        <label class="field"><span>Bank name (printed on checks)</span><input id="c_bank" /></label>
+        <label class="field"><span>SSA BSO User ID (8 characters)</span><input id="c_bso" maxlength="8" placeholder="for EFW2 filing" /></label>
+        <label class="field"><span>Contact name</span><input id="c_contact" /></label>
+        <label class="field"><span>Contact phone</span><input id="c_phone" /></label>
+        <label class="field"><span>Contact e-mail</span><input id="c_email" type="email" placeholder="SSA rejects a file without one" /></label>
+        <label class="field"><span>Kind of employer</span>
+          <select id="c_kind"><option value="N">None apply</option><option value="F">Federal government</option>
+            <option value="S">State/local non-501c</option><option value="T">501c non-government</option>
+            <option value="Y">State/local 501c</option></select></label>
+        <label class="field"><span>Employment code</span>
+          <select id="c_emp"><option value="R">Regular (941)</option><option value="A">Agriculture (943)</option>
+            <option value="H">Household (Sch H)</option><option value="F">Regular (944)</option>
+            <option value="M">Military</option><option value="Q">Medicare-qualified government</option>
+            <option value="X">Railroad (CT-1)</option></select></label>
+      </div>
+      <div class="notice">The 0.6% FUTA rate assumes the full 5.4% state credit. Employers in a credit-reduction state
+        (California and the U.S. Virgin Islands most recently) owe more — enter the extra percentage here.</div>
+      <div class="row" style="margin-top:14px"><button class="btn primary" onclick="saveCompany()">Save settings</button></div>
+      <div class="notice">Tax tables carry the <b><span id="taxYear2">—</span></b> federal figures (Pub 15-T percentage method,
+        SSA wage base, FUTA). They are versioned data — verify against the current IRS/SSA release before a live payroll.
+        Frequency changes apply to newly created runs.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const state = { company: null, employees: [], runs: [], editingEmp: null, currentRun: null };
+
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const fmt$ = (c) => (Number(c || 0) / 100).toLocaleString('en-US', { style:'currency', currency:'USD' });
+/* Reject garbage rather than coercing it. `Number('8O')` is NaN, JSON.stringify
+   turns NaN into null, and the server reads null as 0 — which silently zeroes a
+   paycheck. A typo must stop the save, not quietly pay nothing. */
+const toC = (v) => {
+  const s = String(v ?? '').trim();
+  if (s === '') return 0;
+  const n = Number(s);
+  if (!Number.isFinite(n) || n < 0) throw new RangeError(`"${v}" is not a valid amount.`);
+  return Math.round(n * 100);
+};
+const toNum = (v) => {
+  const s = String(v ?? '').trim();
+  if (s === '') return 0;
+  const n = Number(s);
+  if (!Number.isFinite(n) || n < 0) throw new RangeError(`"${v}" is not a valid number.`);
+  return n;
+};
+/* Every mutating action runs through here: the button disables for the duration,
+   so a double-click cannot create two runs or approve twice. */
+const inFlight = new Set();
+async function once(key, btn, fn) {
+  if (inFlight.has(key)) return;
+  inFlight.add(key);
+  if (btn) btn.disabled = true;
+  try { await fn(); }
+  finally { inFlight.delete(key); if (btn) btn.disabled = false; }
+}
+const fromC = (c) => (Number(c || 0) / 100).toFixed(2);
+const fmtD = (d) => String(d || '').slice(0, 10);
+
+function msg(text, isErr) {
+  $('msg').innerHTML = text ? `<div class="panel ${isErr ? 'err' : 'ok'}" style="padding:10px 16px">${esc(text)}</div>` : '';
+  if (text) setTimeout(() => { if ($('msg').textContent.trim() === text) $('msg').innerHTML = ''; }, 6000);
+}
+
+async function api(path, opts) {
+  const r = await fetch('/api/payroll' + path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts));
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(body.message || body.error || ('HTTP ' + r.status)), { status: r.status, body });
+  return body;
+}
+
+/* ── tabs ─────────────────────────────────────────────────────────────── */
+document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
+  document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === t));
+  document.querySelectorAll('.view').forEach((v) => { v.style.display = 'none'; });
+  $('view-' + t.dataset.tab).style.display = '';
+  if (t.dataset.tab === 'stubs') fillStubSelectors();
+  if (t.dataset.tab === 'reports') fillReportSelectors();
+  if (t.dataset.tab === 'filing') fillFilingSelectors();
+  if (t.dataset.tab === 'settle') fillSettleSelectors();
+}));
+
+/* ── company ──────────────────────────────────────────────────────────── */
+async function loadCompany() {
+  const r = await api('/company');
+  state.company = r.company;
+  $('taxYear').textContent = r.taxYear; $('taxYear2').textContent = r.taxYear;
+  $('hdrCompany').textContent = `${r.company.company_name} — ${r.company.pay_frequency}, ${r.company.state_code}`;
+  $('c_name').value = r.company.company_name; $('c_freq').value = r.company.pay_frequency;
+  $('c_state').value = r.company.state_code; $('c_suta').value = Number(r.company.suta_rate_pct);
+  $('c_sutabase').value = fromC(r.company.suta_wage_base_cents);
+  $('c_futacr').value = Number(r.company.futa_credit_reduction_pct || 0);
+  $('c_shift').checked = r.company.shift_pay_date !== false;
+  $('c_legal').value = r.company.legal_name || '';
+  $('c_ein').value = r.company.ein_masked || '';
+  $('c_addr').value = r.company.address_line1 || '';
+  $('c_city').value = r.company.city || '';
+  $('c_zip').value = r.company.postal_code || '';
+  $('c_dep').value = r.company.depositor_status || 'monthly';
+  $('c_odfi').value = r.company.ach_odfi_routing || '';
+  $('c_odfiname').value = r.company.ach_odfi_name || '';
+  $('c_achid').value = r.company.ach_company_id || '';
+  $('c_bank').value = r.company.bank_name || '';
+  $('c_bso').value = r.company.bso_user_id || '';
+  $('c_contact').value = r.company.contact_name || '';
+  $('c_phone').value = r.company.contact_phone || '';
+  $('c_email').value = r.company.contact_email || '';
+  $('c_kind').value = r.company.kind_of_employer || 'N';
+  $('c_emp').value = r.company.employment_code || 'R';
+  $('repYear').value = r.taxYear;
+}
+async function saveCompany() {
+  try {
+    await api('/company', { method:'PUT', body: JSON.stringify({
+      companyName: $('c_name').value, payFrequency: $('c_freq').value, stateCode: $('c_state').value,
+      sutaRatePct: Number($('c_suta').value), sutaWageBaseCents: toC($('c_sutabase').value),
+      futaCreditReductionPct: Number($('c_futacr').value), shiftPayDate: $('c_shift').checked,
+      achOdfiRouting: $('c_odfi').value, achOdfiName: $('c_odfiname').value,
+      achCompanyId: $('c_achid').value, bankName: $('c_bank').value,
+      bsoUserId: $('c_bso').value, contactName: $('c_contact').value,
+      contactPhone: $('c_phone').value, contactEmail: $('c_email').value,
+      kindOfEmployer: $('c_kind').value, employmentCode: $('c_emp').value }) });
+    // Identity lives on its own audited route. A masked EIN means "unchanged" —
+    // sending the mask back would overwrite the real value with bullets.
+    const ein = $('c_ein').value.trim();
+    await api('/company/identity', { method:'PUT', body: JSON.stringify({
+      legalName: $('c_legal').value, addressLine1: $('c_addr').value, city: $('c_city').value,
+      postalCode: $('c_zip').value, depositorStatus: $('c_dep').value,
+      ...(ein && !ein.includes('•') ? { ein } : {}) }) });
+    await loadCompany(); msg('Settings saved.');
+  } catch (e) { msg(e.message, true); }
+}
+
+/* ── employees ────────────────────────────────────────────────────────── */
+async function loadEmployees() {
+  const r = await api('/employees');
+  state.employees = r.employees;
+  const active = r.employees.filter((e) => e.status === 'active');
+  $('empList').innerHTML = !r.employees.length
+    ? '<div class="muted">No employees yet — add your first.</div>'
+    : `<table><thead><tr><th>Name</th><th>Type</th><th class="num">Rate</th><th>W-4</th><th>Status</th><th></th></tr></thead><tbody>` +
+      r.employees.map((e) => `<tr>
+        <td>${esc(e.first_name)} ${esc(e.last_name)}<div class="muted" style="font-size:11px">${esc(e.email || '')}</div></td>
+        <td>${e.comp_type}</td>
+        <td class="num">${e.comp_type === 'salary' ? fmt$(e.annual_salary_cents) + '/yr' : fmt$(e.hourly_rate_cents) + '/hr'}</td>
+        <td>${esc(e.filing_status)}${e.w4_step2 ? ' +step2' : ''}</td>
+        <td><span class="chip ${e.status === 'active' ? 'paid' : 'draft'}">${esc(e.status)}</span></td>
+        <td class="num"><a class="link" onclick="openEmpForm('${e.employee_id}')">edit</a> ·
+            <a class="link" onclick="removeEmployee('${e.employee_id}')">remove</a></td></tr>`).join('') +
+      `</tbody></table><div class="muted" style="font-size:12px;margin-top:8px">${active.length} active</div>`;
+}
+function empTypeSwap() {
+  const salary = $('e_type').value === 'salary';
+  $('f_salary').style.display = salary ? '' : 'none';
+  $('f_rate').style.display = salary ? 'none' : '';
+  $('f_hours').style.display = salary ? 'none' : '';
+}
+async function stateHint() {
+  const code = ($('e_statecode').value || '').toUpperCase();
+  if (!code || code.length < 2) { $('stateHint').textContent = 'Enter a work state to see whether payroll has a verified withholding table for it.'; return; }
+  try {
+    const r = await api('/states?code=' + encodeURIComponent(code));
+    const d = r.detail || {};
+    $('stateHint').innerHTML = d.supported
+      ? `<b class="ok">${esc(code)} is supported</b> (${esc(d.kind)}) — ${esc(d.note)} The manual rate below is ignored.`
+      : `<b class="err">${esc(code)} has no verified table.</b> ${esc(d.note)}`;
+  } catch (_) { /* hint only */ }
+}
+
+function openEmpForm(id) {
+  const e = id ? state.employees.find((x) => x.employee_id === id) : null;
+  state.editingEmp = id || null;
+  $('empFormTitle').textContent = e ? `Edit ${e.first_name} ${e.last_name}` : 'Add employee';
+  $('e_first').value = e ? e.first_name : ''; $('e_last').value = e ? e.last_name : ''; $('e_email').value = e ? (e.email || '') : '';
+  $('e_type').value = e ? e.comp_type : 'hourly'; $('e_salary').value = e ? fromC(e.annual_salary_cents) : '';
+  $('e_rate').value = e ? fromC(e.hourly_rate_cents) : ''; $('e_hours').value = e ? Number(e.default_hours) : 80;
+  $('e_filing').value = e ? e.filing_status : 'single'; $('e_step2').checked = !!(e && e.w4_step2);
+  $('e_dep').value = e ? fromC(e.w4_dependents_credit_cents) : 0; $('e_other').value = e ? fromC(e.w4_other_income_cents) : 0;
+  $('e_ded').value = e ? fromC(e.w4_deductions_cents) : 0; $('e_extra').value = e ? fromC(e.w4_extra_withholding_cents) : 0;
+  $('e_k401').value = e ? Number(e.k401_pct) : 0; $('e_roth').value = e ? Number(e.roth_pct) : 0;
+  $('e_health').value = e ? fromC(e.health_per_period_cents) : 0; $('e_post').value = e ? fromC(e.other_posttax_cents) : 0;
+  $('e_garn').value = e ? fromC(e.garnishment_cents) : 0;
+  $('e_state').value = e ? Number(e.state_rate_pct) : 0;
+  $('e_statecode').value = e ? (e.state_code || '') : '';
+  $('e_allow').value = e ? Number(e.state_allowances || 0) : 0;
+  $('e_exempt').checked = !!(e && e.w4_exempt);
+  $('e_occ').value = e ? (e.tipped_occupation_code || '') : '';
+  $('e_birth').value = e ? fmtD(e.birth_date) : '';
+  $('e_hire').value = e ? fmtD(e.hire_date) : '';
+  $('e_term').value = e ? fmtD(e.termination_date) : '';
+  $('p_year').value = e && e.prior_ytd_year ? e.prior_ytd_year : '';
+  $('p_wages').value = e ? fromC(e.prior_ytd_taxable_wages_cents) : 0;
+  $('p_sstax').value = e ? fromC(e.prior_ytd_ss_taxable_cents) : 0;
+  $('p_def').value = e ? fromC(e.prior_ytd_deferral_cents) : 0;
+  $('p_supp').value = e ? fromC(e.prior_ytd_supplemental_cents) : 0;
+  stateHint();
+  empTypeSwap();
+  $('empForm').style.display = '';
+  $('empForm').scrollIntoView({ behavior:'smooth' });
+}
+function closeEmpForm() { $('empForm').style.display = 'none'; state.editingEmp = null; }
+async function saveEmployee(btn) {
+  return once('saveEmp', btn, () => saveEmployeeInner());
+}
+async function saveEmployeeInner() {
+  let body;
+  try {
+  body = {
+    firstName: $('e_first').value, lastName: $('e_last').value, email: $('e_email').value,
+    compType: $('e_type').value, annualSalaryCents: toC($('e_salary').value), hourlyRateCents: toC($('e_rate').value),
+    defaultHours: Number($('e_hours').value), filingStatus: $('e_filing').value, w4Step2: $('e_step2').checked,
+    w4DependentsCreditCents: toC($('e_dep').value), w4OtherIncomeCents: toC($('e_other').value),
+    w4DeductionsCents: toC($('e_ded').value), w4ExtraWithholdingCents: toC($('e_extra').value),
+    k401Pct: Number($('e_k401').value), rothPct: Number($('e_roth').value),
+    healthPerPeriodCents: toC($('e_health').value), otherPostTaxCents: toC($('e_post').value), garnishmentCents: toC($('e_garn').value),
+    stateRatePct: Number($('e_state').value), stateCode: $('e_statecode').value,
+    stateAllowances: Number($('e_allow').value), w4Exempt: $('e_exempt').checked,
+    tippedOccupationCode: $('e_occ').value,
+    birthDate: $('e_birth').value || null, hireDate: $('e_hire').value || null,
+    terminationDate: $('e_term').value || null,
+    priorYtdYear: $('p_year').value || null,
+    priorYtdTaxableWagesCents: toC($('p_wages').value), priorYtdSsTaxableCents: toC($('p_sstax').value),
+    priorYtdDeferralCents: toC($('p_def').value), priorYtdSupplementalCents: toC($('p_supp').value),
+  };
+  } catch (e) { msg(e.message, true); return; }
+  try {
+    if (state.editingEmp) await api('/employees/' + state.editingEmp, { method:'PUT', body: JSON.stringify(body) });
+    else await api('/employees', { method:'POST', body: JSON.stringify(body) });
+    closeEmpForm(); await loadEmployees(); msg('Employee saved.');
+  } catch (e) { msg(e.message, true); }
+}
+async function removeEmployee(id) {
+  if (!window.confirm('Remove this employee? (Terminates if they have pay history.)')) return;
+  try { const r = await api('/employees/' + id, { method:'DELETE' }); await loadEmployees(); msg(r.terminated ? 'Employee terminated (has pay history).' : 'Employee deleted.'); }
+  catch (e) { msg(e.message, true); }
+}
+
+/* ── runs ─────────────────────────────────────────────────────────────── */
+async function loadRuns() {
+  const r = await api('/runs');
+  state.runs = r.runs;
+  $('runList').innerHTML = !r.runs.length
+    ? '<div class="muted">No pay runs yet.</div>'
+    : `<table><thead><tr><th>Period</th><th>Pay date</th><th>Status</th><th class="num">Employees</th><th class="num">Gross</th><th class="num">Net</th><th></th></tr></thead><tbody>` +
+      r.runs.map((x) => `<tr>
+        <td>${fmtD(x.period_start)} → ${fmtD(x.period_end)}</td><td>${fmtD(x.pay_date)}</td>
+        <td><span class="chip ${x.status === 'paid' ? 'paid' : 'draft'}">${esc(x.status)}</span></td>
+        <td class="num">${x.line_count}</td><td class="num">${fmt$(x.total_gross_cents)}</td><td class="num">${fmt$(x.total_net_cents)}</td>
+        <td class="num"><a class="link" onclick="openRun('${x.run_id}')">open</a></td></tr>`).join('') + '</tbody></table>';
+}
+async function createRun(btn) {
+  await once('createRun', btn, async () => {
+    const body = {};
+    const ps = $('r_start').value, pe = $('r_end').value, pd = $('r_pay').value;
+    if (ps) body.periodStart = ps;
+    if (pe) body.periodEnd = pe;
+    if (pd) body.payDate = pd;
+    try { const r = await api('/runs', { method:'POST', body: JSON.stringify(body) }); await loadRuns(); await openRun(r.run.run_id); msg('Draft run created.'); }
+    catch (e) { msg(e.message, true); }
+  });
+}
+async function openRun(id) {
+  const r = await api('/runs/' + id);
+  state.currentRun = r;
+  const draft = r.run.status === 'draft';
+  const tot = (k) => r.lines.reduce((a, l) => a + Number(l[k] || 0), 0);
+  $('runDetail').style.display = '';
+  $('runDetail').innerHTML = `
+    <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:10px">
+      <h2 style="margin:0">Register — ${fmtD(r.run.period_start)} → ${fmtD(r.run.period_end)}
+        <span class="chip ${draft ? 'draft' : 'paid'}">${esc(r.run.status)}</span></h2>
+      <div class="row">
+        ${draft ? `<button class="btn primary" onclick="approveRun('${r.run.run_id}', this)">Approve &amp; record</button>
+                   <button class="btn danger" onclick="discardRun('${r.run.run_id}')">Discard draft</button>` : ''}
+        ${!draft && r.run.kind !== 'void' && !r.voidedBy
+          ? `<button class="btn danger" onclick="voidRun('${r.run.run_id}', this)">Void this run</button>` : ''}
+      </div>
+    </div>
+    <div class="muted" style="font-size:12px;margin-bottom:10px">Pay date ${fmtD(r.run.pay_date)} — ${draft
+      ? 'edit hours / OT / bonus / tips / reimbursement; every change recomputes with YTD awareness.'
+      : 'paid runs are immutable history.'}${r.run.approved_by
+        ? ` Approved by <code>${esc(String(r.run.approved_by).slice(0, 12))}…</code> on ${fmtD(r.run.approved_at)}.` : ''}</div>
+    ${r.run.kind === 'void' ? '<div class="notice"><b>This is a void run</b> — the exact negation of the run it corrects. Its amounts are negative on purpose so year-to-date totals, the liability report and the W-2 preview all self-correct.</div>' : ''}
+    ${r.voidedBy ? `<div class="notice"><b>This run has been voided.</b> <a class="link" onclick="openRun('${r.voidedBy}')">Open the void</a> — the original is kept unchanged as history.</div>` : ''}
+    ${(() => {
+      const warns = r.lines.flatMap((l) => {
+        const w = Array.isArray(l.warnings) ? l.warnings : [];
+        return w.map((m) => `${l.first_name} ${l.last_name}: ${m}`);
+      });
+      return warns.length
+        ? `<div class="panel" style="border-color:var(--pr-danger);padding:12px 16px"><b class="err">Check these before approving</b><ul style="margin:8px 0 0;padding-left:18px">${
+            warns.map((w) => `<li class="err" style="font-size:12px">${esc(w)}</li>`).join('')}</ul></div>`
+        : '';
+    })()}
+    <table><thead><tr><th>Employee</th><th class="num">Hours</th><th class="num">OT</th><th class="num">Bonus $</th>
+      <th class="num">Tips $</th><th class="num">Reimb $</th><th class="num">Gross</th><th class="num">FIT</th><th class="num">SS</th>
+      <th class="num">Medicare</th><th class="num">State</th><th class="num">Net</th></tr></thead><tbody>` +
+    r.lines.map((l) => {
+      const inp = (f, v, dis) => draft && !dis
+        ? `<input class="cell" data-emp="${l.employee_id}" data-f="${f}" value="${v}" onchange="lineChanged(this)">` : esc(v);
+      const hourly = l.comp_type === 'hourly';
+      return `<tr>
+        <td>${esc(l.first_name)} ${esc(l.last_name)}<div class="muted" style="font-size:11px">${l.comp_type}</div></td>
+        <td class="num">${inp('hours', Number(l.hours), !hourly)}</td>
+        <td class="num">${inp('otHours', Number(l.ot_hours), !hourly)}</td>
+        <td class="num">${inp('bonus', fromC(l.bonus_cents))}</td>
+        <td class="num">${inp('tips', fromC(l.tips_cents))}</td>
+        <td class="num">${inp('reimb', fromC(l.reimbursement_cents))}</td>
+        <td class="num">${fmt$(l.gross_cents)}</td><td class="num">${fmt$(l.fit_cents)}</td><td class="num">${fmt$(l.ss_cents)}</td>
+        <td class="num">${fmt$(Number(l.medicare_cents) + Number(l.addl_medicare_cents))}</td>
+        <td class="num">${fmt$(l.state_cents)}</td><td class="num"><b>${fmt$(l.net_cents)}</b></td></tr>`;
+    }).join('') +
+    `</tbody><tfoot><tr><td>Totals</td><td></td><td></td><td></td><td></td><td></td>
+      <td class="num">${fmt$(tot('gross_cents'))}</td><td class="num">${fmt$(tot('fit_cents'))}</td>
+      <td class="num">${fmt$(tot('ss_cents'))}</td>
+      <td class="num">${fmt$(tot('medicare_cents') + tot('addl_medicare_cents'))}</td>
+      <td class="num">${fmt$(tot('state_cents'))}</td><td class="num">${fmt$(tot('net_cents'))}</td></tr></tfoot></table>
+    ${(() => {
+      const net = tot('net_cents');
+      const employer = tot('er_ss_cents') + tot('er_medicare_cents') + tot('futa_cents') + tot('suta_cents');
+      const employeeTax = tot('fit_cents') + tot('ss_cents') + tot('medicare_cents') + tot('addl_medicare_cents') + tot('state_cents');
+      return `<div class="panel" style="margin-top:14px">
+        <h2>${draft ? 'Before you approve' : 'Run summary'}</h2>
+        <table><tbody>
+          <tr><td>Employees paid</td><td class="num">${r.lines.length}</td></tr>
+          <tr><td>Total gross</td><td class="num">${fmt$(tot('gross_cents'))}</td></tr>
+          <tr><td>Employee taxes withheld</td><td class="num">${fmt$(employeeTax)}</td></tr>
+          <tr><td>Total net pay (to employees)</td><td class="num">${fmt$(net)}</td></tr>
+          <tr><td>Employer taxes (FICA match, FUTA, SUTA)</td><td class="num">${fmt$(employer)}</td></tr>
+          <tr><td><b>Total cash required on payday</b></td><td class="num"><b>${fmt$(net + employeeTax + employer)}</b></td></tr>
+        </tbody></table>
+        <div class="notice">Cash required = net pay to employees + the taxes you must remit. oshal does not move
+          any of it — this is the figure to have in the account and to deposit on the schedule your depositor
+          status requires.</div>
+      </div>`;
+    })()}`;
+  $('runDetail').scrollIntoView({ behavior:'smooth' });
+}
+async function lineChanged(el) {
+  const runId = state.currentRun.run.run_id;
+  const empId = el.dataset.emp;
+  const row = {}; document.querySelectorAll(`input.cell[data-emp="${empId}"]`).forEach((i) => { row[i.dataset.f] = i.value; });
+  try {
+    await api(`/runs/${runId}/lines/${empId}`, { method:'PUT', body: JSON.stringify({
+      hours: toNum(row.hours), otHours: toNum(row.otHours),
+      bonusCents: toC(row.bonus), tipsCents: toC(row.tips), reimbursementCents: toC(row.reimb),
+      proratePct: row.prorate === undefined ? 100 : toNum(row.prorate) }) });
+    await openRun(runId);
+  } catch (e) { msg(e.message, true); }
+}
+async function approveRun(id, btn) {
+  return once('approve:' + id, btn, () => approveRunInner(id));
+}
+async function approveRunInner(id) {
+  const r = state.currentRun;
+  const tot = (k) => (r && r.lines ? r.lines : []).reduce((a, l) => a + Number(l[k] || 0), 0);
+  const net = tot('net_cents');
+  const tax = tot('fit_cents') + tot('ss_cents') + tot('medicare_cents') + tot('addl_medicare_cents') + tot('state_cents');
+  const er = tot('er_ss_cents') + tot('er_medicare_cents') + tot('futa_cents') + tot('suta_cents');
+  const summary = `Approve this payroll run and record it as PAID?\n\n`
+    + `Employees: ${(r && r.lines ? r.lines.length : 0)}\n`
+    + `Total gross: ${fmt$(tot('gross_cents'))}\n`
+    + `Net to employees: ${fmt$(net)}\n`
+    + `Taxes to remit: ${fmt$(tax + er)}\n`
+    + `TOTAL CASH REQUIRED: ${fmt$(net + tax + er)}\n\n`
+    + `The run becomes immutable — a mistake is corrected by voiding it. oshal does not move funds.`;
+  if (!window.confirm(summary)) return;
+  try {
+    await api(`/runs/${id}/approve`, { method:'POST', body: JSON.stringify({ confirm: true }) });
+    await loadRuns(); await openRun(id); msg('Run approved and recorded as paid.');
+  } catch (e) {
+    // The server refuses a run containing a check that cannot be paid. Name the
+    // people rather than showing a bare error, then let the operator decide.
+    if (e.body && e.body.error === 'negative_net_pay') {
+      const who = (e.body.employees || []).map((x) => `${x.first_name} ${x.last_name} (${fmt$(x.net_cents)})`).join(', ');
+      if (!window.confirm(`These employees have a NEGATIVE net on this run:\n\n${who}\n\nThat usually means withholding could not be collected from the cash portion of the check. Record it anyway?`)) return;
+      try {
+        await api(`/runs/${id}/approve`, { method:'POST', body: JSON.stringify({ confirm: true, acceptNegativeNet: true }) });
+        await loadRuns(); await openRun(id); msg('Run approved with a negative-net override.');
+      } catch (e2) { msg(e2.message, true); }
+      return;
+    }
+    msg(e.message, true);
+  }
+}
+async function voidRun(id, btn) {
+  return once('void:' + id, btn, () => voidRunInner(id));
+}
+async function voidRunInner(id) {
+  const note = window.prompt('Why is this run being voided? (recorded on the audit trail)');
+  if (note === null) return;
+  if (!window.confirm('Void this PAID run? A linked, negated reversal is recorded — the original stays as history and every year-to-date total self-corrects. This cannot be undone.')) return;
+  try {
+    const r = await api(`/runs/${id}/void`, { method:'POST', body: JSON.stringify({ confirm: true, note }) });
+    await loadRuns(); await openRun(r.run.run_id);
+    msg('Run voided — the reversal is recorded.');
+  } catch (e) { msg(e.message, true); }
+}
+async function discardRun(id) {
+  if (!window.confirm('Discard this draft run?')) return;
+  try { await api('/runs/' + id, { method:'DELETE' }); $('runDetail').style.display = 'none'; await loadRuns(); msg('Draft discarded.'); }
+  catch (e) { msg(e.message, true); }
+}
+
+/* ── stubs ────────────────────────────────────────────────────────────── */
+function fillStubSelectors() {
+  $('stubRun').innerHTML = state.runs.map((r) => `<option value="${r.run_id}">${fmtD(r.period_start)} → ${fmtD(r.period_end)} (${esc(r.status)})</option>`).join('');
+  $('stubEmp').innerHTML = state.employees.map((e) => `<option value="${e.employee_id}">${esc(e.first_name)} ${esc(e.last_name)}</option>`).join('');
+}
+async function loadStub() {
+  $('stubPrint').innerHTML = '';
+  try {
+    const s = await api(`/stub/${$('stubRun').value}/${$('stubEmp').value}`);
+    const l = s.line;
+    const dedRow = (label, cur) => Number(cur) ? `<tr><td>${label}</td><td class="num">${fmt$(cur)}</td></tr>` : '';
+    $('stubPrint').innerHTML = `<div class="stub">
+      <div style="display:flex;justify-content:space-between;align-items:start">
+        <div><h3>${esc(s.company.company_name)}</h3><div class="small">Pay stub — ${esc(s.run.status)}</div></div>
+        <div class="small" style="text-align:right">Period ${fmtD(s.run.period_start)} – ${fmtD(s.run.period_end)}<br/>Pay date ${fmtD(s.run.pay_date)}</div>
+      </div>
+      <div style="margin:10px 0"><b>${esc(s.employee.first_name)} ${esc(s.employee.last_name)}</b>
+        <span class="small">— ${esc(s.employee.comp_type)}, W-4 ${esc(s.employee.filing_status)}</span></div>
+      <table><thead><tr><th>Earnings</th><th class="num">Current</th></tr></thead><tbody>
+        <tr><td>Regular</td><td class="num">${fmt$(l.computed ? l.computed.regularCents : l.gross_cents)}</td></tr>
+        ${Number(l.computed && l.computed.overtimeCents) ? `<tr><td>Overtime</td><td class="num">${fmt$(l.computed.overtimeCents)}</td></tr>` : ''}
+        ${Number(l.bonus_cents) ? `<tr><td>Bonus</td><td class="num">${fmt$(l.bonus_cents)}</td></tr>` : ''}
+        <tr><td><b>Gross</b></td><td class="num"><b>${fmt$(l.gross_cents)}</b></td></tr></tbody></table>
+      <table style="margin-top:10px"><thead><tr><th>Deductions &amp; taxes</th><th class="num">Current</th></tr></thead><tbody>
+        ${dedRow('401(k) pre-tax', l.computed ? l.computed.k401Cents : 0)}
+        ${dedRow('Health (Sec. 125)', l.computed ? l.computed.healthCents : 0)}
+        ${dedRow('Federal income tax', l.fit_cents)}
+        ${dedRow('Social Security', l.ss_cents)}
+        ${dedRow('Medicare', Number(l.medicare_cents) + Number(l.addl_medicare_cents))}
+        ${dedRow('State income tax', l.state_cents)}
+        ${dedRow('Roth', l.computed ? l.computed.rothCents : 0)}
+        ${dedRow('Other post-tax', l.computed ? l.computed.otherPostTaxCents : 0)}
+      </tbody></table>
+      ${Number(l.reimbursement_cents) ? `<div class="small" style="margin-top:6px">+ Non-taxable reimbursement ${fmt$(l.reimbursement_cents)} (included in net)</div>` : ''}
+      <div class="net">Net pay: ${fmt$(l.net_cents)}</div>
+      <table style="margin-top:14px"><thead><tr><th>Year to date</th><th class="num">Gross</th><th class="num">Taxes</th>
+        <th class="num">Pre-tax</th><th class="num">Post-tax</th><th class="num">Net</th></tr></thead><tbody>
+        <tr><td>YTD (incl. this check)</td><td class="num">${fmt$(s.ytd.gross)}</td>
+          <td class="num">${fmt$(Number(s.ytd.fit) + Number(s.ytd.ss) + Number(s.ytd.medicare) + Number(s.ytd.state))}</td>
+          <td class="num">${fmt$(s.ytd.pretax)}</td><td class="num">${fmt$(s.ytd.posttax)}</td><td class="num">${fmt$(s.ytd.net)}</td></tr>
+      </tbody></table>
+      <div class="small" style="margin-top:12px">Computed by the oshal payroll engine (deterministic, tax year ${esc(String($('taxYear').textContent))}).
+        This document records payroll; it is not proof of funds movement.</div>
+    </div>`;
+  } catch (e) { msg(e.message, true); }
+}
+
+/* ── reports ──────────────────────────────────────────────────────────── */
+function fillReportSelectors() {
+  $('w2Emp').innerHTML = state.employees.map((e) => `<option value="${e.employee_id}">${esc(e.first_name)} ${esc(e.last_name)}</option>`).join('');
+}
+async function loadLiability() {
+  $('liabilityOut').innerHTML = '';
+  try {
+    const r = await api('/reports/liability?year=' + encodeURIComponent($('repYear').value));
+    $('liabilityOut').innerHTML = !r.quarters.length
+      ? '<div class="muted">No paid runs in that year.</div>'
+      : `<table><thead><tr><th>Quarter</th><th class="num">Gross</th><th class="num">FIT</th><th class="num">FICA (both halves)</th>
+          <th class="num">State</th><th class="num">FUTA</th><th class="num">SUTA</th></tr></thead><tbody>` +
+        r.quarters.map((q) => `<tr><td>Q${q.quarter} ${r.year}</td><td class="num">${fmt$(q.gross)}</td>
+          <td class="num">${fmt$(q.fit)}</td><td class="num">${fmt$(Number(q.ss) + Number(q.medicare))}</td>
+          <td class="num">${fmt$(q.state)}</td><td class="num">${fmt$(q.futa)}</td><td class="num">${fmt$(q.suta)}</td></tr>`).join('') +
+        '</tbody></table>';
+  } catch (e) { msg(e.message, true); }
+}
+async function loadW2() {
+  $('w2Out').innerHTML = '';
+  try {
+    const r = await api(`/reports/w2/${$('w2Emp').value}?year=` + encodeURIComponent($('repYear').value));
+    const b = r.boxes;
+    $('w2Out').innerHTML = `<table><tbody>
+      <tr><td>Box 1 — Wages, tips, other comp</td><td class="num">${fmt$(b.box1)}</td></tr>
+      <tr><td>Box 2 — Federal income tax withheld</td><td class="num">${fmt$(b.box2)}</td></tr>
+      <tr><td>Box 3 — Social Security wages</td><td class="num">${fmt$(b.box3)}</td></tr>
+      <tr><td>Box 4 — Social Security tax withheld</td><td class="num">${fmt$(b.box4)}</td></tr>
+      <tr><td>Box 5 — Medicare wages</td><td class="num">${fmt$(b.box5)}</td></tr>
+      <tr><td>Box 6 — Medicare tax withheld</td><td class="num">${fmt$(b.box6)}</td></tr>
+      <tr><td>Box 7 — Social Security tips</td><td class="num">${fmt$(b.box7)}</td></tr>
+      <tr><td>Box 17 — State income tax</td><td class="num">${fmt$(b.box17)}</td></tr>
+      <tr><td><b>Box 12 code D</b> — elective deferrals</td><td class="num">${fmt$(r.box12.D)}</td></tr>
+      <tr><td><b>Box 12 code TT</b> — qualified overtime (FLSA premium only)</td><td class="num">${fmt$(r.box12.TT)}</td></tr>
+      <tr><td><b>Box 12 code TP</b> — cash tips</td><td class="num">${fmt$(r.box12.TP)}</td></tr>
+      <tr><td>Box 14b — Treasury tipped occupation code</td><td class="num">${esc(r.box14b || '—')}</td></tr>
+    </tbody></table><div class="notice">${esc(r.caveat)}</div>`;
+  } catch (e) { msg(e.message, true); }
+}
+
+/* ── pay & file ───────────────────────────────────────────────────────── */
+function fillFilingSelectors() {
+  const paid = state.runs.filter((r) => r.status === 'paid' && r.kind !== 'void');
+  $('achRun').innerHTML = paid.length
+    ? paid.map((r) => `<option value="${r.run_id}">${fmtD(r.pay_date)} — ${fmt$(r.total_net_cents)}</option>`).join('')
+    : '<option value="">(no paid runs yet)</option>';
+  $('w2DocEmp').innerHTML = state.employees.map((e) => `<option value="${e.employee_id}">${esc(e.first_name)} ${esc(e.last_name)}</option>`).join('');
+  if (!$('fYear').value) $('fYear').value = $('taxYear').textContent;
+}
+
+async function buildAch(prenote, btn) {
+  const runId = $('achRun').value;
+  if (!runId) { msg('No paid run selected.', true); return; }
+  await once('ach:' + runId, btn, async () => {
+    $('achOut').innerHTML = '';
+    const label = prenote
+      ? 'Send a zero-dollar PRENOTE file to your bank to validate accounts?'
+      : 'Generate the ACH file for this run?\n\nThis file instructs YOUR BANK to move money. oshal does not send it — you upload it.';
+    if (!window.confirm(label)) return;
+    try {
+      const r = await fetch(`/api/payroll/runs/${runId}/ach`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: true, prenote }),
+      });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        $('achOut').innerHTML = `<div class="notice"><b class="err">${esc(e.error || 'failed')}</b><ul>${
+          (e.problems || [e.message || '']).map((p) => `<li class="err">${esc(p)}</li>`).join('')}</ul></div>`;
+        return;
+      }
+      const text = await r.text();
+      const blob = new Blob([text], { type: 'text/plain' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `payroll-${runId.slice(0, 8)}${prenote ? '-prenote' : ''}.ach`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      const lines = text.split('\n').filter(Boolean);
+      $('achOut').innerHTML = `<div class="notice"><b class="ok">File generated</b> — ${lines.length} records,
+        every one 94 characters, blocked to a multiple of 10. Upload it to your bank's ACH portal.
+        ${prenote ? 'This is a PRENOTE: zero dollars, accounts only.' : ''}</div>`;
+      msg('ACH file downloaded.');
+    } catch (e) { msg(e.message, true); }
+  });
+}
+
+function renderForm(w) {
+  $('formOut').innerHTML = `<h2 style="font-size:15px;margin:0 0 6px">Form ${esc(w.form)} — ${esc(w.period)}</h2>
+    <table><thead><tr><th style="width:60px">Line</th><th>Description</th><th class="num">Amount</th></tr></thead><tbody>${
+      w.lines.map((l) => `<tr><td><b>${esc(l.line)}</b></td><td>${esc(l.label)}${
+        l.note ? `<div class="muted" style="font-size:11px">${esc(l.note)}</div>` : ''}</td>
+        <td class="num">${l.line === '1' ? esc(l.valueCents) : fmt$(l.valueCents)}</td></tr>`).join('')}
+    </tbody></table>
+    <div class="notice"><b class="${w.reconciles ? 'ok' : 'err'}">${w.reconciles ? 'Reconciles' : 'DOES NOT RECONCILE'}</b>
+      — ${esc(w.reconciliation)}</div>
+    <div class="notice">${esc(w.caveat)}</div>`;
+}
+
+async function loadForm941() {
+  $('formOut').innerHTML = '';
+  try { renderForm(await api(`/forms/941?year=${encodeURIComponent($('fYear').value)}&quarter=${$('fQtr').value}`)); }
+  catch (e) { msg(e.message, true); }
+}
+async function loadForm940() {
+  $('formOut').innerHTML = '';
+  try { renderForm(await api(`/forms/940?year=${encodeURIComponent($('fYear').value)}`)); }
+  catch (e) { msg(e.message, true); }
+}
+
+async function buildW2(btn) {
+  const id = $('w2DocEmp').value;
+  if (!id) return;
+  await once('w2:' + id, btn, async () => {
+    $('w2DocOut').innerHTML = '';
+    if (!window.confirm('Produce this W-2? It decrypts the SSN and EIN, and the read is recorded on the audit trail.')) return;
+    try {
+      const d = await api(`/forms/w2/${id}`, { method:'POST', body: JSON.stringify({ confirm: true, year: Number($('fYear').value) }) });
+      if (!d.issuable) {
+        $('w2DocOut').innerHTML = `<div class="notice"><b class="err">Not issuable yet.</b> Still missing:
+          ${d.missing.map((m) => esc(m)).join(', ')}. Fill these in under Settings and on the employee's profile.</div>`;
+        return;
+      }
+      const b = d.boxes;
+      $('w2DocOut').innerHTML = `<div class="stub">
+        <div style="display:flex;justify-content:space-between"><div><h3>Form W-2 — ${esc(d.year)}</h3>
+          <div class="small">${esc(d.employer.name)} · EIN ${esc(d.employer.ein)}<br/>${esc(d.employer.address)}</div></div>
+          <div class="small" style="text-align:right">${esc(d.employee.name)}<br/>SSN ${esc(d.employee.ssn)}<br/>${esc(d.employee.address)}</div></div>
+        <table style="margin-top:12px"><tbody>
+          <tr><td>1 Wages, tips, other compensation</td><td class="num">${fmt$(b[1])}</td></tr>
+          <tr><td>2 Federal income tax withheld</td><td class="num">${fmt$(b[2])}</td></tr>
+          <tr><td>3 Social Security wages</td><td class="num">${fmt$(b[3])}</td></tr>
+          <tr><td>4 Social Security tax withheld</td><td class="num">${fmt$(b[4])}</td></tr>
+          <tr><td>5 Medicare wages and tips</td><td class="num">${fmt$(b[5])}</td></tr>
+          <tr><td>6 Medicare tax withheld</td><td class="num">${fmt$(b[6])}</td></tr>
+          <tr><td>7 Social Security tips</td><td class="num">${fmt$(b[7])}</td></tr>
+          <tr><td>17 State income tax</td><td class="num">${fmt$(b[17])}</td></tr>
+          ${d.box12.map((c) => `<tr><td>12 ${esc(c.code)} — ${esc(c.label)}</td><td class="num">${fmt$(c.amountCents)}</td></tr>`).join('')}
+          ${d.box14b ? `<tr><td>14b Tipped occupation code</td><td class="num">${esc(d.box14b)}</td></tr>` : ''}
+        </tbody></table>
+        <div class="small" style="margin-top:10px">${esc(d.caveat)}</div></div>`;
+      msg('W-2 produced — this read is on the audit trail.');
+    } catch (e) { msg(e.message, true); }
+  });
+}
+
+async function loadFormRt6() {
+  $('formOut').innerHTML = '';
+  try {
+    const w = await api(`/forms/rt6?year=${encodeURIComponent($('fYear').value)}&quarter=${$('fQtr').value}`);
+    renderForm(w);
+    const extra = [];
+    if (w.warnings && w.warnings.length) {
+      extra.push(`<div class="notice"><b class="err">Check before filing</b><ul style="margin:6px 0 0;padding-left:18px">${
+        w.warnings.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>`);
+    }
+    if (w.employees && w.employees.length) {
+      extra.push(`<div class="panel" style="margin-top:12px"><h2>Employee wage detail (RT-6A)</h2>
+        <table><thead><tr><th>Employee</th><th>SSN</th><th class="num">Gross</th><th class="num">Taxable</th><th class="num">Excess</th></tr></thead>
+        <tbody>${w.employees.map((e) => `<tr><td>${esc(e.name)}</td>
+          <td>${e.ssnValid ? '***-**-' + esc(e.ssnLast4) : '<span class="err">missing</span>'}</td>
+          <td class="num">${fmt$(e.grossWagesCents)}</td><td class="num">${fmt$(e.taxableWagesCents)}</td>
+          <td class="num">${fmt$(e.excessWagesCents)}</td></tr>`).join('')}</tbody></table>
+        <div class="small" style="margin-top:8px">Due ${esc(w.dueDate)} · late after ${esc(w.penaltyAfter)}
+          · rate ${esc(String(w.ratePct))}%</div></div>`);
+    }
+    $('formOut').insertAdjacentHTML('beforeend', extra.join(''));
+  } catch (e) { msg(e.message, true); }
+}
+
+async function buildEfw2(btn) {
+  const year = Number($('efwYear').value);
+  await once('efw2:' + year, btn, async () => {
+    $('efwOut').innerHTML = '';
+    if (!window.confirm(`Produce the EFW2 submission for ${year}?\n\nThis decrypts every employee's Social Security number. The read is recorded on the audit trail.`)) return;
+    try {
+      const r = await fetch('/api/payroll/forms/efw2', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: true, year }),
+      });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        $('efwOut').innerHTML = `<div class="notice"><b class="err">Not generated</b><ul style="margin:6px 0 0;padding-left:18px">${
+          (e.problems || [e.message || 'failed']).map((p) => `<li class="err">${esc(p)}</li>`).join('')}</ul></div>`;
+        return;
+      }
+      const text = await r.text();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+      a.download = `W2REPORT-${year}.txt`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      $('efwOut').innerHTML = `<div class="notice"><b class="ok">File generated</b> —
+        ${text.split(/\r\n/).filter(Boolean).length} records of 512 characters. Validate it with
+        AccuWage Online, then upload to SSA Business Services Online. Nothing has been submitted.</div>`;
+      msg('EFW2 file downloaded — this read is on the audit trail.');
+    } catch (e) { msg(e.message, true); }
+  });
+}
+
+/* ── settlement ───────────────────────────────────────────────────────── */
+function fillSettleSelectors() {
+  const paid = state.runs.filter((r) => r.status === 'paid' && r.kind !== 'void');
+  const opts = paid.length
+    ? paid.map((r) => `<option value="${r.run_id}">${fmtD(r.pay_date)} — ${fmt$(r.total_net_cents)}</option>`).join('')
+    : '<option value="">(no paid runs yet)</option>';
+  $('setRun').innerHTML = opts;
+  $('chkRun').innerHTML = opts;
+  if (!$('calYear').value) $('calYear').value = $('taxYear').textContent;
+}
+
+const SETTLE_BADGE = { paid: 'ok', corrected: 'ok', pending: 'draft', returned: 'err' };
+
+async function loadSettlement(btn) {
+  const runId = $('setRun').value;
+  if (!runId) { msg('No paid run selected.', true); return; }
+  await once('settle:' + runId, btn, async () => {
+    try {
+      const s = await api(`/runs/${runId}/settlement`);
+      const head = s.notPaid.length
+        ? `<div class="notice" style="border-color:var(--pr-danger)"><b class="err">${s.notPaid.length} person(s) were NOT paid</b>
+             — ${fmt$(s.notPaidCents)} came back.</div>`
+        : `<div class="notice"><b class="ok">Nothing has come back.</b> ${s.paidCount} settled,
+             ${s.pendingCount} still pending.</div>`;
+      const untraceable = s.untraceable
+        ? `<div class="notice"><b class="err">${s.untraceable} direct deposit(s) have no ACH trace recorded.</b>
+             A return for those cannot be matched automatically — regenerate the ACH file to record traces.</div>`
+        : '';
+      $('setOut').innerHTML = head + untraceable + `<table style="margin-top:10px">
+        <thead><tr><th>Employee</th><th>Method</th><th class="num">Amount</th><th>Status</th><th>Why</th></tr></thead>
+        <tbody>${s.payments.map((p) => `<tr>
+          <td>${esc(p.first_name)} ${esc(p.last_name)}</td>
+          <td>${esc(p.method)}${p.check_number ? ' #' + esc(p.check_number) : ''}</td>
+          <td class="num">${fmt$(p.amount_cents)}</td>
+          <td><span class="chip ${SETTLE_BADGE[p.status] || 'draft'}">${esc(p.status)}</span></td>
+          <td class="small">${esc(p.return_reason || '')}</td></tr>`).join('')}</tbody></table>`;
+    } catch (e) { msg(e.message, true); }
+  });
+}
+
+async function importReturns(btn) {
+  const content = $('retFile').value;
+  if (!content.trim()) { msg('Paste the return file first.', true); return; }
+  await once('import:returns', btn, async () => {
+    try {
+      const r = await api('/returns/import', { method: 'POST', body: JSON.stringify({ content }) });
+      const rows = r.events.map((e) => `<tr>
+        <td>${esc(e.code)}</td><td>${esc(e.name)}</td><td class="num">${fmt$(e.amountCents)}</td>
+        <td><span class="chip ${e.unpaid ? 'err' : 'ok'}">${e.unpaid ? 'NOT PAID' : 'paid'}</span></td>
+        <td class="small">${esc(e.summary)}${e.matched ? '' : ' <b class="err">(no matching payment)</b>'}
+          ${e.correction && e.correction.autoApplicable
+            ? `<button class="btn ghost" style="margin-left:6px" onclick="applyNoc('${e.eventId}', this)">Apply</button>` : ''}</td></tr>`).join('');
+      $('retOut').innerHTML = `<div class="notice"><b>${r.returnCount}</b> return(s) totalling
+        <b>${fmt$(r.totalReturnedCents)}</b> and <b>${r.nocCount}</b> notification(s) of change.
+        ${r.note ? '<br/><span class="err">' + esc(r.note) + '</span>' : ''}</div>
+        <table style="margin-top:10px"><thead><tr><th>Code</th><th>Name</th><th class="num">Amount</th>
+          <th>Outcome</th><th>What to do</th></tr></thead><tbody>${rows}</tbody></table>`;
+      msg('Return file imported.');
+    } catch (e) { msg(e.message, true); }
+  });
+}
+
+async function applyNoc(eventId, btn) {
+  await once('noc:' + eventId, btn, async () => {
+    if (!window.confirm("Apply this correction to the employee's bank account?\n\nThe next payroll will go to the corrected account.")) return;
+    try {
+      const r = await api(`/returns/${eventId}/apply`, { method: 'POST', body: JSON.stringify({ confirm: true }) });
+      msg(`Applied ${r.changeCode} — banking details updated.`);
+      if (btn) { btn.disabled = true; btn.textContent = 'Applied'; }
+    } catch (e) { msg(e.message, true); }
+  });
+}
+
+async function issueChecks(btn) {
+  const runId = $('chkRun').value;
+  if (!runId) { msg('No paid run selected.', true); return; }
+  await once('checks:' + runId, btn, async () => {
+    $('chkOut').innerHTML = '';
+    if (!window.confirm('Allocate check numbers for this run?\n\nA check number, once issued, can never be reused.')) return;
+    try {
+      const r = await api(`/runs/${runId}/checks`, { method: 'POST', body: JSON.stringify({ confirm: true }) });
+      $('chkOut').innerHTML = `<div class="notice"><b class="ok">${r.checks.length} check(s)</b> —
+        numbers ${r.allocated[0]} to ${r.allocated[r.allocated.length - 1]}.</div>`
+        + r.checks.map((c) => `<div class="stub" style="margin-top:12px">
+            <div style="display:flex;justify-content:space-between">
+              <div><b>${esc(c.employer.name)}</b><div class="small">${c.employer.address.map(esc).join('<br/>')}</div></div>
+              <div style="text-align:right"><b>No. ${esc(c.checkNumber)}</b><div class="small">${esc(c.date)}</div></div></div>
+            <div style="margin-top:14px">PAY TO THE ORDER OF <b>${esc(c.payeeName)}</b>
+              <span style="float:right"><b>${esc(c.amountFigures)}</b></span></div>
+            <div style="margin-top:6px;border-bottom:1px solid var(--pr-line);padding-bottom:4px">${esc(c.amountWords)}</div>
+            <div class="small" style="margin-top:8px">${esc(c.memo)} · ${esc(c.staleLegend)}
+              ${c.bankName ? '· ' + esc(c.bankName) : ''}</div>
+            <div class="small" style="margin-top:8px;opacity:.75">${esc(c.micrNote)}</div>
+            ${c.warnings.length ? `<div class="small err" style="margin-top:6px">${c.warnings.map(esc).join('<br/>')}</div>` : ''}
+          </div>`).join('');
+      msg('Check numbers allocated.');
+    } catch (e) { msg(e.message, true); }
+  });
+}
+
+async function checkPayDate(btn) {
+  const date = $('calDate').value;
+  if (!date) { msg('Pick a date.', true); return; }
+  await once('cal:' + date, btn, async () => {
+    try {
+      const r = await api(`/calendar/pay-date?date=${encodeURIComponent(date)}`);
+      $('calOut').innerHTML = `<div class="notice">${r.shifted
+        ? `<b class="err">${esc(r.reason)}</b>`
+        : `<b class="ok">${esc(r.payDate)} is a Federal Reserve banking day — payroll will fund.</b>`}
+        <br/>Federal deposit for this payday is due <b>${esc(r.deposit.dueDate)}</b> — ${esc(r.deposit.rule)}
+        ${r.deposit.extraDaysForHolidays ? ` (+${r.deposit.extraDaysForHolidays} day for a legal holiday in the window)` : ''}
+        ${r.deposit.verified ? '' : '<br/><span class="err">That year\'s IRS holiday list has not been verified.</span>'}</div>`;
+    } catch (e) { msg(e.message, true); }
+  });
+}
+
+async function loadHolidays(btn) {
+  const year = Number($('calYear').value) || new Date().getFullYear();
+  await once('hol:' + year, btn, async () => {
+    try {
+      const r = await api(`/calendar/holidays?year=${year}`);
+      const irsOnly = r.irs.filter((h) => !r.federalReserve.some((f) => f.date === h.date));
+      $('calOut').innerHTML = `<div class="notice">${esc(r.note)}
+        ${r.irsVerified ? '' : '<br/><span class="err">' + esc(r.irsNote) + '</span>'}</div>
+        <div class="row" style="margin-top:10px;align-items:flex-start">
+          <div class="panel" style="flex:1"><h2>Federal Reserve closed (${r.federalReserve.length})</h2>
+            <table><tbody>${r.federalReserve.map((h) => `<tr><td>${esc(h.date)}</td><td>${esc(h.name)}</td></tr>`).join('')}</tbody></table></div>
+          <div class="panel" style="flex:1"><h2>IRS legal holidays (${r.irs.length})</h2>
+            <table><tbody>${r.irs.map((h) => `<tr><td>${esc(h.date)}</td><td>${esc(h.name)}${
+              h.date !== h.statutoryDate ? ' <span class="small">(observed)</span>' : ''}</td></tr>`).join('')}</tbody></table></div>
+        </div>
+        ${irsOnly.length ? `<div class="notice" style="margin-top:10px"><b>Banks open, deposit deadline still moves:</b>
+          ${irsOnly.map((h) => esc(h.date) + ' ' + esc(h.name)).join(' · ')}</div>` : ''}`;
+    } catch (e) { msg(e.message, true); }
+  });
+}
+
+/* ── boot ─────────────────────────────────────────────────────────────── */
+(async () => {
+  try { await loadCompany(); await loadEmployees(); await loadRuns(); }
+  catch (e) { msg(e.status === 401 ? 'Sign in to use Payroll.' : e.message, true); }
+})();
+</script>
+</body>
+</html>

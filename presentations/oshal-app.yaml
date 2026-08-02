@@ -20,14 +20,17 @@ displayName: AI Office
 description: >-
   One outline, three artifacts: a themed PowerPoint deck, Word document, or live Excel
   workbook — ten shared looks, fully editable in Microsoft Office, Google Workspace or
-  LibreOffice. AI drafts the outline from a topic, or write your own. Saves to Dropbox,
-  Google Drive, OneDrive, or OSHAL local.
-version: 2.1.0
+  LibreOffice. A guided visual start walks you from artifact to look to outline — or just
+  talk to the Guide, open a file you already have, or type one line and AI drafts it all.
+  Phone-friendly: dictate instead of typing, resume recent files in one tap, and drive
+  edits with tap chips. My files is a real file browser - click a file for
+  download, open-in-provider, or edit-and-regenerate. Saves to Dropbox, Google Drive, OneDrive, or OSHAL local.
+version: 2.4.0
 status: active
 
 source:
   type: git-subdir
-  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: presentations
   ref: main
 
@@ -50,8 +53,9 @@ dependencies:
 # operator approves via PATCH /api/swarm/apps/presentations/guest-tier.
 guestTier: full
 
-# Per-app skin (approved palette) — midnight so decks-work reads distinct.
-theme: midnight
+# Per-app skin (approved palette). Moved off midnight (creative-studio claimed it first;
+# office.oshal.ai gets its own distinct color, operator decision 2026-07-31).
+theme: light-blue
 
 # The app's right-rail chat agent is deck-builder — it walks you from a blank topic
 # to a finished outline you can generate. The deck-builder NODE (deck-builder-bot

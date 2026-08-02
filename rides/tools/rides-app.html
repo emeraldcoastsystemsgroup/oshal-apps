@@ -4,6 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>OSHAL Rides</title>
+<!-- Leaflet ships inside this package (tools/vendor/leaflet, BSD-2-Clause). Not a CDN tag: an
+     external host is refused under OSHAL_STRICT_CSP and unreachable on an air-gapped install,
+     and either way the failure mode is a map that silently never draws. -->
+<link rel="stylesheet" href="/api/rides/vendor/leaflet/leaflet.css" />
 <style>
   :root {
     --bg: #0d0f14;
@@ -242,68 +246,79 @@
     z-index: 1;
   }
   .google-map[hidden] { display: none; }
-  .map {
+  /* The real map fills the panel. Leaflet needs an explicit height on its container or it
+     initialises at zero and renders nothing — inset:0 on a positioned parent gives it one. */
+  .osm-map {
     position: absolute;
     inset: 0;
-    background:
-      linear-gradient(90deg, transparent 0 47%, rgba(255,255,255,.08) 48% 52%, transparent 53%),
-      linear-gradient(0deg, transparent 0 47%, rgba(255,255,255,.07) 48% 52%, transparent 53%),
-      repeating-linear-gradient(22deg, transparent 0 62px, rgba(255,255,255,.06) 63px 68px, transparent 69px 132px),
-      repeating-linear-gradient(112deg, transparent 0 92px, rgba(255,255,255,.04) 93px 99px, transparent 100px 185px),
-      #11141a;
+    z-index: 1;
+    background: #11141a;
   }
-  .map::before {
-    content: "";
-    position: absolute;
-    inset: 13% 8% 10% 12%;
-    border: 2px solid rgba(139, 124, 246, .2);
-    border-radius: 45% 55% 48% 52%;
+  .osm-map[hidden] { display: none; }
+  /* Leaflet's own chrome, themed into the surface instead of its default light look. */
+  .osm-map .leaflet-control-zoom a {
+    background: rgba(18, 20, 27, .9);
+    color: var(--text);
+    border-color: var(--line);
   }
-  .route {
-    position: absolute;
-    left: 28%;
-    top: 25%;
-    width: 48%;
-    height: 46%;
-    border-left: 5px solid var(--accent);
-    border-bottom: 5px solid var(--accent);
-    border-radius: 0 0 0 48px;
-    filter: drop-shadow(0 0 12px rgba(139,124,246,.35));
+  .osm-map .leaflet-control-zoom a:hover { background: var(--panel-2); }
+  .osm-map .leaflet-control-attribution {
+    background: rgba(18, 20, 27, .8);
+    color: var(--muted);
+    font-size: 10px;
   }
-  .map-point {
+  .osm-map .leaflet-control-attribution a { color: var(--accent); }
+  .osm-map .leaflet-popup-content-wrapper,
+  .osm-map .leaflet-popup-tip {
+    background: rgba(18, 20, 27, .95);
+    color: var(--text);
+  }
+  /* Raster tiles are lightened rather than left at full brightness so the dark surface chrome
+     and the purple route stay legible on top of them. */
+  .osm-map.dim-tiles .leaflet-tile-pane { filter: brightness(.82) saturate(.9); }
+  .map-legend {
     position: absolute;
+    left: 14px;
+    bottom: 14px;
+    z-index: 3;
     display: grid;
-    gap: 5px;
-    transform: translate(-50%, -50%);
-    min-width: 150px;
-  }
-  .map-point.pickup { left: 28%; top: 25%; }
-  .map-point.dropoff { left: 76%; top: 71%; }
-  .point-dot {
-    width: 18px;
-    height: 18px;
-    border: 4px solid #11141a;
-    border-radius: 999px;
-    background: var(--accent);
-    box-shadow: 0 0 0 2px rgba(255,255,255,.2);
-  }
-  .dropoff .point-dot { background: var(--ok); border-radius: 5px; }
-  .point-card {
-    max-width: 240px;
-    padding: 8px 10px;
+    gap: 6px;
+    max-width: min(390px, calc(100% - 28px));
+    padding: 10px 12px;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: 10px;
     background: rgba(18, 20, 27, .88);
     backdrop-filter: blur(10px);
     font-size: 12px;
   }
-  .point-card b { display: block; margin-bottom: 2px; }
-  .point-card span {
+  .legend-row {
+    display: grid;
+    grid-template-columns: 14px 62px 1fr;
+    align-items: center;
+    gap: 8px;
+  }
+  .legend-row span:last-child {
     color: var(--muted);
     overflow: hidden;
-    display: block;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    background: var(--accent);
+    box-shadow: 0 0 0 2px rgba(255,255,255,.16);
+  }
+  /* Addresses ellipsise (they can be arbitrarily long); the measurement must not — a clipped
+     "15.0 mi…" is exactly the number the rider came to read. */
+  .legend-row.distance span:last-child { white-space: normal; }
+  .legend-dot.dropoff { background: var(--ok); border-radius: 3px; }
+  .legend-dot.measure { background: var(--warn); }
+  .map-chip[aria-pressed="true"] {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #0d0f14;
   }
   .map-toolbar {
     position: absolute;
@@ -323,15 +338,11 @@
     font-size: 12px;
     font-weight: 750;
   }
+  /* Nested in .map-legend — it inherits that panel's background and border. */
   .map-help {
-    position: absolute;
-    right: 14px;
-    bottom: 14px;
-    max-width: 330px;
-    padding: 10px 12px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: rgba(18, 20, 27, .9);
+    margin-top: 2px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
     color: var(--muted);
     font-size: 12px;
     line-height: 1.45;
@@ -504,9 +515,7 @@
   .suggestion,
   .ride-card,
   .msg.bot,
-  .point-card,
-  .map-chip,
-  .map-help {
+  .map-chip {
     background: var(--rides-surface);
     box-shadow: var(--rides-shadow);
   }
@@ -558,38 +567,40 @@
     background: var(--rides-map);
   }
 
-  .map-panel.has-google-map .map,
-  .map-panel.has-google-map .route,
-  .map-panel.has-google-map .map-point {
-    opacity: 0;
-    pointer-events: none;
+  /* Google, when keyed, replaces the OSM map rather than covering it — the OSM container is
+     hidden outright so Leaflet is not left animating tiles behind an opaque div. */
+  .map-panel.has-google-map .osm-map {
+    display: none;
   }
 
-  .map {
-    background:
-      linear-gradient(90deg, transparent 0 47%, var(--rides-map-line) 48% 52%, transparent 53%),
-      linear-gradient(0deg, transparent 0 47%, var(--rides-map-line) 48% 52%, transparent 53%),
-      repeating-linear-gradient(22deg, transparent 0 62px, var(--rides-map-line) 63px 68px, transparent 69px 132px),
-      repeating-linear-gradient(112deg, transparent 0 92px, color-mix(in srgb, var(--text) 7%, transparent) 93px 99px, transparent 100px 185px),
-      var(--rides-map);
+  .osm-map {
+    background: var(--rides-map);
   }
 
-  .map::before {
-    border-color: color-mix(in srgb, var(--accent) 24%, transparent);
+  /* Tile dimming is a DARK-theme correction. Under a light cockpit theme the tiles are already
+     right and dimming them just makes the map muddy, so the class is only applied in dark. */
+  @media (prefers-color-scheme: light) {
+    .osm-map.dim-tiles .leaflet-tile-pane { filter: none; }
   }
 
-  .route {
-    border-color: var(--accent);
-    filter: drop-shadow(0 0 12px color-mix(in srgb, var(--accent) 35%, transparent));
+  .osm-map .leaflet-control-zoom a,
+  .osm-map .leaflet-control-attribution,
+  .osm-map .leaflet-popup-content-wrapper,
+  .osm-map .leaflet-popup-tip {
+    background: var(--rides-surface);
+    color: var(--text);
   }
 
-  .point-dot {
-    border-color: var(--rides-map);
+  .map-legend {
+    background: var(--rides-surface);
+    box-shadow: var(--rides-shadow);
+  }
+
+  .legend-dot {
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 20%, transparent);
   }
 
-  .map-toolbar,
-  .map-help {
+  .map-toolbar {
     z-index: 3;
   }
 
@@ -693,22 +704,25 @@
     </section>
 
     <section class="panel map-panel" aria-label="Ride map">
+      <!-- Two real maps, never a drawing of one. #osmMap is the default (keyless OpenStreetMap
+           over the vendored Leaflet build); #googleMap takes over only when the operator has set
+           GOOGLE_MAPS_BROWSER_KEY, which buys road-routed polylines and Places autocomplete. -->
       <div class="google-map" id="googleMap" hidden></div>
-      <div class="map"></div>
-      <div class="route" id="routeLine"></div>
+      <div class="osm-map" id="osmMap"></div>
       <div class="map-toolbar">
+        <button class="map-chip" id="setPickupBtn" type="button" aria-pressed="false">Set pickup</button>
+        <button class="map-chip" id="setDropoffBtn" type="button" aria-pressed="false">Set dropoff</button>
         <button class="map-chip" id="centerBtn" type="button">Center route</button>
         <button class="map-chip" id="swapBtn" type="button">Swap</button>
       </div>
-      <div class="map-point pickup">
-        <span class="point-dot"></span>
-        <div class="point-card"><b>Pickup</b><span id="pickupLabel">Waiting for location</span></div>
+      <div class="map-legend">
+        <div class="legend-row"><span class="legend-dot pickup"></span><b>Pickup</b><span id="pickupLabel">Waiting for location</span></div>
+        <div class="legend-row"><span class="legend-dot dropoff"></span><b>Dropoff</b><span id="dropoffLabel">Choose a destination</span></div>
+        <div class="legend-row distance" id="distanceRow" hidden><span class="legend-dot measure"></span><b>Distance</b><span id="distanceLabel"></span></div>
+        <!-- The status line lives INSIDE the legend. As two absolutely-positioned panels they
+             overlapped at common widths and the distance readout was the thing that got covered. -->
+        <div class="map-help" id="mapHelp">Drag a pin or click the map to set a point. Location stays in your browser unless you search or request estimates. Uber opens separately for final price, pickup confirmation, and payment.</div>
       </div>
-      <div class="map-point dropoff">
-        <span class="point-dot"></span>
-        <div class="point-card"><b>Dropoff</b><span id="dropoffLabel">Choose a destination</span></div>
-      </div>
-      <div class="map-help" id="mapHelp">Location stays in your browser unless you search or request estimates. Uber opens separately for final price, pickup confirmation, and payment.</div>
     </section>
 
     <section class="panel order">
@@ -781,6 +795,203 @@ async function postJson(url, body) {
   return response.json();
 }
 
+// ── OpenStreetMap engine (the default) ──────────────────────────────────────────────────────
+// This is a real slippy map: real tiles, real coordinates, drag and click both set real points.
+// It needs no API key and no account, which is why it is the DEFAULT rather than a fallback —
+// a surface whose map only works for operators holding a billing-enabled Google key is a surface
+// whose map does not work.
+const osm = {
+  ready: false,
+  map: null,
+  tiles: null,
+  markers: { pickup: null, dropoff: null },
+  line: null,
+  arm: null,        // 'pickup' | 'dropoff' — which point the next map click sets
+  points: { pickup: null, dropoff: null }
+};
+
+/** Load the Leaflet build vendored INSIDE this package. No CDN — see tools/vendor/README.md. */
+function loadLeaflet() {
+  if (window.L) return Promise.resolve();
+  const existing = document.querySelector('script[data-oshal-leaflet]');
+  if (existing) {
+    return new Promise((resolve, reject) => {
+      existing.addEventListener('load', resolve, { once: true });
+      existing.addEventListener('error', reject, { once: true });
+    });
+  }
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.dataset.oshalLeaflet = 'true';
+    script.src = `${API}/vendor/leaflet/leaflet.js`;
+    script.addEventListener('load', resolve, { once: true });
+    script.addEventListener('error', reject, { once: true });
+    document.head.appendChild(script);
+  });
+}
+
+/** Leaflet resolves its default marker icons against a CSS-derived path; vendored, we set it. */
+function osmIcon(kind) {
+  return window.L.divIcon({
+    className: 'osm-pin',
+    html: `<span style="display:block;width:18px;height:18px;border-radius:${kind === 'dropoff' ? '4px' : '999px'};`
+      + `background:${kind === 'dropoff' ? 'var(--ok)' : 'var(--accent)'};`
+      + 'border:3px solid rgba(255,255,255,.85);box-shadow:0 2px 8px rgba(0,0,0,.5);"></span>',
+    iconSize: [18, 18],
+    iconAnchor: [9, 9]
+  });
+}
+
+async function initOsmMap(mapsConfig) {
+  try {
+    await loadLeaflet();
+    const node = $('#osmMap');
+    if (!node || !window.L) return false;
+    // Centre on the last trip's pins if we have them, else a wide view — never a fake location.
+    // Zoom goes top-RIGHT: the surface's own chip toolbar owns the top-left corner, and
+    // Leaflet's default placement buried the +/- buttons underneath it.
+    osm.map = window.L.map(node, { zoomControl: false, scrollWheelZoom: true, attributionControl: true })
+      .setView([39.5, -98.4], 4);
+    window.L.control.zoom({ position: 'topright' }).addTo(osm.map);
+    osm.tiles = window.L.tileLayer(mapsConfig.tileUrl || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: mapsConfig.maxZoom || 19,
+      attribution: mapsConfig.tileAttribution || '© OpenStreetMap contributors'
+    }).addTo(osm.map);
+    node.classList.add('dim-tiles');
+    osm.map.on('click', (event) => {
+      const kind = osm.arm || 'dropoff';
+      setPoint(kind, { lat: event.latlng.lat, lon: event.latlng.lng }, { reverse: true });
+      armPoint(null);
+    });
+    // A cockpit iframe is often laid out after this runs; Leaflet caches container size at init
+    // and renders grey tiles forever if that size was zero. Recompute once the frame settles.
+    setTimeout(() => osm.map && osm.map.invalidateSize(), 200);
+    window.addEventListener('resize', () => osm.map && osm.map.invalidateSize());
+    osm.ready = true;
+    $('#mapHelp').textContent = 'Drag a pin or click the map to set a point. Fares are modelled from the measured distance; Uber quotes the real price when you open the handoff.';
+    return true;
+  } catch {
+    $('#mapHelp').textContent = 'The map could not load. Typing a pickup and destination still works — estimates and the Uber handoff do not depend on it.';
+    return false;
+  }
+}
+
+/** Arm which point the next map click sets (null = the default, dropoff). */
+function armPoint(kind) {
+  osm.arm = kind;
+  $('#setPickupBtn').setAttribute('aria-pressed', String(kind === 'pickup'));
+  $('#setDropoffBtn').setAttribute('aria-pressed', String(kind === 'dropoff'));
+}
+
+/**
+ * Place or move one end of the trip. `reverse:true` asks the server what address that point is,
+ * so a dragged pin writes a real address into the field instead of a pair of raw decimals that
+ * Uber's deep link would show the rider as their pickup.
+ */
+async function setPoint(kind, point, opts = {}) {
+  if (!point || !Number.isFinite(point.lat) || !Number.isFinite(point.lon)) return;
+  // Moving a pin makes the displayed distance and fares describe a trip that is no longer on
+  // screen. Retract them rather than leaving stale numbers next to the new route — that is the
+  // same lie the hashed estimate told, just arrived at a different way.
+  if (!opts.fromEstimate) invalidateEstimate();
+  osm.points[kind] = { lat: point.lat, lon: point.lon, label: opts.label || point.label || '' };
+  if (osm.ready && window.L) {
+    const latlng = [point.lat, point.lon];
+    if (osm.markers[kind]) {
+      osm.markers[kind].setLatLng(latlng);
+    } else {
+      const marker = window.L.marker(latlng, { icon: osmIcon(kind), draggable: true }).addTo(osm.map);
+      marker.on('dragend', () => {
+        const p = marker.getLatLng();
+        setPoint(kind, { lat: p.lat, lon: p.lng }, { reverse: true });
+      });
+      osm.markers[kind] = marker;
+    }
+  }
+  const field = kind === 'pickup' ? '#pickup' : '#dropoff';
+  if (osm.points[kind].label) {
+    $(field).value = osm.points[kind].label;
+  } else if (opts.reverse) {
+    // Show the coordinates immediately, replace them with the address when it comes back — the
+    // pin has already moved, so leaving the field stale would be the lie.
+    $(field).value = `${point.lat.toFixed(5)}, ${point.lon.toFixed(5)}`;
+    updateLabels();
+    try {
+      const hit = await getJson(`${API}/reverse?lat=${point.lat}&lon=${point.lon}`);
+      if (hit && hit.label) {
+        osm.points[kind].label = hit.label;
+        $(field).value = hit.label;
+      }
+    } catch { /* keep the coordinates — they are still a valid, honest pickup */ }
+  }
+  updateLabels();
+  drawRoute();
+}
+
+/** Withdraw a fare/distance readout that no longer matches the pins on the map. */
+function invalidateEstimate() {
+  if (!state.options.length && $('#distanceRow')?.hidden !== false) return;
+  state.options = [];
+  state.selected = null;
+  const row = $('#distanceRow');
+  if (row) row.hidden = true;
+  const options = $('#options');
+  if (options) options.innerHTML = '<div class="empty">Route changed — press Show rides to price it.</div>';
+  const request = $('#requestBtn');
+  if (request) request.disabled = true;
+}
+
+/** Drop one end of the trip off the map entirely. */
+function clearPin(kind) {
+  if (osm.markers[kind] && osm.map) osm.map.removeLayer(osm.markers[kind]);
+  osm.markers[kind] = null;
+  osm.points[kind] = null;
+}
+
+/** Straight line between the two pins, plus a fit. Labelled as a straight line, because it is. */
+function drawRoute() {
+  if (!osm.ready || !window.L) return;
+  const { pickup, dropoff } = osm.points;
+  if (osm.line) { osm.map.removeLayer(osm.line); osm.line = null; }
+  if (!pickup || !dropoff) return;
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#8b7cf6';
+  osm.line = window.L.polyline([[pickup.lat, pickup.lon], [dropoff.lat, dropoff.lon]], {
+    color: accent, weight: 4, opacity: 0.85, dashArray: '8 8'
+  }).addTo(osm.map);
+  osm.line.bindTooltip('Straight line between your two points — Uber routes the roads.');
+  fitRoute();
+}
+
+function fitRoute() {
+  if (!osm.ready || !window.L) return;
+  const pts = [osm.points.pickup, osm.points.dropoff].filter(Boolean).map((p) => [p.lat, p.lon]);
+  if (!pts.length) return;
+  if (pts.length === 1) osm.map.setView(pts[0], 14);
+  else osm.map.fitBounds(window.L.latLngBounds(pts).pad(0.25));
+}
+
+/** Resolve whatever is typed in a field into a pin. One request, on demand — never per keystroke:
+ *  Nominatim's usage policy rules out autocomplete-style querying of the public endpoint. */
+async function geocodeField(kind) {
+  const value = (kind === 'pickup' ? $('#pickup').value : $('#dropoff').value).trim();
+  if (!value || /^my location$/i.test(value)) return null;
+  // Already a "lat, lon" pair (a dropped pin we could not reverse) — use it as-is, no lookup.
+  const raw = value.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+  if (raw) {
+    const point = { lat: Number(raw[1]), lon: Number(raw[2]) };
+    await setPoint(kind, point, { label: value });
+    return point;
+  }
+  try {
+    const hit = await getJson(`${API}/geocode?q=${encodeURIComponent(value)}`);
+    if (hit && Number.isFinite(hit.lat)) {
+      await setPoint(kind, { lat: hit.lat, lon: hit.lon }, { label: value });
+      return hit;
+    }
+  } catch { /* fall through — an unresolvable address is reported by the estimate, honestly */ }
+  return null;
+}
+
 function loadGoogleMapsScript(key) {
   if (window.google && window.google.maps) return Promise.resolve();
   const existing = document.querySelector('script[data-oshal-google-maps]');
@@ -828,13 +1039,17 @@ function refreshGoogleRoute() {
   });
 }
 
+/**
+ * The keyed upgrade. Returns true only if a Google map is actually on screen — the caller falls
+ * back to OpenStreetMap on false, so a bad key or a blocked script costs the polyline, not the map.
+ */
 async function enableGoogleMaps(mapsConfig) {
   const key = mapsConfig?.googleMapsBrowserKey;
-  if (!key) return;
+  if (!key) return false;
   try {
     await loadGoogleMapsScript(key);
     const mapNode = $('#googleMap');
-    if (!mapNode || !window.google?.maps) return;
+    if (!mapNode || !window.google?.maps) return false;
     mapNode.hidden = false;
     document.querySelector('.map-panel')?.classList.add('has-google-map');
     const center = state.coords
@@ -871,10 +1086,14 @@ async function enableGoogleMaps(mapsConfig) {
       });
     }
     googleMapState.enabled = true;
-    $('#mapHelp').textContent = 'Google Maps is enabled. Search a destination to preview the route before opening Uber.';
+    $('#mapHelp').textContent = 'Google Maps is enabled — road-routed preview and address autocomplete. Uber still opens separately for final price, pickup confirmation, and payment.';
     refreshGoogleRoute();
+    return true;
   } catch {
-    $('#mapHelp').textContent = 'Map provider did not load, so OSHAL is showing the built-in fallback route preview.';
+    // Bad key, referrer restriction, blocked script — all end here, and all end on OSM.
+    googleMapState.enabled = false;
+    $('#mapHelp').textContent = 'Google Maps did not load, so the map is running on OpenStreetMap.';
+    return false;
   }
 }
 
@@ -957,13 +1176,20 @@ function renderOptions(options) {
   }
   target.innerHTML = state.options.map((option, index) => {
     const selected = index === 0 ? ' is-selected' : '';
+    // A null fare means an address did not geocode, so there is nothing to price. Say that
+    // instead of rendering "$?-?", which reads as a loading state rather than a real answer.
+    const priced = option.fareLow !== null && option.fareLow !== undefined;
+    const trip = option.tripMin ? ` · ~${escapeHtml(option.tripMin)} min trip` : '';
+    const fare = priced
+      ? `<strong>$${escapeHtml(option.fareLow)}-${escapeHtml(option.fareHigh)}</strong><span>estimate</span>`
+      : '<strong>—</strong><span>no estimate</span>';
     return `<article class="ride-card${selected}" data-ride-index="${index}">
       <div class="car">${escapeHtml(shortRideName(option.label))}</div>
       <div>
         <h3>${escapeHtml(option.label || option.type || 'Ride')}</h3>
-        <p>${escapeHtml(option.seats ?? 4)} seats · ${escapeHtml(option.etaPickupMin ?? '?')} min away · ${escapeHtml(option.tripMin ?? '?')} min trip</p>
+        <p>${escapeHtml(option.seats ?? 4)} seats${trip}</p>
       </div>
-      <div class="fare"><strong>$${escapeHtml(option.fareLow ?? '?')}-${escapeHtml(option.fareHigh ?? '?')}</strong><span>estimate</span></div>
+      <div class="fare">${fare}</div>
     </article>`;
   }).join('');
   document.querySelectorAll('[data-ride-index]').forEach((card) => {
@@ -994,22 +1220,46 @@ async function requestLocation() {
   $('#locBtn').textContent = 'Locating';
   navigator.geolocation.getCurrentPosition((position) => {
     state.coords = position.coords;
-    state.pickup = `Current location (${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)})`;
-    $('#pickup').value = state.pickup;
-    $('#mapHelp').textContent = 'Location found. Search where you want to go, then compare ride estimates.';
+    $('#mapHelp').textContent = 'Location found. Set a destination, then compare ride estimates.';
     $('#locBtn').disabled = false;
     $('#locBtn').textContent = 'Use location';
-    updateLabels();
     if (googleMapState.map) {
+      state.pickup = `Current location (${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)})`;
+      $('#pickup').value = state.pickup;
+      updateLabels();
       googleMapState.map.panTo({ lat: position.coords.latitude, lng: position.coords.longitude });
       googleMapState.map.setZoom(13);
+      refreshGoogleRoute();
+      return;
     }
-    refreshGoogleRoute();
+    // On the OSM engine the browser's coordinates become a real, draggable pickup pin, and the
+    // reverse lookup turns them into the street address Uber will show the driver.
+    setPoint('pickup', { lat: position.coords.latitude, lon: position.coords.longitude }, { reverse: true });
+    if (osm.map) osm.map.setView([position.coords.latitude, position.coords.longitude], 14);
   }, () => {
     toast('Location permission was not granted');
     $('#locBtn').disabled = false;
     $('#locBtn').textContent = 'Use location';
   }, { enableHighAccuracy: true, timeout: 9000, maximumAge: 60000 });
+}
+
+/** Draw the route on whichever engine is live. */
+function refreshRoute() {
+  if (googleMapState.enabled) refreshGoogleRoute();
+  else drawRoute();
+}
+
+/** Show what the fare was actually measured from, or say plainly that it could not be. */
+function renderDistance(result) {
+  const row = $('#distanceRow');
+  if (!row) return;
+  if (result && result.basis === 'geocoded' && Number.isFinite(result.distanceKm)) {
+    const mi = (result.distanceKm * 0.621371).toFixed(1);
+    $('#distanceLabel').textContent = `${result.straightLineKm} km straight line · ~${result.distanceKm} km (${mi} mi) by road`;
+    row.hidden = false;
+  } else {
+    row.hidden = true;
+  }
 }
 
 async function estimate() {
@@ -1018,13 +1268,23 @@ async function estimate() {
     toast('Search a destination first');
     return;
   }
-  refreshGoogleRoute();
   $('#options').innerHTML = '<div class="empty">Estimating rides for this route...</div>';
   $('#requestBtn').disabled = true;
   try {
     const result = await getJson(`${API}/estimate?pickup=${encodeURIComponent(state.pickup || 'my location')}&dropoff=${encodeURIComponent(state.dropoff)}`);
     if (result.error) toast(result.error);
+    // The server geocoded both ends to measure the trip — reuse those pins instead of asking
+    // Nominatim the same two questions from the browser.
+    if (result.coords?.pickup) await setPoint('pickup', result.coords.pickup, { label: state.pickup, fromEstimate: true });
+    if (result.coords?.dropoff) await setPoint('dropoff', result.coords.dropoff, { label: state.dropoff, fromEstimate: true });
+    renderDistance(result);
+    state.basis = result.basis || 'unresolved';
+    if (result.basis === 'unresolved') {
+      $('#mapHelp').textContent = result.note
+        || 'One of these addresses did not resolve to a location, so no fare is shown. Add a street number or a city.';
+    }
     renderOptions(result.options || []);
+    refreshRoute();
   } catch {
     $('#options').innerHTML = '<div class="empty">Could not estimate rides right now.</div>';
   }
@@ -1083,7 +1343,14 @@ async function sendChat() {
     if (result.trip?.pickup) $('#pickup').value = result.trip.pickup;
     if (result.trip?.dropoff) $('#dropoff').value = result.trip.dropoff;
     updateLabels();
-    refreshGoogleRoute();
+    // The concierge just changed the trip — move the pins to match, or the map is describing
+    // the previous conversation.
+    if (googleMapState.enabled) {
+      refreshGoogleRoute();
+    } else {
+      if (result.trip?.pickup) await geocodeField('pickup');
+      if (result.trip?.dropoff) await geocodeField('dropoff');
+    }
     if (Array.isArray(result.options) && result.options.length) renderOptions(result.options);
     if (result.ride?.rideUrl) {
       toast('Opening Uber');
@@ -1113,18 +1380,39 @@ async function boot() {
   $('#estimateBtn').addEventListener('click', estimate);
   $('#requestBtn').addEventListener('click', requestRide);
   $('#centerBtn').addEventListener('click', () => {
-    refreshGoogleRoute();
-    toast(googleMapState.enabled ? 'Route updated' : 'Route centered');
+    if (googleMapState.enabled) { refreshGoogleRoute(); toast('Route updated'); return; }
+    if (!osm.points.pickup && !osm.points.dropoff) { toast('Set a point first'); return; }
+    fitRoute();
+    toast('Route centered');
+  });
+  $('#setPickupBtn').addEventListener('click', () => {
+    armPoint(osm.arm === 'pickup' ? null : 'pickup');
+    toast(osm.arm === 'pickup' ? 'Click the map to set pickup' : 'Pickup picker off');
+  });
+  $('#setDropoffBtn').addEventListener('click', () => {
+    armPoint(osm.arm === 'dropoff' ? null : 'dropoff');
+    toast(osm.arm === 'dropoff' ? 'Click the map to set the destination' : 'Destination picker off');
   });
   $('#swapBtn').addEventListener('click', () => {
     const pickup = $('#pickup').value;
     $('#pickup').value = $('#dropoff').value;
     $('#dropoff').value = pickup;
+    // Swap the pins too, or the map keeps showing the trip the fields no longer describe.
+    const wasPickup = osm.points.pickup;
+    const wasDropoff = osm.points.dropoff;
+    clearPin('pickup');
+    clearPin('dropoff');
+    if (wasDropoff) setPoint('pickup', wasDropoff, { label: $('#pickup').value });
+    if (wasPickup) setPoint('dropoff', wasPickup, { label: $('#dropoff').value });
     updateLabels();
-    refreshGoogleRoute();
+    refreshRoute();
   });
   $('#dropoff').addEventListener('input', () => { updateLabels(); renderSuggestions(); });
   $('#dropoff').addEventListener('keydown', (event) => { if (event.key === 'Enter') estimate(); });
+  // Blur, not keystroke: one geocode per finished address. Nominatim's usage policy rules out
+  // autocomplete-style querying of the public endpoint, and the shared limiter is 1 req/s.
+  $('#dropoff').addEventListener('blur', () => { if (!googleMapState.enabled) geocodeField('dropoff'); });
+  $('#pickup').addEventListener('blur', () => { if (!googleMapState.enabled) geocodeField('pickup'); });
   $('#pickup').addEventListener('input', updateLabels);
   $('#chatSend').addEventListener('click', sendChat);
   $('#chatInput').addEventListener('keydown', (event) => { if (event.key === 'Enter') sendChat(); });
@@ -1134,9 +1422,21 @@ async function boot() {
     const config = await getJson(`${API}/config`);
     $('#connDot').classList.toggle('on', Boolean(config.uberRidesConnected));
     $('#connTxt').textContent = config.uberRidesConnected ? 'Uber connected' : 'Estimate mode';
-    await enableGoogleMaps(config.maps || {});
+    const maps = config.maps || {};
+    // Google when the operator has keyed it (road-routed polyline + Places autocomplete);
+    // OpenStreetMap otherwise — and OSM is a real map, so there is no keyless path that
+    // leaves the rider looking at a drawing. If Google is configured but fails to load,
+    // fall through to OSM rather than showing nothing.
+    const google = maps.googleMapsEnabled ? await enableGoogleMaps(maps) : false;
+    if (!google) {
+      $('#googleMap').hidden = true;
+      document.querySelector('.map-panel')?.classList.remove('has-google-map');
+      await initOsmMap(maps);
+    }
   } catch {
     $('#connTxt').textContent = 'Estimate mode';
+    // A failed /config must not cost the rider the map: OSM needs nothing from that response.
+    await initOsmMap({});
   }
 }
 

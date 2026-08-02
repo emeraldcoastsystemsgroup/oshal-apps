@@ -640,7 +640,7 @@ async function loadStrategyStrip() {
 }
 
 /* ── tabs ────────────────────────────────────────────────────── */
-const TABS = [['journal','Trade journal'],['lab','Strategy Lab'],['tuning','Tuning'],['perf','Performance'],['reco','Recommendations'],['algos','Algorithms'],['capture','Capture & signals']];
+const TABS = [['journal','Trade journal'],['lab','Strategy Lab'],['studio','Strategy Studio'],['tuning','Tuning'],['perf','Performance'],['reco','Recommendations'],['algos','Algorithms'],['capture','Capture & signals']];
 function renderTabs() {
   $('tabbar').innerHTML = TABS.map(([k,l]) => '<button data-tab="'+k+'"'+(k===TAB?' class="on"':'')+'>'+l+'</button>').join('');
   $('tabbar').querySelectorAll('button').forEach(b => b.onclick = () => selectTab(b.getAttribute('data-tab')));
@@ -650,6 +650,7 @@ function selectTab(k) {
   const panel = $('tabpanel'); panel.innerHTML = '<div id="tabbody"></div>';
   if (k==='journal') loadJournal();
   else if (k==='lab') loadLab();
+  else if (k==='studio') loadStudio();
   else if (k==='tuning') loadTuning();
   else if (k==='perf') loadPerformance();
   else if (k==='reco') loadReco();
@@ -1011,6 +1012,148 @@ async function labDraft() {
   try { const j = await labApi('/draft', jbody({ text })); renderLabForm(j); msg.className='sub ok'; msg.textContent = 'Drafted — review every knob (they are explained below), then Save.'; }
   catch (e) { msg.className='sub err'; msg.textContent = 'Draft failed: ' + e.message; }
 }
+
+// ── Strategy Studio: talk to the quant analyst — research-grounded design → real backtest → spoken narration.
+const ST = { strategyId: null, chart: null, busy: false, rec: null, recognizing: false };
+function stEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function stAppend(role, text){ const log=$('stLog'); if(!log)return; const d=document.createElement('div'); d.className='st-msg st-'+role; d.textContent=text; log.appendChild(d); log.scrollTop=log.scrollHeight; }
+function loadStudio(){
+  const host=$('tabbody'); if(!host)return;
+  host.innerHTML = `<style>
+    .st-wrap{max-width:960px}
+    .st-log{display:flex;flex-direction:column;gap:8px;margin:8px 0;max-height:320px;overflow:auto;padding:4px}
+    .st-msg{padding:8px 12px;border-radius:12px;max-width:82%;white-space:pre-wrap;line-height:1.45}
+    .st-you{align-self:flex-end;background:#2b6cb0;color:#fff}
+    .st-bot{align-self:flex-start;background:var(--panel2,#1b2530);border:1px solid var(--line,#26333f)}
+    .st-err{align-self:flex-start;background:#4a2020;color:#ffb3c8}
+    .st-row{display:flex;gap:8px;align-items:flex-end;margin-top:6px}
+    .st-row textarea{flex:1;min-height:46px;resize:vertical;padding:8px;border-radius:8px;background:var(--panel2,#1b2530);border:1px solid var(--line,#26333f);color:inherit}
+    .st-row button{padding:10px 14px;border-radius:8px;cursor:pointer;border:1px solid var(--line,#26333f);background:var(--panel2,#1b2530);color:inherit}
+    #stSend{background:#34c79a;color:#04121c;border:none;font-weight:700}
+    .st-mic.recording{background:#c0392b;color:#fff}
+    .st-metrics{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0}
+    .st-metric{background:var(--panel2,#1b2530);border:1px solid var(--line,#26333f);border-radius:8px;padding:8px 12px;min-width:96px}
+    .st-metric b{display:block;font-size:18px}
+    .st-cites{margin:10px 0;font-size:13px}
+    .st-cite{padding:6px 0;border-top:1px solid var(--line,#26333f)}
+  </style>
+  <div class="st-wrap">
+    <h3>Strategy Studio</h3>
+    <p class="sub">Talk to the quant analyst. Describe an idea — it references the published research, designs a strategy, runs a real ~2-year backtest, and explains it. Every design is saved to your Strategy Lab, and <b>follow-up messages refine the same strategy in place</b> until you start a new one.</p>
+    <div id="stLog" class="st-log"></div>
+    <div class="st-row">
+      <textarea id="stInput" placeholder="e.g. a momentum rotation that avoids 2009-style crashes — or 'trend-following on the index'"></textarea>
+      <button id="stMic" class="st-mic" title="Speak">&#127908;</button>
+      <button id="stSend">Design &rarr;</button>
+    </div>
+    <div id="stMode" class="sub"></div>
+    <div id="stStatus" class="sub"></div>
+    <div id="stResults"></div>
+  </div>`;
+  ST.strategyId=null; ST.currentName=null; ST.chart=null; ST.busy=false;
+  $('stSend').onclick=studioSend;
+  $('stMic').onclick=studioMic;
+  $('stInput').addEventListener('keydown', e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); studioSend(); } });
+  stAppend('bot', "Tell me what you want to trade and how — I'll ground it in the research. Try: \"a low-volatility tilt with a big SPY core,\" or \"cross-sectional momentum, top 10, monthly.\"");
+}
+async function studioSend(){
+  const input=$('stInput'); const text=(input.value||'').trim();
+  if(!text||ST.busy)return;
+  input.value=''; stAppend('you', text); ST.busy=true; $('stSend').disabled=true;
+  $('stStatus').textContent=(ST.strategyId?'Refining → re-running the ~2-year backtest (10–30s)…':'Researching → designing → running a real ~2-year backtest (10–30s)…');
+  try{
+    const j=await labApi('/studio', jbody({ message:text, strategyId:ST.strategyId }));
+    if(j.needsInput){ stAppend('bot', j.message||'Tell me a bit more.'); studioSpeak(j.message||''); return; }
+    ST.strategyId=j.strategyId; ST.currentName=j.name||null;
+    stAppend('bot', j.narration||(j.refined?'Refined and re-backtested.':'Designed and backtested.'));
+    studioSpeak(j.narration||'');
+    renderStudioResult(j);
+    updateStudioMode();
+  }catch(e){ stAppend('err','Failed: '+e.message); }
+  finally{ ST.busy=false; $('stSend').disabled=false; $('stStatus').textContent=''; }
+}
+function updateStudioMode(){
+  const el=$('stMode'); if(!el)return;
+  el.innerHTML = ST.strategyId
+    ? 'Refining <b>'+stEsc(ST.currentName||'this strategy')+'</b> — follow-up messages adjust it in place. <a href="#" id="stModeNew">Start a new strategy</a>'
+    : '';
+  const a=$('stModeNew'); if(a) a.onclick=(e)=>{ e.preventDefault(); studioNewStrategy(); };
+}
+function studioNewStrategy(){
+  ST.strategyId=null; ST.currentName=null; updateStudioMode();
+  stAppend('bot','Fresh slate — describe the next strategy.');
+}
+async function studioApply(j){
+  const pctRaw=prompt(
+    'Run "'+j.name+'" on what percent of the profile?\n\n'+
+    '100 = the strategy exactly as designed (its own core/sleeve split).\n'+
+    'Lower = only that share of its designed sleeve trades; the remainder parks in the core.', '100');
+  if(pctRaw==null)return;
+  const applyPct=Math.max(1,Math.min(100,Math.round(Number(pctRaw)||100)));
+  if(!confirm('APPLY to profile @ '+applyPct+'%?\n\n'+j.name+'\n'+(j.knobSummary||'')+
+    '\n\nThis changes what the autopilot trades on its NEXT fire (both books). Env knobs stay untouched and resume on Revert.'))return;
+  try{
+    const r=await labApi('/strategies/'+j.strategyId+'/apply', jbody({ applyPct, confirm:true }));
+    stAppend('bot','Applied at '+applyPct+'% of the profile — '+((r.effective&&r.effective.summary)||'')+' It drives the autopilot from its next fire; revert any time from the Strategy Lab (or ask me for something safer first).');
+    loadStrategyStrip();
+  }catch(e){ stAppend('err','Apply failed: '+e.message); }
+}
+function renderStudioResult(j){
+  const host=$('stResults'); if(!host)return; const m=j.metrics||{};
+  const f=(v,d)=>(v==null||isNaN(Number(v)))?'—':Number(v).toFixed(d==null?2:d);
+  const cites=(j.citations||[]).map(c=>`<div class="st-cite">${stEsc(c.name)} — ${stEsc(c.authors)} (${c.year}), ${stEsc(c.journal)} &middot; <a href="${stEsc(c.url)}" target="_blank" rel="noopener">source</a></div>`).join('')||'<div class="st-cite sub">—</div>';
+  host.innerHTML=`<h4>${stEsc(j.name||'Strategy')}</h4>
+    <p class="sub"><b>Hypothesis:</b> ${stEsc(j.hypothesis||'')}</p>
+    <p class="sub"><b>Design:</b> ${stEsc(j.knobSummary||'')}</p>
+    <div class="st-metrics">
+      <div class="st-metric"><span class="sub">Total return</span><b>${f(m.totalReturnPct)}%</b></div>
+      <div class="st-metric"><span class="sub">CAGR</span><b>${f(m.cagrPct)}%</b></div>
+      <div class="st-metric"><span class="sub">Sharpe</span><b>${f(m.sharpe)}</b></div>
+      <div class="st-metric"><span class="sub">Max drawdown</span><b>${f(m.maxDrawdownPct)}%</b></div>
+      <div class="st-metric"><span class="sub">Alpha vs SPY</span><b>${f(m.alphaPct)}%</b></div>
+      <div class="st-metric"><span class="sub">Trades</span><b>${m.trades==null?'—':m.trades}</b></div>
+    </div>
+    <div id="stChart" style="height:300px;margin:8px 0"></div>
+    <div class="st-cites"><b>Grounded in:</b>${cites}</div>
+    ${j.appliedNote?'<p class="sub" style="color:#e3bd6a">&#9888; '+stEsc(j.appliedNote)+'</p>':''}
+    <p class="sub">${j.refined
+      ?'Refined "'+stEsc(j.name||'')+'" in place — the backtest above is the refined design (its forward walk and baseline reset).'
+      :'Saved to your Strategy Lab as "'+stEsc(j.name||'')+'".'} Keep refining here, or apply it to the live profile (confirm-gated).</p>
+    <div style="margin-top:8px"><button class="btn primary sm" id="stApply">Apply live&hellip;</button> <button class="btn ghost sm" id="stNew">Start a new strategy</button></div>`;
+  $('stApply').onclick=()=>studioApply(j);
+  $('stNew').onclick=studioNewStrategy;
+  studioChart(j.curve||[]);
+}
+function studioChart(curve){
+  const el=$('stChart'); if(!el||!window.LightweightCharts||!curve.length)return;
+  const chart=LightweightCharts.createChart(el,{ width:el.clientWidth, height:300,
+    layout:{ background:{type:'solid',color:'transparent'}, textColor:line('--muted','#8a99a3') },
+    grid:{ vertLines:{color:line('--line','#26333f')}, horzLines:{color:line('--line','#26333f')} },
+    rightPriceScale:{ borderColor:line('--line','#26333f') }, timeScale:{ borderColor:line('--line','#26333f') }, crosshair:{mode:0} });
+  chart.addLineSeries({ color:line('--buy','#34c79a'), lineWidth:2, title:'Strategy' }).setData(curve.map(p=>({ time:p.d, value:Number(p.e) })));
+  chart.addLineSeries({ color:line('--muted','#8a99a3'), lineWidth:1, lineStyle:2, title:'S&P 500' }).setData(curve.map(p=>({ time:p.d, value:Number(p.s) })));
+  chart.timeScale().fitContent(); ST.chart=chart;
+}
+function studioMic(){
+  const R=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!R){ stAppend('err','Speech recognition is not available in this browser.'); return; }
+  if(ST.rec&&ST.recognizing){ ST.rec.stop(); return; }
+  ST.rec=new R(); ST.rec.interimResults=true; ST.rec.continuous=false;
+  ST.rec.onresult=ev=>{ $('stInput').value=Array.from(ev.results).map(r=>r[0].transcript).join(''); };
+  ST.rec.onend=()=>{ ST.recognizing=false; $('stMic').classList.remove('recording'); };
+  ST.rec.onerror=()=>{ ST.recognizing=false; $('stMic').classList.remove('recording'); };
+  ST.rec.start(); ST.recognizing=true; $('stMic').classList.add('recording');
+}
+async function studioSpeak(text){
+  const clip=String(text||'').slice(0,600); if(!clip)return;
+  try{
+    const r=await fetch('/api/voice/synthesize', jbody({ text:clip }));
+    const b=await r.json().catch(()=>({})); const p=(b&&b.data)?b.data:b;
+    if(p&&p.audioData&&!p.fallback){ await new Audio('data:audio/wav;base64,'+p.audioData).play().catch(()=>stBrowserSpeak(clip)); return; }
+  }catch(e){}
+  stBrowserSpeak(clip);
+}
+function stBrowserSpeak(text){ if(!('speechSynthesis' in window))return; speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(text)); }
 
 async function loadLabKnobs() {
   const el = $('labKnobs'); if (!el) return;

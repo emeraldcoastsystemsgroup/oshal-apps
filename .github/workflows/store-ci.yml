@@ -1,0 +1,265 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# DATE/TIME           | AUTHOR                                     | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 2026-07-24 14:50:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Store-repo CI (game-show backlog #12): the package suites finally run somewhere a human doesn't have to type them. PR + manual dispatch ONLY — push:/schedule: triggers are banned in this org (Actions billing, see core repo ci-disabled-pending-billing). Node-only, no npm install: the suites are dependency-free by design.
+# 2026-07-27 22:20:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Run the dnd package suites too — a multiplayer regression guard that only ever ran on one laptop is a guard that does not exist.
+# 2026-07-29 18:40:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Run the video package's show-library suite: the joke pump renders whatever the library says, so an ambiguous cast is a paid render in which the wrong thing talks. Same dependency-free plain-node contract.
+# 2026-07-30 05:00:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Run the kalshi package's scan-config suite: the app now scans in the BACKGROUND on a manifest-configured cadence and alerts Jarvis, so the guards that matter are the config layering/clamping, the alert gate's first-seen dedup, and the structural check that a request handler can never run the feed walk again.
+# 2026-07-30 06:15:00 | maintainer@emeraldcoastsystemsgroup.com     | Run the bake-off package's scoring suite: the app's only way to hurt someone is to confidently recommend a lane the evidence does not support, so the guards are the five fail-closed blocks (no results, mixed grading instruments, no lane over the bar, a field of one, a cheap-but-failed lane) plus the $0-is-unknown-not-free rule. Same dependency-free plain-node contract, run against the COMPILED pure module.
+# 2026-07-31 00:00:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Run the world package's surface-parse suite: the surface is one inline <script> in a served string, so a SyntaxError there is caught by no compiler and no console — v1.0.1 shipped with its load() declaration deleted and the page never loaded at all. Parses both copies (the .ts source and the compiled .js the runtime serves) with classic-script grammar.
+# 2026-07-31 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Run the switchboard package's suites: the Stage pane's only dangerous power is posting to live accounts, so the guards that matter are the send gates (no confirm → no publisher call, workspace mismatch sends nothing), the fan-out contract (one submission per channel, one dead channel never blocks the rest), the Threads identity/ordering rules, and a parse guard over every surface. Same dependency-free plain-node contract, run against the COMPILED route modules.
+# 2026-07-31 21:30:00 | maintainer@emeraldcoastsystemsgroup.com     | Run the presentations package's surface suite: the AI Office surface is ONE served HTML file whose inline scripts no compiler ever parses (the world 1.0.1 lesson), and the new guided front door is the operator-facing feature — losing a step, an entry path (click / talk / upload / one-line draft), or the studio's surface-bridge marks is a regression a human would otherwise meet in a demo. Same dependency-free plain-node contract.
+# 2026-07-31 23:55:00 | maintainer@emeraldcoastsystemsgroup.com     | Run the payroll package's suites: payroll's only dangerous power is confidently computing someone's pay wrong, so the guards are hand-derived known-value checks on the compiled engine (bracket math, SS wage-base + additional-Medicare YTD crossings, the Sec-125 vs 401(k) pre-tax class split, the gross↔net identity) and the route gates asserted as calls (no confirm → 428 with the pool provably untouched, paid runs immutable, 401 before any query, surface parse). Same dependency-free plain-node contract.
+# 2026-08-01 00:00:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Run the career-hunter package's suites: the job board's failure mode is latency, not a wrong answer — it reads a 1.4M-posting corpus, and the feed took 50s because the lane predicate was written in an unindexable form and the sort materialised the whole join. The guards assert the SQL the planner ACTUALLY issues (pool-driven, sargable, no unscored tail scan by default) plus a parse + filter-memory guard over the served surface. Same dependency-free plain-node contract.
+# 2026-08-01 22:30:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Run the pumpkin package's suites. The prop is a screen and a speaker in someone's yard, audible to children, and its guards cover the one boundary that matters — POST /speak delivers WITHOUT the room pairing token, so an OIDC session, a PAT or MOCK_OIDC reaching that door would be a token-free hijack of a physical device — plus the surface↔router contract that catches an endpoint the surface calls and the router never registers. Every one of them ran on exactly one laptop until now. NOTE THE GLOB: these suites are .cjs, and the house `tests/*.test.js` glob every other job uses matches ZERO files here — `node --test` would exit 0 having run nothing, which is worse than a missing job.
+# 2026-08-02 00:30:00 | maintainer@emeraldcoastsystemsgroup.com     | Run the store-side repo-separation guard (ADR-115 done-when #3). Every other job here proves a package computes the right answer; none of them proved this repo is still only packages. Core has check-repo-separation.js looking this way, but nothing looked back — and a violation in this direction is not caught by reading a diff, it is caught in a published artifact.
+# 2026-08-02 03:00:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Run the venture-plan package's suites. The package's whole claim is that no number reaches a document unless code computed it or a human labelled it a guess - so the guards that matter are the ones asserting the engine REFUSES: no break-even for a loss-making unit, no sell-through above 100 percent, no confidence above estimated for a model-authored source. 207 tests, all mutation-proved, and they ran on one laptop until now.
+
+name: store-ci
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  separation:
+    name: repo separation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # ADR-115 done-when #3. Core ships check-repo-separation.js asserting no application code
+      # leaked INTO the platform trunk; this is the reverse direction, which until now was
+      # checked only opportunistically from the core repo when a sibling checkout happened to
+      # be on the box. A violation in this direction surfaces in a PUBLISHED artifact.
+      - name: Store-side repo separation
+        run: node scripts/check-store-separation.mjs .
+
+  game-show:
+    name: game-show package suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # Dependency-free plain-node suites — a red check here means a show or the
+      # engine broke. Do NOT quietly skip; fix or quarantine with a BACKLOG entry.
+      - name: Run game-show suites
+        working-directory: game-show
+        run: npm test
+
+  dnd:
+    name: dnd package suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # Same contract as game-show: plain-node, no install. These suites carry the
+      # multiplayer seat/sync guards, so a red check here means a shared table broke.
+      - name: Run dnd suites
+        working-directory: dnd
+        run: node --test "tests/*.test.js"
+
+  video:
+    name: video package suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # The joke pump renders exactly what shows/*.yaml says. An ambiguous cast does not
+      # fail loudly — it ships a paid render in which a prop does the talking. Plain node,
+      # no install (the *.test.js suites are dependency-free; the older vitest spec in the
+      # same directory is not run here and is not a gate).
+      - name: Run video show-library suites
+        working-directory: video
+        run: node --test "tests/*.test.js"
+
+  kalshi:
+    name: kalshi package suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # The always-on scan's config layering + alert gate, plus two structural checks that the
+      # 23-second feed walk can never crawl back onto the request path. Plain node, no install
+      # (the suite runs against the COMPILED pure module — the same bytes the framework requires).
+      - name: Run kalshi scan-config suites
+        working-directory: kalshi
+        run: node --test "tests/*.test.js"
+
+  bake-off:
+    name: bake-off package suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # The recommendation is the product, so the guards are the refusals: mixed grading
+      # instruments, a lane below the bar, a cheap lane that failed, a $0 cost reading, and a
+      # field of one all have to BLOCK rather than produce a confident winner. Plain node, no
+      # install (the suite runs against the COMPILED pure module — the same bytes the framework
+      # requires at mount).
+      - name: Run bake-off scoring suites
+        working-directory: bake-off
+        run: node --test "tests/*.test.js"
+
+  world:
+    name: world package suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # The surface is one inline <script> served as a string — no compiler ever sees it, and a
+      # SyntaxError there renders as a page that never finishes loading (v1.0.1 shipped exactly
+      # that). Parses BOTH copies: the .ts source and the compiled routes/*.js the runtime mounts.
+      - name: Run world surface-parse suites
+        working-directory: world
+        run: node --test "tests/*.test.js"
+
+  switchboard:
+    name: switchboard package suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # Stage posts to LIVE accounts, so the guards are the send gates: no confirm → the
+      # publisher is never invoked (asserted as CALLS on the compiled handler, not substrings),
+      # one dead channel never blocks the rest of a broadcast, Threads groups/orders honestly,
+      # and every surface's inline script parses. Plain node, no install, against the COMPILED
+      # route modules — the same bytes the framework mounts.
+      - name: Run switchboard suites
+        working-directory: switchboard
+        run: node --test "tests/*.test.js"
+
+  presentations:
+    name: presentations package suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # The AI Office surface is one served HTML file — no compiler ever parses its inline
+      # scripts, and the guided front door (make → look → start, plus talk/upload/one-line
+      # draft) is the operator-facing feature. Parse + contract guard, plain node, no install.
+      - name: Run presentations suites
+        working-directory: presentations
+        run: node --test "tests/*.test.js"
+
+  payroll:
+    name: payroll package suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # Payroll's only dangerous power is confidently computing someone's pay wrong, so the
+      # guards are hand-derived known-value checks on the COMPILED engine (bracket math, SS
+      # wage-base and additional-Medicare YTD crossings, the Sec-125 vs 401(k) pre-tax split,
+      # the gross↔net identity) plus the route gates asserted as CALLS: no confirm → 428 with
+      # the pool provably untouched, a paid run immutable, 401 before any query, and a parse
+      # guard over the surface. Plain node, no install, against the compiled route modules.
+      - name: Run payroll suites
+        working-directory: payroll
+        run: node --test "tests/*.test.mjs"
+
+  career-hunter:
+    name: career-hunter package suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # The job board reads a 1.4M-posting corpus, so its failure mode is latency, not a wrong
+      # answer: the previous feed took 50s because one predicate was written in an unindexable
+      # form and the sort materialised the whole join. These guards assert the SQL the planner
+      # ACTUALLY issues (captured through a recording db double) — pool-driven, sargable, no
+      # unscored tail scan by default — plus a parse + filter-memory guard over the served
+      # surface. Plain node, no install, against the compiled route module.
+      - name: Run career-hunter suites
+        working-directory: career-hunter
+        run: node --test "tests/*.test.mjs"
+
+  rides:
+    name: rides package suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # The Rides surface shipped a whole Google Maps integration gated on a key that was set in
+      # no file in either repo, so it rendered a CSS drawing of a map for its entire life and no
+      # check noticed. These guards assert the keyless answer (provider 'osm' WITH a usable tile
+      # URL), that Leaflet is served from inside the package rather than a CDN (a script tag dies
+      # under strict CSP and on an air-gapped box), that the geocoding proxy validates its input
+      # and 401s an anonymous caller before shelling out, and that the hardcoded decorative pins
+      # stay gone. Plain node, no install, against the compiled route module + the served HTML.
+      - name: Run rides suites
+        working-directory: rides
+        run: node --test "tests/*.test.js"
+
+  pumpkin:
+    name: pumpkin package suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # The prop is a screen and a speaker in someone's yard, audible to children. POST /speak
+      # delivers WITHOUT the room pairing token, so its gate must be the service secret and nothing
+      # weaker — an OIDC session, a PAT or MOCK_OIDC reaching that door is a token-free hijack of a
+      # physical device, and every one of those is asserted to 403 AND to deliver zero events. Also
+      # here: the surface↔router contract (an endpoint a surface calls that the router never
+      # registers renders as a silently empty box), the device-link/QR builder (a link built from
+      # the cockpit's own localhost address cannot open on a phone, and a QR generator with an open
+      # target set is a phishing tool), and the room-label persistence the short projector URL needs.
+      # Plain node, no install, against the COMPILED route modules the framework mounts.
+      #
+      # THE GLOB IS DELIBERATELY .cjs. These suites are all *.test.cjs; the house `tests/*.test.js`
+      # glob every other job above uses matches ZERO files in this package, so a copy-pasted job
+      # would `node --test` nothing and exit 0 — a green check for an unrun suite, which is strictly
+      # worse than having no job at all.
+      - name: Run pumpkin suites
+        working-directory: pumpkin
+        run: node --test "tests/*.test.cjs"
+
+  venture-plan:
+    name: venture-plan package suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # This package produces a document a person may commit six figures against, so the guards
+      # are aimed at the failure that matters: a number that looks computed but is not. They
+      # assert the engine refuses rather than rounds - it names no break-even for a unit that
+      # loses money, reports an impossible sell-through instead of clamping it to 100%, and caps
+      # confidence at estimated for any source a bot authored, so a model cannot launder its own
+      # guess into a quoted fact. Plus a profit-to-cash bridge that must tie to zero on all 21
+      # scenarios. Plain node, no install, against the compiled engine the framework mounts.
+      #
+      # GLOB: tests/*.test.js is correct HERE (all 14 suites are .test.js; fixture-venture.js is
+      # a fixture, not a suite). Check this per package - the same glob matches ZERO files in a
+      # .cjs package and node --test would exit 0 having run nothing.
+      - name: Run venture-plan suites
+        working-directory: venture-plan
+        run: node --test "tests/*.test.js"

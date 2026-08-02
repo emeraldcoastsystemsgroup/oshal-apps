@@ -3,6 +3,9 @@
 # DATE/TIME           | AUTHOR                                     | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 2026-07-21 20:14:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Initial Game Show app package: modular AI game-show engine (buzzer, cutaway director, interview, multi-surface), Family Feud as the reference show.
+# 2026-07-24 15:00:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Backlog burn-down: four shows (Feud+Fast Money, Jeopardy+Double Jeopardy, Wheel of Fortune, Whammy), the one-window rehearsal surface, spoken answers, single-TTS-speaker election, broadcast reactions, per-room cost, manual host questions, localJudge, retention. v0.4.0.
+# 2026-07-25 02:20:00 | codex                                      | Release v0.5.0 with theme-following responsive surfaces and reusable TV cutaways that prefer pre-rendered MP4s and fail soft to local animations.
+# 2026-07-31 23:20:00 | roger.murphy@emeraldcoastsystemsgroup.com  | v0.10.0 backlog pass: the show open auto-narrates (#4), the Whammy ring closes at 8-12 panels (#3) and its centre screen shows the current beat (#5), the set photographer stages deterministically instead of racing the NPC (#9), and the lobby grew the cross-game Hall of fame over the seat score snapshots (#11).
 #
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL App Package — Game Show (AI game night, live at the table or across phones)
@@ -38,10 +41,12 @@ description: >-
   or just a name, their call — and the AI host runs the whole broadcast: a survey
   generated on the fly, a buzzer race to answer, strikes and steals, a contestant
   interview you actually answer, and cutaway shots (team huddle, audience pan,
-  celebration) on the big screen. Watch on a TV and buzz on your phone, or play the
-  whole thing on one laptop. Family Feud ships first; the engine is modular so
-  Jeopardy, Wheel of Fortune, and Whammy plug in as more shows.
-version: 0.1.0
+  celebration) on the big screen. Watch on a TV and buzz on your phone — say your
+  answer out loud on the clicker — or play the whole studio in ONE browser window
+  with the rehearsal view. Four shows ship on the one modular engine: Family Feud
+  (with Fast Money), Jeopardy (with Double Jeopardy), Wheel of Fortune, and Whammy;
+  the host can also play their OWN questions, no AI required.
+version: 0.10.0
 status: active
 
 # The app TILE is public so every signed-in player sees it in the ribbon (a
@@ -54,7 +59,7 @@ scope: public
 # Where this package came from — the installer pins ref+sha at install time.
 source:
   type: git-subdir
-  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: game-show
   ref: main
 

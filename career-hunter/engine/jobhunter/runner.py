@@ -37,6 +37,21 @@ def _save_state(s: dict) -> None:
 
 
 def _counts(conn) -> dict:
+    """Discovery + corpus counters for the status report.
+
+    The `companies` reads stay on that name in BOTH backends: in postgres mode it is the
+    compatibility VIEW from migration 097, which exposes `gsearched` cast back to 0/1 so
+    `gsearched=1` keeps meaning what it meant (the base column is a real BOOLEAN, and
+    `boolean = integer` is a hard error in Postgres).
+
+    The two posting counts read db.read_postings_table() instead: they touch only objective
+    columns, and in postgres mode that is the base career_postings rather than the compat
+    view, which would drag both RLS-filtered per-user joins across 1.4M rows to count a
+    column that is on the corpus row anyway. In sqlite mode the helper returns `postings`,
+    so the SQL text is unchanged. `active` is the same 0/1-vs-BOOLEAN split as gsearched.
+    """
+    pt = db.read_postings_table()
+    on = "TRUE" if config.POSTGRES else "1"
     q = lambda sql: conn.execute(sql).fetchone()["n"]
     return {
         "total": q("SELECT COUNT(*) n FROM companies"),
@@ -44,8 +59,8 @@ def _counts(conn) -> dict:
         "careers_only": q("SELECT COUNT(*) n FROM companies WHERE ats_type IS NULL AND careers_url IS NOT NULL"),
         "searched_empty": q("SELECT COUNT(*) n FROM companies WHERE gsearched=1 AND careers_url IS NULL AND ats_type IS NULL"),
         "remaining": q("SELECT COUNT(*) n FROM companies WHERE gsearched=0 AND ats_type IS NULL AND careers_url IS NULL"),
-        "jobs": q("SELECT COUNT(*) n FROM postings WHERE active=1"),
-        "companies_with_jobs": q("SELECT COUNT(DISTINCT company_id) n FROM postings WHERE active=1"),
+        "jobs": q(f"SELECT COUNT(*) n FROM {pt} WHERE active={on}"),
+        "companies_with_jobs": q(f"SELECT COUNT(DISTINCT company_id) n FROM {pt} WHERE active={on}"),
     }
 
 
@@ -105,6 +120,12 @@ def run_batch(daily_budget: int = DEFAULT_DAILY, per_run: int | None = None, do_
                 """SELECT id, name, homepage FROM companies
                    WHERE gsearched=0 AND ats_type IS NULL AND careers_url IS NULL
                    ORDER BY id LIMIT ?""", (batch,)).fetchall()]
+        # WRITES must name the base table. `companies` is a real table in sqlite mode but a
+        # read-only VIEW in postgres mode (its columns are expressions, so Postgres refuses
+        # the UPDATE outright: "cannot update column ... of view companies"). gsearched is
+        # 0/1 in SQLite and BOOLEAN in career_companies.
+        ct = db.companies_table()
+        yes = "TRUE" if config.POSTGRES else "1"
         for r in rows:
             url, atype, tok = discover.google_careers_url(r["name"])
             used_today += 1
@@ -112,7 +133,7 @@ def run_batch(daily_budget: int = DEFAULT_DAILY, per_run: int | None = None, do_
             status = "found" if atype else ("careers_only" if url else "not_found")
             with db.connect() as conn:
                 conn.execute(
-                    """UPDATE companies SET careers_url=?, ats_type=?, ats_token=?, gsearched=1, discover_status=?
+                    f"""UPDATE {ct} SET careers_url=?, ats_type=?, ats_token=?, gsearched={yes}, discover_status=?
                        WHERE id=?""", (url, atype, tok, status, r["id"]))
             if atype:
                 newly_scrapable += 1
@@ -142,7 +163,10 @@ def run_batch(daily_budget: int = DEFAULT_DAILY, per_run: int | None = None, do_
                             continue
                         db.upsert_posting(conn, cid, p); seen.add(str(p["ats_job_id"]))
                     db.deactivate_missing(conn, cid, seen)
-                    conn.execute("UPDATE companies SET last_scraped_at=? WHERE id=?", (db.now(), cid))
+                    # Base table again (see above). db.now() emits the ISO-8601 string
+                    # career_companies.last_scraped_at (TIMESTAMPTZ) parses without help.
+                    conn.execute(f"UPDATE {db.companies_table()} SET last_scraped_at=? WHERE id=?",
+                                 (db.now(), cid))
                 print(f"    -> scraped {co['name']}: {len(postings)} jobs", flush=True)
             except Exception as e:
                 print(f"    -> scrape failed {co['name']}: {e}", flush=True)

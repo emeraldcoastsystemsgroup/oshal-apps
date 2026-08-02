@@ -39,6 +39,15 @@ test('guest demo stays server read-only and opts into browser-local controls', (
   assert.match(remote, /if\(!r\.ok\)/);
 });
 
+test('saved-responses playlist ships on both surfaces (server list + one-tap replay + demo-local fallback)', () => {
+  for (const html of [control, remote]) {
+    assert.match(html, /\/api\/pumpkin\/responses/);          // playlist list endpoint
+    assert.match(html, /\/api\/pumpkin\/rooms\/replay/);      // one-tap replay endpoint
+    assert.match(html, /oshal\.pumpkin\.demo\.responses\.v1/); // guest/demo stays browser-local
+    assert.match(html, /savedList/);
+  }
+});
+
 test('mobile contract prevents the canvas overflow and keeps touch targets usable', () => {
   assert.match(control, /#preview\s*\{[^}]*max-width:100%/s);
   assert.match(control, /button\s*\{[^}]*min-height:44px/s);

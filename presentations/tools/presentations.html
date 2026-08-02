@@ -28,8 +28,9 @@
   }
   * { box-sizing:border-box; }
   body { margin:0; font-family: system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
-  .top { padding:16px 22px 12px; border-bottom:1px solid var(--line); }
+  .top { padding:16px 22px 12px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:14px; }
   .top h1 { font-size:19px; margin:0 0 2px; } .top .sub { color:var(--muted); font-size:12.5px; }
+  .top .btn { flex:0 0 auto; }
   .split { display:flex; height:calc(100vh - 64px); }
   .pane { overflow-y:auto; padding:18px 20px; }
   .left { flex:1; border-right:1px solid var(--line); }
@@ -123,17 +124,30 @@
   .result.ok { background:rgba(0,211,167,.1); border:1px solid var(--accent2); color:var(--accent2); display:block; }
   .result.err { background:rgba(255,90,90,.1); border:1px solid #ff5a5a; color:#ff9a9a; display:block; }
   .result a { color:inherit; font-weight:700; }
-  .deck { background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:12px 14px; margin-bottom:10px; }
-  .deck .dt { font-weight:600; font-size:13.5px; word-break:break-word; }
-  .deck .dm { color:var(--muted); font-size:11.5px; margin:3px 0 8px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
-  .deck .badge { border:1px solid var(--line); border-radius:20px; padding:1px 8px; font-size:10.5px; display:inline-flex; align-items:center; gap:5px; }
-  .deck .badge .dot { width:7px; height:7px; border-radius:50%; }
-  .deck a { color:var(--accent); text-decoration:none; font-size:12.5px; font-weight:600; }
-  .pv { margin:4px 0 10px; border-left:2px solid var(--line); padding-left:10px; max-height:170px; overflow-y:auto; }
-  .pvs { display:flex; gap:8px; align-items:flex-start; margin:0 0 7px; }
-  .pvn { flex:0 0 18px; height:18px; border-radius:5px; background:var(--panel2); color:var(--muted); font-size:10.5px; text-align:center; line-height:18px; margin-top:1px; }
-  .pvt { font-size:12px; font-weight:600; line-height:1.3; }
-  .pvb { margin:2px 0 0; padding-left:15px; } .pvb li { color:var(--muted); font-size:11px; line-height:1.4; }
+  /* My files — an Explorer, not a card wall (operator: "think about how Windows works").
+     Rows of real file names; click = the file view: big Download (kernel /api/files/download
+     proxy) / Open-in-provider / Edit & regenerate / Delete + themed quick-look thumbnails.
+     The invention budget stays on inline generation; file management stays familiar. */
+  .fRow { display:flex; align-items:center; gap:10px; width:100%; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:11px 13px; margin-bottom:7px; cursor:pointer; color:var(--text); font-family:inherit; font-size:13px; text-align:left; transition:border-color .12s; }
+  .fRow:hover { border-color:var(--accent); }
+  .fRow .fIc { font-size:17px; flex:0 0 auto; }
+  .fRow .fName { flex:1; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .fRow .dot { width:8px; height:8px; border-radius:50%; flex:0 0 auto; }
+  .fRow .fMeta { color:var(--muted); font-size:11px; flex:0 0 auto; }
+  .fBackRow { margin-bottom:8px; }
+  .fHead { display:flex; gap:12px; align-items:center; margin:2px 0 12px; }
+  .fHead .fBig { font-size:34px; }
+  .fHead .fTitle { font-weight:800; font-size:15px; word-break:break-word; }
+  .fHead .fSub { color:var(--muted); font-size:11.5px; margin-top:2px; }
+  .fActions { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 14px; }
+  .fActions .btn, .result .btn { text-decoration:none; display:inline-flex; align-items:center; gap:6px; font-size:13px; padding:10px 14px; }
+  .result .btn { margin:8px 8px 0 0; }
+  .fLookH { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.6px; margin:0 0 8px; }
+  .fGrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:8px; }
+  .fGrid .pvSlide { margin:0; }
+  .fGrid .pvSlide .body { padding:10px 12px 12px; }
+  .fGrid .pvSlide .ttl { font-size:12px; }
+  .fGrid .pvSlide li { font-size:10.5px; }
   .empty { background:var(--panel); border:1px dashed var(--line); border-radius:12px; padding:22px; text-align:center; color:var(--muted); font-size:13px; }
   .spin { color:var(--muted); font-size:13px; }
   .pane.right { overflow:hidden; display:flex; flex-direction:column; }
@@ -171,13 +185,237 @@
     .chatbar { flex-direction: row; }
     .top { padding: 12px 14px 10px; }
   }
+
+  /* ══ Front door — the full-screen visual walkthrough (operator: template selection and options
+     UP FRONT; click-click / talk / upload — the studio below is the behind-the-scenes fine-tune
+     screen you land in AFTER). The wizard owns NO duplicate state: it drives the studio's own
+     pickers (pickKind / pickTheme / pickTemplate) and then gets out of the way. ══ */
+  #wiz { position:fixed; inset:0; z-index:50; display:none; flex-direction:column; background:var(--bg); }
+  #wiz.on { display:flex; }
+  .wzBg { position:absolute; inset:0; overflow:hidden; pointer-events:none; }
+  .wzBg i { position:absolute; border-radius:50%; filter:blur(90px); opacity:.20; }
+  .wzBg .b1 { width:48vw; height:48vw; left:-14vw; top:-16vw; background:var(--accent); animation:wzFloat 17s ease-in-out infinite; }
+  .wzBg .b2 { width:40vw; height:40vw; right:-12vw; bottom:-14vw; background:var(--accent2); animation:wzFloat 21s ease-in-out infinite reverse; }
+  .wzBg .b3 { width:24vw; height:24vw; right:16vw; top:-10vw; background:var(--accent); opacity:.10; animation:wzFloat 25s ease-in-out infinite; }
+  @keyframes wzFloat { 0%,100% { transform:translate(0,0) scale(1); } 50% { transform:translate(3vw,2vw) scale(1.07); } }
+  .wzTop { display:flex; align-items:center; gap:18px; padding:18px 28px; position:relative; z-index:1; }
+  .wzBrand { font-size:15px; font-weight:800; letter-spacing:.2px; }
+  .wzDots { display:flex; gap:7px; margin:0 auto; }
+  .wzDots .d { width:26px; height:5px; border-radius:3px; background:var(--panel2); border:1px solid var(--line); transition:background .2s, border-color .2s; }
+  .wzDots .d.on { background:var(--accent); border-color:var(--accent); }
+  .wzSkip { background:none; border:none; color:var(--muted); font-size:12.5px; cursor:pointer; padding:6px 2px; font-family:inherit; }
+  .wzSkip:hover { color:var(--accent); }
+  .wzStep { display:none; position:relative; z-index:1; flex:1; min-height:0; overflow-y:auto; flex-direction:column; align-items:center; padding:1vh 26px 5vh; }
+  .wzStep.on { display:flex; animation:wzIn .35s ease; }
+  @keyframes wzIn { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:none; } }
+  .wzH { font-size:clamp(26px,4.6vw,42px); font-weight:800; letter-spacing:-.5px; margin:3.5vh 0 10px; text-align:center; }
+  .wzH em { font-style:normal; background:linear-gradient(100deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .wzSub { color:var(--muted); font-size:14.5px; max-width:640px; text-align:center; line-height:1.55; margin:0 0 3.5vh; }
+  .wzBackRow { align-self:flex-start; }
+  .wzBack { background:none; border:none; color:var(--muted); font-size:13px; cursor:pointer; padding:4px 0; font-family:inherit; }
+  .wzBack:hover { color:var(--accent); }
+  .wzChips { display:flex; gap:8px; margin:0 0 2.5vh; flex-wrap:wrap; justify-content:center; }
+  .wzChip { display:inline-flex; align-items:center; gap:7px; border:1px solid var(--line); background:var(--panel); border-radius:20px; padding:5px 13px; font-size:12.5px; font-weight:600; }
+  .wzChip .dot { width:8px; height:8px; border-radius:50%; }
+
+  /* Step 1 — the three big artifact cards */
+  .wzKinds { display:grid; grid-template-columns:repeat(3,minmax(0,280px)); gap:18px; width:100%; max-width:960px; justify-content:center; }
+  .wzKind { background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:0 0 16px; cursor:pointer; text-align:center; overflow:hidden; transition:transform .16s, border-color .16s, box-shadow .16s; }
+  .wzKind:hover, .wzKind:focus-visible { transform:translateY(-4px); border-color:var(--accent); box-shadow:0 14px 40px -18px var(--accent); outline:none; }
+  .wzArt { padding:20px 20px 6px; }
+  .wzArt svg { width:100%; height:auto; display:block; border-radius:10px; }
+  .wzKn { font-size:17px; font-weight:800; margin:8px 0 3px; }
+  .wzKd { color:var(--muted); font-size:12.5px; line-height:1.5; padding:0 20px; }
+  .wzKo { color:var(--muted); opacity:.75; font-size:10.5px; letter-spacing:.6px; text-transform:uppercase; margin-top:9px; }
+  .wzAlt { display:flex; gap:12px; margin-top:4vh; flex-wrap:wrap; justify-content:center; }
+  .wzAltBtn { background:var(--panel); border:1px solid var(--line); color:var(--text); border-radius:24px; padding:11px 20px; font-size:13.5px; font-weight:600; cursor:pointer; font-family:inherit; transition:border-color .15s, transform .15s; }
+  .wzAltBtn:hover { border-color:var(--accent); transform:translateY(-1px); }
+
+  /* Step 2 — the look gallery (cover flips to a content slide on hover) */
+  .wzThemes { display:grid; grid-template-columns:repeat(auto-fill,minmax(215px,1fr)); gap:14px; width:100%; max-width:1060px; }
+  .wzTh { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:9px; cursor:pointer; transition:transform .16s, border-color .16s, box-shadow .16s; }
+  .wzTh:hover, .wzTh:focus-visible { transform:translateY(-4px); border-color:var(--accent); box-shadow:0 14px 40px -18px var(--accent); outline:none; }
+  .wzTh .flip { position:relative; }
+  .wzTh .flip svg { display:block; width:100%; height:auto; border-radius:8px; }
+  .wzTh .flip .alt { position:absolute; inset:0; opacity:0; transition:opacity .22s; }
+  .wzTh:hover .flip .alt, .wzTh:focus-visible .flip .alt { opacity:1; }
+  .wzTh .tn { font-weight:700; font-size:13.5px; margin:9px 3px 2px; display:flex; align-items:center; gap:6px; }
+  .wzTh .tn .dot { width:8px; height:8px; border-radius:50%; flex:0 0 auto; }
+  .wzTh .tm { color:var(--muted); font-size:11px; margin:0 3px 2px; line-height:1.4; }
+
+  /* Step 3 — starting shapes + the one-line topic lane */
+  .wzTpls { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:14px; width:100%; max-width:1060px; }
+  .wzTpl { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px 15px; cursor:pointer; transition:transform .16s, border-color .16s, box-shadow .16s; }
+  .wzTpl:hover, .wzTpl:focus-visible { transform:translateY(-4px); border-color:var(--accent); box-shadow:0 14px 40px -18px var(--accent); outline:none; }
+  .wzTpl .n { font-weight:800; font-size:14px; }
+  .wzTpl .d { color:var(--muted); font-size:11.5px; margin:3px 0 10px; line-height:1.45; }
+  .wzStrip { display:flex; flex-direction:column; gap:4px; }
+  .wzSl { display:flex; align-items:center; gap:7px; background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:4px 8px; font-size:10.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .wzSl span { flex:0 0 14px; height:14px; border-radius:4px; background:var(--panel2); color:var(--muted); font-size:9px; text-align:center; line-height:14px; }
+  .wzOr { color:var(--muted); font-size:11px; letter-spacing:1.4px; text-transform:uppercase; margin:3.5vh 0 2vh; display:flex; align-items:center; gap:14px; width:100%; max-width:640px; }
+  .wzOr::before, .wzOr::after { content:""; flex:1; height:1px; background:var(--line); }
+  .wzTopicRow { display:flex; gap:10px; width:100%; max-width:640px; }
+  .wzTopicRow input { flex:1; background:var(--panel); border:1px solid var(--line); border-radius:26px; padding:14px 20px; font-size:14.5px; }
+  .wzTopicRow input:focus { border-color:var(--accent); outline:none; }
+  .wzGo { border:none; border-radius:26px; padding:14px 22px; font-size:14px; font-weight:700; cursor:pointer; color:#fff; background:linear-gradient(100deg,var(--accent),var(--accent2)); white-space:nowrap; font-family:inherit; }
+  .wzGo:disabled { opacity:.5; cursor:default; }
+  @media (max-width:760px) {
+    .wzKinds { grid-template-columns:1fr; max-width:340px; }
+    .wzTop { padding:14px 16px; }
+    .wzStep { padding:1vh 14px 4vh; }
+    .wzTopicRow { flex-direction:column; }
+    .wzSkip { font-size:11.5px; }
+  }
+  /* Jump back in — the most recent files as one-tap resumes on step 1. Their outline is
+     stored with the record server-side, so resume needs no download — phone-friendly. */
+  .wzRecent { display:none; flex-direction:column; gap:7px; width:100%; max-width:640px; margin-top:3.5vh; }
+  .wzRecent.on { display:flex; }
+  .wzRecH { color:var(--muted); font-size:11px; letter-spacing:1.4px; text-transform:uppercase; text-align:center; margin-bottom:2px; }
+  .wzRe { display:flex; align-items:center; gap:9px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 15px; font-size:13.5px; font-weight:600; color:var(--text); cursor:pointer; font-family:inherit; text-align:left; transition:border-color .15s; }
+  .wzRe:hover { border-color:var(--accent); }
+  .wzRe .t { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .wzRe em { font-style:normal; color:var(--muted); font-size:11px; flex:0 0 auto; }
+
+  /* Mic dictation — say it, don't type it. Hidden where the browser has no speech API. */
+  .micBtn { flex:0 0 auto; background:var(--panel); border:1px solid var(--line); color:var(--text); border-radius:26px; padding:14px 16px; font-size:15px; cursor:pointer; font-family:inherit; transition:border-color .15s; }
+  .micBtn:hover { border-color:var(--accent); }
+  .rec, .micBtn.rec { border-color:#ff5a5a !important; color:#ff5a5a !important; animation:micPulse 1.2s ease-in-out infinite; }
+  @keyframes micPulse { 0%,100% { box-shadow:0 0 0 0 rgba(255,90,90,.45); } 50% { box-shadow:0 0 0 9px rgba(255,90,90,0); } }
+
+  /* Guide quick chips — the common asks as one tap instead of composing on glass. */
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; flex:0 0 auto; }
+  .chip { background:var(--panel); border:1px solid var(--line); color:var(--text); border-radius:16px; padding:7px 13px; font-size:12px; cursor:pointer; font-family:inherit; transition:border-color .15s; }
+  .chip:hover { border-color:var(--accent); }
+
+  /* No hover on touch — the theme cards auto-peek their content slide instead. */
+  @media (hover: none) {
+    .wzTh .flip .alt { animation:wzPeek 7s ease-in-out infinite; }
+  }
+  @keyframes wzPeek { 0%,52%,100% { opacity:0; } 62%,90% { opacity:1; } }
+
+  @media (max-width:760px) {
+    .wzAlt { flex-direction:column; width:100%; max-width:340px; }
+    .wzAltBtn { width:100%; padding:13px 20px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .wzBg i { animation:none; }
+    .wzStep.on { animation:none; }
+    .wzKind, .wzTh, .wzTpl, .wzAltBtn { transition:none; }
+    .wzTh .flip .alt { animation:none; }
+    .rec, .micBtn.rec { animation:none; }
+  }
 </style>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
+  <!-- ══ The front door: a three-step visual walkthrough. Every path the operator asked for is a
+       first-class entry: CLICK (artifact → look → shape), TALK (the Guide), UPLOAD (open a file),
+       or one typed line AI drafts end-to-end. Esc / Skip drops to the studio; ✨ Walkthrough in
+       the studio header brings it back. ══ -->
+  <div id="wiz" class="on" role="dialog" aria-modal="true" aria-label="AI Office guided start">
+    <div class="wzBg" aria-hidden="true"><i class="b1"></i><i class="b2"></i><i class="b3"></i></div>
+    <div class="wzTop">
+      <div class="wzBrand">🏢 AI Office</div>
+      <div class="wzDots" aria-hidden="true"><span class="d on"></span><span class="d"></span><span class="d"></span></div>
+      <button class="wzSkip" id="wzSkip" title="Skip straight to the full studio">Skip the tour — open the studio →</button>
+    </div>
+
+    <section class="wzStep on" id="wzS1" aria-label="Step 1 of 3: what are we making">
+      <h2 class="wzH">What are we <em>making</em>?</h2>
+      <p class="wzSub">Pick one and I'll walk you through it — a look, a starting shape, done. Everything opens right in PowerPoint, Word, Excel, Google Workspace or LibreOffice.</p>
+      <div class="wzKinds" id="wzKinds">
+        <div class="wzKind" data-kind="pptx" role="button" tabindex="0" aria-label="Make a presentation deck">
+          <div class="wzArt"><svg viewBox="0 0 160 90" aria-hidden="true">
+            <rect width="160" height="90" rx="6" fill="var(--panel2)"/>
+            <rect x="14" y="14" width="64" height="7" rx="3.5" fill="var(--accent)"/>
+            <rect x="14" y="27" width="42" height="4" rx="2" fill="var(--muted)" opacity=".5"/>
+            <rect x="16" y="66" width="12" height="10" rx="2" fill="var(--accent)" opacity=".55"/>
+            <rect x="32" y="58" width="12" height="18" rx="2" fill="var(--accent)" opacity=".75"/>
+            <rect x="48" y="48" width="12" height="28" rx="2" fill="var(--accent)"/>
+            <rect x="64" y="40" width="12" height="36" rx="2" fill="var(--accent2)"/>
+            <circle cx="124" cy="52" r="22" fill="none" stroke="var(--accent2)" stroke-width="7" stroke-dasharray="96 42" transform="rotate(-90 124 52)"/>
+          </svg></div>
+          <div class="wzKn">📊 A deck</div>
+          <div class="wzKd">A themed presentation — real slide masters, native charts, twenty smart layouts.</div>
+          <div class="wzKo">PowerPoint · Slides · Impress</div>
+        </div>
+        <div class="wzKind" data-kind="docx" role="button" tabindex="0" aria-label="Make a document">
+          <div class="wzArt"><svg viewBox="0 0 160 90" aria-hidden="true">
+            <rect width="160" height="90" rx="6" fill="var(--panel2)"/>
+            <rect x="48" y="8" width="64" height="82" rx="3" fill="var(--bg)" stroke="var(--line)"/>
+            <rect x="56" y="18" width="34" height="5" rx="2.5" fill="var(--accent)"/>
+            <rect x="56" y="28" width="48" height="2.6" rx="1.3" fill="var(--muted)" opacity=".55"/>
+            <rect x="56" y="34" width="48" height="2.6" rx="1.3" fill="var(--muted)" opacity=".45"/>
+            <rect x="56" y="40" width="40" height="2.6" rx="1.3" fill="var(--muted)" opacity=".45"/>
+            <rect x="56" y="50" width="22" height="4" rx="2" fill="var(--accent2)"/>
+            <rect x="56" y="58" width="48" height="2.6" rx="1.3" fill="var(--muted)" opacity=".45"/>
+            <rect x="56" y="64" width="44" height="2.6" rx="1.3" fill="var(--muted)" opacity=".45"/>
+            <rect x="56" y="70" width="47" height="2.6" rx="1.3" fill="var(--muted)" opacity=".4"/>
+            <rect x="56" y="76" width="30" height="2.6" rx="1.3" fill="var(--muted)" opacity=".4"/>
+          </svg></div>
+          <div class="wzKn">📄 A document</div>
+          <div class="wzKd">A themed report — real heading styles, tables, page numbers, the works.</div>
+          <div class="wzKo">Word · Docs · Writer</div>
+        </div>
+        <div class="wzKind" data-kind="xlsx" role="button" tabindex="0" aria-label="Make a spreadsheet">
+          <div class="wzArt"><svg viewBox="0 0 160 90" aria-hidden="true">
+            <rect width="160" height="90" rx="6" fill="var(--panel2)"/>
+            <rect x="14" y="12" width="132" height="12" rx="2" fill="var(--accent)" opacity=".85"/>
+            <g fill="var(--bg)" stroke="var(--line)">
+              <rect x="14" y="26" width="30" height="12" rx="2"/><rect x="48" y="26" width="30" height="12" rx="2"/><rect x="82" y="26" width="30" height="12" rx="2"/><rect x="116" y="26" width="30" height="12" rx="2"/>
+              <rect x="14" y="40" width="30" height="12" rx="2"/><rect x="48" y="40" width="30" height="12" rx="2"/><rect x="82" y="40" width="30" height="12" rx="2"/><rect x="116" y="40" width="30" height="12" rx="2"/>
+              <rect x="14" y="54" width="30" height="12" rx="2"/><rect x="48" y="54" width="30" height="12" rx="2"/><rect x="82" y="54" width="30" height="12" rx="2"/><rect x="116" y="54" width="30" height="12" rx="2"/>
+              <rect x="14" y="68" width="30" height="12" rx="2"/><rect x="48" y="68" width="30" height="12" rx="2"/><rect x="82" y="68" width="30" height="12" rx="2"/>
+            </g>
+            <rect x="116" y="68" width="30" height="12" rx="2" fill="var(--accent2)" opacity=".9"/>
+            <text x="131" y="77" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">Σ</text>
+          </svg></div>
+          <div class="wzKn">📈 A spreadsheet</div>
+          <div class="wzKd">A live workbook — typed cells, real formulas, frozen headers.</div>
+          <div class="wzKo">Excel · Sheets · Calc</div>
+        </div>
+      </div>
+      <div class="wzAlt">
+        <button class="wzAltBtn" id="wzTalk">💬 Just talk — build it with my Guide</button>
+        <button class="wzAltBtn" id="wzUpload">📂 I have a file — open &amp; remix it</button>
+      </div>
+      <div class="wzRecent" id="wzRecent"></div>
+    </section>
+
+    <section class="wzStep" id="wzS2" aria-label="Step 2 of 3: pick a look">
+      <div class="wzBackRow"><button class="wzBack" data-back="1">← Back</button></div>
+      <h2 class="wzH">Now — pick a <em>look</em></h2>
+      <p class="wzSub">Ten designer themes drawn live from the real render engine — what you pick is exactly what generates. Hover any card to peek at a content slide.</p>
+      <div class="wzChips" id="wzChips2"></div>
+      <div class="wzThemes" id="wzThemes"><span class="spin">Loading the looks…</span></div>
+      <div class="wzAlt"><button class="wzAltBtn" id="wzAutoTheme">✨ Can't decide — pick one for me</button></div>
+    </section>
+
+    <section class="wzStep" id="wzS3" aria-label="Step 3 of 3: pick a starting point">
+      <div class="wzBackRow"><button class="wzBack" data-back="2">← Back</button></div>
+      <h2 class="wzH">Last one — <em>start</em> from…</h2>
+      <p class="wzSub">A proven shape you fill in, or one line AI drafts end-to-end — you'll fine-tune either in the studio with a live themed preview.</p>
+      <div class="wzChips" id="wzChips3"></div>
+      <div class="wzTpls" id="wzTpls"></div>
+      <div class="wzOr">or one line, fully drafted</div>
+      <div class="wzTopicRow">
+        <input id="wzTopic" placeholder="e.g. Q3 board update for a fintech startup" aria-label="Topic for an AI-drafted outline" />
+        <button class="micBtn" id="wzMicTopic" title="Dictate it" aria-label="Dictate the topic">🎤</button>
+        <button class="wzGo" id="wzDraft">✨ Draft &amp; generate</button>
+      </div>
+      <div class="wzAlt">
+        <button class="wzAltBtn" id="wzGuide3">💬 Build it live with the Guide</button>
+        <button class="wzAltBtn" id="wzBlank">▢ Blank canvas — straight to the studio</button>
+      </div>
+    </section>
+  </div>
+
   <div class="top">
-    <h1>🏢 AI Office</h1>
-    <div class="sub">Type a topic — AI drafts a themed <b>deck</b>, <b>document</b> or <b>spreadsheet</b> you can edit in Office, Google Workspace or LibreOffice.</div>
+    <div>
+      <h1>🏢 AI Office</h1>
+      <div class="sub">Type a topic — AI drafts a themed <b>deck</b>, <b>document</b> or <b>spreadsheet</b> you can edit in Office, Google Workspace or LibreOffice.</div>
+    </div>
+    <button class="btn ghost" id="wzReopen" title="Restart the guided walkthrough">✨ Walkthrough</button>
   </div>
   <div class="split">
     <div class="pane left">
@@ -258,7 +496,7 @@
     <div class="pane right">
       <div class="tabs">
         <button class="tab sel" id="tabGuide" data-t="guide">💬 Guide</button>
-        <button class="tab" id="tabPreview" data-t="preview">👁 Preview</button>
+        <button class="tab" id="tabPreview" data-t="preview">✏ Draft</button>
         <button class="tab" id="tabDecks" data-t="decks">📁 My files</button>
       </div>
 
@@ -268,8 +506,10 @@
 
       <div class="tabpane" id="paneGuide">
         <div id="chat" class="chat"><div class="msg bot">Hi — I’m your AI Office guide. Tell me what you’re making and who it’s for, and I’ll build the outline with you — then generate it as a deck, document or spreadsheet. I can pick the look or tweak any slide directly. ✨</div></div>
+        <div class="chips" id="chatChips"></div>
         <div class="chatbar">
           <textarea id="chatIn" rows="1" placeholder="e.g. A pitch for our agentic-automation platform to enterprise buyers"></textarea>
+          <button class="btn ghost" id="micChat" title="Dictate" aria-label="Dictate a message">🎤</button>
           <button class="btn" id="chatSend">Send</button>
         </div>
       </div>
@@ -412,8 +652,11 @@ async function loadThemes(){
     const r = await fetch('/api/presentations/sections/themes');
     const j = await r.json();
     THEMES = j.themes || []; LAYOUTS = j.layouts || []; THEME = THEME || j.defaultTheme || (THEMES[0]||{}).id;
-    renderThemes(); renderLayouts();
-  } catch(e){ $('themes').innerHTML = '<div class="empty">Couldn’t load themes.</div>'; }
+    renderThemes(); renderLayouts(); renderWizThemes(); renderWizChips();
+  } catch(e){
+    $('themes').innerHTML = '<div class="empty">Couldn’t load themes.</div>';
+    $('wzThemes').innerHTML = '<div class="empty">Couldn’t load the looks — a default is picked for you, keep going.</div>';
+  }
 }
 
 // ── Starter outlines (the SHAPE of a deck — distinct from its look) ────────
@@ -479,11 +722,14 @@ async function generate(body, label, fmt){
     const j = await r.json().catch(()=>null);
     if (!r.ok || (j && j.error)){ res('Failed: '+esc((j&&j.error)||('HTTP '+r.status)), false); return; }
     if (j && j.ok){
-      const where = j.provider==='github' ? ('GitHub ('+esc(j.savedTo)+')') : (j.provider==='dropbox' ? 'your Dropbox' : 'OSHAL local');
-      const link = j.downloadUrl ? ` — <a href="${esc(j.downloadUrl)}" target="_top">Download</a>` : (j.url ? ` — <a href="${esc(j.url)}" target="_blank">View</a>` : '');
+      // The result is a FILE CARD, not a thin status line — the fat Download button is the
+      // whole point of clicking Generate (operator: "I click generate xlsx… I can't see it").
+      const where = PROV_NAME[j.provider] || j.provider || 'your store';
       const th = THEMES.find(t => t.id === j.theme);
-      const what = fmt === 'docx' ? 'Word doc' : fmt === 'xlsx' ? 'workbook' : (j.slides||'') + ' slides';
-      res('✓ Generated '+what+(th?' in '+esc(th.name):'')+' → saved to '+where+link+'. See <b>My files →</b>', true);
+      const what = fmt === 'docx' ? 'document' : fmt === 'xlsx' ? 'workbook' : (j.slides||'') + '-slide deck';
+      const dl = j.downloadUrl ? `<a class="btn" href="${esc(j.downloadUrl)}" target="_top">⬇ Download .${fmt}</a>` : '';
+      const op = j.url ? `<a class="btn ghost" href="${esc(j.url)}" target="_blank" rel="noopener">↗ Open in ${esc(where)}</a>` : '';
+      res('✓ Your '+what+(th?' in <b>'+esc(th.name)+'</b>':'')+' is saved to '+esc(where)+'.<br>'+dl+op, true);
       showTab('decks'); loadDecks();
     } else { res('Generated, but unexpected response.', false); }
   } catch(e){ res('Error: '+e.message, false); }
@@ -542,51 +788,84 @@ $('emailSend').onclick = async () => {
   $('emailSend').disabled = false; $('status').textContent = '';
 };
 
+// ── My files: an Explorer, not a card wall. Rows of real file NAMES; click a row for the
+// file view — big Download / Open / Edit / Delete + a themed quick look. Windows solved
+// this pattern; the invention stays in the inline generation.
+let FILES = [];
+const PROV_NAME = { dropbox:'Dropbox', 'google-drive':'Google Drive', onedrive:'OneDrive', github:'GitHub', 'oshal-local':'OSHAL local' };
+function fmtIcon(f){ return f === 'docx' ? '📄' : f === 'xlsx' ? '📈' : '📊'; }
+
 async function loadDecks(){
   $('decks').innerHTML = '<span class="spin">Loading…</span>';
   let r; try { r = await fetch('/api/presentations/sections/list'); } catch { $('decks').innerHTML='<div class="empty">Couldn’t load.</div>'; return; }
   const j = await r.json().catch(()=>({}));
   if (!r.ok){ $('decks').innerHTML = '<div class="empty">Sign in to see your files.</div>'; return; }
-  const decks = j.decks || [];
-  if (!decks.length){ $('decks').innerHTML = '<div class="empty">Nothing yet — generate a deck, document or spreadsheet and it’ll show here.</div>'; return; }
-  $('decks').innerHTML = decks.map((d) => {
-    const link = d.downloadUrl ? `<a href="${esc(d.downloadUrl)}" target="_top">⬇ Download</a>` : (d.url ? `<a href="${esc(d.url)}" target="_blank">↗ View</a>` : '<span class="dm">saved</span>');
-    const t = THEMES.find(x => x.id === d.theme);
-    const badge = t ? `<span class="badge"><span class="dot" style="background:${hx(t.colors.accent)}"></span>${esc(t.name)}</span>` : '';
-    const fmtIcon = d.format === 'docx' ? '📄' : d.format === 'xlsx' ? '📈' : '📊';
-    const fmtBadge = `<span class="badge">${fmtIcon} ${esc(d.format || 'pptx')}</span>`;
-    const meta = [d.slides ? d.slides + ' slides' : null, esc(d.provider||''), when(d.createdAt)].filter(Boolean).join(' · ');
-    const del = d.fileName ? ` <span class="ref del" data-name="${esc(d.fileName)}" style="color:#e06c6c">🗑 delete</span>` : '';
-    return `<div class="deck"><div class="dt">${esc(d.title)}</div>
-      <div class="dm">${fmtBadge}${badge}<span>${meta}</span></div>${preview(d.outline)}${link}${del}</div>`;
-  }).join('');
-  // Delete = the user's explicit click + a confirm; the store copy goes to the provider's
-  // trash/recycle bin (server: deleteStoredFile), the record goes with it.
-  $('decks').querySelectorAll('.del').forEach(el => {
-    el.onclick = async () => {
-      const name = el.dataset.name;
-      if (!confirm('Delete "' + name + '"? The store copy goes to the provider’s trash / recycle bin.')) return;
-      el.textContent = '…';
-      try {
-        const r = await fetch('/api/presentations/sections/file?name=' + encodeURIComponent(name), { method:'DELETE' });
-        const j = await r.json().catch(()=>null);
-        if (!r.ok || !j || !j.ok){ res('Delete failed: ' + esc((j&&j.error)||('HTTP '+r.status)), false); el.textContent = '🗑 delete'; return; }
-        if (j.storeRemoved === false) res('Removed from the list — the copy on ' + esc(j.provider||'your store') + ' stayed (' + esc(j.reason||'couldn’t reach it') + ').', true);
-        loadDecks();
-      } catch(e){ res('Error: ' + e.message, false); el.textContent = '🗑 delete'; }
-    };
-  });
+  FILES = j.decks || [];
+  renderWizRecent(FILES);
+  renderFileList();
 }
 
-/** Outline-based preview (ADR-043): slide titles + first bullets, no file download needed. */
-function preview(outline){
-  if (!Array.isArray(outline) || !outline.length) return '';
-  const slides = outline.map((s, n) => {
-    const bullets = (Array.isArray(s.bullets) && s.bullets.length)
-      ? `<ul class="pvb">${s.bullets.map(b => `<li>${esc(b)}</li>`).join('')}</ul>` : '';
-    return `<div class="pvs"><span class="pvn">${n+1}</span><div><div class="pvt">${esc(s.title||'')}</div>${bullets}</div></div>`;
+function renderFileList(){
+  if (!FILES.length){ $('decks').innerHTML = '<div class="empty">Nothing yet — generate a deck, document or spreadsheet and it’ll show here.</div>'; return; }
+  $('decks').innerHTML = FILES.map((d, i) => {
+    const t = THEMES.find(x => x.id === d.theme);
+    const dot = t ? `<span class="dot" style="background:${hx(t.colors.accent)}"></span>` : '';
+    return `<button class="fRow" data-i="${i}" title="${esc(d.fileName || d.title)}">
+      <span class="fIc">${fmtIcon(d.format)}</span>
+      <span class="fName">${esc(d.fileName || d.title)}</span>${dot}
+      <span class="fMeta">${when(d.createdAt)}</span>
+    </button>`;
   }).join('');
-  return `<div class="pv">${slides}</div>`;
+  $('decks').querySelectorAll('.fRow').forEach(el => el.onclick = () => openFileView(FILES[parseInt(el.dataset.i, 10)]));
+}
+
+/** The file view: what clicking a file in any file manager should do. Download rides the
+ *  kernel /api/files/download proxy (auth-gated, per-user); Open shows the REAL file in the
+ *  provider's viewer; the quick look is the themed draft, labelled as such. */
+function openFileView(d){
+  const t = THEMES.find(x => x.id === d.theme);
+  const prov = PROV_NAME[d.provider] || d.provider || 'your store';
+  const kindName = { pptx:'slide', docx:'section', xlsx:'sheet' }[d.format] || 'slide';
+  const dl = d.downloadUrl ? `<a class="btn" href="${esc(d.downloadUrl)}" target="_top">⬇ Download</a>` : '';
+  const op = d.url ? `<a class="btn ghost" href="${esc(d.url)}" target="_blank" rel="noopener">↗ Open in ${esc(prov)}</a>` : '';
+  const blocks = Array.isArray(d.outline) ? d.outline.map(s => ({ title: s.title || '', content: (s.bullets || []).join('\n') })) : [];
+  const look = blocks.length
+    ? `<div class="fLookH">Quick look — themed draft; Download / Open is the real file</div><div class="fGrid">${slideCards(blocks, t || pvTheme(), kindName)}</div>`
+    : '<div class="empty">No quick look for this file — Download or Open to view it.</div>';
+  $('decks').innerHTML = `
+    <div class="fBackRow"><button class="wzBack" id="fBack">← All files</button></div>
+    <div class="fHead"><div class="fBig">${fmtIcon(d.format)}</div><div>
+      <div class="fTitle">${esc(d.fileName || d.title)}</div>
+      <div class="fSub">${[t ? t.name : null, prov, d.slides ? d.slides + ' ' + kindName + 's' : null, when(d.createdAt)].filter(Boolean).join(' · ')}</div>
+    </div></div>
+    <div class="fActions">${dl}${op}
+      ${blocks.length ? '<button class="btn ghost" id="fEdit">✎ Edit &amp; regenerate</button>' : ''}
+      ${d.fileName ? '<button class="btn ghost" id="fDel" style="color:#e06c6c">🗑 Delete</button>' : ''}
+    </div>${look}`;
+  $('fBack').onclick = renderFileList;
+  const fe = $('fEdit');
+  if (fe) fe.onclick = () => {
+    if (d.format && KINDS.some(k => k.id === d.format)) pickKind(d.format);
+    if (d.theme) pickTheme(d.theme);
+    $('title').value = d.title || '';
+    writeOutline((d.outline || []).map(s => ({ title: s.title, bullets: s.bullets || [] })));
+    SEL = null; renderTemplates(); showTab('preview'); landOnPreview();
+    res('✓ Loaded <b>' + esc(d.title || d.fileName) + '</b> into the editor — tweak, then regenerate in any format.', true);
+  };
+  const fd = $('fDel');
+  // Delete = the user's explicit click + a confirm; the store copy goes to the provider's
+  // trash/recycle bin (server: deleteStoredFile), the record goes with it.
+  if (fd) fd.onclick = async () => {
+    if (!confirm('Delete "' + (d.fileName || d.title) + '"? The store copy goes to the provider’s trash / recycle bin.')) return;
+    fd.disabled = true; fd.textContent = '…';
+    try {
+      const r = await fetch('/api/presentations/sections/file?name=' + encodeURIComponent(d.fileName), { method:'DELETE' });
+      const j = await r.json().catch(()=>null);
+      if (!r.ok || !j || !j.ok){ res('Delete failed: ' + esc((j&&j.error)||('HTTP '+r.status)), false); fd.disabled = false; fd.textContent = '🗑 Delete'; return; }
+      if (j.storeRemoved === false) res('Removed from the list — the copy on ' + esc(j.provider||'your store') + ' stayed (' + esc(j.reason||'couldn’t reach it') + ').', true);
+      loadDecks();
+    } catch(e){ res('Error: ' + e.message, false); fd.disabled = false; fd.textContent = '🗑 Delete'; }
+  };
 }
 function res(msg, ok){ const r=$('result'); if(ok===null){ r.className='result'; r.innerHTML=''; return; } r.className='result '+(ok?'ok':'err'); r.innerHTML=msg; }
 
@@ -602,6 +881,7 @@ function showTab(t){
   }
   if (t === 'decks') loadDecks();
   if (t === 'preview') renderPreview();
+  if (t === 'guide') renderChatChips();
 }
 $('tabGuide').onclick = () => showTab('guide');
 $('tabPreview').onclick = () => showTab('preview');
@@ -640,21 +920,26 @@ function pvBlock(lines, t){
   if (out.bullets.length) h += `<ul>${out.bullets.slice(0,9).map(b=>`<li>${esc(b)}</li>`).join('')}</ul>`;
   return h;
 }
-function renderPreview(){
-  if (!THEMES.length){ $('pvHost').innerHTML = '<div class="empty">Loading themes…</div>'; return; }
-  const t = pvTheme(), c = t.colors;
-  const blocks = parseOutline($('outline').value || '');
-  const kindName = { pptx:'slide', docx:'section', xlsx:'sheet' }[KIND];
-  if (!blocks.length){ $('pvHost').innerHTML = '<div class="empty">Write or open an outline — a themed preview of every '+kindName+' renders here as you type.</div>'; return; }
-  const cards = blocks.map((b,i) => `
+/** Themed cards from outline blocks [{title, content}] — the ONE renderer behind both the
+ *  Draft tab (live, from the editor) and the My-files quick look (from the stored record). */
+function slideCards(blocks, t, kindName){
+  const c = t.colors;
+  return blocks.map((b,i) => `
     <div class="pvSlide" style="background:${hx(c.canvas)};color:${hx(c.ink)}">
       <div class="body">
         <span class="kick" style="background:${hx(c.accent)};color:${lum(c.accent)>0.45?'#111':'#fff'}">${kindName} ${i+1}</span>
-        <div class="ttl" style="color:${hx(c.ink)}">${esc(t.headingCase==='upper'?b.title.toUpperCase():b.title)}</div>
+        <div class="ttl" style="color:${hx(c.ink)}">${esc(t.headingCase==='upper'?String(b.title||'').toUpperCase():String(b.title||''))}</div>
         ${pvBlock(pvLines(b.content), t)}
       </div>
     </div>`).join('');
-  $('pvHost').innerHTML = `<div class="pvNote">Live approximation in <b>${esc(t.name)}</b> — content + palette are faithful; the generated file is the real thing.</div>` + cards;
+}
+function renderPreview(){
+  if (!THEMES.length){ $('pvHost').innerHTML = '<div class="empty">Loading themes…</div>'; return; }
+  const t = pvTheme();
+  const blocks = parseOutline($('outline').value || '');
+  const kindName = { pptx:'slide', docx:'section', xlsx:'sheet' }[KIND];
+  if (!blocks.length){ $('pvHost').innerHTML = '<div class="empty">Write or open an outline — a themed draft of every '+kindName+' renders here as you type.</div>'; return; }
+  $('pvHost').innerHTML = `<div class="pvNote">Draft look in <b>${esc(t.name)}</b> — updates as you type. Generate makes the real file; grab it in <b>My files</b>.</div>` + slideCards(blocks, t, kindName);
 }
 function lum(hex){ const p=[0,2,4].map(i=>{const s=parseInt(hex.slice(i,i+2),16)/255; return s<=0.03928?s/12.92:Math.pow((s+0.055)/1.055,2.4);}); return 0.2126*p[0]+0.7152*p[1]+0.0722*p[2]; }
 let pvTimer = null;
@@ -679,7 +964,7 @@ $('openFile').addEventListener('change', async () => {
       if (j.format && KINDS.some(k => k.id === j.format)) pickKind(j.format);
       SEL = null; renderTemplates();
       res('✓ Opened <b>' + esc(f.name) + '</b> — ' + (j.sections||[]).length + ' sections loaded. Edit here or ask the Guide, preview it, then Generate in any format.', true);
-      showTab('preview');
+      showTab('preview'); landOnPreview();
     }
   } catch(e){ res('Error: ' + e.message, false); }
   $('openFile').value = ''; $('openBtn').disabled = false; $('status').textContent = '';
@@ -788,11 +1073,189 @@ async function sendChat(){
     else { addMsg('bot', j.reply || '(no reply)'); const note = applyActions(j.actions); if (note) addMsg('note', note, true); }
   } catch(e){ typing.remove(); addMsg('bot', '⚠ ' + e.message); }
   $('chatSend').disabled = false; $('chatIn').focus();
+  renderChatChips();
 }
 $('chatSend').onclick = sendChat;
 $('chatIn').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); } });
 
 renderKinds(); renderTemplates(); loadThemes(); loadDecks();
+
+// ── The front-door walkthrough ─────────────────────────────────────────────
+// Drives the studio's own pickers, owns no duplicate state. Session-scoped skip: dismissing it
+// stays dismissed for this tab; ✨ Walkthrough in the studio header always brings it back.
+const WIZ_SKIP_KEY = 'aioffice.wizSkip';
+function kindNoun(){ return KIND === 'docx' ? 'document' : KIND === 'xlsx' ? 'spreadsheet' : 'deck'; }
+function bindCards(root, sel, fn){
+  root.querySelectorAll(sel).forEach(el => {
+    el.onclick = () => fn(el);
+    el.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); fn(el); } };
+  });
+}
+function wzStepGo(n){
+  [1,2,3].forEach(i => $('wzS'+i).classList.toggle('on', i === n));
+  document.querySelectorAll('.wzDots .d').forEach((d,i) => d.classList.toggle('on', i < n));
+  if (n === 3) renderWizTpls();
+  renderWizChips();
+  $('wzS'+n).scrollTop = 0;
+}
+function renderWizChips(){
+  const k = KINDS.find(x => x.id === KIND);
+  const t = THEMES.find(x => x.id === THEME);
+  const kc = k ? `<span class="wzChip">${k.icon} ${esc(k.name)}</span>` : '';
+  const tc = t ? `<span class="wzChip"><span class="dot" style="background:${hx(t.colors.accent)}"></span>${esc(t.name)}</span>` : '';
+  if ($('wzChips2')) $('wzChips2').innerHTML = kc;
+  if ($('wzChips3')) $('wzChips3').innerHTML = kc + tc;
+}
+function renderWizThemes(){
+  if (!THEMES.length) return;
+  $('wzThemes').innerHTML = THEMES.map(t => `
+    <div class="wzTh" data-id="${t.id}" role="button" tabindex="0" aria-label="Use the ${esc(t.name)} look">
+      <div class="flip">${thumb(t,'cover')}<div class="alt">${thumb(t,'content')}</div></div>
+      <div class="tn"><span class="dot" style="background:${hx(t.colors.accent)}"></span>${esc(t.name)}</div>
+      <div class="tm">${esc(t.blurb)}</div>
+    </div>`).join('');
+  bindCards($('wzThemes'), '.wzTh', el => { pickTheme(el.dataset.id); wzStepGo(3); });
+}
+/** The literal shape of a starter, as a mini strip of its slide titles — show, don't describe. */
+function wzStrip(t){
+  const titles = (t.outline || '').split(/\n\s*\n/).map(b => (b.split('\n')[0] || '').trim()).filter(Boolean);
+  if (!titles.length) return '';
+  return `<div class="wzStrip">${titles.slice(0,5).map((s,i) => `<div class="wzSl"><span>${i+1}</span>${esc(s)}</div>`).join('')}</div>`;
+}
+function renderWizTpls(){
+  $('wzTpls').innerHTML = TEMPLATES.filter(t => t.id !== 'blank').map(t => `
+    <div class="wzTpl" data-id="${t.id}" role="button" tabindex="0" aria-label="Start from the ${esc(t.name)} shape">
+      <div class="n">${t.icon} ${esc(t.name)}</div>
+      <div class="d">${esc(t.desc)}</div>
+      ${wzStrip(t)}
+    </div>`).join('');
+  bindCards($('wzTpls'), '.wzTpl', el => {
+    const t = TEMPLATES.find(x => x.id === el.dataset.id);
+    pickTemplate(el.dataset.id);
+    closeWiz(true);
+    showTab('preview');
+    landOnPreview();
+    res('✓ Loaded the <b>' + esc(t ? t.name : '') + '</b> shape — fill in the outline, watch the themed preview update live, then hit Generate.', true);
+  });
+}
+/** On a stacked phone layout the preview lives BELOW the editor — landing focused in the
+ *  textarea pops the keyboard and shows the config screen first, the exact feeling the front
+ *  door exists to kill. Land on the themed preview instead; desktop keeps the editor focus. */
+function landOnPreview(){
+  if (!window.matchMedia('(max-width: 640px)').matches) return;
+  $('outline').blur();
+  $('panePreview').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function closeWiz(remember){
+  $('wiz').classList.remove('on');
+  if (remember) try { sessionStorage.setItem(WIZ_SKIP_KEY, '1'); } catch(e){}
+  pvKick();
+}
+function openWiz(){
+  try { sessionStorage.removeItem(WIZ_SKIP_KEY); } catch(e){}
+  $('wiz').classList.add('on');
+  wzStepGo(1);
+}
+$('wzSkip').onclick = () => closeWiz(true);
+$('wzReopen').onclick = openWiz;
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('wiz').classList.contains('on')) closeWiz(true); });
+bindCards($('wzKinds'), '.wzKind', el => { pickKind(el.dataset.kind); wzStepGo(2); });
+document.querySelectorAll('.wzBack').forEach(b => b.onclick = () => wzStepGo(parseInt(b.dataset.back, 10)));
+$('wzAutoTheme').onclick = () => wzStepGo(3); // the server default stays — auto IS the default
+$('wzTalk').onclick = () => {
+  closeWiz(true); showTab('guide');
+  $('chatIn').value = 'Help me build a ' + kindNoun() + ' — ask me what you need to know.';
+  $('chatIn').focus(); $('chatIn').select();
+};
+$('wzGuide3').onclick = () => {
+  closeWiz(true); showTab('guide');
+  const t = THEMES.find(x => x.id === THEME);
+  $('chatIn').value = 'I’m making a ' + kindNoun() + (t ? ' in the ' + t.name + ' look' : '') + ' about ';
+  $('chatIn').focus();
+};
+$('wzUpload').onclick = () => { closeWiz(true); $('openBtn').click(); };
+$('wzBlank').onclick = () => { closeWiz(true); $('outline').focus(); };
+$('wzDraft').onclick = () => {
+  const topic = $('wzTopic').value.trim();
+  if (!topic){ $('wzTopic').focus(); return; }
+  $('topic').value = topic;
+  closeWiz(true);
+  $('aiBtn').click(); // the studio shows the drafting status, result link and My files
+};
+$('wzTopic').addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); $('wzDraft').onclick(); } });
+// ── Jump back in: the most recent files as one-tap resumes on the front door. Their outline
+// rides the list record (server-side), so resume loads the editor with NO file download.
+function renderWizRecent(decks){
+  const host = $('wzRecent'); if (!host) return;
+  const recent = (decks || []).filter(d => Array.isArray(d.outline) && d.outline.length).slice(0, 3);
+  if (!recent.length){ host.classList.remove('on'); host.innerHTML = ''; return; }
+  host.innerHTML = '<div class="wzRecH">Jump back in</div>' + recent.map((d, i) => {
+    const icon = d.format === 'docx' ? '📄' : d.format === 'xlsx' ? '📈' : '📊';
+    return `<button class="wzRe" data-i="${i}">${icon} <span class="t">${esc(d.title || 'Untitled')}</span><em>${when(d.createdAt)}</em></button>`;
+  }).join('');
+  host.classList.add('on');
+  host.querySelectorAll('.wzRe').forEach(el => {
+    el.onclick = () => {
+      const d = recent[parseInt(el.dataset.i, 10)];
+      if (d.format && KINDS.some(k => k.id === d.format)) pickKind(d.format);
+      if (d.theme) pickTheme(d.theme);
+      $('title').value = d.title || '';
+      writeOutline((d.outline || []).map(s => ({ title: s.title, bullets: s.bullets || [] })));
+      SEL = null; renderTemplates();
+      closeWiz(true); showTab('preview'); landOnPreview();
+      res('✓ Reopened <b>' + esc(d.title || 'your file') + '</b> — tweak anything, then regenerate in any format.', true);
+    };
+  });
+}
+
+// ── Mic dictation (Web Speech API). Client-side and free; the button hides itself where the
+// browser has no speech engine. Nothing listens until the user taps the mic; tapping again
+// stops it, and the transcript lands in the field for review — it never auto-sends.
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+function attachMic(btnId, fieldId){
+  const btn = $(btnId); if (!btn) return;
+  if (!SR){ btn.style.display = 'none'; return; }
+  let rec = null;
+  btn.onclick = () => {
+    if (rec){ rec.stop(); return; }
+    rec = new SR();
+    rec.lang = navigator.language || 'en-US';
+    rec.interimResults = true;
+    const base = $(fieldId).value.trim();
+    rec.onresult = (e) => {
+      let t = '';
+      for (const r of e.results) t += r[0].transcript;
+      $(fieldId).value = (base ? base + ' ' : '') + t.trim();
+    };
+    rec.onend = () => { btn.classList.remove('rec'); rec = null; $(fieldId).focus(); };
+    rec.onerror = () => { btn.classList.remove('rec'); };
+    btn.classList.add('rec');
+    try { rec.start(); } catch(err){ btn.classList.remove('rec'); rec = null; }
+  };
+}
+attachMic('wzMicTopic', 'wzTopic');
+attachMic('micChat', 'chatIn');
+
+// ── Guide quick chips: the common asks as one tap. Context-aware — an empty editor offers
+// starts, a filled one offers edits. A tap sends the message (the user's explicit action).
+function renderChatChips(){
+  const host = $('chatChips'); if (!host) return;
+  const has = readEditorSlides().length > 0;
+  const chips = has
+    ? ['Punch up the wording', 'Tighten it to 5 slides', 'Add a timeline slide', 'Suggest a better look']
+    : ['Draft a 6-slide pitch for my business', 'Build a project update', 'Interview me — one question at a time'];
+  host.innerHTML = chips.map(c => `<button class="chip">${esc(c)}</button>`).join('');
+  host.querySelectorAll('.chip').forEach(b => b.onclick = () => {
+    if ($('chatSend').disabled) return; // one message in flight at a time
+    $('chatIn').value = b.textContent;
+    sendChat();
+  });
+}
+renderChatChips();
+
+// First paint: dismissed earlier this session → straight to the studio.
+try { if (sessionStorage.getItem(WIZ_SKIP_KEY)) $('wiz').classList.remove('on'); } catch(e){}
+renderWizChips();
 </script>
 <script type="module">
 // Surface-bridge client (framework-served): lets the cockpit relay drive this surface through

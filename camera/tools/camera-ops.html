@@ -4,11 +4,12 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>OSHAL Camera Ops</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <style>
-  /* Surface-owned palette. Light is the default; dark via prefers-color-scheme and an
-     explicit data-theme attribute if the framework stamps one. Framework theme tokens are
-     consumed READ-ONLY through var() fallbacks — we never link or edit shared CSS. */
+  /* Surface-owned aliases consume the control-plane theme tokens read-only.
+     Local fallbacks keep the tool legible if it is opened outside the control plane. */
   :root {
     --c-bg: var(--bg-primary, #eef1f6);
     --c-surface: var(--bg-card, #ffffff);

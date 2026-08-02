@@ -1,0 +1,55 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Stupid Superheroes — the new show (2026-07-29).
+#
+# The joke is the same every episode and never gets old: a real emergency arrives,
+# and the only heroes available have powers that are almost completely useless. They
+# are earnest about it. They win anyway, usually by accident, and always kindly.
+#
+# Cast note: they are literally a napkin, a mug, a megaphone and a sock puppet
+# rather than four people in capes — four capes all resolve to "the hero" in a
+# render prompt and become indistinguishable. See shows/README.md rule 2.
+# ─────────────────────────────────────────────────────────────────────────────
+
+slug: stupid-superheroes
+title: Stupid Superheroes
+scenesPerEpisode: 4
+orientation: Landscape
+
+premise: |
+  In Averagetown, the emergency siren rings and the only heroes on duty are the Barely League:
+  four earnest heroes whose superpowers are almost entirely useless. Every episode a small,
+  ordinary problem is treated as a world-ending crisis, each hero insists their own useless power
+  is the answer, and the day is saved anyway — usually sideways, and never by being mean.
+  The comedy is in how seriously they take a power nobody needs. Nobody is ever the butt of the
+  joke; they are proud of each other. Kid-safe: no punching, no peril, no villains — the enemy is
+  a spilled drink or a stuck lid.
+
+styleLock: >-
+  flat 2D paper-cutout comic animation, bold black outlines, halftone dot shading, primary
+  comic-book colors, chunky action panels, no lens effects
+
+# Descriptions are deliberately ONE LINE each: tests/show-library.test.js scans this
+# file line by line to prove the two cast rules, and a folded block would hide the
+# first clause from it.
+cast:
+  - name: Captain Napkin
+    description: beefy caped napkin with a stick-on chest star; can absorb exactly one small spill.
+  - name: Doctor Decaf
+    description: tall drowsy coffee mug with a little lab coat; can make one person yawn.
+  - name: The Mighty Whisper
+    description: small round megaphone with tiny boots; declares every battle cry very quietly.
+  - name: Ultra Sock
+    description: lumpy striped sock puppet with button eyes; always finds the matching sock.
+
+# One comedic situation per episode, walked in order and then recycled.
+jokeSeeds:
+  - The siren rings for a spilled juice box, and all four heroes claim it is the big one.
+  - The team cannot agree who gets to say the catchphrase, so they all say it at once.
+  - A jar lid is stuck, and every useless power is tried before somebody simply twists it.
+  - Ultra Sock finds the matching sock immediately, and nobody asked about socks at all.
+  - Doctor Decaf yawns at the wrong moment and the whole rescue takes a short nap.
+  - The Mighty Whisper's battle cry is so quiet the others have to lean in and guess.
+  - Captain Napkin absorbs the spill on the first try and spends the rest of the day retired.
+  - A cat is stuck up a very short step, and the heroes plan a six-stage rescue.
+  - The heroes get new business cards and every job title is wrong.
+  - Averagetown gives them a trophy, and the trophy needs rescuing from a high shelf.

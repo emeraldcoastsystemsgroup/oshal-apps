@@ -37,7 +37,7 @@ theme: sakura
 
 source:
   type: git-subdir
-  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: youtube-kids
   ref: main
 

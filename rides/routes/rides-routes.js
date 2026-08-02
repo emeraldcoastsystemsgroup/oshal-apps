@@ -27,6 +27,20 @@
  *            | stays core in the image (the rides-bot + this route both shell it at /app).
  *            | The rides-concierge REAL bot-node (rides-bot container / registries / personas /
  *            | uberRidesToolKit.js) stays core per ADR-093 interim. Logic unchanged.
+ * 2026-08-01 20:40:00 | roger.murphy@emeraldcoastsystemsgroup.com | A REAL map. The Google Maps path
+ *            | this surface shipped with was gated on GOOGLE_MAPS_BROWSER_KEY, which was set in no
+ *            | file in either repo — so /config had only ever answered provider:'fallback' and the
+ *            | rider got a CSS grid with two pins at fixed percentages. OpenStreetMap over vendored
+ *            | Leaflet is now the DEFAULT provider (keyless: works on a fresh clone, no billing
+ *            | account, no partner registration), and Google remains an automatic upgrade when a key
+ *            | IS present. Three route additions serve it: a static mount for tools/vendor (the
+ *            | Leaflet bytes ship with the package, not from a CDN — an external script tag dies
+ *            | under OSHAL_STRICT_CSP and on an air-gapped box), and /geocode + /reverse, which
+ *            | proxy the framework CLI's Nominatim contract so pin drags resolve through ONE
+ *            | rate-limited, User-Agent'd, cached path instead of every rider's browser hitting the
+ *            | public endpoint directly. /estimate now passes through the coords + measured distance
+ *            | the CLI already computes, so the map draws its pins without a second round-trip.
+ *            | Guard: tests/rides-map-surface.test.js.
  * ---------------------------------------------------------------------------
  * @module rides-routes
  */
@@ -183,11 +197,16 @@ function buildConciergePrompt(o) {
     const profileLine = p.onboarded || p.home_address || p.work_address
         ? `home:${p.home_address || '?'} | work:${p.work_address || '?'} | prefers:${p.default_ride_type || 'UberX'}`
         : 'NOT ONBOARDED — you may ask their home/work address + preferred ride type once and save it, but do not block a quick ride on it.';
-    const opts = (o.lastOptions || []).map((x) => `- ${x.label}: ~$${x.fareLow}-${x.fareHigh}, ${x.etaPickupMin}min away`).join('\n') || '(none shown yet)';
+    // A null fare means an address did not geocode. Say so plainly rather than interpolating
+    // "$null-null" into the prompt and letting the bot invent a price to paper over it.
+    const opts = (o.lastOptions || []).map((x) => (x.fareLow === null || x.fareLow === undefined
+        ? `- ${x.label}: no fare estimate (the address did not resolve to a location)`
+        : `- ${x.label}: ~$${x.fareLow}-${x.fareHigh}`)).join('\n') || '(none shown yet)';
     const convo = (o.history || []).map((h) => `${h.role === 'assistant' ? 'You' : 'Rider'}: ${h.content}`).join('\n');
     return [
         'You are the Rides Concierge — a quick, practical Uber trip planner. Confirm pickup + destination, show ride options with ESTIMATED fares, and hand off an Uber deep link. You never request the ride or take payment.',
         'Pickup defaults to "my location". Ask only what you need (destination is required). Set "showOptions": true to display fare estimates; set "book": true ONLY when the rider clearly picks a ride to go. Always note fares are estimates.',
+        'Fares are modelled from the MEASURED distance between the two geocoded points. If an option says the address did not resolve, there is no fare — say so and ask for a street number or a city. NEVER invent a dollar figure to fill the gap.',
         '',
         `RIDER PROFILE: ${profileLine}`,
         `LAST OPTIONS SHOWN:\n${opts}`,
@@ -253,6 +272,12 @@ function createRidesRoutes(ctx) {
     // ── Surface ────────────────────────────────────────────────────────────────
     router.get('/app', serveFile(surfaceDir, 'rides-app.html'));
     router.get('/chat', serveFile(surfaceDir, 'rides-app.html'));
+    // Leaflet ships INSIDE the package (tools/vendor/leaflet). Served from here rather than a CDN
+    // so the map still draws under OSHAL_STRICT_CSP and on a box with no egress. Immutable bytes at
+    // a pinned version, so a long cache is safe; a version bump changes the path in the surface.
+    router.use('/vendor', (0, express_1.static)(path.join(surfaceDir, 'vendor'), {
+        maxAge: '30d', immutable: true, index: false, dotfiles: 'deny', fallthrough: false,
+    }));
     router.get('/config', rider(async (_req, res, sub) => {
         const r = await pool.query(`SELECT 1 FROM oshal_connections WHERE provider='uber-rides' AND (user_sub=$1 OR tenant_id IS NOT NULL) LIMIT 1`, [sub]);
         const googleMapsBrowserKey = process.env.GOOGLE_MAPS_BROWSER_KEY ||
@@ -262,12 +287,62 @@ function createRidesRoutes(ctx) {
         res.json({
             uberRidesConnected: !!r.rowCount,
             maps: {
-                provider: googleMapsBrowserKey ? 'google-maps' : 'fallback',
+                // 'osm' is a REAL map, not a fallback: keyless OpenStreetMap tiles under the Leaflet
+                // build vendored at tools/vendor/leaflet. Google is the upgrade when a key exists —
+                // it buys road-routed polylines and Places autocomplete, not the map itself.
+                provider: googleMapsBrowserKey ? 'google-maps' : 'osm',
                 googleMapsEnabled: Boolean(googleMapsBrowserKey),
                 googleMapsBrowserKey: googleMapsBrowserKey || undefined,
                 googleMapsMapId: googleMapsMapId || undefined,
+                // An operator running their own tile server points OSHAL_MAP_TILE_URL at it; the OSM
+                // public tile policy is best-effort and explicitly not for heavy or commercial load.
+                tileUrl: process.env.OSHAL_MAP_TILE_URL || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                tileAttribution: process.env.OSHAL_MAP_TILE_URL
+                    ? 'Map data © the configured tile provider'
+                    : '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19,
             },
         });
+    }));
+    // ── Geocoding proxy ────────────────────────────────────────────────────────
+    // The map drops and drags pins, and every one of those has to become an address (and back).
+    // It goes through the framework CLI rather than the browser so Nominatim sees ONE caller
+    // honouring its terms — a real User-Agent, ~1 req/s serialized, per-process cached — instead
+    // of one uncontrolled caller per rider. Auth-gated like every other route here.
+    router.get('/geocode', rider(async (req, res, sub) => {
+        const q = String(req.query.q || '').trim();
+        if (!q) {
+            res.status(400).json({ error: 'q is required' });
+            return;
+        }
+        if (q.length > 300) {
+            res.status(400).json({ error: 'q is too long' });
+            return;
+        }
+        const r = await ridesCli(pool, sub, ['geocode', q]);
+        if (!r || r.error || typeof r.lat !== 'number') {
+            res.status(404).json({ error: r?.error || 'address did not resolve' });
+            return;
+        }
+        res.json({ lat: r.lat, lon: r.lon, label: r.label });
+    }));
+    router.get('/reverse', rider(async (req, res, sub) => {
+        const lat = Number(req.query.lat);
+        const lon = Number(req.query.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+            res.status(400).json({ error: 'lat and lon are required' });
+            return;
+        }
+        if (Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+            res.status(400).json({ error: 'lat/lon out of range' });
+            return;
+        }
+        const r = await ridesCli(pool, sub, ['reverse', String(lat), String(lon)]);
+        if (!r || r.error || !r.label) {
+            res.status(404).json({ error: r?.error || 'no address at that point' });
+            return;
+        }
+        res.json({ lat, lon, label: r.label });
     }));
     // ── Estimate + request (via the connector CLI) ──────────────────────────────
     router.get('/estimate', rider(async (req, res, sub) => {
@@ -278,7 +353,16 @@ function createRidesRoutes(ctx) {
             return;
         }
         const r = await ridesCli(pool, sub, ['estimate', pickup, dropoff]);
-        res.json({ pickup, dropoff, options: r.options || [], source: r.source || 'estimate', error: r.error });
+        res.json({
+            pickup, dropoff, options: r.options || [], source: r.source || 'estimate', error: r.error,
+            // The CLI geocoded both ends to measure the trip; hand the pins and the measurement to the
+            // map so it draws the route without asking Nominatim the same two questions again.
+            coords: r.coords || null,
+            distanceKm: r.distanceKm ?? null,
+            straightLineKm: r.straightLineKm ?? null,
+            basis: r.basis || 'unresolved',
+            note: r.note,
+        });
     }));
     router.post('/request', rider(async (req, res, sub) => {
         const b = req.body || {};

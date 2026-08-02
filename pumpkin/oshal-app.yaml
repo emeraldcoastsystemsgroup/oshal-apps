@@ -13,12 +13,41 @@
 #   AUTONOMOUS: a guest speaks and pumpkin-bot (inline, agent ...054) replies IN
 #               CHARACTER; the surface speaks + lip-syncs the reply.
 #
-# The pumpkin brain (autonomous mode) runs on the pumpkin-bot INLINE node, already
+# The pumpkin brain runs on the pumpkin-bot INLINE node (agent ...054), registered
 # in the core bot registry (BOTH swarm-bot-registry blocks, container oshal-api) +
-# persona ai-lab/bot-personas/pumpkin-bot.yaml — so this manifest declares NO
-# `bots:` block (that would double-register agent ...054 and fail the
-# persona-identity check). personas/pumpkin-bot.yaml here is a package COPY for
-# the registrar/reference only.
+# persona ai-lab/bot-personas/pumpkin-bot.yaml. personas/pumpkin-bot.yaml here is
+# the package COPY the registrar reads.
+#
+# The `bots:` block below DELIBERATELY re-declares that already-static agent id.
+# An older revision of this header claimed doing so "would double-register agent
+# ...054 and fail the persona-identity check" — that was wrong, and camera's
+# manifest has shipped the identical shape since the Wave-3 carve. The facts:
+#   - validatePersonaIdentities() runs inside createSwarmExtensionBindings() at
+#     composition time, long BEFORE server.ts calls autoLoadAllWithRetry(), so a
+#     package bot is never in getActiveRegistry() when that duplicate check runs;
+#   - getActiveRegistry() concatenates statics FIRST, so every `.find()` consumer
+#     (endpoint, harness, dispatch) still resolves ...054 to the CORE definition —
+#     this block cannot change how the bot runs;
+#   - ADR-085 D3: isBotAccessibleTo() requires EVERY matching definition to permit
+#     the caller, so a package can only ever NARROW reach, never widen it.
+# Declaring it is what populates swarm_applications.agent_ids and seeds
+# agent_tools from the persona's `authorizations:` — without it the bot owns the
+# domain (ADR-036) but holds none of the app's tools.
+#
+# SWARM CONTROL: the projector is driven over a paired SSE room whose 18-byte
+# pairing token register() only ever hands back to the registering BROWSER, so no
+# bot could ever obtain one — nothing in the swarm could make the prop speak. The
+# `tools:` block below is the door: two manifest-declared `executorType: api`
+# tools that ToolExecutorService.handleDynamicApiExecutor calls with
+# serviceSecretHeaders() + X-OSHAL-User-Sub stamped on, which the route resolves
+# back to the owner sub the room registry already keys on. The browser
+# /rooms/{say,ask,replay,preset,mode} doors keep the pairing token, unchanged.
+#
+# NOTE the tools are only correct while ...054 stays INLINE on the api:
+# handleDynamicApiExecutor resolves a relative endpoint against
+# http://127.0.0.1:${PORT||5000} unless OSHAL_INTERNAL_API_BASE_URL is set (it is
+# set nowhere in this stack). Moving the bot to a dedicated node, or authorizing
+# these tools on a containerised bot, makes the call hit that node's own server.
 #
 # The pumpkin ENGINE is bundled with this package in src-routes/: presets, reply
 # parsing, the in-memory room registry, and PumpkinPresetService. What stays
@@ -39,13 +68,15 @@ displayName: Pumpkin
 description: >-
   Animated talking jack-o'-lantern Halloween prop — project a glowing procedural
   pumpkin face into an inflatable, with a lip-syncing mouth. Mimic mode says back
-  what you feed via mic; autonomous mode converses in character as a pumpkin.
-version: 1.0.1
+  what you feed via mic; autonomous mode converses in character as a pumpkin. The
+  swarm can drive it too: pumpkin-bot holds route-backed tools to list the live
+  projector screens and make one speak on command.
+version: 1.2.0
 status: active
 
 source:
   type: git-subdir
-  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: pumpkin
   ref: main
 
@@ -53,6 +84,130 @@ dependencies:
   apps: []
   tools: []
   connectors: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — the prop's brain and, as of 1.2.0, its stage manager. Form B inline
+# concierge on oshal-api, already in BOTH core swarm-bot-registry blocks; see the
+# header for why re-declaring the static id here is correct and what it buys.
+#
+# capabilities MUST stay the exact set the core registry declares: upsertBots
+# writes `base_capabilities = EXCLUDED.base_capabilities` (whole-array CLOBBER,
+# not a merge), and that array is half of the capability set
+# tool-capability-scope filters this bot's tool list with. Dropping one here
+# silently narrows which tools reach the prompt.
+#
+# selectorDescriptor + routingKeywords are declared EXPLICITLY and must be:
+# readBotSelectorSeed()'s persona fallback resolves bot.persona against
+# process.cwd() ONLY, so this package-relative path never resolves at runtime and
+# the seed would be empty — leaving the bot with no descriptor for Jarvis's
+# classify and no routing keywords for tool scoping.
+#
+# accessRoles is deliberately NOT declared. ADR-085 D3 is most-restrictive-wins
+# across every matching definition, so a package can only narrow — declaring
+# ['operator','swarm','jarvis'] here could not widen anything and would read as
+# working config that does nothing. The core registry entry (today
+# ['operator','swarm']) is the single authority; when an operator adds 'jarvis'
+# there, Jarvis reach turns on with NO change to this file.
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: a0000000-0000-0000-0000-000000000054
+    name: pumpkin-bot
+    persona: personas/pumpkin-bot.yaml
+    role: seasonal/jack-o-lantern-voice
+    capabilities:
+      - halloween-persona
+      - in-character-conversation
+      - spooky-improv
+      - prop-voice
+    # Jarvis answers in the chat instead of deep-linking to the surface: "tell the
+    # pumpkin to say happy halloween" must DRIVE the prop, not hand back a link.
+    jarvisMode: delegate
+    selectorDescriptor: >-
+      Select this bot for anything about the Halloween jack-o'-lantern projection prop.
+      It both VOICES the pumpkin (replying in character to what a guest on the porch said,
+      for the projector to speak and lip-sync) and DRIVES it on command — it can list which
+      projector screens are live and make a named screen speak a line out loud.
+    routingKeywords:
+      - pumpkin
+      - jack-o-lantern
+      - halloween
+      - spooky
+      - trick-or-treat
+      - prop
+      - projector
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TOOLS — the swarm's door to the physical prop (see the header). Both are
+# route-backed `api` tools: the framework does the HTTP and stamps the service
+# secret + the accountable owner sub, so no credential ever enters prompt space.
+#
+# The real authorization boundary is the ROUTE, not this block. Tool visibility
+# is capability-tag matching (tool-capability-scope), and it is looser than it
+# looks — manifestToolToCreateInput auto-adds a 'swarm-app-tool' tag and
+# tagsMatchCapabilities treats a hyphen prefix as a match, so any bot whose
+# capabilities start with 'swarm' can see every app tool, and a bot with no
+# resolvable capabilities gets the unfiltered set. Never treat skills:/
+# routingTags: as a privacy control.
+# ─────────────────────────────────────────────────────────────────────────────
+tools:
+  - name: pumpkin-rooms
+    displayName: Pumpkin Screens
+    type: api
+    category: pumpkin
+    description: List the caller's registered jack-o'-lantern projector screens — room slug, label, and whether the screen is currently live.
+    executor: { executorType: api, apiEndpoint: "GET /api/pumpkin/rooms" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Read-only. Call it before pumpkin-speak whenever you do not already know which screen to
+      talk on, or when a speak attempt reported that no projector was listening. The returned
+      list is the ONLY source of which screens exist — never guess a room name.
+    routingTags: [pumpkin, prop, projector, status]
+    skills: [prop-voice]
+    tags: [pumpkin, route-backed]
+
+  - name: pumpkin-speak
+    displayName: Speak Through The Pumpkin
+    type: api
+    category: pumpkin
+    description: Make the caller's jack-o'-lantern projector actually say a line out loud, with a facial expression. mode "say" speaks the text verbatim; mode "ask" runs the text through the pumpkin persona and speaks its in-character reply.
+    executor: { executorType: api, apiEndpoint: "POST /api/pumpkin/speak" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        text:
+          type: string
+          description: What to speak (mode "say"), or what a guest said (mode "ask"). Required, non-empty.
+        mode:
+          type: string
+          enum: [say, ask]
+          description: 'say = speak the text verbatim, no LLM. ask = the pumpkin persona replies and that reply is spoken. Default: say.'
+        room:
+          type: string
+          description: Which screen — a room slug or its label. Omit when exactly one screen is live. Pass "*" to speak on every live screen at once.
+        expression:
+          type: string
+          enum: [neutral, happy, mischief, spooky, angry, laugh, surprised]
+          description: Face animation for the line. Ignored when mode is "ask" (the persona picks its own).
+        intensity:
+          type: number
+          description: How big the delivery is, 0.0 calm to 1.0 huge. Ignored when mode is "ask". Default 0.6.
+        preset:
+          type: string
+          description: Optional saved look to push to the same screen(s) immediately before the line.
+      required: [text]
+    usageInstructions: >-
+      This drives a physical device in someone's home, out loud. It FAILS LOUD rather than
+      pretending — a 409 no_live_pumpkin means no projector is registered, projector_not_listening
+      means the room exists but its projector window is closed, and ambiguous_room means two or
+      more screens are live and you must name one (or pass room:"*" to deliberately speak on all
+      of them). Never report that the pumpkin spoke unless the response was ok:true; report the
+      returned error verbatim instead. Speak only on the screen you were asked about.
+    routingTags: [pumpkin, prop, projector, speak, halloween]
+    skills: [prop-voice, halloween-persona]
+    tags: [pumpkin, route-backed]
 
 # UI SURFACES — one ribbon icon that opens the pumpkin CONTROL surface. The control
 # surface picks preset + mode, edits/saves looks, pairs a projector room, and launches
@@ -78,10 +233,15 @@ routes:
     requiresContext: true
 
 # DATABASE MIGRATIONS — applied idempotently on load (per-user saved looks +
-# settings). Package COPY of the kernel's 084; the engine's lazy ensureSchema
-# (framework-resident PumpkinPresetService) also self-heals local dev.
+# settings + the saved-responses replay playlist). 084 is a package COPY of the
+# kernel's; 094 is package-owned. The engine's lazy ensureSchema also self-heals
+# local dev for both.
 migrations:
   - migrations/084-pumpkin-platform.sql
+  - migrations/094-pumpkin-responses.sql
+  # 104 adds pumpkin_settings.room_label — what the SHORT projector URL reads back.
+  # Additive + idempotent; PumpkinPresetService.ensureSchema applies the same ALTER lazily.
+  - migrations/104-pumpkin-room-label.sql
 
 # RIBBON VISIBILITY — focus mode for /cockpit?app=pumpkin.
 ribbon:

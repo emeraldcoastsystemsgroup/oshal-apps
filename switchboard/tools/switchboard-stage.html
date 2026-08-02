@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Stage — Switchboard</title>
+<!-- ONE link gives this standalone surface every OSHAL theme; the active one is chosen by the
+     data-theme on <html> above (and kept in sync live by surface-theme.js). Every colour below is
+     DERIVED from a framework token with a hardcoded fallback, so the surface is native to all 11
+     themes in-cockpit AND still renders if opened on its own (fallbacks = the midnight palette,
+     with a light-scheme set under @media so a bare open respects the OS theme too). -->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  /* ── standalone fallback palette (only applies when framework tokens are absent) ──────────── */
+  :root {
+    --sb-bg:#0a0a12; --sb-surface:#12121e; --sb-card:rgba(28,28,48,.55); --sb-card-hover:rgba(40,40,68,.66);
+    --sb-line:rgba(255,255,255,.09); --sb-text:#eeeef5; --sb-text2:#c8c8da; --sb-muted:#8a8aa0;
+    --sb-accent:#7c7cff; --sb-ok:#00d3a7; --sb-warn:#f5b342; --sb-err:#ff6f5e; --sb-active:#4aa3ff;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --sb-bg:#eef1f5; --sb-surface:#f6f8fb; --sb-card:#ffffff; --sb-card-hover:#fbfcfe;
+      --sb-line:rgba(22,26,34,.10); --sb-text:#191c22; --sb-text2:#3a4048; --sb-muted:#5a606b;
+      --sb-accent:#5a5af0; --sb-ok:#1f9d74; --sb-warn:#b3762e; --sb-err:#d94f3d; --sb-active:#2f77c9;
+    }
+  }
+
+  /* ── aliases: framework token first, standalone fallback second ───────────────────────────── */
+  :root {
+    --bg:      var(--bg-primary,      var(--sb-bg));
+    --surface: var(--bg-secondary,    var(--sb-surface));
+    --card:    var(--bg-card,         var(--sb-card));
+    --cardh:   var(--bg-card-hover,   var(--sb-card-hover));
+    --line:    var(--border-color,    var(--sb-line));
+    --lineh:   var(--border-color-hover, var(--sb-line));
+    --text:    var(--text-primary,    var(--sb-text));
+    --text2:   var(--text-secondary,  var(--sb-text2));
+    --muted:   var(--text-muted,      var(--sb-muted));
+    --accent:  var(--accent-primary,  var(--sb-accent));
+    --accent-grad: var(--accent-gradient, linear-gradient(135deg, var(--accent), var(--sb-active)));
+    --ok:      var(--status-success,  var(--sb-ok));
+    --warn:    var(--status-warning,  var(--sb-warn));
+    --err:     var(--status-error,    var(--sb-err));
+    --active:  var(--status-active,   var(--sb-active));
+
+    /* platform brand marks (fixed — like the today + compose surfaces) */
+    --gmail:#d64b3f; --li:#0a66c2; --x:#e9eaec; --fb:#1877f2; --ig:#d6297a;
+
+    --r-sm:10px; --r-md:16px; --r-lg:22px; --pill:999px;
+    --ease:cubic-bezier(.32,.72,.24,1);
+  }
+  /* keep X's chip readable on light themes */
+  @media (prefers-color-scheme: light) { :root { --x:#16181c; } }
+  :root[data-theme="daylight"], :root[data-theme="gray"], :root[data-theme="light-blue"],
+  :root[data-theme="sakura"], :root[data-theme="amber"] { --x:#16181c; }
+
+  * { box-sizing:border-box; }
+  html,body { height:100%; }
+  body {
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Segoe UI",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased; font-size:14px; line-height:1.45;
+  }
+  .tnum { font-variant-numeric:tabular-nums; }
+  a { color:var(--accent); text-decoration:none; }
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+
+  .wrap { max-width:1040px; margin:0 auto; padding:30px 30px 90px; }
+
+  /* ── header ───────────────────────────────────────────────────────────────────────────────── */
+  .head { display:flex; align-items:flex-start; gap:16px; margin-bottom:22px; flex-wrap:wrap; }
+  .head .h-main { flex:1; min-width:220px; }
+  .greet { font-size:28px; font-weight:680; letter-spacing:-.025em; margin:0 0 6px; text-wrap:balance; }
+  .subline { color:var(--muted); font-size:15px; margin:0; }
+  .subline b { color:var(--text); font-weight:600; }
+
+  /* "broadcasting as workspace" selector */
+  .as { display:flex; align-items:center; gap:9px; padding-top:4px; }
+  .as .lbl { color:var(--muted); font-size:12.5px; white-space:nowrap; }
+  .wsel {
+    appearance:none; border:1px solid var(--line); background:var(--card); color:var(--text);
+    font:inherit; font-size:13px; font-weight:560; padding:8px 32px 8px 14px; border-radius:var(--pill);
+    cursor:pointer; background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a8aa0' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+    background-repeat:no-repeat; background-position:right 12px center; transition:border-color var(--ease) .15s;
+  }
+  .wsel:hover { border-color:var(--accent); }
+
+  /* preview ribbon */
+  .previewpill {
+    display:none; align-items:center; gap:7px; font-size:12px; color:var(--warn);
+    background:color-mix(in srgb, var(--warn) 12%, transparent); border:1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+    padding:5px 12px; border-radius:var(--pill); margin-bottom:18px; width:fit-content;
+  }
+  .previewpill.show { display:inline-flex; }
+  .previewpill svg { width:13px; height:13px; }
+
+  /* ── cards + layout ───────────────────────────────────────────────────────────────────────── */
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:var(--r-lg); padding:20px; margin-bottom:16px; }
+  .panel .phead { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .panel .phead .ic { width:30px; height:30px; border-radius:9px; display:grid; place-items:center; background:color-mix(in srgb,var(--accent) 15%,transparent); color:var(--accent); }
+  .panel .phead .ic svg { width:16px; height:16px; }
+  .panel .phead h2 { font-size:15.5px; font-weight:640; letter-spacing:-.01em; margin:0; }
+  .panel .phead .sub { color:var(--muted); font-size:12.5px; margin-left:auto; }
+
+  textarea.src {
+    width:100%; min-height:132px; resize:vertical; border:1px solid var(--line); background:var(--surface);
+    color:var(--text); font:inherit; font-size:15px; line-height:1.55; border-radius:var(--r-md); padding:15px 16px;
+    transition:border-color var(--ease) .15s;
+  }
+  textarea.src:focus { outline:none; border-color:var(--accent); }
+  .srcfoot { display:flex; align-items:center; gap:12px; margin-top:10px; color:var(--muted); font-size:12px; }
+  .srcfoot .cc { margin-left:auto; }
+
+  /* channel selector */
+  .plats { display:flex; gap:9px; flex-wrap:wrap; margin-top:14px; }
+  .plat {
+    appearance:none; border:1px solid var(--line); background:var(--surface); color:var(--text2);
+    font:inherit; font-size:13px; font-weight:560; padding:8px 14px 8px 11px; border-radius:var(--pill);
+    cursor:pointer; display:inline-flex; align-items:center; gap:8px; transition:all var(--ease) .15s; position:relative;
+  }
+  .plat .sw { width:9px; height:9px; border-radius:3px; }
+  .plat .dot { width:6px; height:6px; border-radius:50%; background:var(--muted); opacity:.5; }
+  .plat.on { border-color:var(--accent); color:var(--text); background:color-mix(in srgb,var(--accent) 12%,transparent); }
+  .plat.on .dot { background:var(--ok); opacity:1; }
+  .plat.off { opacity:.55; }
+  .plat:hover { border-color:var(--lineh); }
+  .plat .nc { font-size:10.5px; color:var(--muted); font-weight:600; }
+
+  /* actions */
+  .actions { display:flex; gap:11px; align-items:center; flex-wrap:wrap; margin-top:18px; }
+  .btn {
+    appearance:none; border:1px solid var(--line); background:var(--surface); color:var(--text2);
+    font:inherit; font-size:14px; font-weight:600; padding:11px 20px; border-radius:var(--pill);
+    cursor:pointer; display:inline-flex; align-items:center; gap:9px; transition:all var(--ease) .15s;
+  }
+  .btn svg { width:16px; height:16px; }
+  .btn:hover { border-color:var(--accent); color:var(--accent); }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+  .btn.primary { background:var(--accent-grad); border-color:transparent; color:#fff; box-shadow:0 10px 26px rgba(0,0,0,.18); }
+  .btn.primary:hover { filter:brightness(1.07); color:#fff; transform:translateY(-1px); }
+  .btn.sm { font-size:12.5px; padding:8px 14px; }
+  .btn .spin { animation:spin 1s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* channel cards */
+  .grouplbl { font-size:11px; font-weight:650; text-transform:uppercase; letter-spacing:.09em; color:var(--muted); margin:26px 2px 12px; }
+  .vgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; }
+  .vcard {
+    background:var(--card); border:1px solid var(--line); border-radius:var(--r-md); padding:16px 17px;
+    display:flex; flex-direction:column; gap:11px; animation:rise .4s var(--ease) backwards;
+  }
+  @keyframes rise { from { opacity:0; transform:translateY(9px); } to { opacity:1; transform:none; } }
+  .vcard .vhead { display:flex; align-items:center; gap:9px; }
+  .vcard .mark { width:26px; height:26px; border-radius:8px; display:grid; place-items:center; color:#fff; }
+  .vcard .mark svg { width:15px; height:15px; }
+  .vcard .vname { font-weight:640; font-size:14px; }
+  .vcard .vmeter { margin-left:auto; font-size:11.5px; font-weight:600; color:var(--muted); }
+  .vcard .vmeter.over { color:var(--err); }
+  .vcard textarea {
+    width:100%; min-height:110px; resize:vertical; border:1px solid var(--line); background:var(--surface);
+    color:var(--text); font:inherit; font-size:13.5px; line-height:1.5; border-radius:var(--r-sm); padding:12px 13px;
+    transition:border-color var(--ease) .15s;
+  }
+  .vcard textarea:focus { outline:none; border-color:var(--accent); }
+  .vcard .res { font-size:12px; padding:8px 11px; border-radius:var(--r-sm); display:none; align-items:center; gap:7px; }
+  .vcard .res.show { display:flex; }
+  .vcard .res svg { width:14px; height:14px; flex-shrink:0; }
+  .vcard .res.ok { background:color-mix(in srgb,var(--ok) 12%,transparent); color:var(--ok); border:1px solid color-mix(in srgb,var(--ok) 32%,transparent); }
+  .vcard .res.err { background:color-mix(in srgb,var(--err) 12%,transparent); color:var(--err); border:1px solid color-mix(in srgb,var(--err) 32%,transparent); }
+  .vcard .drop { align-self:flex-end; font-size:11.5px; color:var(--muted); background:none; border:0; cursor:pointer; font-family:inherit; }
+  .vcard .drop:hover { color:var(--err); }
+
+  /* the ONE broadcast bar */
+  .stagebar {
+    display:none; align-items:center; gap:12px; flex-wrap:wrap; margin-top:20px;
+    background:var(--card); border:1px solid var(--line); border-radius:var(--r-lg); padding:16px 20px;
+  }
+  .stagebar.show { display:flex; }
+  .stagebar .note { color:var(--muted); font-size:12.5px; flex:1; min-width:200px; }
+  .confirmwrap { display:none; gap:8px; align-items:center; }
+  .confirmwrap.show { display:flex; }
+  .confirmwrap .warnpub { font-size:12.5px; color:var(--warn); font-weight:600; }
+  .sendbtn.hide { display:none; }
+  .sumline { display:none; font-size:12.5px; margin-top:12px; color:var(--muted); }
+  .sumline.show { display:block; }
+  .sumline b.okc { color:var(--ok); } .sumline b.errc { color:var(--err); }
+
+  /* states */
+  .hero { text-align:center; padding:52px 32px; background:var(--card); border:1px solid var(--line); border-radius:var(--r-lg); margin-top:8px; }
+  .hero .badge { width:64px; height:64px; border-radius:19px; background:var(--accent-grad); display:grid; place-items:center; margin:0 auto 18px; box-shadow:0 12px 30px rgba(0,0,0,.2); }
+  .hero .badge svg { width:32px; height:32px; color:#fff; }
+  .hero h2 { font-size:22px; font-weight:680; letter-spacing:-.02em; margin:0 0 8px; }
+  .hero p { color:var(--muted); font-size:14.5px; max-width:46ch; margin:0 auto 22px; line-height:1.55; }
+
+  .footnote { margin-top:30px; padding-top:16px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); display:flex; align-items:center; gap:8px; }
+  .footnote svg { width:13px; height:13px; color:var(--accent); }
+
+  @media (max-width:640px) {
+    .wrap { padding:20px 15px 70px; }
+    .greet { font-size:23px; }
+    .vgrid { grid-template-columns:1fr; }
+    .as { width:100%; }
+  }
+  @media (prefers-reduced-motion:reduce) { * { animation:none !important; transition:none !important; } }
+</style>
+</head>
+<body>
+
+<!-- icon sprite -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-megaphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-5v12L3 13v-2Z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><path d="m6.3 6.3 2.4 2.4M15.3 15.3l2.4 2.4M17.7 6.3l-2.4 2.4M8.7 15.3l-2.4 2.4"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4M9 14h.01M15 14h.01"/><path d="M2 13v2M22 13v2"/></symbol>
+  <symbol id="i-at" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.9 7.9"/></symbol>
+  <symbol id="i-dm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-9 8 8.5 8.5 0 0 1-3.9-.9L3 20l1.4-4.1A8.38 8.38 0 0 1 12 3.5a8.5 8.5 0 0 1 9 8Z"/></symbol>
+</defs></svg>
+
+<div class="wrap">
+  <div class="previewpill" id="previewpill"><svg><use href="#i-eye"/></svg> Preview — connect your accounts to broadcast for real</div>
+
+  <header class="head">
+    <div class="h-main">
+      <h1 class="greet">Stage</h1>
+      <p class="subline">One message, every channel — and <b>nothing goes out without your confirm</b>.</p>
+    </div>
+    <div class="as">
+      <span class="lbl">Broadcasting as</span>
+      <select class="wsel" id="wsel" aria-label="Workspace"><option value="">All accounts</option></select>
+    </div>
+  </header>
+
+  <!-- source editor + channel picker -->
+  <section class="panel">
+    <div class="phead">
+      <span class="ic"><svg><use href="#i-megaphone"/></svg></span>
+      <h2>Your broadcast</h2>
+      <span class="sub">Write once, pick your channels</span>
+    </div>
+    <textarea class="src" id="src" placeholder="What are you announcing? Write it once — send it everywhere…"></textarea>
+    <div class="srcfoot">
+      <span>Channels come from your connected accounts — same list Compose uses.</span>
+      <span class="cc tnum" id="srccc">0 characters</span>
+    </div>
+
+    <div class="plats" id="plats"><!-- channel chips injected --></div>
+
+    <div class="actions">
+      <button class="btn primary" id="tailorBtn"><svg><use href="#i-bot"/></svg> Tailor per channel</button>
+      <button class="btn" id="asisBtn"><svg><use href="#i-copy"/></svg> Use as-is</button>
+    </div>
+  </section>
+
+  <!-- per-channel cards -->
+  <div id="cardsWrap"></div>
+
+  <!-- the ONE send bar -->
+  <div class="stagebar" id="stagebar">
+    <span class="note" id="stagenote">Review each channel's text above — the broadcast sends exactly what you see.</span>
+    <button class="btn primary sendbtn" id="sendBtn"><svg><use href="#i-send"/></svg> Send to <span class="tnum" id="sendN">0</span> channels</button>
+    <div class="confirmwrap" id="confirmwrap">
+      <span class="warnpub" id="confirmlbl">Post to 0 channels now?</span>
+      <button class="btn sm primary" id="doconfirm"><svg><use href="#i-check"/></svg> Confirm</button>
+      <button class="btn sm" id="cancelconfirm"><svg><use href="#i-x"/></svg></button>
+    </div>
+  </div>
+  <div class="sumline" id="sumline"></div>
+
+  <div class="footnote"><svg><use href="#i-bot"/></svg> Tailoring runs on the communications bot · the broadcast sends the exact text you approve, one confirm per send — a failed channel never blocks the others.</div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var API = "/api/switchboard";
+  // brand metadata for the channel chips + card marks
+  var BRAND = {
+    x:        { label:"X",        v:"--x",  icon:"#i-at" },
+    linkedin: { label:"LinkedIn", v:"--li", icon:"#i-dm" },
+    facebook: { label:"Facebook", v:"--fb", icon:"#i-dm" }
+  };
+
+  var state = { workspace:"", targets:[], selected:{}, preview:false, sending:false };
+
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ var d=document.createElement("div"); d.textContent=s==null?"":String(s); return d.innerHTML; }
+
+  // ── source char count ──────────────────────────────────────────────────────
+  $("src").addEventListener("input", function(){
+    var n=$("src").value.length; $("srccc").textContent=n+" character"+(n===1?"":"s");
+  });
+
+  // ── channel chips (publishable targets only — Stage sends, it doesn't draft-only) ──
+  function renderPlats(){
+    var host=$("plats"); host.innerHTML="";
+    state.targets.forEach(function(t){
+      var b=BRAND[t.platform]||{label:t.platform,v:"--muted"};
+      var on = state.selected[t.platform];
+      var el=document.createElement("button");
+      el.className="plat"+(on?" on":"")+(t.connected?"":" off");
+      el.innerHTML='<span class="sw" style="background:var('+b.v+')"></span>'
+        + '<span class="dot"></span>'+esc(b.label)
+        + (t.connected?'':'<span class="nc">· not connected</span>');
+      el.title = t.connected ? "" : "Connect "+b.label+" at /utilities to broadcast there";
+      el.addEventListener("click", function(){ state.selected[t.platform]=!state.selected[t.platform]; renderPlats(); });
+      host.appendChild(el);
+    });
+  }
+  function selectedList(){ return state.targets.map(function(t){return t.platform;}).filter(function(p){return state.selected[p];}); }
+
+  // ── workspace selector (portal-wide shared scope, ADR-113) ─────────────────
+  function loadWorkspaces(){
+    return fetch(API+"/workspaces",{headers:{Accept:"application/json"}})
+      .then(function(r){ return r.ok? r.json():{workspaces:[]}; })
+      .then(function(d){
+        var sel=$("wsel");
+        (d.workspaces||[]).forEach(function(w){
+          var o=document.createElement("option"); o.value=w.workspaceId; o.textContent=w.name; sel.appendChild(o);
+        });
+        try{ var sv=localStorage.getItem("switchboard.ws")||""; if(sv){ sel.value=sv; state.workspace=sv; } }catch(e){}
+      })
+      .catch(function(){ /* selector stays "All accounts" only */ });
+  }
+
+  // ── targets: Compose's OWN list (one truth — never a parallel rail) ─────────
+  function loadTargets(){
+    return fetch(API+"/compose/targets?workspace="+encodeURIComponent(state.workspace),{headers:{Accept:"application/json"}})
+      .then(function(r){ return r.ok? r.json():Promise.reject(r.status); })
+      .then(function(d){
+        state.preview=false; $("previewpill").classList.remove("show");
+        state.targets=(d.targets||[]).filter(function(t){ return t.publishable && t.inWorkspace; });
+        state.selected={};
+        state.targets.forEach(function(t){ if(t.connected) state.selected[t.platform]=true; });
+        renderPlats();
+      })
+      .catch(function(){ loadSample(); });
+  }
+
+  // ── labelled sample (API unreachable / opened standalone) ──────────────────
+  function loadSample(){
+    state.preview=true; $("previewpill").classList.add("show");
+    state.targets=[
+      { platform:"x", label:"X", limit:280, publishable:true, connected:true, inWorkspace:true },
+      { platform:"linkedin", label:"LinkedIn", limit:3000, publishable:true, connected:true, inWorkspace:true },
+      { platform:"facebook", label:"Facebook", limit:63206, publishable:true, connected:false, inWorkspace:true }
+    ];
+    state.selected={ x:true, linkedin:true };
+    renderPlats();
+    if(!$("src").value){
+      $("src").value="Switchboard's Stage pane is live — one broadcast, every channel, one confirm.";
+      $("srccc").textContent=$("src").value.length+" characters";
+    }
+  }
+
+  // ── per-channel cards ──────────────────────────────────────────────────────
+  function meterOf(len, limit){ return { text:len+" / "+limit, over:len>limit }; }
+  function channelCard(platform, text){
+    var t=(state.targets.filter(function(x){return x.platform===platform;})[0])||{limit:280};
+    var b=BRAND[platform]||{label:platform,v:"--muted",icon:"#i-at"};
+    var card=document.createElement("article");
+    card.className="vcard"; card.dataset.platform=platform; card.dataset.limit=t.limit;
+    var m=meterOf((text||"").length, t.limit);
+    card.innerHTML=''
+      + '<div class="vhead">'
+      +   '<span class="mark" style="background:var('+b.v+')"><svg><use href="'+b.icon+'"/></svg></span>'
+      +   '<span class="vname">'+esc(b.label)+'</span>'
+      +   '<span class="vmeter tnum'+(m.over?" over":"")+'">'+m.text+'</span>'
+      + '</div>'
+      + '<textarea>'+esc(text||"")+'</textarea>'
+      + '<div class="res"></div>'
+      + '<button class="drop" title="Remove this channel from the broadcast">remove channel</button>';
+    var ta=card.querySelector("textarea"), meter=card.querySelector(".vmeter");
+    ta.addEventListener("input", function(){
+      var mm=meterOf(ta.value.length, t.limit); meter.textContent=mm.text; meter.classList.toggle("over", mm.over);
+    });
+    card.querySelector(".drop").addEventListener("click", function(){ card.remove(); refreshBar(); });
+    return card;
+  }
+  function renderCards(list){
+    var wrap=$("cardsWrap"); wrap.innerHTML='<div class="grouplbl">Per-channel text — edit anything before you send</div>';
+    var grid=document.createElement("div"); grid.className="vgrid";
+    list.forEach(function(v,i){ var c=channelCard(v.platform, v.text); c.style.animationDelay=(i*45)+"ms"; grid.appendChild(c); });
+    wrap.appendChild(grid);
+    $("sumline").classList.remove("show");
+    refreshBar();
+  }
+  function cards(){ return Array.prototype.slice.call(document.querySelectorAll("#cardsWrap .vcard")); }
+  function refreshBar(){
+    var n=cards().length;
+    $("sendN").textContent=n;
+    $("stagebar").classList.toggle("show", n>0);
+    $("confirmlbl").textContent="Post to "+n+" channel"+(n===1?"":"s")+" now?";
+  }
+  function showRes(card, ok, msg){
+    var r=card.querySelector(".res"); r.className="res show "+(ok?"ok":"err");
+    r.innerHTML='<svg><use href="'+(ok?"#i-check":"#i-warn")+'"/></svg><span>'+esc(msg)+'</span>';
+  }
+
+  // ── fill the cards: bot-tailored (Compose /variants) or as-is ──────────────
+  function tailor(){
+    var text=$("src").value.trim();
+    if(!text){ $("src").focus(); return; }
+    var platforms=selectedList();
+    if(!platforms.length){ return; }
+    if(state.preview){
+      renderCards(platforms.map(function(p){ return { platform:p, text: p==="x" ? text.slice(0,240) : text }; }));
+      return;
+    }
+    var btn=$("tailorBtn"); btn.disabled=true; btn.innerHTML='<svg class="spin"><use href="#i-refresh"/></svg> Tailoring…';
+    fetch(API+"/compose/variants",{ method:"POST", headers:{ "Content-Type":"application/json", Accept:"application/json" },
+      body:JSON.stringify({ text:text, platforms:platforms, workspaceId:state.workspace }) })
+      .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
+      .then(function(res){
+        if(!res.ok){ renderCards(platforms.map(function(p){ return { platform:p, text:text }; })); return; }
+        var byP={}; (res.j.variants||[]).forEach(function(v){ byP[v.platform]=v.text; });
+        renderCards(platforms.map(function(p){ return { platform:p, text: byP[p]||text }; }));
+      })
+      .catch(function(){ renderCards(platforms.map(function(p){ return { platform:p, text:text }; })); })
+      .finally(function(){ btn.disabled=false; btn.innerHTML='<svg><use href="#i-bot"/></svg> Tailor per channel'; });
+  }
+  function asIs(){
+    var text=$("src").value.trim();
+    if(!text){ $("src").focus(); return; }
+    var platforms=selectedList();
+    if(!platforms.length){ return; }
+    renderCards(platforms.map(function(p){ return { platform:p, text:text }; }));
+  }
+
+  // ── the ONE confirmed send ─────────────────────────────────────────────────
+  function doBroadcast(){
+    if(state.sending) return;
+    var posts=cards().map(function(c){ return { platform:c.dataset.platform, text:c.querySelector("textarea").value.trim() }; });
+    if(!posts.length) return;
+    if(state.preview){
+      cards().forEach(function(c){ showRes(c, true, "Preview — would send to "+(BRAND[c.dataset.platform]?BRAND[c.dataset.platform].label:c.dataset.platform)); });
+      hideConfirm(); return;
+    }
+    state.sending=true;
+    var doc=$("doconfirm"); doc.disabled=true; doc.innerHTML='<svg class="spin"><use href="#i-refresh"/></svg> Sending…';
+    fetch(API+"/stage/broadcast",{ method:"POST", headers:{ "Content-Type":"application/json", Accept:"application/json" },
+      body:JSON.stringify({ posts:posts, workspaceId:state.workspace||null, confirm:true }) })
+      .then(function(r){ return r.json().then(function(j){ return { status:r.status, j:j }; }); })
+      .then(function(res){
+        var results=(res.j&&res.j.results)||[];
+        var byP={}; results.forEach(function(x){ byP[x.platform]=x; });
+        cards().forEach(function(c){
+          var p=c.dataset.platform, x=byP[p]||byP[p==="twitter"?"x":p];
+          if(x){ showRes(c, !!x.ok, x.ok ? "Sent" : (x.message||x.error||"Failed")); }
+          else if(res.j&&res.j.error){ showRes(c, false, res.j.message||res.j.error); }
+        });
+        var s=res.j&&res.j.summary;
+        if(s){
+          var el=$("sumline"); el.classList.add("show");
+          el.innerHTML='Broadcast finished — <b class="okc">'+s.sent+' sent</b>'+(s.failed?' · <b class="errc">'+s.failed+' failed</b> (the rest went out anyway)':'')+' of '+s.total+'.';
+        }
+      })
+      .catch(function(){ cards().forEach(function(c){ showRes(c,false,"Broadcast request failed"); }); })
+      .finally(function(){ state.sending=false; doc.disabled=false; doc.innerHTML='<svg><use href="#i-check"/></svg> Confirm'; hideConfirm(); });
+  }
+  function hideConfirm(){ $("confirmwrap").classList.remove("show"); $("sendBtn").classList.remove("hide"); }
+
+  // ── wiring ─────────────────────────────────────────────────────────────────
+  $("tailorBtn").addEventListener("click", tailor);
+  $("asisBtn").addEventListener("click", asIs);
+  $("sendBtn").addEventListener("click", function(){ if(!cards().length) return; $("sendBtn").classList.add("hide"); $("confirmwrap").classList.add("show"); });
+  $("cancelconfirm").addEventListener("click", hideConfirm);
+  $("doconfirm").addEventListener("click", doBroadcast);
+  $("wsel").addEventListener("change", function(){ state.workspace=$("wsel").value; try{ localStorage.setItem("switchboard.ws",state.workspace||""); }catch(e){} loadTargets(); });
+
+  loadWorkspaces().then(loadTargets);
+})();
+</script>
+</body>
+</html>

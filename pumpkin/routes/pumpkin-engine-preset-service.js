@@ -5,6 +5,7 @@
  * DATE/TIME           | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-15 18:32:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial: per-user persistence for pumpkin looks. Built-in presets ship in code; this stores + merges a user's saved custom looks and their last-used preset/mode, all keyed by OIDC sub. Idempotent ensureSchema() so local dev works before migration 084 runs.
+ * 2026-08-01 22:15:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Persist the last-launched ROOM LABEL alongside the preset + mode (migration 104). Without it the short-form projector URL the night-of runbook tells the operator to type could not restore the room: the projector came up in 'main' while the cockpit and the phone pushed into 'front-porch', and the only symptom was a silent prop. ensureSchema ALTERs an existing table rather than only CREATE-ing, because CREATE TABLE IF NOT EXISTS is a no-op on a deployment that already has the old three-column shape.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PumpkinPresetService = void 0;
@@ -46,6 +47,7 @@ class PumpkinPresetService {
           mode VARCHAR(16) NOT NULL DEFAULT 'mimic',
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
+        ALTER TABLE pumpkin_settings ADD COLUMN IF NOT EXISTS room_label VARCHAR(40) NOT NULL DEFAULT 'Main';
       `);
         }
         catch (err) {
@@ -131,28 +133,51 @@ class PumpkinPresetService {
         }
     }
     /**
-     * @description The user's last-used preset + mode, defaulting to the projector look in mimic mode.
+     * @description The user's last-used preset, mode and room label — what the SHORT projector URL
+     * (`{origin}/pumpkin/`, nothing after the slash) reads back so the awkward projector device is
+     * typed on once rather than every time the room or the look changes.
+     * @param sub - The owner's OIDC sub.
+     * @returns The stored selection, or the shipped defaults when there is no row (or the read fails).
      */
     async getSettings(sub) {
         try {
-            const r = await this.pool.query(`SELECT active_preset, mode FROM pumpkin_settings WHERE user_sub = $1`, [sub]);
-            if (r.rows[0])
-                return { activePreset: r.rows[0].active_preset, mode: r.rows[0].mode };
+            const r = await this.pool.query(`SELECT active_preset, mode, room_label FROM pumpkin_settings WHERE user_sub = $1`, [sub]);
+            if (r.rows[0]) {
+                return {
+                    activePreset: r.rows[0].active_preset,
+                    mode: r.rows[0].mode,
+                    roomLabel: String(r.rows[0].room_label || 'Main'),
+                };
+            }
         }
         catch (err) {
             logger.error({ err, sub }, 'getSettings failed');
         }
-        return { activePreset: 'inflatable', mode: 'mimic' };
+        return { activePreset: 'inflatable', mode: 'mimic', roomLabel: 'Main' };
     }
     /**
-     * @description Persist the user's last-used preset + mode so the surfaces restore it.
+     * @description Persist the user's last-used preset, mode and room label so the surfaces restore it.
+     *
+     * `roomLabel` is optional so an older caller cannot silently blank a working room: omitting it
+     * leaves the stored value alone (COALESCE on the excluded row) rather than resetting it to 'Main'.
+     * @param sub - The owner's OIDC sub.
+     * @param activePreset - Requested look; slugified, defaulting to the projector look.
+     * @param mode - Requested run mode; anything but 'autonomous' is mimic.
+     * @param roomLabel - Optional room LABEL (not the slug — the label is what register() is given).
+     * @returns Nothing; failures are logged, never thrown at the surface.
      */
-    async saveSettings(sub, activePreset, mode) {
+    async saveSettings(sub, activePreset, mode, roomLabel) {
         const preset = slug(activePreset) || 'inflatable';
         const m = mode === 'autonomous' ? 'autonomous' : 'mimic';
+        const label = String(roomLabel ?? '').trim().slice(0, 40) || null;
         try {
-            await this.pool.query(`INSERT INTO pumpkin_settings (user_sub, active_preset, mode) VALUES ($1, $2, $3)
-         ON CONFLICT (user_sub) DO UPDATE SET active_preset = EXCLUDED.active_preset, mode = EXCLUDED.mode, updated_at = NOW()`, [sub, preset, m]);
+            await this.pool.query(`INSERT INTO pumpkin_settings (user_sub, active_preset, mode, room_label)
+         VALUES ($1, $2, $3, COALESCE($4, 'Main'))
+         ON CONFLICT (user_sub) DO UPDATE SET
+           active_preset = EXCLUDED.active_preset,
+           mode = EXCLUDED.mode,
+           room_label = COALESCE($4, pumpkin_settings.room_label),
+           updated_at = NOW()`, [sub, preset, m, label]);
         }
         catch (err) {
             logger.error({ err, sub }, 'saveSettings failed');

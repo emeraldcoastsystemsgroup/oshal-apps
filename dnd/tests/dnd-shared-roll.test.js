@@ -7,6 +7,7 @@
  * 2026-07-21 20:10:45 | roger.murphy@emeraldcoastsystemsgroup.com  | Extract the shared-roll lifecycle phases into focused test helpers below the repository function-size limit.
  * 2026-07-21 22:09:29 | roger.murphy@emeraldcoastsystemsgroup.com  | Prove shared rolls cannot mutate the table during a pending Dungeon Master presentation.
  * 2026-07-22 00:50:36 | roger.murphy@emeraldcoastsystemsgroup.com  | Model timeline-guarded story archives in the transactional shared-roll database double.
+ * 2026-07-31 23:50:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Roadmap #13 guards at the /roll route: a LEAD request's precomputed skill modifier is honored over the sheet derivation, lead crit semantics land on the shared die (nat 20 beats any DC, nat 1 fumbles past any modifier), and the DM narration path refuses a lead roll outright — its outcome belongs to the exploration commit, and the storyteller is never even invoked.
  */
 
 'use strict';
@@ -193,4 +194,79 @@ test('pending presentation rejects a requested shared roll without rolling', asy
   });
   assert.equal(result.body.code, 'PRESENTATION_PENDING');
   assert.equal(pool.updates, 0);
+});
+// ── Roadmap #13: LEAD rolls ride the same die with their own contract ────────
+
+/** @description Seed a persisted lead-roll request the exploration service shape produces. */
+function seedLeadRoll(pool, overrides) {
+  pool.state.sharedRoll = {
+    id: 'lead-roll-1', actorSlug: 'fenwick', ability: 'intelligence', skill: 'investigation',
+    dc: 12, modifier: 7, status: 'requested', createdAt: new Date().toISOString(),
+    lead: { id: 'cup', sceneId: 'coast-road' },
+    ...(overrides || {}),
+  };
+  return pool.state.sharedRoll;
+}
+
+test('a lead roll honors its precomputed skill modifier over the sheet derivation', async () => {
+  const pool = new SharedRollPool();
+  seedLeadRoll(pool);   // investigation +7 — Fenwick's sheet says int-only would differ
+  const rolled = await request(pool, 'fenwick-user', 'POST', '/roll', {
+    campaignId: 'camp-1', rollId: 'lead-roll-1',
+  });
+  assert.equal(rolled.body.ok, true);
+  assert.equal(rolled.body.roll.natural, 10, 'the scripted d20 landed');
+  assert.equal(rolled.body.roll.modifier, 7, 'the request modifier is used, not the ability-only sheet math');
+  assert.equal(rolled.body.roll.total, 17);
+  assert.equal(rolled.body.roll.success, true);
+  assert.deepEqual(rolled.body.roll.lead, { id: 'cup', sceneId: 'coast-road' }, 'the lead contract survives the roll');
+});
+
+test('lead crit semantics: a natural 1 fumbles past any modifier, a natural 20 beats any DC', async () => {
+  const fumblePool = new SharedRollPool();
+  seedLeadRoll(fumblePool, { modifier: 90 });
+  const fumbled = await request(fumblePool, 'fenwick-user', 'POST', '/roll', {
+    campaignId: 'camp-1', rollId: 'lead-roll-1',
+  }, { dndRollD20: () => 1 });
+  assert.equal(fumbled.body.ok, true);
+  assert.equal(fumbled.body.roll.total, 91);
+  assert.equal(fumbled.body.roll.success, false, 'a natural 1 fumbles the lead no matter the total');
+
+  const critPool = new SharedRollPool();
+  seedLeadRoll(critPool, { dc: 99, modifier: 0 });
+  const crit = await request(critPool, 'fenwick-user', 'POST', '/roll', {
+    campaignId: 'camp-1', rollId: 'lead-roll-1',
+  }, { dndRollD20: () => 20 });
+  assert.equal(crit.body.ok, true);
+  assert.equal(crit.body.roll.success, true, 'a natural 20 finds it past any DC');
+
+  // An ordinary DM roll keeps plain threshold semantics: nat 1 + big mod can pass.
+  const plainPool = new SharedRollPool();
+  plainPool.state.sharedRoll = {
+    id: 'plain-1', actorSlug: 'fenwick', ability: 'wisdom', dc: 10, modifier: 90,
+    status: 'requested', createdAt: new Date().toISOString(),
+  };
+  const plain = await request(plainPool, 'fenwick-user', 'POST', '/roll', {
+    campaignId: 'camp-1', rollId: 'plain-1',
+  }, { dndRollD20: () => 1 });
+  assert.equal(plain.body.roll.success, true, 'DM checks keep threshold semantics — the crit rule belongs to leads');
+});
+
+test('the DM narration path refuses a landed lead roll without invoking the storyteller', async () => {
+  const pool = new SharedRollPool();
+  seedLeadRoll(pool);
+  const rolled = await request(pool, 'fenwick-user', 'POST', '/roll', {
+    campaignId: 'camp-1', rollId: 'lead-roll-1',
+  });
+  assert.equal(rolled.body.ok, true);
+  const orchestrator = {
+    async processMessage() { throw new Error('the storyteller must never see a lead roll'); },
+  };
+  const refused = await request(pool, 'fenwick-user', 'POST', '/chat', {
+    campaignId: 'camp-1', sceneId: 'coast-road', mode: 'narrate', rollId: 'lead-roll-1',
+    message: 'Narrate my investigation roll.',
+  }, { orchestrator });
+  assert.equal(refused.body.ok, false);
+  assert.equal(refused.body.code, 'ROLL_NOT_NARRATABLE', 'the lead die commits through /explore, never the DM');
+  assert.equal(pool.state.sharedRoll.status, 'rolled', 'the die is untouched for the exploration commit');
 });

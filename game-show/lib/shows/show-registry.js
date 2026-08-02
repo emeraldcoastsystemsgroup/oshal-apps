@@ -10,6 +10,8 @@
 
 const familyFeud = require('./family-feud');
 const jeopardy = require('./jeopardy');
+const wheel = require('./wheel');
+const whammy = require('./whammy');
 
 /**
  * THE SHOW INTERFACE (what makes this modular — "so wheel of fortune and whammy all
@@ -41,6 +43,12 @@ const jeopardy = require('./jeopardy');
  *
  * @property {(state:object, guess:string, ctx:object) => string} judgePrompt
  *   Prompt asking the host bot to judge one contestant guess as ONE json block.
+ * @property {(state:object, guess:string) => ?object} [localJudge]
+ *   OPTIONAL pre-judge: return the show's own judge-JSON shape for a guess that
+ *   can be ruled WITHOUT the LLM (an exact text/alias match), or null to fall
+ *   through to judgePrompt. Rule locally only when certain — never rule a miss
+ *   locally, because leniency ("kitty" for "cat") is exactly what the LLM is for.
+ *   This is also the deterministic rail the automated browser playthrough rides.
  * @property {(state:object, judge:object, actor:object, now:number, ctx:object) => Reduced} applyJudgement
  *   Apply the judged guess (reveal / strike / steal / face-off resolution). Same
  *   `ctx` as reduce. MUST validate the judge object's shape and return
@@ -130,5 +138,7 @@ function list() {
 // Register the shows shipped in this package. Adding a game is one register() call.
 register(familyFeud);
 register(jeopardy);
+register(wheel);
+register(whammy);
 
 module.exports = { register, get, has, list, validateShow, REQUIRED };

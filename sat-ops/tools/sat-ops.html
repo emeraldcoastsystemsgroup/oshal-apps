@@ -4,12 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sat Ops — Fleet Plane</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
 <style>
   /* Self-contained surface theme (embedded-surface rule: own your CSS). */
   :root {
-    --bg: #06080f; --panel: #0c1120; --panel2: #101730; --line: #1c2745;
-    --text: #d7e0f4; --dim: #7c89a8; --accent: #5aa7ff; --ok: #38d39f;
-    --warn: #ffc857; --bad: #ff6b6b; --purple: #b78aff;
+    --bg: var(--bg-primary, #06080f);
+    --panel: var(--bg-card, #0c1120);
+    --panel2: var(--bg-tertiary, #101730);
+    --line: var(--border-color, #1c2745);
+    --text: var(--text-primary, #d7e0f4);
+    --dim: var(--text-secondary, #7c89a8);
+    --accent: var(--accent-primary, #5aa7ff);
+    --ok: var(--status-success, #38d39f);
+    --warn: var(--status-warning, #ffc857);
+    --bad: var(--status-error, #ff6b6b);
+    --purple: #b78aff;
     font-size: 14px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }

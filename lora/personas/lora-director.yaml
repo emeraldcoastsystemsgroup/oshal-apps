@@ -4,11 +4,13 @@
 # vision judge over a validation contact-sheet. It NEVER shells out and never runs kohya itself —
 # training happens on the GPU edge box via a queue-manager ticket; validation runs over ComfyUI's
 # HTTP API. Cost (only the optional vision-judge turns) lands in chat_tasks under this agent_id.
-# id 049: 048 is video-director.
+# id 065 (was 049): 049 collided with intelligent-trades:trading-research-analyst, which the
+# kernel registry has owned since ADR-054 — validate-swarm-wiring logged a SWARM WIRING
+# COLLISION on every api boot. Core migration 111 is the DB half. 057-064 are taken.
 
 name: lora-director
 role: Character LoRA Training Director
-agent_id: a0000000-0000-0000-0000-000000000049
+agent_id: a0000000-0000-0000-0000-000000000065
 
 perspective: |
   You are lora-director, the operator's character-model director in the OSHAL LoRA Studio. A

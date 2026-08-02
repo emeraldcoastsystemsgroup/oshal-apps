@@ -24,8 +24,15 @@
 # This package is the app: the /api/kalshi routes (surface + scan/scorecard/
 # calibration/status + Phase-2 portfolio and CONFIRM-GATED orders — demo exchange
 # unless KALSHI_LIVE_ENABLED, every order/refusal audited to kalshi_orders) + the
-# ranked-hand surface HTML. ADR-094 Phase 2 remains blocked on the operator's
-# Kalshi account; the fail-closed posture ships byte-identical to the kernel original.
+# ranked-hand surface HTML. The fail-closed order posture ships byte-identical to the
+# kernel original.
+#
+# 2026-07-30 — THE SCAN IS ALWAYS ON, and it is no longer on the request path. A poller
+# owned by this package (src-routes/kalshi-scan-cron.ts, started by the route factory, so
+# it runs only where this app is installed + active) re-scans on the cadence configured
+# below, stores the result in kalshi_scan_snapshots, and posts NEW playable hands to each
+# entitled user's Jarvis feed. GET /scan serves that snapshot instantly. Before this, a
+# cold open paid a 23-second feed walk (live log: openPaged=60000 evaluable=6 ms=23125).
 # Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -38,12 +45,12 @@ description: >-
   playable hands are ranked with Kelly-sized stakes and explicit risk flags. Portfolio view and
   order placement ride the per-user connector, confirm-gated and demo-exchange-first
   (KALSHI_LIVE_ENABLED gates live money; every order and refusal is audited).
-version: 1.0.0
+version: 1.1.0
 status: active
 
 source:
   type: git-subdir
-  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: kalshi
   ref: main
 
@@ -55,6 +62,103 @@ dependencies:
   connectors: [kalshi]
 
 theme: midnight
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SETTINGS — the ALWAYS-ON SCAN's configuration, and the single source of truth for its
+# defaults (operator, 2026-07-30: "it should always be running on new opportunities every
+# X ms based on configuration ... every hour ... all of this should be in the yaml as
+# config, and can be changed in settings").
+#
+# HOW THESE VALUES ARE USED. The package reads THIS FILE at activation (via
+# ctx.appPackageDir) and takes each `default` as the base config; a deployment row and a
+# per-user row in `kalshi_scan_settings` override it, and every value is clamped by
+# src-routes/kalshi-scan-config.ts. So: edit this file to change the shipped default for a
+# fresh install; use the app's **Settings tab** (GET/PUT /api/kalshi/settings) to change a
+# running deployment without a redeploy. Reloaded within a minute — no restart.
+#
+# `scope:` says WHO may change a key. `deployment` = one scan serves everyone, so the
+# cadence is operator-only (403 otherwise). `user` = your own alerts, saved per person.
+# (`scope`/`min`/`max`/`enum` extend the store contract's type/default/label triple; the
+# framework does not yet render manifest settings itself — this app renders its own panel
+# from this schema. See README "Framework gap".)
+# ─────────────────────────────────────────────────────────────────────────────
+settings:
+  schema:
+    scanEnabled:
+      type: boolean
+      default: true
+      scope: deployment
+      label: Keep scanning in the background
+    scanIntervalMinutes:
+      type: integer
+      default: 60          # the operator's "like every hour"
+      min: 5
+      max: 1440
+      scope: deployment
+      label: Scan every (minutes)
+    scanOnActivate:
+      type: boolean
+      default: true
+      scope: deployment
+      label: Run one scan shortly after start (so the first open is warm)
+    scanMaxMarketsPaged:
+      type: integer
+      default: 60000       # Kalshi pages 1000 at a time; >99% of the flat feed is parlay legs
+      min: 1000
+      max: 200000
+      scope: deployment
+      label: Markets paged per scan
+    scanMaxMarketsKept:
+      type: integer
+      default: 1500
+      min: 50
+      max: 5000
+      scope: deployment
+      label: Evaluable markets kept per scan
+    staleAfterMinutes:
+      type: integer
+      default: 180
+      min: 5
+      max: 10080
+      scope: deployment
+      label: Label the snapshot stale after (minutes)
+    notifyJarvis:
+      type: boolean
+      default: true
+      scope: user
+      label: Tell Jarvis when new playable hands appear
+    notifyOutward:
+      type: boolean
+      default: false        # opt-in: an hourly job may not start emailing/texting on its own
+      scope: user
+      label: Also send to my notification channel (email/SMS/Telegram)
+    alertMinEdgeCents:
+      type: number
+      default: 3
+      min: 0
+      max: 50
+      scope: user
+      label: Only alert at or above this net edge (¢)
+    alertMinStrength:
+      type: string
+      default: playable
+      enum: [monster, strong, playable]
+      scope: user
+      label: Minimum hand strength to alert on
+    alertTopN:
+      type: integer
+      default: 5
+      min: 1
+      max: 25
+      scope: user
+      label: Hands named in one alert
+    alertMaxPerDay:
+      type: integer
+      default: 6
+      min: 0
+      max: 48
+      scope: user
+      label: Maximum alerts per day
 
 # ROUTES — the packaged surface router, mounted /api/kalshi on activation. (In
 # core server.ts this was createKalshiRoutes behind serviceSecretOr(requiresAuth),
@@ -73,6 +177,10 @@ routes:
 migrations:
   - migrations/074-kalshi-orders.sql
   - migrations/075-kalshi-forward-test.sql
+  # OWNED BY THIS PACKAGE (not a kernel copy): the background scan's snapshot, its config
+  # overrides, and the per-user alert ledger. kalshi-scan-engine also self-heals these, so the
+  # app works whether or not APP_PACKAGE_MIGRATIONS is on.
+  - migrations/076-kalshi-scan-automation.sql
 
 # ─────────────────────────────────────────────────────────────────────────────
 # COCKPIT UI SURFACE — one ribbon icon opens the edge-scan page served by

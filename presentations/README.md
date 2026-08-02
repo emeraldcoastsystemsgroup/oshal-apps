@@ -25,7 +25,14 @@ surface"** carve — only the surface layer ships here:
 
 | Tile | URL | What |
 |---|---|---|
-| AI Office | `/api/presentations/sections/ui` | The studio: outline → deck/doc/workbook |
+| AI Office | `/api/presentations/sections/ui` | Guided front door (make → look → start, or talk / upload / one-line draft) over the fine-tune studio: outline → deck/doc/workbook |
+
+The surface opens on a full-screen visual walkthrough — pick the artifact, pick a look
+(live-drawn theme cards from the real render catalog), then a starter shape, one typed
+line AI drafts end-to-end, a live build with the Guide, or an existing file to remix.
+Skip (or Esc) drops to the studio — the detailed outline editor, syntax reference and
+options — and ✨ Walkthrough in the studio header brings the front door back. Guarded by
+`tests/presentations-surface-parse.test.js` (inline-script parse + walkthrough contract).
 
 ## Install
 

@@ -13,12 +13,35 @@ which of the now-richer material to surface.
 
 Taxonomy lives in code (THEMES). Per-theme stats + the user's answers live in the
 gap_themes table; scan() refreshes the stats without ever clobbering an answer.
+
+STORAGE (JOBHUNTER_STORE, see config.STORE). This module is one of the two DDL paths in
+the engine — it creates its own `gap_themes` table rather than going through db.SCHEMA.
+
+  'sqlite'   (DEFAULT) — unchanged in every respect: the same CREATE TABLE, the same
+             `gap_themes` name, the same statements. Nothing below runs differently.
+  'postgres' — the table is `career_user_gap_themes` (migration 096) under FORCE ROW
+             LEVEL SECURITY, so a row belongs to the acting user and the policy — not a
+             WHERE clause — is what scopes every read here. The DDL is owned by the
+             migration runner, so ensure_table() becomes a no-op (the same rule
+             db.migrate() follows: the engine never creates schema behind that runner).
+             The posting reads still say `FROM postings`, which resolves to the compat
+             VIEW from migration 097.
+
+The one non-obvious part of the Postgres port is that 096 mirrored the SQLite columns but
+NOT their DEFAULTs (`n_jobs/avg_fit DEFAULT 0`, `status DEFAULT 'open'`). Every INSERT
+below therefore supplies those values explicitly, and leaves them out of the DO UPDATE so
+they still only apply to a brand-new row. Without that, a theme first touched by
+set_status()/save_answer() would come back with n_jobs=NULL (a TypeError in the `pct`
+arithmetic and the sort) and scan() would leave status=NULL, which reads as "not open" and
+would silently empty the answer queue. Those are the SQLite schema's own defaults, restated
+where the schema no longer carries them — not new values.
 """
 from __future__ import annotations
 import json
 import re
+from datetime import datetime, timezone
 
-from . import db
+from . import config, db
 
 
 # Each theme groups many raw gap strings. addressable=True means a real story can
@@ -246,7 +269,38 @@ def _themes_of(norm_gap: str) -> set[str]:
     return hits
 
 
+def _themes_table() -> str:
+    """Physical table holding this module's per-theme stats + answers.
+
+    Kept here rather than in db.py because gap_themes is owned end-to-end by this module
+    (it is the only writer, the only reader, and the DDL below is its own). db.py routes
+    the tables that MANY modules touch — corpus, companies, reputation, user signals."""
+    return "career_user_gap_themes" if config.POSTGRES else "gap_themes"
+
+
+def _iso(v):
+    """Render a stored timestamp the way SQLite handed it back.
+
+    psycopg2 decodes TIMESTAMPTZ into an aware datetime; SQLite returned the exact ISO-8601
+    text db.now() wrote (e.g. 2026-07-30T22:14:39+00:00). Converting to UTC and formatting
+    to seconds reproduces that text, so callers and templates keep seeing ONE shape in both
+    modes. This is a rendering of the stored instant, not a parse or a guess — no value is
+    altered and nothing is invented. Identity for str/None, so sqlite mode never notices."""
+    if isinstance(v, datetime):
+        return v.astimezone(timezone.utc).isoformat(timespec="seconds")
+    return v
+
+
 def ensure_table(conn) -> None:
+    """Create the SQLite gap_themes table. NO-OP in postgres mode.
+
+    In postgres the table is career_user_gap_themes, created by migration 096 and tracked
+    by the swarm's package-migration runner. The engine must not issue DDL behind that
+    runner's back — the same rule db.migrate() states — and this table is FORCE-RLS'd, so
+    an engine-side CREATE would also have to reproduce the policy to be safe. It should
+    never try."""
+    if config.POSTGRES:
+        return
     conn.execute(
         """CREATE TABLE IF NOT EXISTS gap_themes (
                key         TEXT PRIMARY KEY,
@@ -260,6 +314,16 @@ def ensure_table(conn) -> None:
            )""")
 
 
+# The two posting reads below are dialect-clean and run VERBATIM in both modes — stated
+# explicitly so nobody "ports" them later and changes what they mean:
+#   `FROM postings`        resolves to the SQLite TEMP view or the 097 compat VIEW.
+#   `active=1`, `target_role=1`  the 097 view casts both BOOLEANs back to int, so the
+#                          integer comparison is valid Postgres (`boolean = integer` is not).
+#   `ai_fit_gaps != '[]'`  the view renders the JSONB back to text with `#>> '{}'`, so the
+#                          string comparison and the json.loads() below both still work.
+#   `COUNT(*) n`           `n` is a non-reserved identifier; a bare column alias is legal in
+#                          both dialects.
+# They carry no placeholders and no literal `%`, so db.q() is not involved either way.
 def _gap_postings_count(conn) -> int:
     return conn.execute(
         "SELECT COUNT(*) n FROM postings WHERE active=1 AND target_role=1 "
@@ -306,6 +370,25 @@ def scan() -> int:
             k = t["key"]
             nj = n_jobs.get(k, 0)
             avg = int(fit_sum.get(k, 0) / nj) if nj else 0
+            if config.POSTGRES:
+                # user_sub is written from the connection's identity; the RLS WITH CHECK
+                # compares it to oshal.current_sub, so a wrong one is refused by the
+                # database rather than landing in someone else's themes.
+                # `status` is listed on the INSERT only. SQLite's DDL declares
+                # `status TEXT DEFAULT 'open'` and 096 did not carry the default over, so
+                # without this a freshly-scanned theme would be status=NULL — which
+                # next_open_key() reads as "not open", silently emptying the answer queue.
+                # It is deliberately absent from the DO UPDATE, exactly like the SQLite
+                # default, so a re-scan never resets an answered or skipped theme.
+                conn.execute(
+                    f"""INSERT INTO {_themes_table()}
+                          (user_sub, key, n_jobs, avg_fit, sample_gaps, status, updated_at)
+                       VALUES (?,?,?,?,?,'open',?)
+                       ON CONFLICT (user_sub, key) DO UPDATE SET
+                         n_jobs=EXCLUDED.n_jobs, avg_fit=EXCLUDED.avg_fit,
+                         sample_gaps=EXCLUDED.sample_gaps, updated_at=EXCLUDED.updated_at""",
+                    (db.require_sub(), k, nj, avg, json.dumps(samples.get(k, [])), db.now()))
+                continue
             conn.execute(
                 """INSERT INTO gap_themes (key, n_jobs, avg_fit, sample_gaps, updated_at)
                    VALUES (?,?,?,?,?)
@@ -319,14 +402,21 @@ def scan() -> int:
 def is_scanned() -> bool:
     with db.connect() as conn:
         ensure_table(conn)
-        return bool(conn.execute("SELECT COUNT(*) n FROM gap_themes").fetchone()["n"])
+        # In postgres the count is already this user's alone: career_user_gap_themes is
+        # FORCE-RLS'd, so "has anyone scanned" can only ever mean "have I scanned".
+        return bool(
+            conn.execute(f"SELECT COUNT(*) n FROM {_themes_table()}").fetchone()["n"])
 
 
 def themes_with_stats() -> tuple[list[dict], int]:
     """Merge the code taxonomy with stored stats/answers, sorted by impact (n_jobs)."""
     with db.connect() as conn:
         ensure_table(conn)
-        stored = {r["key"]: r for r in conn.execute("SELECT * FROM gap_themes").fetchall()}
+        # SELECT * picks up user_sub/tenant_id in postgres; every read below is by column
+        # name, so the extra columns are simply never looked at. RLS has already narrowed
+        # the rows to the acting user, so `key` stays unique across the result.
+        stored = {r["key"]: r
+                  for r in conn.execute(f"SELECT * FROM {_themes_table()}").fetchall()}
         total = _gap_postings_count(conn)
     out = []
     for t in THEMES:
@@ -340,7 +430,9 @@ def themes_with_stats() -> tuple[list[dict], int]:
             "samples": (json.loads(r["sample_gaps"]) if (r and r["sample_gaps"]) else []),
             "status": (r["status"] if r else "open"),
             "response": (r["response"] if r else ""),
-            "answered_at": (r["answered_at"] if r else None),
+            # TIMESTAMPTZ in postgres, ISO text in sqlite — _iso() renders both as the
+            # string db.now() wrote, so templates and JSON callers see one shape.
+            "answered_at": (_iso(r["answered_at"]) if r else None),
         })
     out.sort(key=lambda x: -x["n_jobs"])
     return out, total
@@ -361,6 +453,21 @@ def save_answer(key: str, response: str) -> None:
         return
     with db.connect() as conn:
         ensure_table(conn)
+        if config.POSTGRES:
+            # n_jobs/avg_fit are spelled out because 096 dropped SQLite's `DEFAULT 0`.
+            # Answering a theme BEFORE the first scan() is an ordinary path (the bot can
+            # ask a question the moment a gap is named), and a NULL n_jobs would blow up
+            # themes_with_stats()' `pct` arithmetic and its sort. They stay out of the DO
+            # UPDATE so a later scan()'s real counts are never overwritten with zeros.
+            conn.execute(
+                f"""INSERT INTO {_themes_table()}
+                      (user_sub, key, n_jobs, avg_fit, response, status, answered_at, updated_at)
+                   VALUES (?,?,0,0,?,'answered',?,?)
+                   ON CONFLICT (user_sub, key) DO UPDATE SET
+                     response=EXCLUDED.response, status='answered',
+                     answered_at=EXCLUDED.answered_at, updated_at=EXCLUDED.updated_at""",
+                (db.require_sub(), key, response, db.now(), db.now()))
+            return
         conn.execute(
             """INSERT INTO gap_themes (key, response, status, answered_at, updated_at)
                VALUES (?,?, 'answered', ?, ?)
@@ -375,6 +482,17 @@ def set_status(key: str, status: str) -> None:
         return
     with db.connect() as conn:
         ensure_table(conn)
+        if config.POSTGRES:
+            # Same restated SQLite defaults as save_answer(): 'skipped' is routinely the
+            # FIRST thing written about a theme, so the row is created here.
+            conn.execute(
+                f"""INSERT INTO {_themes_table()}
+                      (user_sub, key, n_jobs, avg_fit, status, updated_at)
+                   VALUES (?,?,0,0,?,?)
+                   ON CONFLICT (user_sub, key) DO UPDATE SET
+                     status=EXCLUDED.status, updated_at=EXCLUDED.updated_at""",
+                (db.require_sub(), key, status, db.now()))
+            return
         conn.execute(
             """INSERT INTO gap_themes (key, status, updated_at) VALUES (?,?,?)
                ON CONFLICT(key) DO UPDATE SET status=excluded.status, updated_at=excluded.updated_at""",

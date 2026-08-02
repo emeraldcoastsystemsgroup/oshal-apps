@@ -373,12 +373,72 @@ def _sanitize(obj):
 
 
 def _job_row(conn, posting_id):
+    """The posting + its employer + the employer's effective reputation score.
+
+    `postings`, `companies` and `company_view` all exist in BOTH backends — the SQLite TEMP
+    view / ATTACHed corpus, or the compat VIEWs from migration 097 (which cast the Postgres
+    types back to the SQLite shapes this function's callers expect, and whose RLS is what
+    scopes the per-user columns in `p.*` to the acting user).
+
+    ONE expression has to differ. `cv.score` is COALESCE(manual_score, ai_score), an INTEGER
+    in Postgres. SQLite is dynamically typed, so mixing an integer with '' in a COALESCE is
+    fine there; Postgres resolves the two arms to a single type, tries ''::integer, and
+    fails the whole query with `invalid input syntax for type integer: ""`. Casting the
+    score to text is the only type both arms fit, and it preserves the "empty string when
+    the company has no reputation score" contract this query has always had.
+    """
+    # sqlite mode gets the byte-identical expression it has always run.
+    score_expr = "COALESCE(cv.score::text,'')" if config.POSTGRES else "COALESCE(cv.score,'')"
     return conn.execute(
-        """SELECT p.*, c.name AS company, COALESCE(cv.score,'') AS company_score
+        f"""SELECT p.*, c.name AS company, {score_expr} AS company_score
            FROM postings p JOIN companies c ON c.id = p.company_id
            LEFT JOIN company_view cv ON cv.id = c.id WHERE p.id = ?""",
         (posting_id,),
     ).fetchone()
+
+
+def _pg_park(conn) -> None:
+    """POSTGRES ONLY. Leave the connection open but NOT inside a transaction.
+
+    generate_for() holds one connection across the whole packet: it reads the posting, then
+    spends minutes on an LLM generation, an LLM editor pass and four Chromium PDF renders
+    with no SQL at all, then writes the status and paths. psycopg2 opens a transaction on
+    the first execute and keeps it open until commit, so that read leaves the backend
+    `idle in transaction` for the entire generation.
+
+    This cluster runs `idle_in_transaction_session_timeout = 1min` — measured on the live
+    server, not assumed; the PostgreSQL default is 0. Observed from a second connection: an
+    un-parked backend sits in `idle in transaction` and is GONE by t+79s, and the next
+    statement raises "server closed the connection unexpectedly". That failure lands AFTER
+    the LLM spend and the PDF renders, on the final db.set_status() — the packet would exist
+    on disk with no 'generated' status and no resume_path recorded anywhere, which is
+    exactly the bookkeeping the apply rail depends on. `idle_session_timeout` is 0, so a
+    connection that is merely idle survives indefinitely; the whole job is to not be in a
+    transaction.
+
+    WHY TWO COMMITS, which looks wrong and is not. db.py's _PgConnection.commit() re-asserts
+    the oshal.current_sub GUC immediately after committing (that re-assertion is what makes
+    a mid-connection commit safe at all). Asserting it runs a statement, which OPENS A NEW
+    TRANSACTION — so after conn.commit() the backend is still `idle in transaction`, just
+    holding a different query. Measured: with conn.commit() alone the backend is still killed
+    at ~60s. The second commit, on the underlying psycopg2 connection, ends that GUC
+    transaction WITHOUT re-asserting anything; the GUC survives because db.py sets it at
+    SESSION scope (set_config(..., is_local => false)), not with SET LOCAL. Verified after an
+    80s park: state 'idle', oshal.current_sub still bound, RLS still returning this user's
+    1,282,861 score rows and no one else's.
+
+    If db.py's wrapper ever stops exposing the raw connection this raises here — before the
+    LLM call is spent — rather than degrading into that 3-minutes-later disconnect."""
+    conn.commit()
+    raw = getattr(conn, "_raw", None)
+    if raw is None:
+        raise RuntimeError(
+            "cannot park the Postgres connection: db.py's connection wrapper no longer "
+            "exposes the underlying psycopg2 connection. Without ending the GUC-assertion "
+            "transaction the backend is killed by idle_in_transaction_session_timeout during "
+            "generation. Add an explicit park/release to db.py and call it here."
+        )
+    raw.commit()
 
 
 def build_editor_system(prof: dict) -> str:
@@ -482,6 +542,8 @@ def generate_for(posting_id: int, include_oshal: bool = False) -> dict:
         row = _job_row(conn, posting_id)
         if not row:
             raise ValueError(f"no posting id {posting_id}")
+        if config.POSTGRES:
+            _pg_park(conn)   # see below — without this the connection is killed mid-generation
         company, title = row["company"], row["title"]
         company_doc = _company_doc(company)   # tag-free name for the documents (folder keeps the tag)
         prof = profile.load()

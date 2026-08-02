@@ -2,10 +2,20 @@
 
 DESIGN (built for scale, not a flat file scanned per request):
 
-  Storage — SQLite (jobs.db), three tables:
+  Storage — three tables, in whichever backend JOBHUNTER_STORE selects:
     interview_bank(id, category, question, good, red_flag, source_dim, qhash UNIQUE)
     interview_bank_tags(entry_id, dim, tag, UNIQUE(entry_id,dim,tag))
     posting_tags(posting_id, dim, tag, UNIQUE(posting_id,dim,tag))   -- write-through cache
+
+    sqlite   — created on demand by ensure_schema() below (SCHEMA), under those names.
+    postgres — career_interview_bank / career_interview_bank_tags / career_posting_tags,
+               owned by migrations/098-career-interview-bank.sql. SHARED, no RLS: none of
+               this is a judgement about a person. A question bank is the same for every
+               user, and a posting's tags are derived deterministically from that posting's
+               own title/description/employer. See 098 for the argument in full, including
+               the one behavioural consequence (`--load` replaces the bank for everyone).
+               Name mapping is bank_table() / bank_tags_table() / posting_tags_table(),
+               the same chokepoint shape as db.corpus_table().
 
   Indexing — the join key is (dim, tag) on BOTH tag tables, so matching a job is a
     single indexed set-intersection: O(matching rows), independent of bank size.
@@ -62,6 +72,53 @@ CREATE TABLE IF NOT EXISTS posting_tags (
 CREATE INDEX IF NOT EXISTS idx_ptag      ON posting_tags(dim, tag);
 CREATE INDEX IF NOT EXISTS idx_ptag_post ON posting_tags(posting_id);
 """
+
+
+# ── physical table names per backend ─────────────────────────────────────────
+# These three tables belong to THIS module (db.py has never known about them — which is
+# exactly why 095/096 missed them: they were derived from the SQLite dumps db.py produces,
+# and interview_bank.py builds its own schema with executescript). So the name-routing
+# helpers live here, mirroring db.corpus_table()/companies_table() rather than growing
+# db.py, which is already at its decomposition threshold.
+#
+# The Postgres names carry the `career_` prefix every other table in 095/096 uses. Bare
+# `posting_tags` and `interview_bank` in a schema shared by the whole platform are the same
+# hazard 097 had to write a refuse-to-clobber guard for.
+
+def bank_table() -> str:
+    """The interview-question corpus."""
+    return "career_interview_bank" if config.POSTGRES else "interview_bank"
+
+
+def bank_tags_table() -> str:
+    """(dim, tag) labels on a bank entry — half of the matching join key."""
+    return "career_interview_bank_tags" if config.POSTGRES else "interview_bank_tags"
+
+
+def posting_tags_table() -> str:
+    """(dim, tag) labels derived from a posting — the other half, write-through cached."""
+    return "career_posting_tags" if config.POSTGRES else "posting_tags"
+
+
+def _insert_ignore(table: str, cols: tuple[str, ...], conflict: tuple[str, ...]) -> str:
+    """`INSERT OR IGNORE` is SQLite-only; ON CONFLICT (...) DO NOTHING is the Postgres
+    equivalent and, unlike OR IGNORE, has to be told WHICH constraint may conflict.
+
+    Naming the conflict target is not a formality: OR IGNORE swallows every constraint
+    failure including NOT NULL and FK, whereas DO NOTHING (entry_id, dim, tag) swallows only
+    a duplicate tag. That is the narrower, better behaviour — a genuinely broken row now
+    raises instead of vanishing — but it means each caller must pass the unique key that
+    migration 098 actually declares, or Postgres raises "no unique or exclusion constraint
+    matching the ON CONFLICT specification".
+
+    In sqlite mode the produced text is byte-identical to the literals this module used
+    before dual-mode; db.q() then converts the `?` placeholders for psycopg2.
+    """
+    ph = ",".join("?" * len(cols))
+    if config.POSTGRES:
+        return (f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({ph}) "
+                f"ON CONFLICT ({', '.join(conflict)}) DO NOTHING")
+    return f"INSERT OR IGNORE INTO {table} ({', '.join(cols)}) VALUES ({ph})"
 
 # ── canonical vocabulary (governance) ────────────────────────────────────────
 TAGS = {
@@ -157,6 +214,19 @@ POSITION_KW = {  # scanned over the TITLE only
 
 
 def ensure_schema(conn):
+    """sqlite: create the three tables on demand (they live in whichever DB is `main`).
+
+    postgres: NO-OP by design. DDL there belongs to migrations/098, applied by the swarm's
+    package-migration runner and recorded in app_package_migrations — the same rule
+    db.migrate() follows. These tables are SHARED across every user of the install, so an
+    engine process must not be able to reshape them out from under the runner; and SCHEMA
+    above is SQLite dialect (`INTEGER PRIMARY KEY` autoincrement, `REFERENCES postings(id)`
+    against what is a VIEW here) which Postgres would either reject or accept with the wrong
+    meaning. If the migration has not run, the first read fails loudly with an undefined
+    table, which is the correct failure — silently creating a half-right shared table is not.
+    """
+    if config.POSTGRES:
+        return
     conn.executescript(SCHEMA)
 
 
@@ -165,11 +235,22 @@ def _qhash(q):
 
 
 def load_entries(conn, entries, replace=True):
-    """Load bank entries (normalize+dedup+merge tags). Returns (entries, tag_rows)."""
+    """Load bank entries (normalize+dedup+merge tags). Returns (entries, tag_rows).
+
+    NOTE for postgres mode: the bank is SHARED (migration 098), so replace=True empties it
+    for every user of the install, not just the caller. That is the right shape for a
+    question corpus shipped as one JSON file per install, but it makes `--load` an operator
+    action. Nothing here weakens it into a per-user write, because a half-per-user corpus
+    would be worse than either choice.
+    """
     ensure_schema(conn)
+    bt, bg = bank_table(), bank_tags_table()
     if replace:
-        conn.execute("DELETE FROM interview_bank_tags")
-        conn.execute("DELETE FROM interview_bank")
+        # Tags first: 098 declares the FK ON DELETE CASCADE, but deleting the parent while
+        # children exist is only safe BECAUSE of that cascade, and the explicit order works
+        # identically in both backends (SQLite MULTIUSER mode runs with foreign_keys OFF).
+        conn.execute(f"DELETE FROM {bg}")
+        conn.execute(f"DELETE FROM {bt}")
     n_tags = 0
     for e in entries:
         q = e.get("question")
@@ -177,20 +258,24 @@ def load_entries(conn, entries, replace=True):
             continue
         qh = _qhash(q)
         conn.execute(
-            "INSERT OR IGNORE INTO interview_bank (category, question, good, red_flag, source_dim, qhash) "
-            "VALUES (?,?,?,?,?,?)",
+            _insert_ignore(bt, ("category", "question", "good", "red_flag", "source_dim", "qhash"),
+                           ("qhash",)),
             (e.get("category"), q, e.get("what_good_looks_like") or e.get("good"),
              e.get("red_flag_if") or e.get("red_flag"), e.get("source_dim") or e.get("dim"), qh),
         )
-        eid = conn.execute("SELECT id FROM interview_bank WHERE qhash=?", (qh,)).fetchone()["id"]
+        # Read the id back rather than using lastrowid: on a dedup hit nothing was inserted,
+        # so the existing row's id is the one whose tags must be MERGED. (db.py's Postgres
+        # cursor raises on lastrowid for exactly this class of mistake.)
+        eid = conn.execute(f"SELECT id FROM {bt} WHERE qhash=?", (qh,)).fetchone()["id"]
         for dim, key in (("industry", "industries"), ("technology", "technologies"), ("position", "positions")):
             for raw in (e.get(key) or []):
                 tag = _norm(dim, raw)
                 if tag:
-                    conn.execute("INSERT OR IGNORE INTO interview_bank_tags (entry_id, dim, tag) VALUES (?,?,?)",
+                    conn.execute(_insert_ignore(bg, ("entry_id", "dim", "tag"),
+                                                ("entry_id", "dim", "tag")),
                                  (eid, dim, tag))
                     n_tags += 1
-    total = conn.execute("SELECT COUNT(*) c FROM interview_bank").fetchone()["c"]
+    total = conn.execute(f"SELECT COUNT(*) c FROM {bt}").fetchone()["c"]
     return total, n_tags
 
 
@@ -222,9 +307,14 @@ def derive_tags(conn, posting_id, persist=True):
       technology <- title + JD body (bounded)
       position   <- TITLE only
     """
+    # Every column read here is OBJECTIVE, so this uses db.read_postings_table(): in postgres
+    # mode that is the base career_postings instead of the 097 compat view, whose two
+    # RLS-filtered per-user joins contribute nothing to a tag derivation and would be paid
+    # once per posting across a 2000-row backfill. In sqlite mode the helper returns
+    # `postings` and the SQL text is unchanged. `companies` is fine as-is in both.
     row = conn.execute(
-        """SELECT p.title, p.description, c.name AS company, c.industry
-           FROM postings p JOIN companies c ON c.id = p.company_id WHERE p.id = ?""",
+        f"""SELECT p.title, p.description, c.name AS company, c.industry
+           FROM {db.read_postings_table()} p JOIN companies c ON c.id = p.company_id WHERE p.id = ?""",
         (posting_id,),
     ).fetchone()
     if not row:
@@ -236,10 +326,12 @@ def derive_tags(conn, posting_id, persist=True):
             "technology": sorted(set(_hits(tech_text, TECH_KW))),
             "position": sorted(set(_hits(title, POSITION_KW)))}
     if persist:
-        conn.execute("DELETE FROM posting_tags WHERE posting_id=?", (posting_id,))
+        pt = posting_tags_table()
+        conn.execute(f"DELETE FROM {pt} WHERE posting_id=?", (posting_id,))
         for dim, vals in tags.items():
             for t in vals:
-                conn.execute("INSERT OR IGNORE INTO posting_tags (posting_id, dim, tag) VALUES (?,?,?)",
+                conn.execute(_insert_ignore(pt, ("posting_id", "dim", "tag"),
+                                            ("posting_id", "dim", "tag")),
                              (posting_id, dim, t))
     tags["title"] = row["title"]; tags["company"] = row["company"]
     return tags
@@ -258,14 +350,26 @@ def match(conn, posting_id, per_category=12, persist=True):
         pairs = [("industry", "__none__")]  # only universal entries will match
     vals = ",".join(["(?,?)"] * len(pairs))
     args = [x for p in pairs for x in p]
+    # This query is dialect-portable AS WRITTEN — verified against PG 16.14, not assumed:
+    #   `(t.dim, t.tag) IN (VALUES (?,?),(?,?))`  a row constructor against a VALUES list is
+    #       valid in both (SQLite >= 3.15 row values; Postgres parses a parenthesised VALUES
+    #       as a subquery). Untyped psycopg2 params resolve to text against the text columns,
+    #       so no ::text casts are needed. Keeping this form matters: it is what lets the
+    #       (dim, tag) index carry the match, which is the entire scaling claim in the module
+    #       docstring. A `dim || tag` rewrite would work in both and defeat the index.
+    #   `GROUP BY e.id` + un-grouped e.category/e.question/...  legal in Postgres ONLY via
+    #       functional dependency on a grouped PRIMARY KEY, which is why 098 declares
+    #       career_interview_bank.id as BIGSERIAL PRIMARY KEY and not a unique index.
+    #   `ORDER BY (e.category = 'domain_mustknow') DESC`  SQLite yields 1/0, Postgres yields
+    #       true/false; DESC floats the match to the top in both (true > false).
     sql = f"""
         SELECT e.id, e.category, e.question, e.good, e.red_flag, e.source_dim,
                SUM(CASE WHEN t.tag='*' THEN 0
                         WHEN t.dim='industry' THEN 3
                         WHEN t.dim='technology' THEN 2
                         WHEN t.dim='position' THEN 1 ELSE 0 END) AS score
-        FROM interview_bank e
-        JOIN interview_bank_tags t ON t.entry_id = e.id
+        FROM {bank_table()} e
+        JOIN {bank_tags_table()} t ON t.entry_id = e.id
         WHERE (t.dim, t.tag) IN (VALUES {vals}) OR t.tag = '*'
         GROUP BY e.id
         ORDER BY (e.category = 'domain_mustknow') DESC, score DESC, e.id
@@ -279,11 +383,21 @@ def match(conn, posting_id, per_category=12, persist=True):
 
 
 def backfill_posting_tags(conn, limit=2000, where="p.active=1 AND p.target_role=1"):
-    """Pre-derive tags for many postings so batch matching is a pure indexed JOIN."""
+    """Pre-derive tags for many postings so batch matching is a pure indexed JOIN.
+
+    This one keeps `FROM postings` — the compat VIEW in postgres mode, NOT career_postings —
+    because the default `where` filters on p.target_role, which migration 095 moved from the
+    corpus onto the per-user career_user_job_scores ("is this role in MY lane" is a judgement
+    about a person). Only the view carries it, RLS-scoped to the acting user, cast back to
+    0/1 alongside p.active. Swapping in read_postings_table() here would fail with an
+    undefined column — or, worse, silently succeed for a caller that passed a `where` naming
+    neither, and quietly tag a different set of postings.
+    """
     ensure_schema(conn)
     ids = [r["id"] for r in conn.execute(
         f"SELECT p.id FROM postings p WHERE {where} "
-        f"AND NOT EXISTS (SELECT 1 FROM posting_tags pt WHERE pt.posting_id=p.id) LIMIT {int(limit)}"
+        f"AND NOT EXISTS (SELECT 1 FROM {posting_tags_table()} pt WHERE pt.posting_id=p.id) "
+        f"LIMIT {int(limit)}"
     ).fetchall()]
     for pid in ids:
         derive_tags(conn, pid, persist=True)
@@ -292,8 +406,9 @@ def backfill_posting_tags(conn, limit=2000, where="p.active=1 AND p.target_role=
 
 def stats(conn):
     ensure_schema(conn)
-    n = conn.execute("SELECT COUNT(*) c FROM interview_bank").fetchone()["c"]
-    by = conn.execute("SELECT category, COUNT(*) c FROM interview_bank GROUP BY category ORDER BY c DESC").fetchall()
+    bt = bank_table()
+    n = conn.execute(f"SELECT COUNT(*) c FROM {bt}").fetchone()["c"]
+    by = conn.execute(f"SELECT category, COUNT(*) c FROM {bt} GROUP BY category ORDER BY c DESC").fetchall()
     return n, [(r["category"], r["c"]) for r in by]
 
 

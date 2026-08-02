@@ -1,10 +1,17 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="midnight">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Game Show</title>
+  <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+  <script src="/shared/ui/js/surface-theme.js"></script>
   <link rel="stylesheet" href="/api/game-show/game-show.css">
+  <link rel="stylesheet" href="/api/game-show/game-show-play.css">
+  <link rel="stylesheet" href="/api/game-show/gs-set-feud.css">
+  <link rel="stylesheet" href="/api/game-show/gs-set-jeopardy.css">
+  <link rel="stylesheet" href="/api/game-show/gs-set-wheel.css">
+  <link rel="stylesheet" href="/api/game-show/gs-set-whammy.css">
 </head>
 <body>
   <div class="gs-lights"></div>
@@ -12,10 +19,18 @@
   <audio id="gs-audio"></audio>
   <video class="gs-cam-src" id="gs-cam" playsinline muted autoplay></video>
   <canvas id="gs-canvas" width="320" height="320" style="display:none"></canvas>
-  <!-- Surface scripts are inlined at serve time (CSP-safe); order matters. -->
+  <!-- Surface scripts are inlined at serve time (CSP-safe); order matters:
+       core → presence/controls → show-UI registry → one file per show → chrome → surfaces → boot. -->
   <script src="/api/game-show/gs-core.js"></script>
   <script src="/api/game-show/gs-presence.js"></script>
   <script src="/api/game-show/gs-controls.js"></script>
+  <script src="/api/game-show/gs-cutaways.js"></script>
+  <script src="/api/game-show/gs-shows.js"></script>
+  <script src="/api/game-show/gs-show-feud.js"></script>
+  <script src="/api/game-show/gs-show-jeopardy.js"></script>
+  <script src="/api/game-show/gs-show-wheel.js"></script>
+  <script src="/api/game-show/gs-show-whammy.js"></script>
+  <script src="/api/game-show/gs-play.js"></script>
   <script src="/api/game-show/gs-surfaces.js"></script>
   <script src="/api/game-show/gs-app.js"></script>
 </body>

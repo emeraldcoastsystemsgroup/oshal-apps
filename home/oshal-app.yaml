@@ -24,12 +24,12 @@ description: >-
   Google Nest); the home-bot reads your real devices + scenes via your connector
   token and turns "turn off the living room lights" into the right commands.
   Destructive actions (locks, garage, thermostat) are confirmed first.
-version: 1.0.0
+version: 1.1.0
 status: active
 
 source:
   type: git-subdir
-  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: home
   ref: main
 
@@ -39,10 +39,9 @@ dependencies:
   tools: []
   connectors: [smartthings, google-home]
 
-# Per-app skin (approved palette). The core manifest said `green`, which is not in
-# COCKPIT_THEMES — forest is the green the theme engine actually ships (finance
-# carve precedent: evergreen→forest).
-theme: forest
+# Per-app skin. Moved off forest (finance claimed it as the money bundle's color)
+# now that this is the iot.oshal.ai bundle front door (operator decision 2026-07-31).
+theme: ocean
 
 # Scheduled / swarm-initiated home control (e.g. a cron "morning routine") routes a
 # ticketType=home-control ticket via the generic single-bot worker dispatch straight
@@ -84,6 +83,34 @@ ui:
       label: Home
       icon: codicon codicon-home
       iframeUrl: /api/home/ui
+      section: top
+    # iot.oshal.ai bundle (operator decision 2026-07-31): every physical-device/IoT app
+    # surfaces here instead of standing alone. Distinct toolNames from each sibling app's
+    # own tile (ADR-085 D11).
+    - toolName: home-drone
+      label: Drone Ops
+      icon: codicon codicon-radio-tower
+      iframeUrl: /api/drone/app
+      section: top
+    - toolName: home-sat-ops
+      label: Sat Ops
+      icon: codicon codicon-satellite
+      iframeUrl: /api/sat/app
+      section: top
+    - toolName: home-pumpkin
+      label: Pumpkin
+      icon: codicon codicon-flame
+      iframeUrl: /api/pumpkin/app
+      section: top
+    - toolName: home-spaces
+      label: Spaces
+      icon: codicon codicon-symbol-namespace
+      iframeUrl: /api/spaces/app
+      section: top
+    - toolName: home-camera
+      label: Camera Ops
+      icon: codicon codicon-device-camera
+      iframeUrl: /api/camera/app
       section: top
     - toolName: home-accounts
       label: Hubs

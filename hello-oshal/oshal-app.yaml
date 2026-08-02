@@ -13,14 +13,14 @@
 name: hello-oshal
 suite: ai-engineering   # ADR-097: primary catalog shelf (tools keep their own category:)
 displayName: Hello OSHAL
-description: The minimal working OSHAL app package — one route, one ribbon tile.
-version: 1.0.1
+description: The minimal working OSHAL app package — one JSON route, one themed ribbon surface.
+version: 1.1.0
 status: active
 scope: person
 
 source:
   type: git-subdir
-  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: hello-oshal
   ref: main
 
@@ -41,10 +41,10 @@ ui:
     - toolName: hello-oshal
       label: Hello OSHAL
       icon: codicon codicon-rocket
-      iframeUrl: /api/hello-oshal/ping
+      iframeUrl: /api/hello-oshal/app
       section: top
 
-# One route, compiled JS, mounted in-process at activation.
+# One route module, compiled JS, mounted in-process at activation.
 # NOTE: this example sets requiresAuth: false so it's trivially reachable in a demo.
 # Real apps should leave requiresAuth on (the default).
 routes:

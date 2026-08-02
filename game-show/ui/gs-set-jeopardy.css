@@ -1,0 +1,165 @@
+/*
+ * gs-set-jeopardy.css — the Jeopardy set treatment (gsj- prefix), scoped under
+ * body[data-gs-show="jeopardy"]: the category-monitor WALL over gold-value
+ * cells, the full-set blue clue takeover (RING IN! pulse, responder strip),
+ * the Daily Double starburst, and the round-break / final splash cards.
+ * (.css is exempt from the repo line cap; no change-log block required.)
+ */
+
+body[data-gs-show="jeopardy"] {
+  --gsj-blue: #2334a8;          /* the classic board blue, derived from --gs-blue */
+  --gsj-blue-deep: #0d1660;
+  --gsj-wall-gap: #05070f;      /* the dark grid between the monitors */
+}
+
+body[data-gs-show="jeopardy"] .gsj-set { display: flex; flex-direction: column; gap: 12px; height: 100%; }
+
+/* ── the WALL: 6 category monitors over 5 value rows ─────────────────────── */
+body[data-gs-show="jeopardy"] .gsj-wall {
+  display: grid; gap: 6px; padding: 10px; flex: 1;
+  background: var(--gsj-wall-gap); border-radius: 14px;
+  border: 3px solid color-mix(in srgb, var(--gs-gold) 55%, #3a2a06);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, .6), inset 0 0 24px rgba(0, 0, 0, .8);
+}
+body[data-gs-show="jeopardy"] .gsj-cat {
+  display: grid; place-items: center; min-height: 64px; padding: 8px 6px; text-align: center;
+  background: linear-gradient(180deg, var(--gsj-blue), var(--gsj-blue-deep) 85%);
+  color: var(--gs-ink); font-weight: 900; text-transform: uppercase; letter-spacing: .04em;
+  font-size: clamp(11px, 1.3vw, 17px); line-height: 1.15; border-radius: 4px;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, .8);
+  box-shadow: inset 0 0 22px rgba(0, 0, 0, .55), inset 0 2px 0 rgba(255, 255, 255, .1);  /* monitor-bank glass */
+}
+body[data-gs-show="jeopardy"] .gsj-cell {
+  display: grid; place-items: center; min-height: clamp(44px, 8.5vh, 84px); cursor: pointer;
+  background: linear-gradient(180deg, #1a2a95, var(--gsj-blue-deep) 90%);
+  color: var(--gs-gold); font-weight: 900; font-size: clamp(16px, 2.4vw, 34px);
+  font-variant-numeric: tabular-nums; border-radius: 4px;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, .85), 0 0 14px rgba(251, 191, 36, .35);
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, .5), inset 0 2px 0 rgba(255, 255, 255, .08);
+  transition: filter .12s ease, transform .06s ease;
+}
+body[data-gs-show="jeopardy"] .gsj-cell:not(.used):not(.locked):hover { filter: brightness(1.4); }
+body[data-gs-show="jeopardy"] .gsj-cell:not(.used):not(.locked):active { transform: translateY(1px); }
+body[data-gs-show="jeopardy"] .gsj-cell.locked { cursor: default; }
+body[data-gs-show="jeopardy"] .gsj-cell.used {
+  cursor: default; color: transparent; text-shadow: none;
+  background: #0a0f24; box-shadow: inset 0 0 26px rgba(0, 0, 0, .85);  /* a switched-off monitor */
+}
+
+/* board idle (no categories yet) */
+body[data-gs-show="jeopardy"] .gsj-idle {
+  flex: 1; display: grid; place-items: center; align-content: center; gap: 6px; min-height: 30vh;
+  background: linear-gradient(180deg, var(--gsj-blue-deep), #080d33); border-radius: 14px;
+  border: 3px solid color-mix(in srgb, var(--gs-gold) 40%, #3a2a06); box-shadow: inset 0 0 40px rgba(0, 0, 0, .6);
+}
+body[data-gs-show="jeopardy"] .gsj-idle-glow {
+  font-weight: 900; letter-spacing: .35em; font-size: clamp(20px, 3vw, 36px);
+  color: #93b4ff; text-shadow: 0 0 24px rgba(79, 107, 214, .9);
+}
+
+/* ── the clue takeover ───────────────────────────────────────────────────── */
+body[data-gs-show="jeopardy"] .gsj-clue-card {
+  position: relative; flex: 1; min-height: 42vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 14px; padding: 28px 6vw 54px; text-align: center;
+  background:
+    radial-gradient(120% 90% at 50% 0, rgba(255, 255, 255, .1), transparent 55%),
+    linear-gradient(180deg, var(--gsj-blue), var(--gsj-blue-deep) 80%);
+  border-radius: 16px; border: 4px solid var(--gsj-blue-deep);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .6), inset 0 0 60px rgba(0, 0, 0, .45);
+}
+body[data-gs-show="jeopardy"] .gsj-kicker {
+  font-weight: 900; letter-spacing: .18em; text-transform: uppercase; font-size: clamp(12px, 1.4vw, 17px);
+  color: var(--gs-gold); text-shadow: 1px 1px 0 rgba(0, 0, 0, .8);
+}
+body[data-gs-show="jeopardy"] .gsj-clue-text {
+  font-weight: 800; text-transform: uppercase; letter-spacing: .06em; line-height: 1.35;
+  font-size: clamp(20px, 3.2vw, 42px); color: var(--gs-ink); max-width: 22ch;
+  text-shadow: 2px 3px 0 rgba(0, 0, 0, .75);
+}
+body[data-gs-show="jeopardy"] .gsj-enter { animation: gsj-zoom .5s cubic-bezier(.2, .8, .25, 1) both; }
+@keyframes gsj-zoom { from { transform: scale(.25); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* buzzer open: the whole card pulses cyan */
+body[data-gs-show="jeopardy"] .gsj-clue-card.ring { animation: gsj-ring 1s ease-in-out infinite; border-color: var(--gs-cyan); }
+@keyframes gsj-ring {
+  0%, 100% { box-shadow: 0 18px 50px rgba(0, 0, 0, .6), 0 0 0 0 rgba(56, 189, 248, .0), inset 0 0 60px rgba(0, 0, 0, .45); }
+  50% { box-shadow: 0 18px 50px rgba(0, 0, 0, .6), 0 0 44px 6px rgba(56, 189, 248, .55), inset 0 0 60px rgba(0, 0, 0, .45); }
+}
+body[data-gs-show="jeopardy"] .gsj-ring-tag {
+  font-weight: 900; letter-spacing: .3em; font-size: clamp(14px, 1.8vw, 22px); color: var(--gs-cyan);
+  border: 2px solid var(--gs-cyan); border-radius: 999px; padding: 6px 20px 6px 24px;
+  text-shadow: 0 0 14px var(--gs-cyan); animation: gsj-blink .55s steps(2) infinite;
+}
+@keyframes gsj-blink { 50% { opacity: .35; } }
+
+/* locked: the responder strip rides the bottom of the card */
+body[data-gs-show="jeopardy"] .gsj-responder {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 10px;
+  font-weight: 900; letter-spacing: .12em; text-transform: uppercase; font-size: clamp(14px, 1.8vw, 22px);
+  color: var(--gs-gold); background: linear-gradient(180deg, transparent, rgba(0, 0, 0, .65) 40%);
+  border-radius: 0 0 12px 12px; text-shadow: 0 0 16px rgba(251, 191, 36, .6);
+}
+
+/* ── Daily Double ────────────────────────────────────────────────────────── */
+body[data-gs-show="jeopardy"] .gsj-daily {
+  position: relative; overflow: hidden; display: grid; place-items: center; min-height: 30vh;
+  border-radius: 16px; border: 4px solid var(--gs-gold);
+  background: radial-gradient(circle at 50% 45%, #4a3406, #1c1302 75%);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .6), 0 0 40px rgba(251, 191, 36, .35);
+}
+body[data-gs-show="jeopardy"] .gsj-burst {
+  position: absolute; inset: -40%;
+  background: repeating-conic-gradient(from 0deg, rgba(251, 191, 36, .28) 0 9deg, transparent 9deg 18deg);
+  animation: gsj-spinburst 14s linear infinite;
+}
+@keyframes gsj-spinburst { to { transform: rotate(360deg); } }
+body[data-gs-show="jeopardy"] .gsj-daily-title {
+  position: relative; z-index: 2; font-weight: 900; text-transform: uppercase; letter-spacing: .06em;
+  font-size: clamp(34px, 6.5vw, 84px); line-height: 1;
+  background-image: linear-gradient(180deg, #fff6d8, var(--gs-gold) 55%, var(--gs-gold-2));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(3px 4px 0 rgba(0, 0, 0, .8)) drop-shadow(0 0 24px rgba(251, 191, 36, .5));
+}
+body[data-gs-show="jeopardy"] .gsj-wager-card {
+  display: grid; place-items: center; gap: 6px; padding: 18px;
+  background: linear-gradient(180deg, var(--gsj-blue), var(--gsj-blue-deep)); border-radius: 14px;
+  border: 3px solid var(--gsj-blue-deep); box-shadow: 0 12px 36px rgba(0, 0, 0, .5), inset 0 0 40px rgba(0, 0, 0, .4);
+}
+body[data-gs-show="jeopardy"] .gsj-wager-line {
+  font-weight: 800; text-transform: uppercase; letter-spacing: .1em;
+  font-size: clamp(16px, 2.2vw, 28px); color: var(--gs-ink); text-shadow: 2px 2px 0 rgba(0, 0, 0, .75);
+}
+
+/* ── round-break / final splashes ────────────────────────────────────────── */
+body[data-gs-show="jeopardy"] .gsj-splash {
+  flex: 1; display: grid; place-items: center; align-content: center; gap: 10px; min-height: 34vh; padding: 24px;
+  background:
+    radial-gradient(120% 90% at 50% 0, rgba(147, 180, 255, .16), transparent 55%),
+    linear-gradient(180deg, var(--gsj-blue), var(--gsj-blue-deep) 80%);
+  border-radius: 16px; border: 4px solid var(--gsj-blue-deep); box-shadow: 0 18px 50px rgba(0, 0, 0, .6);
+}
+body[data-gs-show="jeopardy"] .gsj-splash-title {
+  font-weight: 900; text-transform: uppercase; letter-spacing: .08em; text-align: center; line-height: 1.05;
+  font-size: clamp(30px, 5.5vw, 72px);
+  background-image: linear-gradient(180deg, #ffffff, #93b4ff 60%, #4f6bd6);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(3px 4px 0 rgba(0, 0, 0, .8));
+}
+body[data-gs-show="jeopardy"] .gsj-clue-card.gsj-final { border-color: color-mix(in srgb, var(--gs-gold) 60%, var(--gsj-blue-deep)); }
+
+/* ── phones: one readable column ─────────────────────────────────────────── */
+@media (max-width: 700px) {
+  body[data-gs-show="jeopardy"] .gsj-wall { gap: 3px; padding: 6px; border-width: 2px; }
+  body[data-gs-show="jeopardy"] .gsj-cat { min-height: 40px; font-size: 9px; padding: 4px 2px; letter-spacing: .02em; }
+  body[data-gs-show="jeopardy"] .gsj-cell { min-height: 34px; font-size: 14px; }
+  body[data-gs-show="jeopardy"] .gsj-clue-card { min-height: 30vh; padding: 18px 12px 44px; }
+  body[data-gs-show="jeopardy"] .gsj-clue-text { font-size: 18px; letter-spacing: .03em; }
+  body[data-gs-show="jeopardy"] .gsj-daily { min-height: 20vh; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-gs-show="jeopardy"] .gsj-enter,
+  body[data-gs-show="jeopardy"] .gsj-clue-card.ring,
+  body[data-gs-show="jeopardy"] .gsj-ring-tag,
+  body[data-gs-show="jeopardy"] .gsj-burst { animation: none !important; }
+}

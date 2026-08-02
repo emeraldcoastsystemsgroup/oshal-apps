@@ -1,0 +1,164 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — bake-off ("AI Bake-Off")
+#
+# The prospective half of the platform's own thesis. Token Chase (core, ADR-046) works
+# BACKWARDS: it replays captured model-call frames to prove a cheaper path would have
+# worked. This app works FORWARDS: describe a recurring job once, and it races that job
+# across every lane the deployment already has, grades every output on the shared LLM
+# judge against your rubric, and reports cost x quality with one recommendation — the
+# cheapest lane that still clears your quality bar, and what switching saves per month.
+#
+# A "lane" is a bot x harness x provider pairing. Mix-mode swarms are what make lanes
+# real (ADR-033): claude-code/claude-code and codex-cli/openai-codex are genuinely
+# different lanes on the same box. A single-vendor stack cannot run this app at all —
+# its optimizer is captive to its own models. That is the moat, made spendable.
+#
+# NO NEW CREDENTIALS. It uses whatever lanes are already registered and heartbeating,
+# on the swarm's existing BYOK logins (the mounted ~/.claude / ~/.codex / ~/.gemini
+# OAuth). Local Ollama/LM Studio lanes work the same way and are the interesting case:
+# a free local lane that clears the bar is the biggest number this app can print.
+#
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: bake-off
+suite: ai-engineering   # ADR-097: one primary catalog shelf. It serves whoever owns the LLM bill.
+displayName: AI Bake-Off
+description: >-
+  Race one job across every AI lane you already have — each bot x harness x provider pairing —
+  grade every output on the shared quality judge against your own rubric, and get one
+  recommendation: the cheapest lane that still clears your quality bar, and what switching saves
+  per month. Refuses to recommend anything it cannot honestly measure.
+version: 1.0.0
+status: active
+scope: person
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: bake-off
+  ref: main
+
+# ─────────────────────────────────────────────────────────────────────────────
+# KERNEL SKILLS this package IMPORTS (ADR-085 §2 / ADR-090 D8). Declared because an
+# undeclared import is invisible to the prune guard: the first carve that drops the
+# skill would break this app at MOUNT time, not at compile time.
+#
+# `tool-registry` — the harness/LLM layer IS the subject of this app. Lanes are the
+#   harnessType x apiType pairings the kernel's provider/harness framework exposes, and
+#   they are reached through the framework's own bot-execution chokepoint.
+# `notifications` — a multi-lane race takes minutes, so the owner is told when it lands
+#   (through the kernel notification router + their own preference-center routing).
+#
+# NOT declared, and honestly so: this package also imports @/features/quality-judge
+# (JudgeService) and @/app/extensions/swarm/swarm-bot-registry (getActiveRegistry). Neither
+# is a DECLARED kernel skill, so neither can appear in `uses:` — the loader validates that
+# list fail-closed against src/shared/kernel-skills/registry.ts. Both are anchored in dist
+# by permanent app-layer importers (judge-routes.ts mounts /api/judge; the registry is core
+# boot), which is the same footing on which shipped packages import @/features/trading and
+# @/features/prediction-markets. If the shared judge is ever promoted to a kernel skill,
+# add it here.
+# ─────────────────────────────────────────────────────────────────────────────
+uses:
+  - tool-registry
+  - notifications
+
+# No connectors: nothing here talks to a third party. The lanes are the deployment's own bots.
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+theme: midnight
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — one analyst. It does NOT run the race and it does NOT grade: candidate output
+# runs on each candidate lane's own bot, and grading runs on the kernel's quality-judge
+# concierge, so every model call is attributed to an accountable node (ADR-036) and lands
+# in chat_tasks under that node's agent_id. The analyst's only job is to narrate the
+# already-computed table, and it is invoked ONLY on an explicit click
+# (POST /jobs/:id/verdict) because narration spends money.
+#
+# No container is declared, so it resolves inline on the api (a concierge node,
+# docs/building-a-bot.md Form B) — the right shape for a reason-only bot with no
+# shell-out and no store of its own.
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: b0be0000-0000-0000-0000-000000000001
+    name: bake-off-analyst
+    persona: personas/bake-off-analyst.yaml
+    role: engineering/bake-off-analyst
+    capabilities:
+      - cost-quality-analysis
+      - model-selection-advice
+      - evidence-summarization
+    routingKeywords:
+      - which model should i use
+      - cheaper model
+      - cut llm cost
+      - cost per run
+      - model comparison
+      - bake off
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — the packaged router, mounted /api/bake-off on activation.
+#
+# requiresAuth: true is load-bearing, not decoration. Every endpoint either exposes the
+# caller's own prompts, model outputs and spend, or spends their money on an LLM. The
+# handlers ALSO self-gate on callerSub and scope every query to it, with owner-or-operator
+# RLS underneath as the backstop.
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - module: routes/bake-off-routes.js
+    factory: createBakeOffRoutes
+    mountPath: /api/bake-off
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+
+# DATABASE MIGRATIONS — owned by this package. bake-off-store also self-heals them, so the
+# app works whether or not APP_PACKAGE_MIGRATIONS is on.
+migrations:
+  - migrations/001-bake-off.sql
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon icon opens the bake-off console (lane roster, job
+# editor, the cost/quality table, the recommendation, and the per-lane output drawer).
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: bake-off-home
+      label: AI Bake-Off
+      icon: codicon codicon-dashboard
+      iframeUrl: /api/bake-off/
+      section: top
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WORKFLOW — tickets of type 'bake-off' route to the analyst, so a scheduled or
+# swarm-initiated re-baseline ("models changed; is my lane still the right one?") files a
+# real ticket on the kernel queue instead of borrowing another app's type.
+# ─────────────────────────────────────────────────────────────────────────────
+ticketType: bake-off
+workflow:
+  name: AI Bake-Off Pipeline
+  pipeline: bake-off
+  workerBot: bake-off-analyst
+  phases:
+    - intake     # identify the job and the lanes in scope
+    - measure    # read the persisted run: per-lane cost, tokens, judge score and mode
+    - decide     # state the winner, the baseline, and the saving — or the block, unsoftened
+    - deliver    # the verdict, with the one caveat that would most change it
+
+chatBot: bake-off-analyst
+
+# NO `schedules:` — deliberately. A recurring race is N paid model calls plus N paid grades,
+# so an app that shipped with a cron enabled would start spending on install. Re-baselining on
+# a cadence is a real want; it belongs behind an explicit per-user opt-in, and it is listed in
+# this package's README as the next increment rather than pre-wired here.
+
+ribbon:
+  hideFrameworkItems:
+    - addressbook
+    - calendar
+    - echo
+  defaultView: bake-off-home

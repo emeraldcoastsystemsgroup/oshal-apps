@@ -14,6 +14,8 @@
  * 2026-07-13 14:50:00 | roger.murphy@emeraldcoastsystemsgroup.com | ADR-095: per-strategy notes/lessons CRUD + APPLY-TO-PROFILE endpoints (GET /apply status incl. env-default comparison, POST /strategies/:id/apply with confirm guard + applyPct, POST /apply/revert). Every apply/revert returns a ready-to-paste strategy-log.md row — the log discipline survives the UI path.
  * 2026-07-13 21:00:00 | roger.murphy@emeraldcoastsystemsgroup.com | BLEND create/patch (ADR-095 round 2): resolveBlendRefs embeds {strategyId, weightPct} component references as config snapshots at save time (editing a source never mutates a blend), and knobSummary/log rows describe blends ("blend 30% A + 20% B · core 50%").
  * 2026-07-19 23:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | Carved out of OSHAL core into the trading app package (ADR-085 Wave 3). Relative kernel imports flip to @/ aliases — the lab sim/ops/store, config-overrides, schedule-dispatch, free-tier-rotation, and inline-bot-execution ALL stay kernel (the lab dispatch leg and the blend/config engines import them). Route bodies byte-identical incl. the apply confirm guard — zero behavior change.
+ * 2026-07-24 13:20:00 | roger.murphy@emeraldcoastsystemsgroup.com | Strategy Studio: POST /studio — a conversational quant analyst that grounds a design in cited peer-reviewed research (trading-strategy-research.ts), drafts a StrategyConfig, INJECTS it as a candidate, backtests ~2y, and narrates with sources. Reuses the /draft bot path + createStrategy + backtestStrategy; citations validated against the curated corpus so no invented paper survives.
+ * 2026-07-25 21:55:00 | roger.murphy@emeraldcoastsystemsgroup.com | Studio REFINE-IN-PLACE (the workflow-assistant contract): /studio with a strategyId feeds the CURRENT config back into the prompt and updateStrategy()s the SAME row (store resets forward walk + baseline) instead of minting a new strategy every turn; a reply with no parseable JSON returns {needsInput, message} — a clarifying question — instead of 502; blends are refused conversationally (embedded snapshots); response flags refined and warns when the refined strategy is live-APPLIED (the override keeps its old snapshot until re-applied). Prompt/parse helpers moved to trading-strategy-studio-prompt.ts so the spec imports them without this module's kernel chain.
  *
  * @module trading-strategy-lab-routes
  */
@@ -31,6 +33,8 @@ const trading_config_overrides_1 = require("@/app/trading-config-overrides");
 const trading_schedule_dispatch_1 = require("@/app/trading-schedule-dispatch");
 const free_tier_rotation_1 = require("@/app/routes/free-tier-rotation");
 const inline_bot_execution_1 = require("@/app/routes/inline-bot-execution");
+const trading_strategy_research_1 = require("./trading-strategy-research");
+const trading_strategy_studio_prompt_1 = require("./trading-strategy-studio-prompt");
 const logger = (0, logger_1.createChildLogger)({ module: 'trading-strategy-lab-routes' });
 /** The trading-analyst bot (reason-only, inline on the api) — drafts configs from prose. */
 const TRADING_AGENT_ID = 'a0000000-0000-0000-0000-000000000046';
@@ -536,6 +540,88 @@ function createTradingStrategyLabRoutes(ctx) {
             const parsed = JSON.parse((fenced ? fenced[1] : raw.match(/\{[\s\S]*\}/)?.[0] ?? '').trim());
             const config = (0, trading_strategy_lab_sim_1.normalizeConfig)(parsed.config);
             res.json({ name: String(parsed.name || 'Drafted strategy').slice(0, 80), description: String(parsed.description || '').slice(0, 500), config });
+        }
+        catch (err) {
+            fail(res, err, 502);
+        }
+    });
+    /**
+     * POST /studio — the Strategy Studio. Talk to the quant analyst: it grounds the design in cited
+     * research, drafts a StrategyConfig, INJECTS it into the library as a candidate, backtests it (~2y),
+     * and narrates the result with sources. Body: { message, strategyId? }. With a strategyId this is a
+     * REFINEMENT turn (workflow-assistant contract): the current config feeds the prompt and the SAME
+     * row is updated (forward walk + baseline reset by the store) — no duplicate strategies per turn.
+     * A reply with no parseable JSON comes back as { needsInput: true, message } — the bot's clarifying
+     * question — never a 502. Applying to the live profile stays a manual, confirm-gated action.
+     */
+    router.post('/studio', async (req, res) => {
+        const s = sub(req, res);
+        if (!s)
+            return;
+        const b = (req.body || {});
+        const message = String(b.message || '').trim().slice(0, 4000);
+        if (!message) {
+            res.status(400).json({ error: 'message_required' });
+            return;
+        }
+        try {
+            await (0, trading_strategy_lab_store_1.ensureLabSchema)(pool);
+            // A stale/foreign strategyId degrades to a fresh design turn — same as the workflow assist.
+            const existing = b.strategyId ? await (0, trading_strategy_lab_store_1.getStrategy)(pool, s, String(b.strategyId)) : null;
+            if (existing && existing.config.kind === 'blend') {
+                res.json({
+                    needsInput: true,
+                    message: `"${existing.name}" is a BLEND — its components are embedded snapshots, so I can't re-knob it conversationally. Refine one of its component strategies here and rebuild the blend in the Strategy Lab, or say what you want and I'll design it as a new strategy.`,
+                });
+                return;
+            }
+            const findings = (0, trading_strategy_research_1.selectResearch)(message, 4);
+            const byoLlmConnection = await (0, free_tier_rotation_1.resolveUserLlmConnection)(ctx.pool, s);
+            const result = await (0, inline_bot_execution_1.executeBotOrInline)(ctx, botClient, TRADING_AGENT_ID, {
+                text: (0, trading_strategy_studio_prompt_1.studioPrompt)(message, findings, existing ? { name: existing.name, config: existing.config } : undefined),
+                taskId: `trading-studio-${s}`, workspaceFolderId: `trading-${s}`,
+                agentId: TRADING_AGENT_ID, agenticMode: true, direct: true, userSub: s, byoLlmConnection,
+            });
+            const raw = String(result.response || '').trim();
+            let parsed;
+            try {
+                parsed = (0, trading_strategy_studio_prompt_1.parseStudioReply)(raw, findings);
+            }
+            catch {
+                const question = (0, trading_strategy_studio_prompt_1.stripBotFences)(raw);
+                if (!question)
+                    throw new Error('empty bot reply');
+                res.json({ needsInput: true, message: question.slice(0, 2000) });
+                return;
+            }
+            // On a refinement turn the stored config backfills anything the bot omitted — the contract is
+            // "change only what was asked", so omission means keep.
+            const config = existing
+                ? (0, trading_strategy_lab_sim_1.normalizeConfig)({ ...existing.config, ...(parsed.config || {}) })
+                : (0, trading_strategy_lab_sim_1.normalizeConfig)(parsed.config);
+            let row;
+            if (existing) {
+                row = await (0, trading_strategy_lab_store_1.updateStrategy)(pool, s, existing.id, { description: parsed.description, config });
+                if (!row)
+                    throw new Error('strategy not found');
+            }
+            else {
+                const name = `${parsed.name} · ${Date.now().toString(36).slice(-4)}`.slice(0, 80);
+                row = await (0, trading_strategy_lab_store_1.createStrategy)(pool, s, name, parsed.description, config);
+            }
+            const run = await (0, trading_strategy_lab_ops_1.backtestStrategy)(pool, s, row, config.windowDays);
+            const full = await (0, trading_strategy_lab_store_1.getRun)(pool, s, run.id);
+            const active = existing ? await (0, trading_config_overrides_1.getActiveOverride)(pool, s) : null;
+            logger.info({ sub: s, strategyId: row.id, refined: !!existing, kind: config.kind, cites: parsed.citations.map((c) => c.id) }, 'studio strategy designed + backtested');
+            res.json({
+                strategyId: row.id, name: row.name, refined: !!existing, config, knobSummary: knobSummary(config, 100),
+                hypothesis: parsed.hypothesis, narration: parsed.narration,
+                citations: parsed.citations.map((c) => ({ id: c.id, name: c.name, authors: c.authors, year: c.year, journal: c.journal, url: c.url })),
+                metrics: run.metrics, curve: full?.curve ?? [], runStatus: run.status,
+                appliedNote: active && active.strategyId === row.id
+                    ? 'This strategy is currently APPLIED to your profile — the live override keeps its previous snapshot; re-apply it (confirm-gated) to trade the refined knobs.'
+                    : undefined,
+            });
         }
         catch (err) {
             fail(res, err, 502);

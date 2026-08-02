@@ -1,5 +1,5 @@
 # =============================================================================
-# oshal-applications — app-package store.
+# oshal-apps — app-package store.
 #
 # This repo ships PRODUCT CODE only. User data (career_db.json, resumes, crm.db,
 # generated application packets) is per-user runtime state and lives outside git,

@@ -4,6 +4,9 @@
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-06-20 00:00:00 | roger.murphy@agenticfederal.us   | Layer B: World Intelligence cockpit surface (read-only dashboard)
+ * 2026-07-24 21:00:00 | @codex-surface-audit | Inherit the swarm control-plane theme instead of forcing a fixed dark palette.
+ * 2026-07-29 00:00:00 | roger.murphy@emeraldcoastsystemsgroup.com | Read window is a visible control defaulting to 90 days, not a hardcoded 3650. Asking every panel for "all history" made the metric store plan across ~50 years of daily buckets - more time planning than reading (1.1s of PLANNING per sentiment read). Also drops a stale in-flight response when the user has already clicked another subject.
+ * 2026-07-31 00:00:00 | roger.murphy@emeraldcoastsystemsgroup.com | The 1.0.1 edit dropped the `async function load() {` declaration, leaving a top-level await — a SyntaxError in a classic script, so the page never loaded at all. Restored, and the three per-subject reads now paint their cards independently as each lands (generation-guarded against subject AND window races) instead of one Promise.all blocking first paint on the slowest read — the pull ledger can run seconds cold after a deploy while sentiment is ~100ms. Guard: tests/surface-parse.test.js.
  */
 
 /**
@@ -20,10 +23,12 @@ export const WORLD_APP_HTML = String.raw`<!doctype html>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>World Intelligence</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
 <style>
   :root {
-    --bg:#0b1020; --panel:#121a30; --panel2:#0e1526; --ink:#e8edf7; --muted:#8a97b4;
-    --line:#243150; --accent:#46e5b7; --pos:#46e5b7; --neg:#ff6b81; --neu:#8a97b4;
+    --bg:var(--bg-primary,#0b1020); --panel:var(--bg-card,#121a30); --panel2:var(--bg-tertiary,#0e1526); --ink:var(--text-primary,#e8edf7); --muted:var(--text-secondary,#8a97b4);
+    --line:var(--border-color,#243150); --accent:var(--accent-primary,#46e5b7); --pos:var(--status-success,#46e5b7); --neg:var(--status-error,#ff6b81); --neu:var(--text-muted,#8a97b4);
     --left:#5b8cff; --center:#b9c2da; --right:#ff8f5b;
   }
   * { box-sizing:border-box; }
@@ -32,6 +37,8 @@ export const WORLD_APP_HTML = String.raw`<!doctype html>
   header .dot { width:10px; height:10px; border-radius:50%; background:var(--accent); box-shadow:0 0 12px var(--accent); }
   header h1 { font:600 16px Archivo,Inter,sans-serif; margin:0; letter-spacing:.3px; }
   header .sub { color:var(--muted); font-size:12px; margin-left:auto; }
+  header .win { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.5px; display:flex; align-items:center; gap:6px; }
+  header .win select { background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:3px 6px; font:12px Inter,system-ui,sans-serif; text-transform:none; letter-spacing:0; }
   .wrap { display:grid; grid-template-columns:280px 1fr; height:calc(100vh - 52px); }
   .rail { border-right:1px solid var(--line); overflow:auto; background:var(--panel2); }
   .rail h2 { font:600 11px Inter; text-transform:uppercase; letter-spacing:1px; color:var(--muted); padding:14px 16px 6px; margin:0; }
@@ -83,6 +90,14 @@ export const WORLD_APP_HTML = String.raw`<!doctype html>
 <header>
   <span class="dot"></span>
   <h1>World Intelligence</h1>
+  <label class="win">window
+    <select id="win">
+      <option value="30">30 days</option>
+      <option value="90" selected>90 days</option>
+      <option value="365">1 year</option>
+      <option value="3650">all history</option>
+    </select>
+  </label>
   <span class="sub">bias-aware sentiment &middot; entity graph &middot; pull-rate</span>
 </header>
 <div class="wrap">
@@ -114,6 +129,18 @@ function axis(label, obj) {
 }
 
 let subjects = [];
+let selected = 0;
+// The read window, in days. This used to be hardcoded to 3650 ("all history") on every panel, which
+// is the worst possible default: the metric store buckets by day across ~50 years of real article
+// publication dates, so asking for everything made the database plan across every chunk it owns —
+// more time spent planning than reading. 90 days covers ~98% of the archive; "all history" is still
+// one click away when someone actually wants the long tail.
+let win = 90;
+// Monotonic read generation: selecting a subject or changing the window bumps it, and any paint
+// from an older generation is dropped — covers both the "clicked another subject" race and the
+// "changed the window while a read was in flight" race with one guard.
+let gen = 0;
+
 async function load() {
   const r = await api('/entities?limit=60');
   if (r && r.enabled === false) {
@@ -133,20 +160,34 @@ async function load() {
 }
 function esc(s){ return String(s||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
-async function select(i) {
+function select(i) {
+  selected = i;
+  const g = ++gen;
   document.querySelectorAll('.subj').forEach((n,j) => n.classList.toggle('active', j===i));
   const s = subjects[i]; if (!s) return;
   const main = document.getElementById('main');
-  main.innerHTML = '<div class="empty">Reading '+esc(s.label)+'&hellip;</div>';
-  const [sent, nb, pulls] = await Promise.all([
-    api('/sentiment?entity='+encodeURIComponent(s.entity)+'&days=3650'),
-    api('/neighbors?id='+encodeURIComponent(s.entity)+'&depth=1'),
-    api('/pulls?entity='+encodeURIComponent(s.entity)+'&days=3650'),
-  ]);
-  main.innerHTML = render(s, sent, nb, pulls);
+  // Progressive load: paint the shell immediately and fill each card as its read lands. The three
+  // reads have very different costs (sentiment ~100ms warm; the pull ledger can run for seconds
+  // cold after a deploy), and a Promise.all holds the whole screen hostage to the slowest one.
+  main.innerHTML = '<div id="p-sent">'+waitCard(s.label, 'Reading bias-aware sentiment')+'</div>'
+    + '<div id="p-graph">'+waitCard('Entity graph', 'Walking co-mentions')+'</div>'
+    + '<div id="p-pulls">'+waitCard('Pull-rate', 'Reading the pull ledger')+'</div>';
+  const paint = (id, html) => { if (g === gen) document.getElementById(id).innerHTML = html; };
+  api('/sentiment?entity='+encodeURIComponent(s.entity)+'&days='+win)
+    .then(sent => paint('p-sent', sentimentCards(s, sent)))
+    .catch(e => paint('p-sent', failCard(s.label, e)));
+  api('/neighbors?id='+encodeURIComponent(s.entity)+'&depth=1')
+    .then(nb => paint('p-graph', graphCard(nb)))
+    .catch(e => paint('p-graph', failCard('Entity graph', e)));
+  api('/pulls?entity='+encodeURIComponent(s.entity)+'&days='+win)
+    .then(pulls => paint('p-pulls', pullsCard(pulls)))
+    .catch(e => paint('p-pulls', failCard('Pull-rate', e)));
 }
 
-function render(s, sent, nb, pulls) {
+function waitCard(title, msg) { return '<div class="card"><h3>'+esc(title)+'</h3><div class="note">'+msg+'&hellip;</div></div>'; }
+function failCard(title, e) { return '<div class="card"><h3>'+esc(title)+'</h3><div class="note">Read failed: '+esc(String(e))+'</div></div>'; }
+
+function sentimentCards(s, sent) {
   const pol = sent.political || {}; const eco = sent.econ || {};
   const byKind = sent.byKind || {};
   const head = '<div class="card"><h3>'+esc(s.label)+'</h3><div class="row">'
@@ -173,21 +214,25 @@ function render(s, sent, nb, pulls) {
         '<tr><td>'+esc(x.outlet)+'</td><td>'+esc(x.kind||'')+'</td><td>'+esc(x.bias||'')+'</td><td>'+esc(x.econBias||'')+'</td><td>'+x.points+'</td><td class="'+cls(x.value)+'">'+fmt(x.value)+'</td></tr>'
       ).join('') + '</tbody></table></div>' : '';
 
+  return head + axes + srcTable;
+}
+
+function graphCard(nb) {
   const neighbors = (nb && nb.neighbors) || [];
   const byType = {};
   neighbors.forEach(n => { const t = (n.id.split(':')[1]) || 'other'; (byType[t] = byType[t] || []).push(n.props && n.props.label || n.id); });
-  const graph = '<div class="card"><h3>Entity graph</h3>'
+  return '<div class="card"><h3>Entity graph</h3>'
     + (Object.keys(byType).length ? Object.entries(byType).map(([t,labels]) =>
         '<div class="grp"><div class="gt">'+t+'</div><div>'+[...new Set(labels)].slice(0,18).map(l=>'<span class="tag">'+esc(l)+'</span>').join('')+'</div></div>'
       ).join('') : '<div class="note">No co-mentioned entities yet.</div>')
     + '</div>';
+}
 
+function pullsCard(pulls) {
   const ps = (pulls && pulls.bySource) || [];
-  const pullCard = ps.length ? '<div class="card"><h3>Pull-rate</h3><table><thead><tr><th>Source</th><th>Pulls</th><th>Fetched</th><th>Unique</th><th>New</th><th>Fresh</th></tr></thead><tbody>'
+  return ps.length ? '<div class="card"><h3>Pull-rate</h3><table><thead><tr><th>Source</th><th>Pulls</th><th>Fetched</th><th>Unique</th><th>New</th><th>Fresh</th></tr></thead><tbody>'
     + ps.map(p => '<tr><td>'+esc(p.feedId)+'</td><td>'+p.pulls+'</td><td>'+p.fetched+'</td><td>'+p.uniqueItems+'</td><td>'+p.newItems+'</td><td>'+(p.freshRate==null?'&mdash;':p.freshRate)+'</td></tr>').join('')
     + '</tbody></table></div>' : '';
-
-  return head + axes + srcTable + graph + pullCard;
 }
 function statBox(k,v){ return '<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div></div>'; }
 function kindBlock(byKind){
@@ -195,6 +240,7 @@ function kindBlock(byKind){
   const obj = {}; keys.forEach(k => obj[k] = byKind[k] && byKind[k].value);
   return axis('By outlet kind', obj);
 }
+document.getElementById('win').onchange = (e) => { win = Number(e.target.value) || 90; if (subjects.length) select(selected); };
 load().catch(e => { document.getElementById('main').innerHTML = '<div class="empty">Failed to load: '+esc(String(e))+'</div>'; });
 </script>
 </body>

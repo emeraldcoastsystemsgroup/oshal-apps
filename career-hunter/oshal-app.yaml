@@ -37,12 +37,21 @@ description: >-
   posting against your private career profile, and turns the best fits into a human-in-the-loop
   application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume +
   cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.
-version: 1.3.0
+version: 1.6.0
 status: active
+theme: daylight
+
+# Kernel skills this package IMPORTS (ADR-085 §2). Declared because an undeclared import is
+# invisible to the prune guard: the first carve that drops the skill would break this app at
+# MOUNT time, not at compile time. See docs/apps/kernel-skills.md.
+uses:
+  - graph            # career-graph-routes.js queries the caller-scoped graph tier
+  - notifications    # career-digest.js sends the digest through the kernel notifier
+
 
 source:
   type: git-subdir
-  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: career-hunter
   ref: main
 
@@ -358,11 +367,38 @@ routes:
 # Package copies are idempotent (safe on DBs where the core migrations already ran).
 # NEW career-rls.sql closes the 060 gap: career_digest_settings + career_score_settings
 # shipped without owner RLS.
+# 095-career-corpus.sql moves the jobs corpus INTO the swarm database, which is what
+# makes this a normal install rather than a 1.9 GB SQLite file per user on a volume:
+# ONE shared career_postings table ingested once for everyone, with each user's match
+# scores and application progression in FORCE-RLS tables keyed by user_sub.
 migrations:
   - migrations/031-career-hunter.sql
   - migrations/077-career-digest.sql
   - migrations/082-career-title-profile.sql
   - migrations/090-career-rls.sql
+  - migrations/091-career-automation.sql
+  - migrations/095-career-corpus.sql
+  - migrations/096-career-corpus-complete.sql
+  # 097 adds the `postings` / `companies` compatibility VIEWS. The engine's ~53
+  # `FROM postings` and ~68 `FROM companies` reads resolved to a per-connection SQLite
+  # TEMP view (temp shadows main and every ATTACHed schema); Postgres has no equivalent,
+  # so the shadow becomes a real view and RLS on the per-user tables — not a WHERE clause
+  # — scopes it to the acting user. Must run AFTER 096: it reads apply_active /
+  # confirmation_path / hq / gsearched / referral and career_company_reputation.
+  - migrations/097-career-postings-view.sql
+  # 098 does for the PER-USER tables what 097 did for the shared corpus: compatibility
+  # VIEWS named recruiter_firms / gap_themes / interview_assessments, so the engine's
+  # existing reads work verbatim. Like 097 they are security_invoker, so FORCE RLS on the
+  # underlying tables scopes them to the caller. Must run AFTER 096, which creates those
+  # three tables.
+  - migrations/098-career-peruser-views.sql
+  # 099 gives interview_bank.py's three tables a Postgres home. They were missed by 095/096
+  # because that module builds its own schema with executescript() instead of going through
+  # db.py, so it never appeared in the SQLite dumps those migrations were derived from.
+  # Shared (no RLS): a question bank is the same for everyone and posting tags are derived
+  # deterministically from the posting itself. Must run AFTER 095 — career_posting_tags
+  # carries an FK to career_postings.
+  - migrations/099-career-interview-bank.sql
 
 # ─────────────────────────────────────────────────────────────────────────────
 # WORKFLOW — career-application tickets route to the career-hunter worker bot.

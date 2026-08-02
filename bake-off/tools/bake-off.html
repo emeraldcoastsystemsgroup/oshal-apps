@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<!--
+  AI Bake-Off — the console (?app=bake-off).
+
+  Three panels on one scroll: the lane roster (what you can race, and why a bot might be
+  missing), the job editor, and the report — cost x quality per lane, the recommendation, and
+  the caveats. Every number here comes from the server's computed report; this page does no
+  scoring of its own, so the table and the analyst's narrative can never disagree.
+
+  Self-contained: no external assets, framework theme tokens only.
+-->
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Bake-Off</title>
+<!-- Framework theme tokens + the bootstrap that follows the operator's theme live. Theme files
+     scope to [data-theme="…"] with NO :root fallback, so the default on <html> above matters. -->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<style>
+  /* Derived from the framework theme, never hardcoded hex, so all themes work — not just dark. */
+  :root {
+    --bg: var(--bg-primary);
+    --panel: var(--bg-card);
+    --border: var(--border-color);
+    --text: var(--text-primary);
+    --dim: var(--text-muted);
+    --green: var(--status-success, #3fb950);
+    --red: var(--status-error, #f85149);
+    --amber: var(--status-warning, #d29922);
+    --blue: var(--accent-primary, #58a6ff);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 1rem; background: var(--bg); color: var(--text);
+    font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  h1 { font-size: 1.15rem; margin: 0 0 .25rem; }
+  h2 { font-size: .95rem; margin: 0 0 .6rem; letter-spacing: .02em; }
+  .sub { color: var(--dim); font-size: .82rem; margin: 0 0 1rem; max-width: 70ch; }
+  .grid { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 960px) { .grid { grid-template-columns: minmax(0, 22rem) minmax(0, 1fr); } }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: .9rem 1rem; min-width: 0;
+  }
+  label { display: block; font-size: .78rem; color: var(--dim); margin: .6rem 0 .2rem; }
+  input, textarea, select {
+    width: 100%; background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; padding: .45rem .55rem;
+    font: inherit; font-size: .85rem;
+  }
+  textarea { min-height: 5.5rem; resize: vertical; }
+  .row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+  .row > * { min-width: 0; }
+  button {
+    background: var(--blue); color: var(--bg); border: 0; border-radius: 6px;
+    padding: .45rem .8rem; font: inherit; font-weight: 600; cursor: pointer;
+  }
+  button.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); font-weight: 500; }
+  button:disabled { opacity: .5; cursor: default; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .82rem; min-width: 46rem; }
+  th, td { text-align: left; padding: .4rem .5rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--dim); font-weight: 600; font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.win td { background: color-mix(in srgb, var(--green) 12%, transparent); }
+  .tag {
+    display: inline-block; font-size: .68rem; padding: .1rem .4rem; border-radius: 999px;
+    border: 1px solid var(--border); color: var(--dim);
+  }
+  .tag.bad { color: var(--red); border-color: var(--red); }
+  .tag.warn { color: var(--amber); border-color: var(--amber); }
+  .tag.ok { color: var(--green); border-color: var(--green); }
+  .headline { font-size: 1rem; font-weight: 700; margin: 0 0 .3rem; }
+  .money { color: var(--green); font-variant-numeric: tabular-nums; }
+  .blocked { color: var(--amber); }
+  ul.caveats { margin: .5rem 0 0; padding-left: 1.1rem; color: var(--dim); font-size: .8rem; }
+  ul.caveats li { margin-bottom: .25rem; }
+  .lane { display: flex; gap: .5rem; align-items: flex-start; padding: .35rem 0; border-bottom: 1px solid var(--border); }
+  .lane:last-child { border-bottom: 0; }
+  .lane code { font-size: .74rem; color: var(--dim); overflow-wrap: anywhere; }
+  .jobs button.ghost { width: 100%; text-align: left; margin-bottom: .3rem; }
+  .jobs button.ghost.sel { border-color: var(--blue); color: var(--blue); }
+  .msg { font-size: .8rem; margin-top: .5rem; }
+  .msg.err { color: var(--red); }
+  pre.out {
+    white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 6px; padding: .6rem;
+    font-size: .78rem; max-height: 22rem; overflow-y: auto; margin: .5rem 0 0;
+  }
+</style>
+</head>
+<body>
+<h1>AI Bake-Off</h1>
+<p class="sub">
+  Race one job across every lane you already have — each bot &times; harness &times; provider pairing —
+  grade every output on the shared quality judge against your rubric, and see which lane is cheapest
+  at acceptable quality. No new credentials: these are the bots this deployment already runs.
+</p>
+
+<div class="grid">
+  <div>
+    <div class="card">
+      <h2>Your lanes</h2>
+      <div id="lanes">loading&hellip;</div>
+      <p class="sub" style="margin:.6rem 0 0">
+        A bot appears here only if it declares an explicit harness <em>and</em> provider — a bot on the
+        process default is not a distinguishable lane. Operator-scoped internal bots are never lanes.
+      </p>
+    </div>
+
+    <div class="card" style="margin-top:1rem">
+      <h2>Jobs</h2>
+      <div class="jobs" id="jobs"></div>
+      <button class="ghost" id="newJob" style="width:100%;margin-top:.4rem">+ New job</button>
+    </div>
+  </div>
+
+  <div>
+    <div class="card" id="editor">
+      <h2>Job</h2>
+      <label for="f-name">Name</label>
+      <input id="f-name" placeholder="Weekly customer-email triage" maxlength="120">
+      <label for="f-prompt">The prompt to race (at least 20 characters)</label>
+      <textarea id="f-prompt" placeholder="The exact prompt your recurring job sends. Include the instructions and the format you expect back."></textarea>
+      <label for="f-rubric">Rubric — one criterion per line (blank = the default rubric)</label>
+      <textarea id="f-rubric" style="min-height:4rem"></textarea>
+      <label for="f-ref">Reference answer (optional — improves grading when you have a gold output)</label>
+      <textarea id="f-ref" style="min-height:3rem"></textarea>
+      <div class="row">
+        <div style="flex:1 1 8rem"><label for="f-bar">Quality bar (0-100)</label><input id="f-bar" type="number" min="0" max="100" value="70"></div>
+        <div style="flex:1 1 8rem"><label for="f-vol">Runs per month</label><input id="f-vol" type="number" min="1" value="100"></div>
+      </div>
+      <div class="row" style="margin-top:.8rem">
+        <button id="save">Save job</button>
+        <button class="ghost" id="run" disabled>Run bake-off</button>
+        <button class="ghost" id="verdict" disabled>Ask the analyst</button>
+        <button class="ghost" id="del" disabled>Delete</button>
+      </div>
+      <div class="msg" id="msg"></div>
+    </div>
+
+    <div class="card" style="margin-top:1rem">
+      <h2>Report</h2>
+      <div id="report">No run yet. Save a job, then Run bake-off.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+const API = '/api/bake-off';
+const $ = (id) => document.getElementById(id);
+let LANES = [];
+let JOBS = [];
+let SEL = null;      // selected job id
+let POLL = null;     // report poll timer
+
+/** Fetch JSON, surfacing the server's error text rather than a bare status code. */
+async function api(pathname, init) {
+  const res = await fetch(API + pathname, Object.assign({ headers: { 'content-type': 'application/json' } }, init || {}));
+  let body = null;
+  try { body = await res.json(); } catch (_) { /* non-JSON error page */ }
+  if (!res.ok) throw new Error((body && (body.error || body.detail)) || ('HTTP ' + res.status));
+  return body;
+}
+
+function say(text, isErr) {
+  $('msg').textContent = text || '';
+  $('msg').className = 'msg' + (isErr ? ' err' : '');
+}
+
+function usd(n) {
+  if (n === null || n === undefined) return '—';
+  const v = Number(n);
+  return v === 0 ? '$0' : (v < 0.01 ? '$' + v.toFixed(5) : '$' + v.toFixed(2));
+}
+
+function esc(s) {
+  return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// ── Lanes ────────────────────────────────────────────────────────────────────
+async function loadLanes() {
+  try {
+    const d = await api('/lanes');
+    LANES = d.lanes || [];
+    $('lanes').innerHTML = LANES.length
+      ? LANES.map((l) => '<div class="lane"><div><strong>' + esc(l.bot) + '</strong><br><code>'
+          + esc(l.harness) + ' / ' + esc(l.provider) + '</code></div></div>').join('')
+      : '<p class="sub" style="margin:0">No lanes available to you. A bake-off needs at least two.</p>';
+    if (LANES.length === 1) {
+      $('lanes').innerHTML += '<p class="msg err">Only one lane — a field of one is not a comparison, so no recommendation is possible yet.</p>';
+    }
+  } catch (e) { $('lanes').innerHTML = '<p class="msg err">' + esc(e.message) + '</p>'; }
+}
+
+// ── Jobs ─────────────────────────────────────────────────────────────────────
+async function loadJobs() {
+  try {
+    JOBS = (await api('/jobs')).jobs || [];
+    $('jobs').innerHTML = JOBS.length
+      ? JOBS.map((j) => '<button class="ghost' + (j.id === SEL ? ' sel' : '') + '" data-id="' + esc(j.id) + '">'
+          + esc(j.name) + '</button>').join('')
+      : '<p class="sub" style="margin:0">No jobs yet.</p>';
+    Array.prototype.forEach.call($('jobs').querySelectorAll('button'), (b) => {
+      b.onclick = () => select(b.getAttribute('data-id'));
+    });
+  } catch (e) { $('jobs').innerHTML = '<p class="msg err">' + esc(e.message) + '</p>'; }
+}
+
+function fillEditor(job) {
+  $('f-name').value = job ? job.name : '';
+  $('f-prompt').value = job ? job.prompt : '';
+  $('f-rubric').value = job ? (job.rubric || []).join('\n') : '';
+  $('f-ref').value = job && job.reference ? job.reference : '';
+  $('f-bar').value = job ? job.qualityBar : 70;
+  $('f-vol').value = job ? job.monthlyVolume : 100;
+  ['run', 'verdict', 'del'].forEach((id) => { $(id).disabled = !job; });
+}
+
+function select(id) {
+  SEL = id;
+  fillEditor(JOBS.find((j) => j.id === id) || null);
+  loadJobs();
+  loadReport();
+  say('');
+}
+
+function body() {
+  const rubric = $('f-rubric').value.split('\n').map((s) => s.trim()).filter(Boolean);
+  const payload = {
+    name: $('f-name').value, prompt: $('f-prompt').value,
+    reference: $('f-ref').value, qualityBar: Number($('f-bar').value),
+    monthlyVolume: Number($('f-vol').value),
+  };
+  // Omit rubric entirely to take the server default — sending [] is an explicit error there.
+  if (rubric.length) payload.rubric = rubric;
+  return payload;
+}
+
+// ── Report ───────────────────────────────────────────────────────────────────
+function laneRow(l, winnerKey, reason) {
+  const tag = reason
+    ? '<span class="tag bad">' + esc(reason) + '</span>'
+    : (l.laneKey === winnerKey ? '<span class="tag ok">recommended</span>' : '');
+  return '<tr' + (l.laneKey === winnerKey ? ' class="win"' : '') + '>'
+    + '<td>' + esc(l.bot) + ' ' + tag + '</td>'
+    + '<td><code>' + esc(l.harness) + '/' + esc(l.provider) + '</code></td>'
+    + '<td>' + esc(l.model || '—') + '</td>'
+    + '<td class="num">' + (l.ok ? l.score.toFixed(1) : '—') + '</td>'
+    + '<td class="num">' + (l.costKnown ? usd(l.costUsd) : '<span class="tag warn">unknown</span>') + '</td>'
+    + '<td class="num">' + (l.totalTokens || '—') + '</td>'
+    + '<td class="num">' + (l.durationMs ? (l.durationMs / 1000).toFixed(1) + 's' : '—') + '</td>'
+    + '<td>' + esc(l.judgeMode || '—') + '</td></tr>';
+}
+
+function headline(rec, run) {
+  if (run && run.status === 'running') {
+    return '<p class="headline">Running&hellip; ' + run.lanesCompleted + '/' + run.lanesRequested + ' lanes graded.</p>';
+  }
+  if (rec.blocked) {
+    return '<p class="headline blocked">No recommendation — ' + esc(rec.blocked) + '</p>';
+  }
+  return '<p class="headline">Run this job on <strong>' + esc(rec.winner.bot) + '</strong> ('
+    + esc(rec.winner.harness) + '/' + esc(rec.winner.provider) + ')</p>'
+    + '<p class="sub" style="margin:0">Saves <span class="money">' + usd(rec.perRunSavingUsd)
+    + '</span>/run &mdash; <span class="money">' + usd(rec.monthlySavingUsd)
+    + '</span>/month vs your highest-scoring lane <strong>' + esc(rec.baseline.bot) + '</strong> ('
+    + rec.baseline.score.toFixed(1) + ' vs ' + rec.winner.score.toFixed(1) + ').</p>';
+}
+
+function renderReport(d) {
+  if (!d.run) { $('report').innerHTML = 'No run yet for this job.'; return; }
+  const rep = d.report;
+  const rec = rep.recommendation;
+  const winnerKey = rec.winner ? rec.winner.laneKey : null;
+  const rows = rep.qualifying.map((l) => laneRow(l, winnerKey, null))
+    .concat(rep.rejected.map((l) => laneRow(l, winnerKey, l.reason))).join('');
+  $('report').innerHTML = headline(rec, d.run)
+    + '<div class="scroll"><table><thead><tr><th>Lane</th><th>Harness / provider</th><th>Model</th>'
+    + '<th class="num">Score</th><th class="num">Cost/run</th><th class="num">Tokens</th>'
+    + '<th class="num">Latency</th><th>Graded by</th></tr></thead><tbody>'
+    + (rows || '<tr><td colspan="8">No lanes recorded yet.</td></tr>')
+    + '</tbody></table></div>'
+    + (rec.caveats.length ? '<ul class="caveats">' + rec.caveats.map((c) => '<li>' + esc(c) + '</li>').join('') + '</ul>' : '')
+    + '<div class="row" style="margin-top:.6rem">' + rep.lanes.map((l) =>
+        '<button class="ghost" data-out="' + esc(l.agentId) + '" data-run="' + esc(d.run.id) + '">'
+        + esc(l.bot) + ' output</button>').join('') + '</div>'
+    + '<div id="drawer"></div>';
+  Array.prototype.forEach.call($('report').querySelectorAll('button[data-out]'), (b) => {
+    b.onclick = () => showOutput(b.getAttribute('data-run'), b.getAttribute('data-out'));
+  });
+  // Keep polling while the run is open; a multi-lane race takes minutes by design.
+  if (d.run.status === 'running') POLL = setTimeout(loadReport, 6000);
+}
+
+async function showOutput(runId, agentId) {
+  try {
+    const d = await api('/runs/' + encodeURIComponent(runId) + '/output/' + encodeURIComponent(agentId));
+    $('drawer').innerHTML = '<pre class="out">' + esc(d.ok ? d.output : ('FAILED: ' + d.error))
+      + (d.judge && d.judge.rationale ? '\n\n--- judge (' + esc(d.judge.mode) + ', '
+        + esc(d.judge.score) + ') ---\n' + esc(d.judge.rationale) : '') + '</pre>';
+  } catch (e) { $('drawer').innerHTML = '<p class="msg err">' + esc(e.message) + '</p>'; }
+}
+
+async function loadReport() {
+  if (POLL) { clearTimeout(POLL); POLL = null; }
+  if (!SEL) { $('report').innerHTML = 'Select or save a job.'; return; }
+  try { renderReport(await api('/jobs/' + encodeURIComponent(SEL) + '/report')); }
+  catch (e) { $('report').innerHTML = '<p class="msg err">' + esc(e.message) + '</p>'; }
+}
+
+// ── Actions ──────────────────────────────────────────────────────────────────
+$('newJob').onclick = () => { SEL = null; fillEditor(null); loadJobs(); say(''); };
+
+$('save').onclick = async () => {
+  try {
+    const created = await api('/jobs', { method: 'POST', body: JSON.stringify(body()) });
+    await loadJobs();
+    select(created.job.id);
+    say('Saved.');
+  } catch (e) { say(e.message, true); }
+};
+
+$('run').onclick = async () => {
+  try {
+    const d = await api('/jobs/' + encodeURIComponent(SEL) + '/run', { method: 'POST' });
+    say(d.alreadyRunning ? 'A run is already in flight for this job.' : 'Started across ' + d.lanes + ' lanes. This takes minutes.');
+    loadReport();
+  } catch (e) { say(e.message, true); }
+};
+
+$('verdict').onclick = async () => {
+  say('Asking the analyst (this costs one model call)…');
+  try {
+    const d = await api('/jobs/' + encodeURIComponent(SEL) + '/verdict', { method: 'POST', body: '{}' });
+    $('drawer').innerHTML = '<pre class="out">' + esc(d.verdict) + '</pre>';
+    say('Analyst verdict below. Cost ' + usd(d.costUsd) + '.');
+  } catch (e) { say(e.message, true); }
+};
+
+$('del').onclick = async () => {
+  try {
+    await api('/jobs/' + encodeURIComponent(SEL), { method: 'DELETE' });
+    SEL = null; fillEditor(null); await loadJobs(); loadReport(); say('Deleted.');
+  } catch (e) { say(e.message, true); }
+};
+
+loadLanes();
+loadJobs();
+</script>
+</body>
+</html>

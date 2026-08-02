@@ -1,0 +1,58 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# DATE/TIME           | AUTHOR                  | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 2026-07-24 22:30:00 | @codex-games-toolbar    | Add the Games launcher toolbar for D&D and Game Show.
+
+name: games
+suite: ai-creative
+displayName: Games
+description: >-
+  One focused cockpit toolbar for OSHAL games. Open the AI Dungeon Master table
+  or Game Show directly without hunting through the full application catalog.
+version: 1.1.0
+status: active
+scope: public
+theme: aurora
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: games
+  ref: main
+
+# Installing this launcher also resolves both playable packages.
+dependencies:
+  apps:
+    - dnd
+    - game-show
+  tools: []
+  connectors: []
+
+# The launcher owns no runtime or data. Its surfaces route to the installed games.
+ui:
+  static:
+    - toolName: games-dnd
+      label: D&D
+      icon: codicon codicon-game
+      iframeUrl: /api/dnd/table
+      section: top
+    - toolName: games-game-show
+      label: Game Show
+      icon: codicon codicon-device-camera-video
+      iframeUrl: /api/game-show/stage
+      section: top
+
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - forge
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - logs
+    - operations
+  hideChatPanel: true
+  hideAssistant: true
+  defaultView: games-dnd

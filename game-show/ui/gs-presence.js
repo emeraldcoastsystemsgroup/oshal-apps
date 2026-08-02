@@ -4,6 +4,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-21 22:06:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Presence: the swappable "video-frame module" for a podium. Renders a seat as a live camera still, an avatar, or a nameplate — the player's call — and captures a camera frame every ~2s on the device that owns the seat. The motion-avatar (e.g. shark overlay) is a future module that slots into tile() unchanged.
+ * 2026-07-24 14:20:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Capture cadence backs off (backlog #13): when the director's shot doesn't feature the podium strip prominently (a plain board shot), frames post every ~6s instead of ~2s — a night of play writes a third of the bytes with no visible difference.
  */
 
 /* global window, document, navigator */
@@ -70,18 +71,26 @@
     if (!want && camTimer) stopCam();
   }
 
+  /** @description Capture cadence: fast when podiums are on camera, slow on board shots. */
+  function cadence() {
+    var shot = (GS.state && GS.state.shot && GS.state.shot.type) || 'board';
+    return shot === 'board' ? 6000 : 2200;
+  }
+
   function startCam(seat) {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 320, height: 320 }, audio: false }).then(function (stream) {
       camStream = stream;
       var video = document.getElementById('gs-cam');
       video.srcObject = stream; video.play().catch(function () {});
-      camTimer = setInterval(function () { capture(seat.seatId); }, 2200);
+      // A setTimeout chain (not setInterval) so each frame re-reads the cadence.
+      function loop() { capture(seat.seatId); camTimer = setTimeout(loop, cadence()); }
+      camTimer = setTimeout(loop, cadence());
     }).catch(function () { if (!camWarned) { camWarned = true; GS.toast('Camera blocked — showing an avatar.'); } });
   }
 
   function stopCam() {
-    if (camTimer) { clearInterval(camTimer); camTimer = null; }
+    if (camTimer) { clearTimeout(camTimer); camTimer = null; }
     if (camStream) { camStream.getTracks().forEach(function (t) { t.stop(); }); camStream = null; }
   }
 

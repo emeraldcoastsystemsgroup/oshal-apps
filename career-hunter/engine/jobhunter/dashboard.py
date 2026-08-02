@@ -39,6 +39,186 @@ _RECRUITER_FIELDS = ["firm", "bucket", "website", "contact_name", "contact_role"
                      "date_contacted", "followup_date", "next_action", "notes"]
 
 
+# ── SQL dialect (JOBHUNTER_STORE=sqlite | postgres) ──────────────────────────
+# Every query on this page was written against SQLite. Under Postgres a handful of them
+# are not merely non-portable — they are SILENTLY WRONG, which is worse than a syntax
+# error because the page still renders and the numbers are just different. The helpers
+# below are the only place that knows the difference, and each one names the trap it
+# closes so nobody "simplifies" it back out.
+#
+# Everything structural comes from the storage layer, not from here: physical table names
+# (db.corpus_table() / db.companies_table() / db.read_postings_table()), the RLS-scoped
+# `postings` and `companies` compatibility views (migration 097), the acting identity
+# (db.require_sub()) and every per-user write (db.user_set()). Nothing in this file
+# re-implements any of that, and nothing in this file filters by user_sub: on the per-user
+# tables FORCE ROW LEVEL SECURITY is the boundary, and a hand-written WHERE would read as
+# if it were.
+
+
+def _ilike() -> str:
+    """The operator meaning "contains, ignoring case" in the active backend.
+
+    SQLite's LIKE folds ASCII case, so the board's search box has always matched "DevOps"
+    for `devops`. Postgres' LIKE does NOT fold case, so the identical filter would quietly
+    return a fraction of the rows — a search that looks like it works. ILIKE is the
+    equivalent. (SECTOR_CASE and the High-Win expression wrap their column in LOWER()
+    already, so those legitimately stay LIKE in both backends.)"""
+    return "ILIKE" if config.POSTGRES else "LIKE"
+
+
+def _int(expr: str) -> str:
+    """Truncating cast to integer — what SQLite's `CAST(x AS INT)` does.
+
+    Postgres' CAST(numeric AS int) ROUNDS: verified on the live cluster,
+    `CAST(99.7 AS INT)` is 100 there and 99 in SQLite. Every grade on this board is capped
+    at 100, so rounding would invent a perfect P(land) out of a 99.7 and disagree with
+    land_prob_py() / high_win_py(), which use Python's truncating int()."""
+    return f"trunc({expr})::int" if config.POSTGRES else f"CAST({expr} AS INT)"
+
+
+def _least(*args: str) -> str:
+    """SQLite's two-argument scalar MIN(). In Postgres MIN is ONLY an aggregate — the
+    literal SQL fails with `function min(integer, integer) does not exist`."""
+    return ("LEAST" if config.POSTGRES else "MIN") + "(" + ", ".join(args) + ")"
+
+
+def _greatest(*args: str) -> str:
+    """SQLite's two-argument scalar MAX(); see _least()."""
+    return ("GREATEST" if config.POSTGRES else "MAX") + "(" + ", ".join(args) + ")"
+
+
+def _age_days(col: str) -> str:
+    """Fractional days between now and an ISO date/timestamp column, in UTC.
+
+    SQLite: JULIANDAY('now') - JULIANDAY(col). Postgres has no julianday(). The compat
+    view hands these columns back as ISO TEXT, so they are parsed back to a timestamp and
+    pinned to UTC: `::timestamptz` alone would read a bare 'YYYY-MM-DD' as midnight in the
+    SESSION time zone, which is not what JULIANDAY('2026-07-01') meant. Cast to float8
+    (not numeric) so the decay below is float arithmetic, as it was in SQLite."""
+    if config.POSTGRES:
+        return (f"(EXTRACT(EPOCH FROM (now() - ({col}::timestamp AT TIME ZONE 'UTC')))"
+                "::double precision / 86400.0)")
+    return f"(JULIANDAY('now') - JULIANDAY({col}))"
+
+
+def _pow(base: str, exp: str) -> str:
+    """x ** y. Postgres spells it power(); SQLite's math extension spells it POW()."""
+    return f"{'power' if config.POSTGRES else 'POW'}({base}, {exp})"
+
+
+def _posted_within(days: int, col: str = "p.posted_date") -> str:
+    """Predicate: `col` is set and no older than `days` days, on a UTC midnight boundary.
+
+    `days` is interpolated rather than bound, and that is deliberate: it is an int at every
+    call site (an isdigit()-guarded request arg, or the literal 7 on /insights), and the
+    two dialects need genuinely different values — SQLite's date() modifier is the STRING
+    '-7 days', Postgres needs a number to subtract from a date. One bound parameter cannot
+    serve both without lying about one of them. int() is the injection guard.
+
+    The bound is rendered as 'YYYY-MM-DD' TEXT because that is the shape the compat view
+    exposes posted_date in, and for that shape lexicographic order IS chronological order —
+    so this compares text to text instead of casting 1.4M rows back to a date."""
+    n = int(days)
+    if config.POSTGRES:
+        return (f"{col} IS NOT NULL AND {col} >= "
+                f"to_char((now() AT TIME ZONE 'UTC')::date - {n}, 'YYYY-MM-DD')")
+    return f"{col} IS NOT NULL AND {col} >= date('now', '-{n} days')"
+
+
+def _nocase(col: str) -> str:
+    """A case-insensitive A-Z ordering key. SQLite has the NOCASE collation; Postgres does
+    not have it at all (`collation "nocase" ... does not exist`) and its default collation
+    is case-sensitive, so the by-company lists would order differently between backends."""
+    return f"LOWER({col})" if config.POSTGRES else f"{col} COLLATE NOCASE"
+
+
+def _desc(col: str) -> str:
+    """`col DESC` with SQLite's NULL placement. SQLite sorts NULLs LAST in DESC; Postgres
+    sorts them FIRST, which would float every not-yet-AI-scored role to the top of the
+    list instead of the bottom. Only needed for a raw nullable column — the COALESCE'd
+    and explicitly-NULLS-LAST sort keys below already agree in both backends."""
+    return f"{col} DESC NULLS LAST" if config.POSTGRES else f"{col} DESC"
+
+
+def _asc(col: str, text: bool = False) -> str:
+    """An ASC ordering key that produces the same row order in both backends.
+
+    Two differences, both visible in a rendered list: SQLite sorts NULLs FIRST in ASC and
+    Postgres sorts them LAST; and SQLite compares TEXT byte-by-byte (BINARY) while Postgres
+    uses the database's linguistic collation, which folds case and ignores punctuation on
+    the first pass. COLLATE "C" is Postgres' byte-order collation and is always available.
+
+    text=True MUST NOT be used in a `SELECT DISTINCT ... ORDER BY` — Postgres requires every
+    ORDER BY expression there to appear in the select list, and `col COLLATE "C"` is a
+    different expression from `col` (verified: InvalidColumnReference). Use the plain form
+    there and accept the database's collation for the label order."""
+    if not config.POSTGRES:
+        return col
+    return f'{col} COLLATE "C" NULLS FIRST' if text else f"{col} NULLS FIRST"
+
+
+def _active(alias: str = "") -> str:
+    """The `active` truth test against the PHYSICAL postings table.
+
+    career_postings.active is a real BOOLEAN and `active = 1` is a hard type error against
+    it. Reads that go through the compat view keep saying `active=1` (the view casts it
+    back to 0/1); this helper is for the objective-only counts that read
+    db.read_postings_table() directly so they do not drag two RLS-filtered joins across
+    1.4M rows for columns they never look at."""
+    p = f"{alias}." if alias else ""
+    # Spelled `active=1` (no spaces) so the SQLite text this emits is byte-identical to
+    # what these queries carried before the port — the parity harness diffs SQL strings.
+    return f"{p}active" if config.POSTGRES else f"{p}active=1"
+
+
+def _grp(cols: str, pg_extra: str) -> str:
+    """A GROUP BY list, plus the columns Postgres additionally demands.
+
+    SQLite lets you SELECT a bare column that is not in the GROUP BY. Postgres allows it
+    only when the grouping key is a real TABLE's primary key — never through a view, and
+    `companies` / `postings` are views here. So `GROUP BY c.id` + `SELECT c.name` raises
+    `column "c.name" must appear in the GROUP BY clause`. The extra columns are all
+    functionally dependent on a key already in the list, so the groups are identical."""
+    return f"{cols}, {pg_extra}" if config.POSTGRES else cols
+
+
+def _recruiters_table() -> str:
+    """The recruiter tracker. In postgres mode career_user_recruiter_firms is per-user and
+    under FORCE RLS, which is why no statement in this file adds `WHERE user_sub = ...`:
+    the policy already scopes SELECT/UPDATE/DELETE to the acting user, and a redundant
+    WHERE would read like the isolation boundary it is not."""
+    return "career_user_recruiter_firms" if config.POSTGRES else "recruiter_firms"
+
+
+def _assessments_table() -> str:
+    """Interview -> skill reassessments. Per-user and FORCE-RLS'd in postgres mode; see
+    _recruiters_table() for why nothing here filters on user_sub."""
+    return "career_user_interview_assessments" if config.POSTGRES else "interview_assessments"
+
+
+def _ts_text(col: str, alias: str) -> str:
+    """Project a timestamp column as the ISO-8601 TEXT db.now() writes.
+
+    The templates slice these — `{{ (a.at or '')[:16] }}` — and psycopg2 hands back a
+    datetime, which raises TypeError on a slice. The format matches
+    `datetime.now(timezone.utc).isoformat(timespec="seconds")` exactly, which is the same
+    shape migration 097 uses for every timestamp on the postings/companies views."""
+    if not config.POSTGRES:
+        return f"{col} AS {alias}"
+    return (f"to_char({col} AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS') || '+00:00' "
+            f"AS {alias}")
+
+
+def _assessment_cols() -> str:
+    """The interview-assessment projection the /skills templates read.
+
+    Spelled out instead of `SELECT *` for two reasons: the Postgres table carries
+    user_sub / tenant_id columns the SQLite one does not, and `at` has to be projected as
+    TEXT (see _ts_text) because skill_one.html slices it. In SQLite mode this is exactly
+    the eight columns the table has, so `SELECT *` and this list are the same query."""
+    return f"id, {_ts_text('at', 'at')}, company, role, transcript, answers, result, finalized"
+
+
 def fmt_salary(row) -> str:
     smin, smax, cur, per = row["salary_min"], row["salary_max"], row["salary_currency"] or "USD", row["salary_period"] or "year"
     if not smin and not smax:
@@ -111,20 +291,39 @@ SECTOR_CASE = """CASE
     ELSE 'Other' END"""
 
 # Shared scoring SQL (same formulas the list view uses) so other pages stay consistent.
-# P(land) = fit × recency-decay (4-week half-life, 25% floor) × referral boost.
-LAND_PROB_SQL = ("CAST(MIN(100.0, COALESCE(p.ai_fit_score, p.fit_score, 0) "
-                 "* MAX(0.25, POW(0.5, (JULIANDAY('now') - JULIANDAY(COALESCE(p.posted_date, p.first_seen_at)))/28.0)) "
-                 "* (1.0 + 0.35 * COALESCE(c.referral, 0))) AS INT)")
-# High-Win = fit + clearance + AI/DevOps + gov/defense sector (set-aside leverage).
-HIGH_WIN_SQL = ("CAST(MIN(100, COALESCE(p.ai_fit_score, p.fit_score, 0) "
-                "+ CASE WHEN LOWER(p.title) LIKE '%clear%' OR LOWER(p.title) LIKE '%secret%' "
-                "OR LOWER(p.title) LIKE '%ts/sci%' OR LOWER(p.title) LIKE '%polygraph%' THEN 12 ELSE 0 END "
-                "+ CASE WHEN LOWER(p.title) LIKE '%ai%' OR LOWER(p.title) LIKE '%devops%' OR LOWER(p.title) LIKE '%sre%' "
-                "OR LOWER(p.title) LIKE '%site reliab%' OR LOWER(p.title) LIKE '%platform%' OR LOWER(p.title) LIKE '%automation%' "
-                "OR LOWER(p.title) LIKE '%machine learning%' THEN 8 ELSE 0 END "
-                "+ CASE WHEN LOWER(COALESCE(c.industry,'')) LIKE '%gov%' OR LOWER(COALESCE(c.industry,'')) LIKE '%defense%' "
-                "OR LOWER(COALESCE(c.industry,'')) LIKE '%national security%' OR LOWER(COALESCE(c.industry,'')) LIKE '%aerospace%' "
-                "OR LOWER(COALESCE(c.industry,'')) LIKE '%autonomy%' OR LOWER(COALESCE(c.industry,'')) LIKE '%intelligence%' THEN 12 ELSE 0 END) AS INT)")
+# Functions, not constants, because the spelling depends on the backend selected at run
+# time — and because /  (the list) used to carry a hand-copied second edition of both
+# formulas. Two copies of a scoring rule is one copy too many; the list now calls these.
+
+
+def land_prob_sql() -> str:
+    """P(land) = fit × recency-decay (4-week half-life, 25% floor) × referral boost.
+    A stale 100%-match scores below a fresh good-match-with-a-contact.
+    Keep in sync with land_prob_py(), which the /report page uses for the same number."""
+    decay = _pow("0.5", f"{_age_days('COALESCE(p.posted_date, p.first_seen_at)')}/28.0")
+    return _int(_least(
+        "100.0",
+        "COALESCE(p.ai_fit_score, p.fit_score, 0) "
+        f"* {_greatest('0.25', decay)} "
+        "* (1.0 + 0.35 * COALESCE(c.referral, 0))"))
+
+
+def high_win_sql() -> str:
+    """High-Win cross-over = fit + clearance + AI/DevOps + gov/defense sector (where the
+    job hunt, your skills, clearance, and the small-business set-aside leverage all stack).
+    Keep in sync with high_win_py(). Every LIKE here is fed by LOWER(), so it is
+    case-correct in both backends without ILIKE."""
+    return _int(_least(
+        "100",
+        "COALESCE(p.ai_fit_score, p.fit_score, 0) "
+        "+ CASE WHEN LOWER(p.title) LIKE '%clear%' OR LOWER(p.title) LIKE '%secret%' "
+        "OR LOWER(p.title) LIKE '%ts/sci%' OR LOWER(p.title) LIKE '%polygraph%' THEN 12 ELSE 0 END "
+        "+ CASE WHEN LOWER(p.title) LIKE '%ai%' OR LOWER(p.title) LIKE '%devops%' OR LOWER(p.title) LIKE '%sre%' "
+        "OR LOWER(p.title) LIKE '%site reliab%' OR LOWER(p.title) LIKE '%platform%' OR LOWER(p.title) LIKE '%automation%' "
+        "OR LOWER(p.title) LIKE '%machine learning%' THEN 8 ELSE 0 END "
+        "+ CASE WHEN LOWER(COALESCE(c.industry,'')) LIKE '%gov%' OR LOWER(COALESCE(c.industry,'')) LIKE '%defense%' "
+        "OR LOWER(COALESCE(c.industry,'')) LIKE '%national security%' OR LOWER(COALESCE(c.industry,'')) LIKE '%aerospace%' "
+        "OR LOWER(COALESCE(c.industry,'')) LIKE '%autonomy%' OR LOWER(COALESCE(c.industry,'')) LIKE '%intelligence%' THEN 12 ELSE 0 END"))
 
 # Python equivalents of LAND_PROB_SQL / HIGH_WIN_SQL — used by the report so the two
 # grades are computed only for the ~5/company rows actually shown, not every matching
@@ -179,28 +378,17 @@ def create_app() -> Flask:
         status = request.args.get("status", "")
         source = request.args.get("source", "").strip()
         sort = request.args.get("sort", "ai")
-        # P(land) = fit × recency-decay (4-week half-life, 25% floor) × referral boost.
-        # A stale 100%-match scores below a fresh good-match-with-a-contact.
-        LAND_PROB = ("CAST(MIN(100.0, COALESCE(p.ai_fit_score, p.fit_score, 0) "
-                     "* MAX(0.25, POW(0.5, (JULIANDAY('now') - JULIANDAY(COALESCE(p.posted_date, p.first_seen_at)))/28.0)) "
-                     "* (1.0 + 0.35 * COALESCE(c.referral, 0))) AS INT)")
-        # High-Win cross-over = fit + clearance + AI/DevOps + gov/defense sector (where the
-        # job hunt, your skills, clearance, and the small-business set-aside leverage all stack).
-        HIGH_WIN = ("CAST(MIN(100, COALESCE(p.ai_fit_score, p.fit_score, 0) "
-                    "+ CASE WHEN LOWER(p.title) LIKE '%clear%' OR LOWER(p.title) LIKE '%secret%' "
-                    "OR LOWER(p.title) LIKE '%ts/sci%' OR LOWER(p.title) LIKE '%polygraph%' THEN 12 ELSE 0 END "
-                    "+ CASE WHEN LOWER(p.title) LIKE '%ai%' OR LOWER(p.title) LIKE '%devops%' OR LOWER(p.title) LIKE '%sre%' "
-                    "OR LOWER(p.title) LIKE '%site reliab%' OR LOWER(p.title) LIKE '%platform%' OR LOWER(p.title) LIKE '%automation%' "
-                    "OR LOWER(p.title) LIKE '%machine learning%' THEN 8 ELSE 0 END "
-                    "+ CASE WHEN LOWER(COALESCE(c.industry,'')) LIKE '%gov%' OR LOWER(COALESCE(c.industry,'')) LIKE '%defense%' "
-                    "OR LOWER(COALESCE(c.industry,'')) LIKE '%national security%' OR LOWER(COALESCE(c.industry,'')) LIKE '%aerospace%' "
-                    "OR LOWER(COALESCE(c.industry,'')) LIKE '%autonomy%' OR LOWER(COALESCE(c.industry,'')) LIKE '%intelligence%' THEN 12 ELSE 0 END) AS INT)")
+        LAND_PROB = land_prob_sql()
+        HIGH_WIN = high_win_sql()
         order = {"ai": "COALESCE(p.ai_fit_score,-1) DESC, COALESCE(p.fit_score,0) DESC",
                  "prob": f"{LAND_PROB} DESC, COALESCE(p.ai_fit_score,0) DESC",
                  "highwin": f"{HIGH_WIN} DESC, {LAND_PROB} DESC",
                  "keyword": "COALESCE(p.fit_score,0) DESC",
                  "salary": "COALESCE(p.salary_max,0) DESC",
-                 "company": "c.name ASC, p.ai_fit_score DESC",
+                 # ai_fit_score is nullable here (unlike every other key, which is either
+                 # COALESCE'd or already carries an explicit NULLS LAST), so it needs
+                 # SQLite's NULL placement spelled out for Postgres.
+                 "company": f"c.name ASC, {_desc('p.ai_fit_score')}",
                  "posted": "p.posted_date DESC NULLS LAST",
                  "recent": "p.first_seen_at DESC",
                  "generated": "p.generated_at DESC NULLS LAST",
@@ -212,11 +400,12 @@ def create_app() -> Flask:
         if lane != "all":
             where.append("COALESCE(p.target_role,0) = 1")
         if q:
-            where.append("(p.title LIKE ? OR p.description LIKE ?)"); args += [f"%{q}%", f"%{q}%"]
+            where.append(f"(p.title {_ilike()} ? OR p.description {_ilike()} ?)")
+            args += [f"%{q}%", f"%{q}%"]
         if min_score:
             where.append("COALESCE(p.ai_fit_score, p.fit_score, 0) >= ?"); args.append(min_score)
         if company:
-            where.append("c.name LIKE ?"); args.append(f"%{company}%")
+            where.append(f"c.name {_ilike()} ?"); args.append(f"%{company}%")
         if remote in ("0", "1"):
             where.append("p.remote = ?"); args.append(int(remote))
         state = request.args.get("state", "").strip().upper()
@@ -230,8 +419,7 @@ def create_app() -> Flask:
             where.append("p.lat IS NULL AND p.state IS NULL")
         days = request.args.get("days", "")
         if days.isdigit():
-            where.append("p.posted_date IS NOT NULL AND p.posted_date >= date('now', ?)")
-            args.append(f"-{int(days)} days")
+            where.append(_posted_within(int(days)))
         min_pay = request.args.get("min_pay", "")
         if min_pay.isdigit():
             where.append("COALESCE(p.salary_max, p.salary_min, 0) >= ?"); args.append(int(min_pay))
@@ -241,7 +429,7 @@ def create_app() -> Flask:
         if status:
             where.append("p.status = ?"); args.append(status)
         if source:
-            where.append("c.source_lists LIKE ?"); args.append(f'%\"{source}\"%')
+            where.append(f"c.source_lists {_ilike()} ?"); args.append(f'%\"{source}\"%')
         sector = request.args.get("sector", "").strip()
         if sector:
             where.append(f"{SECTOR_CASE} = ?"); args.append(sector)
@@ -265,15 +453,21 @@ def create_app() -> Flask:
             mfrom = ("postings p JOIN companies c ON c.id = p.company_id" if needs_join else "postings p")
             matching = conn.execute(
                 f"SELECT COUNT(*) n FROM {mfrom} WHERE {where_sql}", args).fetchone()["n"]
+            # `total` and `companies` ask only about the SHARED corpus, so they read the
+            # physical table: in postgres mode the compat view would drag two RLS-filtered
+            # joins across 1.4M rows to answer a question about none of their columns.
+            # `scored` and `promoted` are this user's judgement and this user's pipeline —
+            # they stay on the view, which is where RLS scopes them to the acting user.
+            phys, ctab = db.read_postings_table(), db.companies_table()
             stats = {
-                "total": conn.execute("SELECT COUNT(*) n FROM postings WHERE active=1").fetchone()["n"],
+                "total": conn.execute(f"SELECT COUNT(*) n FROM {phys} WHERE {_active()}").fetchone()["n"],
                 "scored": conn.execute("SELECT COUNT(*) n FROM postings WHERE active=1 AND ai_fit_score IS NOT NULL").fetchone()["n"],
                 "promoted": conn.execute("SELECT COUNT(*) n FROM postings WHERE status IN ('promoted','generated')").fetchone()["n"],
-                "companies": conn.execute("SELECT COUNT(DISTINCT company_id) n FROM postings WHERE active=1").fetchone()["n"],
+                "companies": conn.execute(f"SELECT COUNT(DISTINCT company_id) n FROM {phys} WHERE {_active()}").fetchone()["n"],
             }
             companies = conn.execute(
-                """SELECT c.name, COUNT(*) n FROM postings p JOIN companies c ON c.id=p.company_id
-                   WHERE p.active=1 GROUP BY c.id ORDER BY c.name""").fetchall()
+                f"""SELECT c.name, COUNT(*) n FROM {phys} p JOIN {ctab} c ON c.id=p.company_id
+                   WHERE {_active('p')} GROUP BY {_grp('c.id', 'c.name')} ORDER BY c.name""").fetchall()
         pages = max(1, (matching + per - 1) // per)
         return render_template("dashboard.html", rows=rows, stats=stats, args=request.args,
                                matching=matching, page=page, pages=pages, per=per, companies=companies)
@@ -281,8 +475,12 @@ def create_app() -> Flask:
     @app.route("/sources")
     def sources():
         with db.connect() as conn:
+            # Connector health is a fact about the corpus, not about one user's pipeline —
+            # physical table, no per-user join. (`companies` is read through the compat
+            # view so last_scraped_at arrives as the ISO text the template prints.)
             counts = dict(conn.execute(
-                "SELECT company_id, COUNT(*) n FROM postings WHERE active=1 GROUP BY company_id").fetchall())
+                f"SELECT company_id, COUNT(*) n FROM {db.read_postings_table()} "
+                f"WHERE {_active()} GROUP BY company_id").fetchall())
             comps = conn.execute(
                 """SELECT id, name, ats_type, ats_token, careers_url, discover_status, last_scraped_at
                    FROM companies""").fetchall()
@@ -311,7 +509,7 @@ def create_app() -> Flask:
         q = request.args.get("q", "").strip()
         conds, args = [], []
         if q:
-            conds.append("c.name LIKE ?"); args.append(f"%{q}%")
+            conds.append(f"c.name {_ilike()} ?"); args.append(f"%{q}%")
         if show == "data":
             conds.append("COALESCE(j.n,0) > 0")
         elif show == "nodata":
@@ -323,7 +521,8 @@ def create_app() -> Flask:
                 f"""SELECT c.id, c.name, c.careers_url, c.homepage, c.ats_type, c.discover_status,
                           COALESCE(j.n,0) AS jobs
                    FROM companies c
-                   LEFT JOIN (SELECT company_id, COUNT(*) n FROM postings WHERE active=1 GROUP BY company_id) j
+                   LEFT JOIN (SELECT company_id, COUNT(*) n FROM {db.read_postings_table()}
+                              WHERE {_active()} GROUP BY company_id) j
                      ON j.company_id = c.id
                    {where} ORDER BY jobs DESC, c.name""", args).fetchall()
         return render_template("companies.html", rows=rows, show=show, q=q,
@@ -337,30 +536,40 @@ def create_app() -> Flask:
                 SELECT COUNT(*) inlane,
                        SUM(CASE WHEN p.ai_fit_score>=70 THEN 1 ELSE 0 END) fit70,
                        SUM(CASE WHEN p.ai_fit_score>=80 THEN 1 ELSE 0 END) fit80,
-                       SUM(CASE WHEN p.posted_date >= date('now','-7 days') THEN 1 ELSE 0 END) fresh,
-                       CAST(AVG(CASE WHEN p.ai_fit_score>=70 AND p.salary_max>0 THEN p.salary_max END) AS INT) avg_pay
+                       SUM(CASE WHEN {_posted_within(7)} THEN 1 ELSE 0 END) fresh,
+                       {_int("AVG(CASE WHEN p.ai_fit_score>=70 AND p.salary_max>0 THEN p.salary_max END)")} avg_pay
                 FROM postings p WHERE p.active=1 AND p.target_role=1""").fetchone()
-            companies = conn.execute("SELECT COUNT(DISTINCT company_id) n FROM postings WHERE active=1").fetchone()["n"]
+            companies = conn.execute(
+                f"SELECT COUNT(DISTINCT company_id) n FROM {db.read_postings_table()} "
+                f"WHERE {_active()}").fetchone()["n"]
+            # HAVING names COUNT(*) rather than the `roles` alias: SQLite resolves an
+            # output alias in HAVING, Postgres does not (`column "roles" does not exist`).
+            # Spelled this way it is the same predicate in both, with no branch.
             sectors = conn.execute(f"""
                 SELECT {SECTOR} sector, COUNT(*) roles,
                        COUNT(DISTINCT c.id) cos,
                        SUM(CASE WHEN p.ai_fit_score>=70 THEN 1 ELSE 0 END) fit70,
-                       CAST(AVG(CASE WHEN p.ai_fit_score IS NOT NULL THEN p.ai_fit_score END) AS INT) avg_fit,
-                       CAST(AVG(CASE WHEN p.salary_max>0 THEN p.salary_max END) AS INT) avg_pay
+                       {_int("AVG(CASE WHEN p.ai_fit_score IS NOT NULL THEN p.ai_fit_score END)")} avg_fit,
+                       {_int("AVG(CASE WHEN p.salary_max>0 THEN p.salary_max END)")} avg_pay
                 FROM postings p JOIN companies c ON c.id=p.company_id
                 WHERE p.active=1 AND p.target_role=1 AND c.industry IS NOT NULL
-                GROUP BY sector HAVING roles>0 ORDER BY fit70 DESC, avg_fit DESC""").fetchall()
+                GROUP BY sector HAVING COUNT(*)>0 ORDER BY fit70 DESC, avg_fit DESC""").fetchall()
             # top company per sector (by your 70%+ count)
             topco = {}
             for r in conn.execute(f"""
                 SELECT {SECTOR} sector, c.name, COUNT(*) n FROM postings p JOIN companies c ON c.id=p.company_id
                 WHERE p.active=1 AND p.target_role=1 AND p.ai_fit_score>=70 AND c.industry IS NOT NULL
-                GROUP BY sector, c.id ORDER BY n DESC"""):
+                GROUP BY {_grp('sector, c.id', 'c.name')} ORDER BY n DESC"""):
                 topco.setdefault(r["sector"], r["name"])
-            HW = ("CAST(MIN(100, COALESCE(p.ai_fit_score,0) "
-                  "+ CASE WHEN LOWER(p.title) LIKE '%clear%' OR LOWER(p.title) LIKE '%secret%' OR LOWER(p.title) LIKE '%ts/sci%' THEN 12 ELSE 0 END "
-                  "+ CASE WHEN LOWER(p.title) LIKE '%ai%' OR LOWER(p.title) LIKE '%devops%' OR LOWER(p.title) LIKE '%sre%' OR LOWER(p.title) LIKE '%platform%' OR LOWER(p.title) LIKE '%automation%' THEN 8 ELSE 0 END "
-                  "+ CASE WHEN LOWER(COALESCE(c.industry,'')) LIKE '%gov%' OR LOWER(COALESCE(c.industry,'')) LIKE '%defense%' OR LOWER(COALESCE(c.industry,'')) LIKE '%national security%' OR LOWER(COALESCE(c.industry,'')) LIKE '%aerospace%' OR LOWER(COALESCE(c.industry,'')) LIKE '%autonomy%' OR LOWER(COALESCE(c.industry,'')) LIKE '%intelligence%' THEN 12 ELSE 0 END) AS INT)")
+            # /insights runs a NARROWER High-Win than the board's high_win_sql(): AI fit
+            # only (no keyword-fit fallback) and a shorter keyword set. That is a real
+            # difference, not drift, so it is not folded into the shared helper.
+            HW = _int(_least(
+                "100",
+                "COALESCE(p.ai_fit_score,0) "
+                "+ CASE WHEN LOWER(p.title) LIKE '%clear%' OR LOWER(p.title) LIKE '%secret%' OR LOWER(p.title) LIKE '%ts/sci%' THEN 12 ELSE 0 END "
+                "+ CASE WHEN LOWER(p.title) LIKE '%ai%' OR LOWER(p.title) LIKE '%devops%' OR LOWER(p.title) LIKE '%sre%' OR LOWER(p.title) LIKE '%platform%' OR LOWER(p.title) LIKE '%automation%' THEN 8 ELSE 0 END "
+                "+ CASE WHEN LOWER(COALESCE(c.industry,'')) LIKE '%gov%' OR LOWER(COALESCE(c.industry,'')) LIKE '%defense%' OR LOWER(COALESCE(c.industry,'')) LIKE '%national security%' OR LOWER(COALESCE(c.industry,'')) LIKE '%aerospace%' OR LOWER(COALESCE(c.industry,'')) LIKE '%autonomy%' OR LOWER(COALESCE(c.industry,'')) LIKE '%intelligence%' THEN 12 ELSE 0 END"))
             highwins = conn.execute(f"""
                 SELECT {HW} hw, p.id, p.ai_fit_score fit, c.name comp, p.title, p.salary_max sm
                 FROM postings p JOIN companies c ON c.id=p.company_id
@@ -388,7 +597,7 @@ def create_app() -> Flask:
             # Cheap fetch (no per-row P(land)/High-Win in SQL — those are computed in
             # Python below only for the rows actually displayed).
             rows = conn.execute(
-                """SELECT p.id, p.title, p.location, p.remote, p.job_type, p.url, p.status,
+                f"""SELECT p.id, p.title, p.location, p.remote, p.job_type, p.url, p.status,
                           p.ai_fit_score AS score, p.fit_score AS kw, p.ai_fit_gaps,
                           p.resume_path, p.cover_path, p.generated_at,
                           p.salary_min, p.salary_max, p.salary_currency,
@@ -398,7 +607,7 @@ def create_app() -> Flask:
                    FROM postings p JOIN companies c ON c.id = p.company_id
                    LEFT JOIN company_reputation r ON r.company_id = c.id
                    WHERE p.target_role = 1 AND p.ai_fit_score > ? AND p.active = 1
-                   ORDER BY c.name COLLATE NOCASE, p.ai_fit_score DESC, p.id""",
+                   ORDER BY {_nocase('c.name')}, p.ai_fit_score DESC, p.id""",
                 (min_score,)).fetchall()
         # Group by company, dedupe by normalized title, cap at per_co per company.
         groups, cur_name, cur_jobs, seen = [], None, [], set()
@@ -441,13 +650,12 @@ def create_app() -> Flask:
         where = ["p.resume_path IS NOT NULL", "p.active = 1", "p.ai_fit_score >= ?", f"{ANN} >= ?"]
         args = [min_fit, min_pay]
         if a.get("company", "").strip():
-            where.append("c.name LIKE ?"); args.append(f"%{a.get('company').strip()}%")
+            where.append(f"c.name {_ilike()} ?"); args.append(f"%{a.get('company').strip()}%")
         if a.get("q", "").strip():
-            where.append("(p.title LIKE ? OR p.description LIKE ?)")
+            where.append(f"(p.title {_ilike()} ? OR p.description {_ilike()} ?)")
             args += [f"%{a.get('q').strip()}%", f"%{a.get('q').strip()}%"]
         if a.get("days", "").isdigit():
-            where.append("p.posted_date IS NOT NULL AND p.posted_date >= date('now', ?)")
-            args.append(f"-{int(a.get('days'))} days")
+            where.append(_posted_within(int(a.get("days"))))
         if a.get("remote", "") in ("0", "1"):
             where.append("p.remote = ?"); args.append(int(a.get("remote")))
         if a.get("type", "").strip():
@@ -467,11 +675,11 @@ def create_app() -> Flask:
                           {ANN} AS annual, c.name AS company
                    FROM postings p JOIN companies c ON c.id = p.company_id
                    WHERE {where_sql}
-                   ORDER BY c.name COLLATE NOCASE, p.ai_fit_score DESC, p.id""",
+                   ORDER BY {_nocase('c.name')}, p.ai_fit_score DESC, p.id""",
                 args).fetchall()
             recs = conn.execute(
-                """SELECT firm, contact_name, contact_role, contact_link, status, notes, sort_order
-                   FROM recruiter_firms""").fetchall()
+                f"""SELECT firm, contact_name, contact_role, contact_link, status, notes, sort_order
+                   FROM {_recruiters_table()}""").fetchall()
         norm = lambda s: re.sub(r"[^a-z0-9]", "", (s or "").lower())
         recmap = {}
         for r in recs:
@@ -530,7 +738,7 @@ def create_app() -> Flask:
                     FROM postings p JOIN companies c ON c.id=p.company_id
                     WHERE {board} AND p.status IN ('applied','interview','offer')
                     ORDER BY CASE p.status WHEN 'offer' THEN 0 WHEN 'interview' THEN 1 ELSE 2 END,
-                             c.name COLLATE NOCASE""").fetchall()
+                             {_nocase('c.name')}""").fetchall()
         applied = next(c for n, c, _ in stages if n == "Applied")
         interview = next(c for n, c, _ in stages if n == "Interview")
         offer = next(c for n, c, _ in stages if n == "Offer")
@@ -544,8 +752,9 @@ def create_app() -> Flask:
     @app.route("/skills")
     def skills():
         with db.connect() as conn:
-            rows = conn.execute("SELECT id, at, company, role, finalized FROM interview_assessments "
-                                "ORDER BY id DESC").fetchall()
+            rows = conn.execute(
+                f"SELECT id, {_ts_text('at', 'at')}, company, role, finalized "
+                f"FROM {_assessments_table()} ORDER BY id DESC").fetchall()
         return render_template("skills.html", rows=rows)
 
     @app.route("/skills/assess", methods=["POST"])
@@ -566,7 +775,9 @@ def create_app() -> Flask:
     @app.route("/skills/<int:aid>")
     def skills_one(aid):
         with db.connect() as conn:
-            row = conn.execute("SELECT * FROM interview_assessments WHERE id=?", (aid,)).fetchone()
+            row = conn.execute(
+                f"SELECT {_assessment_cols()} FROM {_assessments_table()} WHERE id=?",
+                (aid,)).fetchone()
         if not row:
             abort(404)
         try:
@@ -579,7 +790,9 @@ def create_app() -> Flask:
     def skills_finalize(aid):
         from . import interview
         with db.connect() as conn:
-            row = conn.execute("SELECT * FROM interview_assessments WHERE id=?", (aid,)).fetchone()
+            row = conn.execute(
+                f"SELECT {_assessment_cols()} FROM {_assessments_table()} WHERE id=?",
+                (aid,)).fetchone()
         if not row:
             abort(404)
         answers = (request.form.get("answers") or "").strip()
@@ -622,14 +835,18 @@ def create_app() -> Flask:
                 rj = []
             if len(rj) >= 3:
                 atype, token, postings = "web", url, rj
+        # WRITES name the PHYSICAL table, never `companies`: in postgres mode that name is
+        # the migration-097 compat VIEW, whose columns are expressions, so it is not
+        # auto-updatable and an UPDATE against it fails outright.
+        ctab = db.companies_table()
         if not postings:
             with db.connect() as conn:
-                conn.execute("UPDATE companies SET careers_url=? WHERE id=?", (url, cid))
+                conn.execute(f"UPDATE {ctab} SET careers_url=? WHERE id=?", (url, cid))
             flash(f"{name}: saved the link, but I couldn't extract jobs even with a render "
                   f"(iframed or actively bot-blocked). Open it to browse directly.")
             return back
         with db.connect() as conn:
-            conn.execute("UPDATE companies SET ats_type=?, ats_token=?, careers_url=?, "
+            conn.execute(f"UPDATE {ctab} SET ats_type=?, ats_token=?, careers_url=?, "
                          "discover_status='found' WHERE id=?", (atype, token, url, cid))
         new = 0
         with db.connect() as conn:
@@ -640,7 +857,7 @@ def create_app() -> Flask:
                 st = db.upsert_posting(conn, cid, p)
                 ids.add(str(p["ats_job_id"])); new += st == "new"
             db.deactivate_missing(conn, cid, ids)
-            conn.execute("UPDATE companies SET last_scraped_at=? WHERE id=?", (db.now(), cid))
+            conn.execute(f"UPDATE {ctab} SET last_scraped_at=? WHERE id=?", (db.now(), cid))
         flash(f"{name}: detected {atype} → scraped {len(postings)} jobs ({new} new). "
               f"They'll AI-score on the next pass.")
         return back
@@ -662,12 +879,12 @@ def create_app() -> Flask:
             where.append("COALESCE(p.target_role,0) = 1")
         days = request.args.get("days", "30")
         if days.isdigit() and int(days) > 0:
-            where.append("p.posted_date IS NOT NULL AND p.posted_date >= date('now', ?)")
-            args.append(f"-{int(days)} days")
+            where.append(_posted_within(int(days)))
         if q:
-            where.append("(p.title LIKE ? OR p.description LIKE ?)"); args += [f"%{q}%", f"%{q}%"]
+            where.append(f"(p.title {_ilike()} ? OR p.description {_ilike()} ?)")
+            args += [f"%{q}%", f"%{q}%"]
         if company:
-            where.append("c.name LIKE ?"); args.append(f"%{company}%")
+            where.append(f"c.name {_ilike()} ?"); args.append(f"%{company}%")
         if min_score:
             where.append("COALESCE(p.ai_fit_score,p.fit_score,0) >= ?"); args.append(min_score)
         if remote in ("0", "1"):
@@ -684,11 +901,16 @@ def create_app() -> Flask:
         where_sql = " AND ".join(where)
         with db.connect() as conn:
             # City-level points (rows we geocoded to a city centroid).
+            # lat/lon join the GROUP BY under Postgres, which — unlike SQLite — refuses a
+            # bare column in an aggregate query (`column "p.lat" must appear in the GROUP
+            # BY clause`). They are the geocoded centroid OF (state, city), so they are
+            # functionally dependent on the existing key and the groups do not change.
             cityrows = conn.execute(
                 f"""SELECT p.city, p.state st, p.lat, p.lon, COUNT(*) n
                     FROM postings p JOIN companies c ON c.id=p.company_id
                     WHERE {where_sql} AND p.lat IS NOT NULL
-                    GROUP BY p.state, p.city ORDER BY n DESC""", args).fetchall()
+                    GROUP BY {_grp('p.state, p.city', 'p.lat, p.lon')} ORDER BY n DESC""",
+                args).fetchall()
             # State-level fallback for rows that have a state but no city centroid.
             staterows = conn.execute(
                 f"""SELECT p.state st, COUNT(*) n
@@ -744,7 +966,17 @@ def create_app() -> Flask:
                    FROM postings p JOIN companies c ON c.id = p.company_id
                    LEFT JOIN company_view cv ON cv.id = c.id WHERE p.id = ?""", (pid,)).fetchone()
             # Interview prep: what this job/industry will actually ask (read-only — no write on a GET).
-            interview = interview_bank.match(conn, pid, persist=False) if row else None
+            #
+            # The tagged question bank (interview_bank / interview_bank_tags / posting_tags)
+            # is SQLite-only — migrations 095-097 gave it no Postgres home — so in postgres
+            # mode there is nothing to match against. Calling it there raises UndefinedTable
+            # and, because one failed statement aborts the entire Postgres transaction, it
+            # would take the rest of this request down with it. The panel is already
+            # optional in the template ({% if interview and interview.questions %}), so it
+            # is omitted rather than faked. Restore it by giving the bank a migration and
+            # porting interview_bank.py; nothing here invents a question list.
+            interview = None if config.POSTGRES else (
+                interview_bank.match(conn, pid, persist=False) if row else None)
         if not row:
             abort(404)
         def jl(s):
@@ -775,7 +1007,9 @@ def create_app() -> Flask:
         """Flag a warm contact at a company (0=none,1=weak,2=solid,3=strong) → boosts P(land)."""
         level = max(0, min(3, int(request.form.get("level") or 0)))
         with db.connect() as conn:
-            conn.execute("UPDATE companies SET referral=? WHERE id=?", (level, cid))
+            # Physical table for the write; see company_seturl() — `companies` is a
+            # non-updatable view in postgres mode.
+            conn.execute(f"UPDATE {db.companies_table()} SET referral=? WHERE id=?", (level, cid))
             row = conn.execute("SELECT name FROM companies WHERE id=?", (cid,)).fetchone()
         flash(f"{row['name'] if row else 'Company'}: contact strength set to {level} — "
               f"P(land) boosted for all its roles.")
@@ -842,14 +1076,23 @@ def create_app() -> Flask:
         if status:
             where.append("status = ?"); args.append(status)
         where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+        rf = _recruiters_table()
         with db.connect() as conn:
+            # No `user_sub` predicate anywhere in this tab: in postgres mode
+            # career_user_recruiter_firms is under FORCE ROW LEVEL SECURITY and the policy
+            # scopes every SELECT/UPDATE/DELETE to the acting user. A hand-written WHERE
+            # would be redundant and would read like the isolation boundary it is not.
             rows = conn.execute(
-                f"SELECT * FROM recruiter_firms {where_sql} "
-                "ORDER BY sort_order, firm", args).fetchall()
+                f"SELECT * FROM {rf} {where_sql} "
+                f"ORDER BY {_asc('sort_order')}, {_asc('firm', text=True)}", args).fetchall()
             counts = dict(conn.execute(
-                "SELECT status, COUNT(*) n FROM recruiter_firms GROUP BY status").fetchall())
+                f"SELECT status, COUNT(*) n FROM {rf} GROUP BY status").fetchall())
+            # Plain _asc(): a SELECT DISTINCT cannot ORDER BY a collated form of a selected
+            # column in Postgres (see _asc). NULL placement is matched; the residual is
+            # that the label order follows the database collation rather than byte order,
+            # which for this short controlled vocabulary is the same order.
             buckets = [r["bucket"] for r in conn.execute(
-                "SELECT DISTINCT bucket FROM recruiter_firms ORDER BY bucket").fetchall()]
+                f"SELECT DISTINCT bucket FROM {rf} ORDER BY {_asc('bucket')}").fetchall()]
         # which linked resume files actually exist on disk (for the open-link)
         resume_exists = {label: path.exists() for label, path in RESUMES}
         return render_template(
@@ -865,15 +1108,30 @@ def create_app() -> Flask:
         if not firm:
             flash("Enter a firm or recruiter name first.")
             return redirect(url_for("recruiters_page"))
+        vals = (firm, (request.form.get("bucket") or "Other").strip(),
+                (request.form.get("website") or "").strip(),
+                (request.form.get("contact_name") or "").strip(),
+                (request.form.get("contact_link") or "").strip(),
+                "To contact", 200, db.now())
+        cols = ("firm, bucket, website, contact_name, contact_link, status, "
+                "sort_order, updated_at")
         with db.connect() as conn:
-            conn.execute(
-                "INSERT INTO recruiter_firms (firm, bucket, website, contact_name, "
-                "contact_link, status, sort_order, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-                (firm, (request.form.get("bucket") or "Other").strip(),
-                 (request.form.get("website") or "").strip(),
-                 (request.form.get("contact_name") or "").strip(),
-                 (request.form.get("contact_link") or "").strip(),
-                 "To contact", 200, db.now()))
+            if config.POSTGRES:
+                # career_user_recruiter_firms.id is a plain BIGINT, not a sequence: 096
+                # PRESERVED the SQLite ids on load rather than minting new ones, so the
+                # next id has to be chosen here. MAX+1 is computed INSIDE the insert, so
+                # it is one statement; RLS scopes that MAX to this user's own rows, so two
+                # users never contend for the same number. If the same user double-submits,
+                # the (user_sub, id) primary key rejects the loser — an error, not a
+                # silently overwritten firm. user_sub is written explicitly because the RLS
+                # WITH CHECK compares it to oshal.current_sub.
+                conn.execute(
+                    f"INSERT INTO {_recruiters_table()} (user_sub, id, {cols}) "
+                    "SELECT ?, COALESCE(MAX(id), 0) + 1, ?, ?, ?, ?, ?, ?, ?, ? "
+                    f"FROM {_recruiters_table()}", (db.require_sub(), *vals))
+            else:
+                conn.execute(
+                    f"INSERT INTO recruiter_firms ({cols}) VALUES (?,?,?,?,?,?,?,?)", vals)
         flash(f"Added {firm}.")
         return redirect(url_for("recruiters_page"))
 
@@ -888,7 +1146,8 @@ def create_app() -> Flask:
         sets.append("updated_at=?"); vals.append(db.now())
         vals.append(rid)
         with db.connect() as conn:
-            conn.execute(f"UPDATE recruiter_firms SET {', '.join(sets)} WHERE id=?", vals)
+            conn.execute(
+                f"UPDATE {_recruiters_table()} SET {', '.join(sets)} WHERE id=?", vals)
         flash("Saved.")
         return redirect(url_for("recruiters_page", bucket=request.args.get("bucket", ""),
                                 status=request.args.get("status", "")))
@@ -896,7 +1155,7 @@ def create_app() -> Flask:
     @app.route("/recruiters/<int:rid>/delete", methods=["POST"])
     def recruiters_delete(rid):
         with db.connect() as conn:
-            conn.execute("DELETE FROM recruiter_firms WHERE id=?", (rid,))
+            conn.execute(f"DELETE FROM {_recruiters_table()} WHERE id=?", (rid,))
         flash("Removed.")
         return redirect(url_for("recruiters_page"))
 

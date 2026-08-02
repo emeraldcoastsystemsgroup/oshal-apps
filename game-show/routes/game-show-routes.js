@@ -5,6 +5,11 @@
  * -----------------------------------------------------------------------------
  * 2026-07-21 21:32:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Game Show route factory: serve the CSP-safe multi-surface document, dispatch room/seat/presence reads and writes, player actions, judged answers, host-bot transitions, and TTS. Self-contained except for the framework AppContext (pool, orchestrator, logger).
  * 2026-07-22 02:54:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Route host overrides (owner-only, never through the show reducer) with plain-language rejections, serve the new controls surface script, and let the host remove a stuck podium.
+ * 2026-07-24 11:45:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Backlog burn-down: per-show UI moved to a client registry (gs-shows.js + one gs-show-<id>.js each — the ADR-112 table collapse now that shows #3/#4 exist); new endpoints /react (audience reactions), /speaker (single-TTS-speaker lease), /cost (owner-only room spend); host mode 'manual' accepts host-typed content.
+ * 2026-07-25 02:20:00 | codex                                      | Serve the allowlisted optional MP4 cutaway catalog and load its fail-soft browser player.
+ * 2026-07-26 [rebuild] | roger.murphy@emeraldcoastsystemsgroup.com  | Player-experience rebuild: GET /qr renders the room's join link as an SVG QR (platform `qrcode` dependency, fail-soft to nothing so the code text always suffices) and the new gs-play.js player surface joins the inline script order.
+ * 2026-07-26 19:15:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Broadcast chrome wiring: gs-play.js sits after the show files and before gs-surfaces.js (matching stage.html), and every chrome/set stylesheet (UI_STYLES — game-show-play.css + the four gs-set-*.css) is served no-store exactly like game-show.css always was.
+ * 2026-07-31 22:45:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Backlog #11: GET /leaderboard — the caller-scoped cross-game hall of fame read (gameshow_seats.score snapshots across the caller's ended games), rendered by the lobby.
  */
 
 'use strict';
@@ -15,11 +20,24 @@ const registry = require('../lib/shows/show-registry');
 const { createRoomService, resolveActor, MAX_PRESENCE_BYTES } = require('../lib/room-service');
 const { createHostService } = require('../lib/host-service');
 const { createMediaService } = require('../lib/media-service');
+const { createLeaseStore } = require('../lib/speaker-lease');
+const cutaways = require('../lib/cutaway-catalog');
 const hostOverride = require('../lib/host-override');
 const { resolveSub, resolveName, sendJson, serveFile, readBody, readBytes } = require('../lib/route-helpers');
 
 const FALLBACK_ROOT = process.env.OSHAL_APP_PACKAGE_DIR || path.resolve(__dirname, '..');
-const UI_SCRIPTS = ['gs-core.js', 'gs-presence.js', 'gs-controls.js', 'gs-surfaces.js', 'gs-app.js'];
+// Order matters: core → presence/controls → the show-UI registry → one file per
+// show → the surfaces that consume the registry → boot.
+const UI_SCRIPTS = [
+  'gs-core.js', 'gs-presence.js', 'gs-controls.js', 'gs-cutaways.js', 'gs-shows.js',
+  'gs-show-feud.js', 'gs-show-jeopardy.js', 'gs-show-wheel.js', 'gs-show-whammy.js',
+  'gs-play.js', 'gs-surfaces.js', 'gs-app.js',
+];
+// The shared sheet, the broadcast chrome sheet, and one set sheet per show.
+const UI_STYLES = [
+  'game-show.css', 'game-show-play.css',
+  'gs-set-feud.css', 'gs-set-jeopardy.css', 'gs-set-wheel.css', 'gs-set-whammy.css',
+];
 
 /** @description Plain-language reasons an override could not be applied. */
 const OVERRIDE_ERRORS = {
@@ -44,11 +62,17 @@ function loadUiSources(root) {
   return sources;
 }
 
-/** @description Replace external surface script tags with their same-source inline bodies. */
+/**
+ * @description Replace external surface script tags with their same-source inline
+ *   bodies. The replacement is a FUNCTION, never a string: a source containing
+ *   `$'` (e.g. `'$' + clue.value`) would otherwise trigger String.replace's
+ *   $-substitution and splice the rest of the document into the script — the
+ *   leaked-source wall the browser playthrough now guards against.
+ */
 function inlineUiScripts(html, sources) {
   return UI_SCRIPTS.reduce((doc, file) => doc.replace(
     `<script src="/api/game-show/${file}"></script>`,
-    `<script data-gs-source="${file}">\n${sources.get(file) || ''}\n</script>`
+    () => `<script data-gs-source="${file}">\n${sources.get(file) || ''}\n</script>`
   ), html);
 }
 
@@ -60,7 +84,8 @@ function buildEnvironment(ctx) {
   const host = createHostService({ pool: context.pool, orchestrator: context.orchestrator, room, logger: context.logger });
   // Try the API-key voice first, then the OAuth one — deployments differ in which is authenticated.
   const media = createMediaService({ ttsProviderIds: ['gemini-tts', 'google-cloud-tts'], logger: context.logger });
-  return { context, root, pool: context.pool, room, host, media, uiSources: loadUiSources(root) };
+  const speaker = createLeaseStore();
+  return { context, root, pool: context.pool, room, host, media, speaker, uiSources: loadUiSources(root) };
 }
 
 /** @description Serve the CSP-safe multi-surface document with all local logic inline. */
@@ -81,8 +106,18 @@ async function servePublic(env, method, pathname, res) {
   if (method === 'GET' && (pathname === '/' || pathname === '/stage' || pathname.startsWith('/stage/'))) {
     await serveStage(env, res); return true;
   }
-  if (method === 'GET' && pathname === '/game-show.css') {
-    serveFile(res, env.root, 'ui/game-show.css', 'text/css; charset=utf-8', true); return true;
+  if (method === 'GET' && UI_STYLES.some((file) => pathname === `/${file}`)) {
+    serveFile(res, env.root, `ui/${pathname.slice(1)}`, 'text/css; charset=utf-8', true); return true;
+  }
+  if (method === 'GET' && pathname === '/cutaways/catalog') {
+    sendJson(res, 200, { ok: true, items: cutaways.listCutaways(env.root) }); return true;
+  }
+  if (method === 'GET' && pathname.startsWith('/cutaways/') && pathname.endsWith('.mp4')) {
+    const id = path.basename(pathname, '.mp4');
+    if (!cutaways.resolveCutawayFile(env.root, id)) {
+      sendJson(res, 404, { error: 'cutaway unavailable' }); return true;
+    }
+    serveFile(res, env.root, `ui/cutaways/${id}.mp4`, 'video/mp4', false); return true;
   }
   if (method === 'GET' && UI_SCRIPTS.some((file) => pathname === `/${file}`)) {
     serveFile(res, env.root, `ui/${pathname.slice(1)}`, 'application/javascript; charset=utf-8', true); return true;
@@ -118,6 +153,20 @@ async function handleAction(env, sub, body) {
   });
 }
 
+/**
+ * @description Claim/renew the room's single TTS speaker lease for one device.
+ *   Membership-gated: a device must be in the room to become its voice.
+ */
+async function handleSpeaker(env, sub, body) {
+  const room = await env.room.access(sub, body.roomId);
+  if (!room) return { ok: false, status: 404, error: 'Room not found.' };
+  const deviceId = String(body.deviceId || '').slice(0, 64);
+  if (!deviceId) return { ok: false, status: 400, error: 'No device id.' };
+  if (body.release) return { ok: true, ...env.speaker.release(body.roomId, deviceId), speaker: false };
+  const priority = Math.max(0, Math.min(Number(body.priority) || 0, 9));
+  return { ok: true, ...env.speaker.claim(body.roomId, deviceId, priority) };
+}
+
 /** @description Request-local JSON-body POST handlers. */
 function postHandlers(env, sub, name) {
   return {
@@ -132,6 +181,8 @@ function postHandlers(env, sub, name) {
     '/answer': (body) => env.host.judge(sub, body.roomId, body),
     '/host': (body) => env.host.run(sub, body.roomId, body.mode, body.payload),
     '/tts': (body) => env.media.synthesizeHostLine(body),
+    '/react': (body) => env.room.react(sub, name, body.roomId, body.emoji),
+    '/speaker': (body) => handleSpeaker(env, sub, body),
   };
 }
 
@@ -145,6 +196,27 @@ async function handlePresenceUpload(env, sub, req, res, parsed) {
   const mime = String(req.headers['content-type'] || 'image/jpeg').split(';')[0];
   const result = await env.room.storePresence(sub, roomId, seatId, bytes, mime);
   sendJson(res, result.ok ? 200 : (result.status || 400), result);
+}
+
+/**
+ * @description Render a room's join link as an SVG QR for the lobby screens.
+ *   Uses the platform's `qrcode` dependency; when it is absent the endpoint 404s
+ *   and the surfaces simply keep showing the 6-letter code — QR is sugar, the
+ *   code is the contract.
+ */
+async function serveJoinQr(env, sub, res, parsed) {
+  const roomId = parsed.searchParams.get('roomId');
+  const room = await env.room.access(sub, roomId);
+  if (!room || !room.join_code) return sendJson(res, 404, { error: 'Room not found.' });
+  let toString;
+  try { toString = require('qrcode').toString; } catch (_error) { return sendJson(res, 404, { error: 'qr unavailable' }); }
+  const origin = String(parsed.searchParams.get('origin') || '').slice(0, 120);
+  const link = `${/^https?:\/\/[\w.:-]+$/.test(origin) ? origin : ''}/api/game-show/stage?join=${room.join_code}`;
+  const svg = await toString(link, { type: 'svg', errorCorrectionLevel: 'M', margin: 1, width: 220 });
+  res.statusCode = 200;
+  res.setHeader('content-type', 'image/svg+xml');
+  res.setHeader('cache-control', 'no-store');
+  res.end(svg);
 }
 
 /** @description Serve one podium's latest camera still. */
@@ -167,13 +239,16 @@ async function dispatchGet(env, sub, res, parsed) {
   const handlers = {
     '/shows': () => ({ ok: true, shows: registry.list() }),
     '/rooms': () => env.room.listRooms(sub),
+    '/leaderboard': () => env.room.leaderboard(sub),
     '/state': () => env.room.loadState(sub, roomId),
     '/sync': () => env.room.sync(sub, roomId, Number(parsed.searchParams.get('rev') || 0), Number(parsed.searchParams.get('seq') || 0)),
+    '/cost': () => env.host.cost(sub, roomId),
   };
   if (handlers[pathname]) {
     const result = await handlers[pathname]();
     sendJson(res, result.ok === false ? (result.status || 400) : 200, result); return true;
   }
+  if (pathname === '/qr') { await serveJoinQr(env, sub, res, parsed); return true; }
   if (pathname.startsWith('/presence/')) { await servePresence(env, sub, pathname, res); return true; }
   return false;
 }

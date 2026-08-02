@@ -20,22 +20,108 @@ import sys
 from . import db, seeds, discover, ats, enrich, match, config, resolve
 
 
+# ═════════════════════════════════════════════════════════════════════════════
+# SQL DIALECT FRAGMENTS
+#
+# Each returns the empty string / the SQLite spelling when config.POSTGRES is false, so
+# every statement below assembles to the byte-identical text sqlite3 has always executed.
+# Physical table names come from db.py (corpus_table / companies_table /
+# read_postings_table); these four cover the differences db.q() deliberately will not
+# translate. All four were measured against the live cluster (PG 16.14), not assumed.
+# ═════════════════════════════════════════════════════════════════════════════
+
+def _yes() -> str:
+    """Literal for a TRUE flag. `active` / `remote` are 0/1 INTEGERs in SQLite and real
+    BOOLEANs in career_postings, where `active = 1` is not merely wrong but a hard error:
+    `operator does not exist: boolean = integer`. Mirrors the same inline in
+    db.py::upsert_posting and db.py::deactivate_missing rather than adding a public helper
+    to a file already at its decomposition threshold.
+
+    Only needed when reading a BASE table. The `postings` compat view (migration 097)
+    already exposes `active::int`, so statements that read the view keep `active=1`."""
+    return "TRUE" if config.POSTGRES else "1"
+
+
+def _nulls_last() -> str:
+    """Placed after a DESC sort key that can be NULL. SQLite treats NULL as smaller than
+    everything, so DESC puts NULLs LAST; Postgres defaults to NULLS FIRST for DESC.
+    Verified both ways: sqlite `ORDER BY x DESC` over (1, NULL, 3) -> [3, 1, None, None];
+    postgres -> [None, 3, 1]. Left un-emitted in sqlite mode so the existing statement text
+    is untouched (SQLite only learned NULLS LAST in 3.30)."""
+    return " NULLS LAST" if config.POSTGRES else ""
+
+
+def _bin() -> str:
+    """Collation for `ORDER BY name`. SQLite sorts TEXT with BINARY; this cluster's default
+    is en_US.utf8, which sorts case- and punctuation-insensitively. That is not cosmetic
+    here: `discover --limit N` and `scrape --limit N` take the FIRST N rows of that order,
+    so the two backends would work on different companies (measured on the live corpus —
+    'A. O. Smith' is 4th under BINARY and absent from the first 8 under en_US.utf8).
+    COLLATE "C" reproduces BINARY exactly: both give Apple, Ericsson, Zoom, eBay."""
+    return ' COLLATE "C"' if config.POSTGRES else ""
+
+
+def _like() -> str:
+    """LIKE operator. SQLite's LIKE is case-INSENSITIVE for ASCII; Postgres' is
+    case-SENSITIVE, and ILIKE is its case-insensitive form. Measured: against the live
+    `companies` view, `source_lists LIKE '%"dow30"%'` matches 29 rows, `LIKE '%"DOW30"%'`
+    matches 0, and `ILIKE '%"DOW30"%'` matches 29 — i.e. without this, `scrape --list
+    DOW30` would silently scrape nothing instead of the Dow 30."""
+    return "ILIKE" if config.POSTGRES else "LIKE"
+
+
+def _dropped_since(before: dict) -> dict:
+    """What db.dropped_fields() gained since `before` — i.e. what THIS verb lost.
+
+    db.dropped_fields() counts values that have NO column to hold them: an ATS UI label
+    ("Posted 30+ Days Ago") where a TIMESTAMPTZ is required, a feed row with no title
+    against a NOT NULL column. They are NULLed or skipped, never guessed, and a run that
+    reports only its successes is indistinguishable from one that lost nothing.
+
+    The counter is process-global and cumulative. One CLI invocation is one process, so the
+    delta and the total are the same there — but the verbs are also importable, and
+    reporting the running total from the second call onward would overstate the loss.
+    Subtracting a baseline makes the number true either way.
+
+    Always empty in sqlite mode: nothing outside db.py's postgres branches calls
+    db._drop()."""
+    now_ = db.dropped_fields()
+    return {k: v - before.get(k, 0) for k, v in now_.items() if v > before.get(k, 0)}
+
+
+def _report_dropped(before: dict) -> None:
+    """Print this verb's unrepresentable values, if there were any. Silent otherwise, so
+    sqlite-mode output is unchanged."""
+    dropped = _dropped_since(before)
+    if not dropped:
+        return
+    print("\nNot representable in the store (NULLed or skipped — never guessed):")
+    for field, n in sorted(dropped.items()):
+        print(f"   {field}: {n}")
+
+
 def _companies(conn, *, company=None, source_list=None, only_unscraped=False, need_ats=False):
     sql = "SELECT * FROM companies WHERE 1=1"
     args = []
     if company:
         sql += " AND name = ?"; args.append(company)
     if source_list:
-        sql += " AND source_lists LIKE ?"; args.append(f'%"{source_list}"%')
+        sql += f" AND source_lists {_like()} ?"; args.append(f'%"{source_list}"%')
     if need_ats:
         sql += " AND ats_type IS NOT NULL AND ats_token IS NOT NULL"
-    sql += " ORDER BY name"
+    sql += " ORDER BY name" + _bin()
     return conn.execute(sql, args).fetchall()
 
 
 def cmd_init(_):
     db.init_db()
-    print(f"DB ready at {config.DB_PATH}")
+    if config.POSTGRES:
+        # DB_PATH is a SQLite file path and names nothing in this mode. The schema belongs
+        # to migrations/095-097 and is applied by the package migration runner, so all
+        # init_db() does here is seed this user's recruiter tracker. Print what is true.
+        print(f"Postgres store ready (schema: migrations/095-097, acting sub {config.USER_SUB})")
+    else:
+        print(f"DB ready at {config.DB_PATH}")
 
 
 def cmd_seed(a):
@@ -55,8 +141,17 @@ def cmd_discover(a):
         if a.company:
             rows = _companies(conn, company=a.company)
         else:
+            # `!= 'found'` also drops NULLs. career_companies.discover_status has NO
+            # DEFAULT (096) where the SQLite column defaults to 'pending', so a company
+            # registered by upsert_company starts NULL — and with `!=` in postgres mode
+            # `discover` would silently skip every newly added company, which is precisely
+            # the set it exists to process. IS DISTINCT FROM is what the SQLite clause
+            # MEANS ("not discovered yet") and is what SQLite's non-null default makes it
+            # do. Both spellings return the same 206 rows on the live corpus today, so this
+            # changes no current result — it keeps the intent true once NULLs appear.
+            ne = "IS DISTINCT FROM" if config.POSTGRES else "!="
             rows = conn.execute(
-                "SELECT * FROM companies WHERE discover_status != 'found' ORDER BY name"
+                f"SELECT * FROM companies WHERE discover_status {ne} 'found' ORDER BY name{_bin()}"
             ).fetchall()
         if a.limit:
             rows = rows[:a.limit]
@@ -73,8 +168,12 @@ def cmd_discover(a):
     with cf.ThreadPoolExecutor(max_workers=workers) as ex:
         for r, res in ex.map(work, rows):
             with db.connect() as conn:
+                # WRITE -> the base table. `companies` is a read-only VIEW in postgres mode
+                # (its columns are expressions, so it is not even auto-updatable);
+                # db.companies_table() returns the same literal 'companies' under sqlite.
                 conn.execute(
-                    "UPDATE companies SET ats_type=?, ats_token=?, careers_url=?, discover_status=? WHERE id=?",
+                    f"UPDATE {db.companies_table()} SET ats_type=?, ats_token=?, careers_url=?, "
+                    "discover_status=? WHERE id=?",
                     (res["ats_type"], res["ats_token"], res["careers_url"], res["status"], r["id"]),
                 )
             done += 1
@@ -92,11 +191,12 @@ def cmd_discover(a):
 
 def cmd_scrape(a):
     db.init_db()
+    dropped0 = db.dropped_fields()
     with db.connect() as conn:
         rows = [dict(r) for r in _companies(conn, company=a.company, source_list=a.list, need_ats=True)]
     if a.limit:
         rows = rows[:a.limit]
-    total_new = total_seen = total_closed = 0
+    total_new = total_seen = total_closed = total_skipped = 0
     # One short transaction per company so long runs don't lock the DB against the bot/dashboard.
     for r in rows:
         try:
@@ -109,7 +209,7 @@ def cmd_scrape(a):
             # closed". Never wipe a company's existing jobs on an empty result.
             print(f"   {r['name']:<28}    0 live  (skipped — empty fetch, kept existing)", flush=True)
             continue
-        seen_ids, new, seen = set(), 0, 0
+        seen_ids, new, seen, skipped = set(), 0, 0, 0
         with db.connect() as conn:
             for p in postings:
                 if p.get("ats_job_id") is None:
@@ -117,11 +217,21 @@ def cmd_scrape(a):
                 status = db.upsert_posting(conn, r["id"], p)
                 seen_ids.add(str(p["ats_job_id"]))
                 new += status == "new"; seen += status == "seen"
+                # postgres only: career_postings.title is NOT NULL, so db.upsert_posting
+                # drops a feed row with no title rather than inventing '(untitled)'. It
+                # returns neither 'new' nor 'seen', so without this counter the per-company
+                # line would claim an intake larger than what actually landed. Always 0 in
+                # sqlite mode (upsert_posting cannot return 'skipped' there).
+                skipped += status == "skipped"
             closed = db.deactivate_missing(conn, r["id"], seen_ids)
-            conn.execute("UPDATE companies SET last_scraped_at=? WHERE id=?", (db.now(), r["id"]))
-        total_new += new; total_seen += seen; total_closed += closed
-        print(f"   {r['name']:<28} {len(postings):>4} live  (+{new} new, {closed} closed)", flush=True)
-    print(f"\nScrape done: {total_new} new, {total_seen} refreshed, {total_closed} closed.")
+            conn.execute(f"UPDATE {db.companies_table()} SET last_scraped_at=? WHERE id=?",
+                         (db.now(), r["id"]))
+        total_new += new; total_seen += seen; total_closed += closed; total_skipped += skipped
+        skip_note = f", {skipped} skipped" if skipped else ""
+        print(f"   {r['name']:<28} {len(postings):>4} live  (+{new} new, {closed} closed{skip_note})", flush=True)
+    tail = f" {total_skipped} skipped (no title)." if total_skipped else ""
+    print(f"\nScrape done: {total_new} new, {total_seen} refreshed, {total_closed} closed.{tail}")
+    _report_dropped(dropped0)
 
 
 import re as _re
@@ -172,6 +282,7 @@ def cmd_seturl(a):
     fails there) — it only connects, so it is safe in the shared-corpus deployment. Prints JSON."""
     import json
     from . import resolve, ats
+    dropped0 = db.dropped_fields()
     cid = int(a.company_id)
     url = (a.url or "").strip()
     if not url:
@@ -196,33 +307,47 @@ def cmd_seturl(a):
             rj = []
         if len(rj) >= 3:
             atype, token, postings = "web", url, rj
+    # Every write below names db.companies_table(): `companies` is a read-only compat VIEW
+    # in postgres mode, and the same literal 'companies' under sqlite.
+    ct = db.companies_table()
     if not postings:
         with db.connect() as conn:
-            conn.execute("UPDATE companies SET careers_url=? WHERE id=?", (url, cid))
+            conn.execute(f"UPDATE {ct} SET careers_url=? WHERE id=?", (url, cid))
         print(json.dumps({"ok": True, "company_id": cid, "jobs": 0,
               "message": "Saved the link, but couldn't extract jobs (iframed or bot-blocked)."}))
         return
     with db.connect() as conn:
-        conn.execute("UPDATE companies SET ats_type=?, ats_token=?, careers_url=?, "
+        conn.execute(f"UPDATE {ct} SET ats_type=?, ats_token=?, careers_url=?, "
                      "discover_status='found' WHERE id=?", (atype, token, url, cid))
-    new = 0
+    new = skipped = 0
     with db.connect() as conn:
         ids = set()
         for p in postings:
             if p.get("ats_job_id") is None:
                 continue
             st = db.upsert_posting(conn, cid, p)
-            ids.add(str(p["ats_job_id"])); new += st == "new"
+            ids.add(str(p["ats_job_id"])); new += st == "new"; skipped += st == "skipped"
         db.deactivate_missing(conn, cid, ids)
-        conn.execute("UPDATE companies SET last_scraped_at=? WHERE id=?", (db.now(), cid))
-    print(json.dumps({"ok": True, "company_id": cid, "atype": atype, "token": token,
-          "jobs": len(postings), "new": new,
-          "message": "detected %s -> scraped %d jobs (%d new)" % (atype, len(postings), new)}))
+        conn.execute(f"UPDATE {ct} SET last_scraped_at=? WHERE id=?", (db.now(), cid))
+    # This verb's stdout is parsed as JSON by the dashboard's per-company Resolve button,
+    # so the loss report goes IN the object, never printed beside it. Both keys are omitted
+    # when there is nothing to report, which is always the case in sqlite mode — the
+    # emitted JSON there is byte-identical to before.
+    out = {"ok": True, "company_id": cid, "atype": atype, "token": token,
+           "jobs": len(postings), "new": new,
+           "message": "detected %s -> scraped %d jobs (%d new)" % (atype, len(postings), new)}
+    if skipped:
+        out["skipped"] = skipped
+    dropped = _dropped_since(dropped0)
+    if dropped:
+        out["dropped"] = dropped
+    print(json.dumps(out))
 
 
 def cmd_add_url(a):
     """Paste any careers URL(s): auto-detect the ATS, register the company, scrape it now."""
     db.init_db()
+    dropped0 = db.dropped_fields()
     urls = list(a.url or [])
     if a.file:
         with open(a.file, encoding="utf-8") as f:
@@ -268,7 +393,8 @@ def cmd_add_url(a):
             existing = _match_existing(conn, name)  # avoid duplicate rows for already-seeded companies
             if existing:
                 cid = existing["id"]
-                conn.execute("UPDATE companies SET ats_type=?, ats_token=?, careers_url=?, "
+                # WRITE -> base table (`companies` is a read-only view in postgres mode).
+                conn.execute(f"UPDATE {db.companies_table()} SET ats_type=?, ats_token=?, careers_url=?, "
                              "discover_status='found' WHERE id=?", (atype, token, url, cid))
                 name = existing["name"]
             else:
@@ -292,8 +418,9 @@ def cmd_add_url(a):
             if len(rj) >= 3:
                 atype, token, postings = "web", url, rj
                 with db.connect() as conn:
-                    conn.execute("UPDATE companies SET ats_type='web', ats_token=? WHERE id=?", (url, cid))
-        new = seen = 0
+                    conn.execute(f"UPDATE {db.companies_table()} SET ats_type='web', ats_token=? WHERE id=?",
+                                 (url, cid))
+        new = seen = skipped = 0
         with db.connect() as conn:
             ids = set()
             for p in postings:
@@ -301,11 +428,15 @@ def cmd_add_url(a):
                     continue
                 st = db.upsert_posting(conn, cid, p)
                 ids.add(str(p["ats_job_id"])); new += st == "new"; seen += st == "seen"
+                skipped += st == "skipped"   # postgres: title is NOT NULL — see cmd_scrape
             db.deactivate_missing(conn, cid, ids)
-            conn.execute("UPDATE companies SET last_scraped_at=? WHERE id=?", (db.now(), cid))
+            conn.execute(f"UPDATE {db.companies_table()} SET last_scraped_at=? WHERE id=?",
+                         (db.now(), cid))
         ok += 1
-        print(f"   OK {name:<22} [{atype}] {len(postings):>4} jobs (+{new} new)", flush=True)
+        skip_note = f", {skipped} skipped" if skipped else ""
+        print(f"   OK {name:<22} [{atype}] {len(postings):>4} jobs (+{new} new{skip_note})", flush=True)
     print(f"\nadd-url done: {ok} scraped, {unmatched} unrecognized.")
+    _report_dropped(dropped0)
 
 
 def cmd_enrich(a):
@@ -328,7 +459,12 @@ def cmd_set_manual(a):
         neg = a.negatives.split(";") if a.negatives else None
         db.save_manual_reputation(conn, row["id"], about=a.about, positives=pos,
                                   negatives=neg, score=a.score, note=a.note)
-        conn.execute("UPDATE companies SET discover_status = discover_status WHERE id=?", (row["id"],))
+        # A self-assignment: it changes no value, it only touches the row. Kept because it
+        # is existing behaviour (and in postgres it bumps career_companies.updated_at via
+        # any row-touch trigger), but it must name the base table — an UPDATE against the
+        # read-only compat view would abort the whole set-manual transaction.
+        conn.execute(f"UPDATE {db.companies_table()} SET discover_status = discover_status WHERE id=?",
+                     (row["id"],))
     print(f"Manual reputation saved for {a.company} (overrides AI).")
 
 
@@ -385,11 +521,17 @@ def cmd_apply(a):
 def _top_distinct_hits(conn, limit, us_only=True):
     """Top jobs by AI fit (fallback keyword), deduped by company+title, US-preferred."""
     import re
+    # Reads the `postings` compat VIEW, not the base table: ai_fit_score / fit_score /
+    # status are per-user columns and RLS is what scopes them to the caller. `p.active=1`
+    # is correct against the view (097 exposes active::int).
+    # The tiebreak needs NULLS LAST — SQLite ranks NULL fit_score last under DESC, Postgres
+    # ranks it first, which would float unscored jobs above scored ones inside every
+    # ai_fit_score tie.
     rows = conn.execute(
-        """SELECT p.id, c.name comp, p.title, p.location, p.ai_fit_score, p.fit_score, p.status
+        f"""SELECT p.id, c.name comp, p.title, p.location, p.ai_fit_score, p.fit_score, p.status
            FROM postings p JOIN companies c ON c.id=p.company_id
            WHERE p.active=1 AND COALESCE(p.ai_fit_score, p.fit_score, 0) > 0
-           ORDER BY COALESCE(p.ai_fit_score,-1) DESC, p.fit_score DESC""").fetchall()
+           ORDER BY COALESCE(p.ai_fit_score,-1) DESC, p.fit_score DESC{_nulls_last()}""").fetchall()
     US = re.compile(r"United States|USA|US-|, [A-Z]{2}\b|Remote|Atlanta|Virginia|Texas|Colorado|"
                     r"California|New York|Austin|Denver|Dallas|Houston|Washington|Florida|Georgia", re.I)
     seen, per, picks = set(), {}, []
@@ -466,7 +608,9 @@ def cmd_export(a):
             sql += " AND COALESCE(p.fit_score,0) >= ?"; args.append(a.min_fit)
         if a.min_score:
             sql += " AND COALESCE(cv.score,0) >= ?"; args.append(a.min_score)
-        sql += " ORDER BY p.fit_score DESC NULLS LAST, cv.score DESC NULLS LAST, cv.name"
+        # NULLS LAST was already explicit here and is valid in both engines. Only the final
+        # name tiebreak needed the collation pin (SQLite BINARY vs the cluster's en_US.utf8).
+        sql += f" ORDER BY p.fit_score DESC NULLS LAST, cv.score DESC NULLS LAST, cv.name{_bin()}"
         rows = conn.execute(sql, args).fetchall()
 
     out = open(a.out, "w", encoding="utf-8", newline="") if a.out else sys.stdout
@@ -494,26 +638,42 @@ def cmd_export(a):
 
 def cmd_geocode(a):
     db.init_db()
+    # state / lat / lon are OBJECTIVE columns on the shared corpus row, so these counts read
+    # the base table via db.read_postings_table() — the `postings` compat view would drag
+    # two RLS-filtered joins across 1.4M rows to answer a question that has nothing to do
+    # with the user. `active` is a real BOOLEAN there, hence _yes().
+    pt, yes = db.read_postings_table(), _yes()
     with db.connect() as conn:
         n = db.backfill_geo(conn, limit=a.limit)
         conn.commit()
-        cities = conn.execute("SELECT COUNT(*) c FROM postings WHERE active=1 AND lat IS NOT NULL").fetchone()["c"]
-        total = conn.execute("SELECT COUNT(*) c FROM postings WHERE active=1 AND state IS NOT NULL").fetchone()["c"]
+        cities = conn.execute(f"SELECT COUNT(*) c FROM {pt} WHERE active={yes} AND lat IS NOT NULL").fetchone()["c"]
+        total = conn.execute(f"SELECT COUNT(*) c FROM {pt} WHERE active={yes} AND state IS NOT NULL").fetchone()["c"]
     print(f"Geocoded {n} rows. {cities:,}/{total:,} state-tagged active postings now have a city point.")
 
 
 def cmd_stats(_):
+    # Every figure here is about the SHARED corpus, so the posting counts read the base
+    # table rather than the per-user compat view (same numbers — RLS makes the view's joins
+    # at most 1:1 — without the two joins).
+    pt, ct, yes = db.read_postings_table(), db.companies_table(), _yes()
+    # Postgres accepts a bare `name` beside COUNT(*) only when the GROUP BY key is the
+    # PRIMARY KEY of a base table; `companies` is a VIEW there and carries no key, so
+    # `GROUP BY c.id` alone raises `column "c.name" must appear in the GROUP BY clause`.
+    # id is unique in both engines, so adding name to the key merges no groups and splits
+    # none — the result is identical, it is only the proof of functional dependence that
+    # Postgres needs spelled out.
+    grp = "c.id, c.name" if config.POSTGRES else "c.id"
     with db.connect() as conn:
         comp = conn.execute("SELECT COUNT(*) n FROM companies").fetchone()["n"]
         withats = conn.execute("SELECT COUNT(*) n FROM companies WHERE ats_type IS NOT NULL").fetchone()["n"]
-        active = conn.execute("SELECT COUNT(*) n FROM postings WHERE active=1").fetchone()["n"]
+        active = conn.execute(f"SELECT COUNT(*) n FROM {pt} WHERE active={yes}").fetchone()["n"]
         enriched = conn.execute("SELECT COUNT(*) n FROM company_reputation WHERE ai_score IS NOT NULL OR manual_score IS NOT NULL").fetchone()["n"]
         by_ats = conn.execute(
             "SELECT ats_type, COUNT(*) n FROM companies WHERE ats_type IS NOT NULL GROUP BY ats_type ORDER BY n DESC"
         ).fetchall()
         top = conn.execute(
-            """SELECT name, COUNT(*) n FROM postings p JOIN companies c ON c.id=p.company_id
-               WHERE active=1 GROUP BY c.id ORDER BY n DESC LIMIT 8"""
+            f"""SELECT name, COUNT(*) n FROM {pt} p JOIN {ct} c ON c.id=p.company_id
+               WHERE active={yes} GROUP BY {grp} ORDER BY n DESC LIMIT 8"""
         ).fetchall()
     print(f"Companies:        {comp}  (ATS resolved: {withats})")
     print(f"Active postings:  {active}")

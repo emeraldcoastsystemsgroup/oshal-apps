@@ -1,0 +1,1999 @@
+<!DOCTYPE html>
+<!--
+  VENTURE PLAN — the cockpit surface.
+
+  Self-contained iframe page served by createVentureRoutes at /api/venture/. Every
+  number on this page was computed by the deterministic engine on the server and is
+  only FORMATTED here. This file performs no model arithmetic: it converts units for
+  display (micros -> dollars, bps -> percent) with the same half-up rule the engine's
+  own formatUsd uses, so the surface and the generated documents print identical
+  strings. Two implementations of the same arithmetic drift, and a UI that contradicts
+  the document it exports is worse than no UI.
+
+  THE ONE IDEA THIS PAGE IS BUILT AROUND: a business plan is only worth what its
+  weakest input is worth. So provenance is not a settings panel here — every figure
+  carries a chip stating whether it is computed and how strong the weakest assumption
+  under it is, and clicking any figure opens the derivation with its assumptions
+  EDITABLE in place. Replacing a guess with a quote recomputes on the server and the
+  page shows exactly which headline numbers moved. Recompute costs nothing: it is pure
+  code, no LLM, no spend.
+
+  ────────────────────────────────────────────────────────────────────────────────
+  ENDPOINT CONTRACT this surface calls (all under the /api/venture mount, all
+  auth-gated server-side; a 401 shows the sign-in notice rather than an empty page):
+
+    GET    /ventures                                   -> { ventures: [...] }
+    POST   /ventures            { idea, name?, targetLaunchDate? }
+                                                       -> 201 { venture, openQuestions? }
+    GET    /ventures/:id                               -> { venture, scenarios?, counts?,
+                                                            latestModel?, latestRun? }
+    POST   /ventures/:id/runs   { kind }               -> 202 { runId, phases?, alreadyRunning? }
+    GET    /runs/:runId                                -> { run: { status, phase, phases?, error } }
+    GET    /ventures/:id/assumptions                   -> { assumptions: [...], summary? }
+    PATCH  /ventures/:id/assumptions/:key  { valueNum, lowNum, highNum, unit, label,
+                                             sourceKind, sourceDetail, sourceUrl,
+                                             confidence }
+                                                       -> { assumption, supersededId? }
+    GET    /ventures/:id/assumptions/:key/history      -> { revisions: [...] }
+    POST   /ventures/:id/model  { scenarioId? }        -> { model }
+    GET    /ventures/:id/model                         -> { model | null }
+    GET    /ventures/:id/model/figures/:figureKey      -> { figure, derivation }
+    GET    /ventures/:id/sensitivity?target=           -> { targetFigureKey?, tornado|bars }
+    GET    /ventures/:id/inversion                     -> { inversions }
+    GET    /ventures/:id/documents                     -> { catalog?, documents }
+    GET    /ventures/:id/documents/:docKey             -> { document: { bodyMd, ... } }
+    POST   /ventures/:id/documents/:docKey/regenerate  -> 202 { runId }
+    GET    /ventures/:id/documents/:docKey/print       -> text/html  (opened in a tab)
+    GET    /ventures/:id/export/{plan.docx,model.xlsx,deck.pptx,bundle.zip}
+
+  READS ARE TOLERANT, WRITES ARE STRICT. The model payload is normalised on arrival so
+  the surface renders whether the route returns the engine's own VentureModel
+  (figures / financials / waterfalls / traceability / issues) or the flatter
+  { figures, tables, coverage, warnings } envelope; writes use exactly the field
+  names in the contract above. Anything genuinely absent renders as a stated gap —
+  never as a zero, and never as invented filler.
+-->
+<html lang="en" data-theme="graphite">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Venture Plan</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<link rel="stylesheet" href="/fonts/codicon.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  :root {
+    --vp-bg:      var(--bg-primary, #12171b);
+    --vp-panel:   var(--bg-card, #191f25);
+    --vp-panel2:  var(--bg-secondary, #1f272e);
+    --vp-control: var(--bg-tertiary, #232c34);
+    --vp-line:    var(--border-color, #2b353d);
+    --vp-line2:   var(--border-color-hover, #3a4750);
+    --vp-ink:     var(--text-primary, #e8eef3);
+    --vp-muted:   var(--text-secondary, #93a4b1);
+    --vp-faint:   var(--text-muted, #6f828f);
+    --vp-accent:  var(--accent-primary, #4ea3f5);
+    --vp-accent2: var(--accent-primary-hover, #9fd0ff);
+    --vp-good:    var(--status-success, #35c98a);
+    --vp-warn:    var(--status-warning, #e6b23c);
+    --vp-bad:     var(--status-error, #f0736f);
+    --vp-info:    var(--status-active, #4ea3f5);
+    --vp-surface-gap: var(--vp-panel);
+  }
+  * { box-sizing: border-box; }
+  html, body { max-width: 100%; overflow-x: hidden; }
+  body {
+    margin: 0; background: var(--vp-bg); color: var(--vp-ink); font-size: 14px; line-height: 1.5;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  a { color: var(--vp-accent2); }
+  h1 { font-size: 19px; margin: 0; }
+  h2 { font-size: 13px; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .7px; color: var(--vp-muted); font-weight: 700; }
+  h3 { font-size: 14px; margin: 0 0 8px; }
+  .muted { color: var(--vp-muted); }
+  .faint { color: var(--vp-faint); }
+  .small { font-size: 12px; }
+  .nums { font-variant-numeric: tabular-nums; }
+
+  /* ── shell ─────────────────────────────────────────────────────────── */
+  .shell { display: grid; grid-template-columns: minmax(0, 272px) minmax(0, 1fr); gap: 16px; padding: 16px; align-items: start; }
+  .shell > * { min-width: 0; }
+  .card { background: var(--vp-panel); border: 1px solid var(--vp-line); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+  .card.tight { padding: 12px; }
+  .rail { position: sticky; top: 16px; }
+
+  /* ── controls ──────────────────────────────────────────────────────── */
+  button, .btn {
+    appearance: none; min-height: 38px; border: 1px solid var(--vp-line2); background: var(--vp-control);
+    color: var(--vp-ink); padding: 8px 13px; border-radius: 9px; cursor: pointer; font-size: 13px;
+    font-weight: 600; font-family: inherit; touch-action: manipulation; display: inline-flex;
+    align-items: center; gap: 7px; justify-content: center; text-decoration: none;
+  }
+  button:hover, .btn:hover { border-color: var(--vp-accent); }
+  button.primary { background: var(--vp-accent); border-color: var(--vp-accent); color: #06121d; }
+  button.subtle { background: transparent; border-color: var(--vp-line); color: var(--vp-muted); font-weight: 600; }
+  button:disabled { opacity: .45; cursor: default; border-color: var(--vp-line); }
+  button.link { background: none; border: none; padding: 0; min-height: 0; color: var(--vp-accent2); text-decoration: underline; font-weight: 600; }
+  label.f { display: block; margin-bottom: 10px; }
+  label.f > span { display: block; font-size: 11.5px; color: var(--vp-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .4px; }
+  input[type=text], input[type=number], input[type=date], input[type=url], select, textarea {
+    width: 100%; min-height: 40px; background: var(--vp-control); color: var(--vp-ink);
+    border: 1px solid var(--vp-line); border-radius: 8px; padding: 9px 10px; font-size: 15px; font-family: inherit;
+  }
+  textarea { min-height: 84px; resize: vertical; line-height: 1.45; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--vp-accent); outline-offset: -1px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .row.end { justify-content: flex-end; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+
+  /* ── ventures rail ─────────────────────────────────────────────────── */
+  .vlist { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .vitem { text-align: left; justify-content: flex-start; flex-direction: column; align-items: stretch; gap: 3px; padding: 10px 12px; }
+  .vitem.on { border-color: var(--vp-accent); background: color-mix(in srgb, var(--vp-accent) 12%, var(--vp-control)); }
+  .vitem b { font-size: 13.5px; font-weight: 700; }
+  .vitem .meta { font-size: 11px; color: var(--vp-muted); font-weight: 500; }
+
+  /* ── header + posture ──────────────────────────────────────────────── */
+  .head { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+  .head .ico { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; flex: 0 0 auto;
+               background: color-mix(in srgb, var(--vp-accent) 20%, transparent); color: var(--vp-accent2); font-size: 19px; }
+  .posture { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .pstat { border: 1px solid var(--vp-line); border-radius: 9px; padding: 8px 11px; background: var(--vp-panel2); flex: 1 1 150px; }
+  .pstat .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; color: var(--vp-faint); }
+  .pstat .v { font-size: 15px; font-weight: 700; margin-top: 2px; }
+  .banner { border-radius: 10px; padding: 11px 13px; font-size: 13px; line-height: 1.5; margin-top: 12px; border: 1px solid; }
+  .banner.bad  { border-color: color-mix(in srgb, var(--vp-bad) 55%, transparent);  background: color-mix(in srgb, var(--vp-bad) 12%, transparent); }
+  .banner.warn { border-color: color-mix(in srgb, var(--vp-warn) 55%, transparent); background: color-mix(in srgb, var(--vp-warn) 11%, transparent); }
+  .banner.ok   { border-color: color-mix(in srgb, var(--vp-good) 50%, transparent); background: color-mix(in srgb, var(--vp-good) 10%, transparent); }
+  .banner.info { border-color: var(--vp-line2); background: var(--vp-panel2); }
+
+  /* ── stage strip ───────────────────────────────────────────────────── */
+  .stages { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 8px; }
+  .stage { border: 1px solid var(--vp-line); border-radius: 10px; padding: 10px 12px; background: var(--vp-panel2); }
+  .stage.current { border-color: var(--vp-accent); }
+  .stage.done { border-color: color-mix(in srgb, var(--vp-good) 50%, var(--vp-line)); }
+  .stage.blocked { border-color: color-mix(in srgb, var(--vp-bad) 55%, var(--vp-line)); }
+  .stage .n { font-size: 10.5px; letter-spacing: .5px; text-transform: uppercase; color: var(--vp-faint); }
+  .stage .t { font-weight: 700; font-size: 13.5px; margin: 2px 0 4px; }
+  .stage .need { font-size: 11.5px; color: var(--vp-muted); line-height: 1.4; }
+  .stage.done .need { color: var(--vp-good); }
+  .stage.blocked .need { color: var(--vp-bad); }
+
+  /* ── chips ─────────────────────────────────────────────────────────── */
+  .chip { display: inline-flex; align-items: center; gap: 5px; border-radius: 20px; padding: 2px 9px; font-size: 10.5px;
+          font-weight: 700; letter-spacing: .3px; border: 1px solid transparent; white-space: nowrap; vertical-align: middle; }
+  .chip .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: 0 0 auto; }
+  .chip.c-quoted, .chip.c-observed { color: var(--vp-good); border-color: color-mix(in srgb, var(--vp-good) 45%, transparent); background: color-mix(in srgb, var(--vp-good) 12%, transparent); }
+  .chip.c-benchmarked { color: var(--vp-info); border-color: color-mix(in srgb, var(--vp-info) 45%, transparent); background: color-mix(in srgb, var(--vp-info) 12%, transparent); }
+  .chip.c-estimated { color: var(--vp-warn); border-color: color-mix(in srgb, var(--vp-warn) 50%, transparent); background: color-mix(in srgb, var(--vp-warn) 12%, transparent); }
+  .chip.c-guessed, .chip.c-none { color: var(--vp-bad); border-color: color-mix(in srgb, var(--vp-bad) 50%, transparent); background: color-mix(in srgb, var(--vp-bad) 12%, transparent); }
+  .chip.neutral { color: var(--vp-muted); border-color: var(--vp-line2); background: var(--vp-control); }
+  .chip.sev-block { color: var(--vp-bad); border-color: color-mix(in srgb, var(--vp-bad) 50%, transparent); background: color-mix(in srgb, var(--vp-bad) 12%, transparent); }
+  .chip.sev-warn { color: var(--vp-warn); border-color: color-mix(in srgb, var(--vp-warn) 50%, transparent); background: color-mix(in srgb, var(--vp-warn) 12%, transparent); }
+  .chip.sev-info { color: var(--vp-muted); border-color: var(--vp-line2); background: var(--vp-control); }
+
+  /* ── figures ───────────────────────────────────────────────────────── */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(196px, 1fr)); gap: 10px; }
+  .tile { border: 1px solid var(--vp-line); border-radius: 11px; padding: 12px; background: var(--vp-panel2); text-align: left;
+          display: flex; flex-direction: column; align-items: stretch; gap: 5px; min-height: 0; width: 100%; font-weight: 500; }
+  .tile:hover { border-color: var(--vp-accent); }
+  .tile .k { font-size: 11.5px; color: var(--vp-muted); line-height: 1.35; }
+  .tile .v { font-size: 23px; font-weight: 700; letter-spacing: -.4px; }
+  .tile .v.neg { color: var(--vp-bad); }
+  .tile .f { font-size: 10.5px; color: var(--vp-faint); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+  .figref { background: none; border: none; padding: 0; min-height: 0; color: inherit; font: inherit; cursor: pointer;
+            border-bottom: 1px dotted var(--vp-line2); text-align: right; font-variant-numeric: tabular-nums; }
+  .figref:hover { border-bottom-color: var(--vp-accent); color: var(--vp-accent2); }
+  .figref.miss { color: var(--vp-faint); cursor: default; border-bottom: none; }
+
+  /* ── tables ────────────────────────────────────────────────────────── */
+  .tbl { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; color: var(--vp-muted); font-weight: 700; font-size: 10.5px; text-transform: uppercase;
+       letter-spacing: .4px; padding: 6px 8px; border-bottom: 1px solid var(--vp-line); white-space: nowrap; }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--vp-line); vertical-align: top; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tbody tr:hover { background: color-mix(in srgb, var(--vp-accent) 7%, transparent); }
+  tfoot td { font-weight: 700; border-top: 2px solid var(--vp-line2); }
+  .neg { color: var(--vp-bad); }
+  .pos { color: var(--vp-good); }
+
+  /* ── tabs ──────────────────────────────────────────────────────────── */
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+  .tab { font-size: 13px; }
+  .tab.on { border-color: var(--vp-accent); color: var(--vp-accent2); background: color-mix(in srgb, var(--vp-accent) 12%, var(--vp-control)); }
+  .tab .cnt { font-size: 10.5px; opacity: .8; font-variant-numeric: tabular-nums; }
+
+  /* ── assumptions ───────────────────────────────────────────────────── */
+  .agroup { margin-bottom: 14px; }
+  .agroup > summary { cursor: pointer; padding: 8px 10px; border: 1px solid var(--vp-line); border-radius: 9px;
+                      background: var(--vp-panel2); font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 9px; }
+  .agroup > summary::-webkit-details-marker { display: none; }
+  .agroup > summary .g { color: var(--vp-muted); font-weight: 600; font-size: 11.5px; }
+  .arow-src { font-size: 11px; color: var(--vp-faint); line-height: 1.4; overflow-wrap: anywhere; }
+  .band { font-size: 11px; color: var(--vp-muted); white-space: nowrap; }
+
+  /* ── charts ────────────────────────────────────────────────────────── */
+  .chart { width: 100%; }
+  .chart svg { display: block; width: 100%; height: auto; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11.5px; color: var(--vp-muted); margin-top: 8px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  #tip { position: absolute; z-index: 60; pointer-events: none; background: var(--vp-panel); border: 1px solid var(--vp-line2);
+         border-radius: 8px; padding: 7px 9px; font-size: 11.5px; line-height: 1.45; max-width: 260px;
+         box-shadow: 0 10px 26px rgba(0,0,0,.35); color: var(--vp-ink); }
+
+  /* ── drawer ────────────────────────────────────────────────────────── */
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 70; }
+  .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(460px, 100%); background: var(--vp-panel);
+            border-left: 1px solid var(--vp-line2); z-index: 71; overflow-y: auto; padding: 16px; }
+  .drawer .dh { display: flex; align-items: flex-start; gap: 10px; justify-content: space-between; margin-bottom: 12px; }
+  .drawer h3 { font-size: 16px; margin: 0; }
+  .impact { border: 1px solid var(--vp-line2); border-radius: 9px; padding: 10px; background: var(--vp-panel2); margin-top: 12px; }
+  .impact .r { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; padding: 3px 0; }
+  .impact .r span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* ── documents ─────────────────────────────────────────────────────── */
+  .docsplit { display: grid; grid-template-columns: minmax(0, 258px) minmax(0, 1fr); gap: 14px; align-items: start; }
+  .docsplit > * { min-width: 0; }
+  .doclist { display: flex; flex-direction: column; gap: 5px; max-height: 460px; overflow-y: auto; }
+  .docitem { text-align: left; justify-content: flex-start; flex-direction: column; align-items: stretch; gap: 3px; padding: 9px 11px; font-weight: 600; }
+  .docitem.on { border-color: var(--vp-accent); background: color-mix(in srgb, var(--vp-accent) 12%, var(--vp-control)); }
+  .docitem .meta { font-size: 10.5px; color: var(--vp-muted); font-weight: 500; }
+  .md { font-size: 13.5px; line-height: 1.62; overflow-wrap: anywhere; }
+  .md h1 { font-size: 19px; margin: 4px 0 10px; }
+  .md h2 { font-size: 15px; margin: 20px 0 8px; text-transform: none; letter-spacing: 0; color: var(--vp-ink); }
+  .md h3 { font-size: 13.5px; margin: 16px 0 6px; color: var(--vp-accent2); }
+  .md p { margin: 0 0 10px; }
+  .md ul, .md ol { margin: 0 0 10px; padding-left: 20px; }
+  .md li { margin-bottom: 4px; }
+  .md blockquote { margin: 0 0 12px; padding: 10px 12px; border-left: 3px solid var(--vp-accent);
+                   background: var(--vp-panel2); border-radius: 0 8px 8px 0; }
+  .md blockquote p:last-child { margin-bottom: 0; }
+  .md code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+             background: var(--vp-control); border-radius: 4px; padding: 1px 5px; }
+  .md pre { background: var(--vp-control); border: 1px solid var(--vp-line); border-radius: 8px; padding: 10px; overflow-x: auto; }
+  .md pre code { background: none; padding: 0; }
+  .md hr { border: none; border-top: 1px solid var(--vp-line); margin: 16px 0; }
+  .md table { margin-bottom: 12px; }
+
+  /* ── misc ──────────────────────────────────────────────────────────── */
+  .spin { color: var(--vp-muted); font-size: 13px; padding: 22px 0; text-align: center; }
+  #toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 90; border-radius: 10px;
+           padding: 10px 15px; font-size: 13px; font-weight: 600; border: 1px solid var(--vp-line2); background: var(--vp-panel);
+           box-shadow: 0 12px 30px rgba(0,0,0,.4); max-width: min(520px, calc(100% - 24px)); }
+  #toast.bad { border-color: var(--vp-bad); color: var(--vp-bad); }
+  #toast.ok { border-color: var(--vp-good); color: var(--vp-good); }
+  .stale { opacity: .55; transition: opacity .15s; }
+  .footnote { font-size: 11px; color: var(--vp-faint); line-height: 1.5; margin-top: 8px; }
+
+  @media (max-width: 940px) {
+    .shell { grid-template-columns: minmax(0, 1fr); padding: 10px; gap: 10px; }
+    .rail { position: static; }
+    .vlist { flex-direction: row; overflow-x: auto; padding-bottom: 4px; }
+    .vitem { flex: 0 0 200px; }
+    .card { padding: 12px; margin-bottom: 10px; }
+    .tile .v { font-size: 20px; }
+    .drawer { width: 100%; }
+    .docsplit { grid-template-columns: minmax(0, 1fr); }
+    .doclist { flex-direction: row; overflow-x: auto; max-height: none; }
+    .docitem { flex: 0 0 190px; }
+  }
+</style>
+<!-- Shared glass treatment (contract: tests/unit/surface-glass-assets.spec.ts); after local styles. -->
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+<div class="shell">
+
+  <!-- ══ ventures rail ═══════════════════════════════════════════════ -->
+  <aside class="rail">
+    <div class="card tight">
+      <h2>Ventures</h2>
+      <div id="vlist" class="vlist"><div class="spin">Loading…</div></div>
+      <button class="primary" style="width:100%" id="newBtn" type="button">
+        <i class="codicon codicon-add"></i> New venture from an idea
+      </button>
+    </div>
+    <div class="card tight" id="newCard" hidden>
+      <h2>Start from a plain idea</h2>
+      <label class="f"><span>The idea, in your own words</span>
+        <textarea id="n_idea" placeholder="An inflatable pumpkin with a projector inside that projects a talking jack-o'-lantern face onto the fabric from within, sold as a Halloween prop at retail."></textarea></label>
+      <label class="f"><span>Short name (optional)</span><input id="n_name" type="text" placeholder="Pumpkin projection prop" /></label>
+      <label class="f"><span>Target on-shelf date (optional)</span><input id="n_date" type="date" /></label>
+      <div class="row">
+        <button class="primary" id="n_go" type="button"><i class="codicon codicon-rocket"></i> Scope it</button>
+        <button class="subtle" id="n_cancel" type="button">Cancel</button>
+      </div>
+      <div class="footnote">Scoping is one short model call. It turns the sentence into a product spec and a list of open
+        questions — it does not produce any financial number. Every number arrives later, from the engine.</div>
+    </div>
+  </aside>
+
+  <!-- ══ main ════════════════════════════════════════════════════════ -->
+  <main>
+    <div class="card" id="headCard">
+      <div class="head">
+        <span class="ico"><i class="codicon codicon-graph-line"></i></span>
+        <div style="flex:1 1 220px">
+          <h1 id="vName">Venture Plan</h1>
+          <div class="muted small" id="vIdea">Turn an idea into the full venture document set. The bots supply
+            assumptions with a source and a confidence; every number is computed from them in tested code.</div>
+        </div>
+        <div class="row" id="headActions" hidden>
+          <button id="recomputeBtn" type="button" title="Pure arithmetic on the server. No model call, no spend.">
+            <i class="codicon codicon-sync"></i> Recompute</button>
+          <button id="researchBtn" class="primary" type="button" title="Runs the analyst bots. This spends model tokens.">
+            <i class="codicon codicon-beaker"></i> Run the analysts</button>
+        </div>
+      </div>
+      <div class="posture" id="posture" hidden></div>
+      <div id="publishBanner"></div>
+      <div id="runBanner"></div>
+    </div>
+
+    <div class="card" id="stageCard" hidden>
+      <h2>Where this venture is</h2>
+      <div class="stages" id="stages"></div>
+    </div>
+
+    <div class="tabs" id="tabs" hidden>
+      <button class="tab on" data-view="plan" type="button"><i class="codicon codicon-dashboard"></i> Decision</button>
+      <button class="tab" data-view="assumptions" type="button"><i class="codicon codicon-list-tree"></i> Assumptions <span class="cnt" id="tabAsmCnt"></span></button>
+      <button class="tab" data-view="numbers" type="button"><i class="codicon codicon-graph"></i> Numbers</button>
+      <button class="tab" data-view="documents" type="button"><i class="codicon codicon-book"></i> Documents <span class="cnt" id="tabDocCnt"></span></button>
+    </div>
+
+    <div id="view-plan" class="view"></div>
+    <div id="view-assumptions" class="view" hidden></div>
+    <div id="view-numbers" class="view" hidden></div>
+    <div id="view-documents" class="view" hidden></div>
+
+    <div class="card" id="emptyCard">
+      <h2>No venture selected</h2>
+      <p class="muted small" style="margin:0">Pick a venture on the left, or start a new one from a sentence describing the
+        idea. The app then works in four moves: <b>scope</b> the idea, <b>assume</b> (the analyst bots draft every input with
+        a source and a confidence), <b>model</b> (tested code does all the arithmetic), and <b>document</b>.</p>
+      <p class="muted small" style="margin:10px 0 0">Editing an assumption re-runs the arithmetic on the server for free —
+        no model call, no spend. That is the loop this app exists for: replace a guess with a real quote and watch which
+        numbers move.</p>
+    </div>
+  </main>
+</div>
+
+<div id="tip" hidden></div>
+<div id="toast" hidden></div>
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" hidden></aside>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ═══ constants ══════════════════════════════════════════════════════ */
+
+  var API = '/api/venture';
+  var MICROS_PER_CENT = 10000;
+  var MICROS_PER_DOLLAR = 1000000;
+
+  /* The figures the impact strip watches after an assumption edit. These are the
+     numbers a commitment decision actually turns on. */
+  var HEADLINE = [
+    'landed.buyerUnitMicros',
+    'bom.fullyLoadedUnitMicros',
+    'breakEven.contributionPerUnitMicros',
+    'breakEven.units',
+    'financials.fundingRequiredMicros',
+    'financials.netIncomeMicros'
+  ];
+
+  var CONFIDENCE = ['quoted', 'observed', 'benchmarked', 'estimated', 'guessed'];
+  var CONFIDENCE_NOTE = {
+    quoted: 'a supplier, broker or lab put this in writing',
+    observed: 'measured or read off a real transaction',
+    benchmarked: 'from a comparable, not from this product',
+    estimated: 'reasoned, not sourced — replace it with a quote',
+    guessed: 'a placeholder. Nobody has checked this.'
+  };
+  var SOURCE_KINDS = ['vendor-quote', 'published-rate', 'operator-input', 'benchmark', 'model-estimate'];
+  var SOURCE_LABEL = {
+    'vendor-quote': 'quote', 'published-rate': 'published', 'operator-input': 'you',
+    'benchmark': 'benchmark', 'model-estimate': 'model guess'
+  };
+
+  /* ═══ state ══════════════════════════════════════════════════════════ */
+
+  var S = {
+    ventures: [], ventureId: null, venture: null,
+    model: null, assumptions: [], summary: null,
+    inversions: null, tornado: null, tornadoTarget: '',
+    documents: [], catalog: [], doc: null,
+    run: null, runTimer: null, view: 'plan',
+    busy: false
+  };
+
+  /* ═══ tiny helpers ═══════════════════════════════════════════════════ */
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function isNum(v) { return typeof v === 'number' && isFinite(v); }
+  function group(whole) { return String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+  /**
+   * Money for display. Mirrors the engine's own formatUsd exactly — half-up away
+   * from zero at the displayed unit, parenthesised negatives — so this page and the
+   * generated documents never print two different strings for one figure.
+   */
+  function usd(micros, withCents) {
+    if (!isNum(micros)) return '—';
+    var cents = withCents === false;
+    var displayed = cents ? roundHalfUp(micros / MICROS_PER_DOLLAR) : roundHalfUp(micros / MICROS_PER_CENT);
+    var abs = Math.abs(displayed);
+    var whole = cents ? abs : Math.floor(abs / 100);
+    var body = cents ? '$' + group(whole) : '$' + group(whole) + '.' + String(abs % 100).padStart(2, '0');
+    return displayed < 0 ? '(' + body + ')' : body;
+  }
+  function roundHalfUp(v) { return v < 0 ? -Math.round(-v) : Math.round(v); }
+  function pctOfBps(bps) { return isNum(bps) ? (bps / 100).toFixed(2) + '%' : '—'; }
+  function pctOfRatio(r) { return isNum(r) ? (r * 100).toFixed(1) + '%' : '—'; }
+  function count(n) { return isNum(n) ? group(Math.round(n)) : '—'; }
+
+  /** Format any engine value by the unit it declares. Presentation only. */
+  function fmtUnit(value, unit) {
+    if (value === null || value === undefined || !isNum(value)) return '—';
+    switch (unit) {
+      case 'micros': return usd(value);
+      case 'bps': return pctOfBps(value);
+      case 'ratio': return pctOfRatio(value);
+      case 'units': case 'count': return count(value);
+      case 'weeks': return count(value) + (Math.abs(value) === 1 ? ' week' : ' weeks');
+      case 'months': return count(value) + (Math.abs(value) === 1 ? ' month' : ' months');
+      case 'oz': return value + ' oz';
+      case 'lb': return value + ' lb';
+      case 'cbm': return value + ' cbm';
+      default: return String(value);
+    }
+  }
+  function fmtFigure(f) { return f ? fmtUnit(f.value, f.unit) : '—'; }
+
+  function toast(msg, kind) {
+    var t = $('toast');
+    t.className = kind || '';
+    t.textContent = msg;
+    t.hidden = false;
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () { t.hidden = true; }, kind === 'bad' ? 8000 : 4200);
+  }
+
+  /* ═══ api ════════════════════════════════════════════════════════════ */
+
+  function api(method, path, body) {
+    var opts = { method: method, credentials: 'same-origin', headers: { Accept: 'application/json' } };
+    if (body !== undefined) {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(body);
+    }
+    return fetch(API + path, opts).then(function (r) {
+      var ct = r.headers.get('content-type') || '';
+      var parse = ct.indexOf('json') >= 0 ? r.json() : r.text();
+      return parse.then(function (payload) {
+        if (r.ok) return payload;
+        var err = new Error(
+          (payload && payload.error) ? String(payload.error) :
+          (typeof payload === 'string' && payload.length < 300 ? payload : 'HTTP ' + r.status));
+        err.status = r.status;
+        err.payload = payload;
+        throw err;
+      });
+    });
+  }
+
+  function fail(e, where) {
+    if (e && e.status === 401) {
+      toast('Signed out. Reload the cockpit and sign in again.', 'bad');
+    } else if (e && e.status === 404) {
+      toast(where + ': not available from the server yet (404).', 'bad');
+    } else {
+      toast(where + ': ' + (e && e.message ? e.message : 'request failed'), 'bad');
+    }
+    return null;
+  }
+
+  function busy(on) {
+    S.busy = on;
+    ['recomputeBtn', 'researchBtn'].forEach(function (id) { var b = $(id); if (b) b.disabled = on; });
+    ['view-plan', 'view-assumptions', 'view-numbers', 'view-documents'].forEach(function (id) {
+      var el = $(id); if (el) el.classList.toggle('stale', on);
+    });
+  }
+
+  /* ═══ normalisation ══════════════════════════════════════════════════
+     Reads are tolerant: the route may hand back the engine's own VentureModel or
+     the flatter { figures, tables, coverage } envelope. Everything downstream sees
+     one shape, and anything genuinely missing stays null so it renders as a stated
+     gap rather than a zero. */
+
+  function normModel(raw) {
+    if (!raw) return null;
+    var m = raw.model ? raw.model : raw;
+    var fin = m.financials || {};
+    var tables = m.tables || {};
+    return {
+      raw: m,
+      figures: m.figures || {},
+      posture: m.posture || null,
+      canPublish: (typeof m.canPublish === 'boolean') ? m.canPublish : null,
+      issues: m.issues || m.warnings || [],
+      traceability: m.traceability || m.coverage || null,
+      waterfalls: m.waterfalls || tables.waterfall || [],
+      pnl: fin.pnl || tables.pnl || [],
+      cash: fin.cash || tables.cash || [],
+      workingCapital: fin.workingCapital || tables.workingCapital || [],
+      peakCash: fin.peakCash || null,
+      totals: fin.totals || null,
+      breakEven: m.breakEven || null,
+      bom: m.bom || null,
+      landed: m.landed || null,
+      schedule: m.schedule || null,
+      demand: m.demand || null,
+      unitsSold: isNum(m.unitsSold) ? m.unitsSold : null,
+      runQtyUnits: (m.bom && isNum(m.bom.runQtyUnits)) ? m.bom.runQtyUnits : null,
+      inversions: m.inversions || null,
+      modelId: m.modelId || m.id || null,
+      computedAt: m.computedAt || null,
+      engineVersion: m.engineVersion || null
+    };
+  }
+
+  function sourceDetailOf(src) {
+    if (!src || typeof src !== 'object') return '';
+    if (src.kind === 'vendor-quote') return [src.vendor, src.quoteRef, src.quotedOn].filter(Boolean).join(' · ');
+    if (src.kind === 'published-rate') return [src.publication, src.retrievedAt].filter(Boolean).join(' · ');
+    if (src.kind === 'operator-input') return [src.enteredBy, src.enteredAt, src.note].filter(Boolean).join(' · ');
+    if (src.kind === 'benchmark') return [src.dataset, src.note].filter(Boolean).join(' · ');
+    if (src.kind === 'model-estimate') return [src.model || src.agentId, src.rationale].filter(Boolean).join(' · ');
+    return '';
+  }
+
+  function normAssumption(a) {
+    var src = (a.source && typeof a.source === 'object') ? a.source : null;
+    var kind = a.sourceKind || (src && src.kind) || 'model-estimate';
+    var band = a.band || null;
+    return {
+      key: a.key || a.id,
+      label: a.label || a.key || a.id || '(unlabelled)',
+      unit: a.unit || 'raw',
+      value: isNum(a.valueNum) ? a.valueNum : (isNum(a.value) ? a.value : null),
+      valueText: a.valueText || null,
+      low: isNum(a.lowNum) ? a.lowNum : (band && isNum(band.low) ? band.low : null),
+      high: isNum(a.highNum) ? a.highNum : (band && isNum(band.high) ? band.high : null),
+      sourceKind: kind,
+      sourceDetail: a.sourceDetail || sourceDetailOf(src),
+      sourceUrl: a.sourceUrl || (src && src.url) || '',
+      confidence: a.confidence || 'estimated',
+      domain: a.domain || domainOf(a.key || a.id || ''),
+      authoredBy: a.authoredBy || (src && (src.agentId || src.enteredBy || src.vendor || src.publication)) || '',
+      supersededBy: a.supersededBy || null
+    };
+  }
+
+  /** Group key derived from the assumption id — never invented, just its own prefix. */
+  function domainOf(key) {
+    var m = String(key).match(/^([A-Za-z]+)[.\-_]/);
+    return m ? m[1].toLowerCase() : 'other';
+  }
+
+  /* ═══ loading ════════════════════════════════════════════════════════ */
+
+  function loadVentures() {
+    return api('GET', '/ventures').then(function (r) {
+      S.ventures = (r && r.ventures) || [];
+      renderRail();
+      if (!S.ventureId && S.ventures.length) selectVenture(S.ventures[0].id);
+      else if (!S.ventures.length) { $('vlist').innerHTML = '<div class="faint small" style="padding:6px 2px">Nothing yet.</div>'; }
+    }).catch(function (e) {
+      $('vlist').innerHTML = '<div class="small neg" style="padding:6px 2px">' + esc(e.message) + '</div>';
+      return fail(e, 'Ventures');
+    });
+  }
+
+  function selectVenture(id) {
+    S.ventureId = id;
+    S.doc = null;
+    renderRail();
+    $('emptyCard').hidden = true;
+    ['headActions', 'stageCard', 'tabs'].forEach(function (x) { $(x).hidden = false; });
+    busy(true);
+    return Promise.all([
+      api('GET', '/ventures/' + encodeURIComponent(id)).catch(function (e) { return fail(e, 'Venture'); }),
+      api('GET', '/ventures/' + encodeURIComponent(id) + '/assumptions').catch(function () { return null; }),
+      api('GET', '/ventures/' + encodeURIComponent(id) + '/model').catch(function () { return null; }),
+      api('GET', '/ventures/' + encodeURIComponent(id) + '/documents').catch(function () { return null; })
+    ]).then(function (res) {
+      var detail = res[0] || {};
+      S.venture = detail.venture || detail || null;
+      S.assumptions = ((res[1] && res[1].assumptions) || []).map(normAssumption);
+      S.summary = (res[1] && res[1].summary) || null;
+      S.model = normModel(res[2] && (res[2].model !== undefined ? res[2].model : res[2])) ||
+                normModel(detail.latestModel);
+      S.documents = (res[3] && res[3].documents) || [];
+      S.catalog = (res[3] && res[3].catalog) || [];
+      if (detail.latestRun && detail.latestRun.status === 'running') watchRun(detail.latestRun.id || detail.latestRun.runId);
+      busy(false);
+      renderAll();
+      loadInversion();
+      loadTornado();
+    });
+  }
+
+  function loadInversion() {
+    if (!S.ventureId) return;
+    if (S.model && S.model.inversions) { S.inversions = S.model.inversions; renderPlan(); return; }
+    api('GET', '/ventures/' + encodeURIComponent(S.ventureId) + '/inversion').then(function (r) {
+      S.inversions = (r && (r.inversions || r)) || null;
+      renderPlan();
+    }).catch(function () { S.inversions = null; renderPlan(); });
+  }
+
+  function loadTornado() {
+    if (!S.ventureId) return;
+    var q = S.tornadoTarget ? '?target=' + encodeURIComponent(S.tornadoTarget) : '';
+    api('GET', '/ventures/' + encodeURIComponent(S.ventureId) + '/sensitivity' + q).then(function (r) {
+      S.tornado = (r && (r.tornado || r.bars)) || null;
+      if (r && r.targetFigureKey) S.tornadoTarget = r.targetFigureKey;
+      if (S.view === 'numbers') renderNumbers();
+    }).catch(function () { S.tornado = null; });
+  }
+
+  /* ═══ actions ════════════════════════════════════════════════════════ */
+
+  function newVenture() {
+    var idea = $('n_idea').value.trim();
+    if (idea.length < 12) { toast('Describe the idea in a sentence or two first.', 'bad'); return; }
+    var body = { idea: idea };
+    if ($('n_name').value.trim()) body.name = $('n_name').value.trim();
+    if ($('n_date').value) body.targetLaunchDate = $('n_date').value;
+    $('n_go').disabled = true;
+    api('POST', '/ventures', body).then(function (r) {
+      $('n_go').disabled = false;
+      $('newCard').hidden = true;
+      $('n_idea').value = ''; $('n_name').value = ''; $('n_date').value = '';
+      var v = (r && r.venture) || r;
+      if (r && r.openQuestions && r.openQuestions.length) {
+        toast('Scoped. ' + r.openQuestions.length + ' open question(s) recorded.', 'ok');
+      } else { toast('Scoped.', 'ok'); }
+      return loadVentures().then(function () { if (v && v.id) return selectVenture(v.id); });
+    }).catch(function (e) { $('n_go').disabled = false; fail(e, 'Create venture'); });
+  }
+
+  /** Recompute: pure server-side arithmetic. No model call, no spend. */
+  function recompute(silent) {
+    if (!S.ventureId) return Promise.resolve(null);
+    busy(true);
+    return api('POST', '/ventures/' + encodeURIComponent(S.ventureId) + '/model', {})
+      .then(function (r) {
+        S.model = normModel(r && (r.model !== undefined ? r.model : r));
+        busy(false);
+        renderAll();
+        loadInversion();
+        loadTornado();
+        if (!silent) toast('Recomputed. No model call was made — this is pure arithmetic.', 'ok');
+        return S.model;
+      }).catch(function (e) { busy(false); fail(e, 'Recompute'); return null; });
+  }
+
+  function startRun(kind, docKey) {
+    if (!S.ventureId) return;
+    var path = docKey
+      ? '/ventures/' + encodeURIComponent(S.ventureId) + '/documents/' + encodeURIComponent(docKey) + '/regenerate'
+      : '/ventures/' + encodeURIComponent(S.ventureId) + '/runs';
+    api('POST', path, docKey ? {} : { kind: kind }).then(function (r) {
+      if (r && r.alreadyRunning) toast('A run is already in flight; watching that one.', 'ok');
+      watchRun(r && r.runId);
+    }).catch(function (e) { fail(e, 'Run'); });
+  }
+
+  function watchRun(runId) {
+    if (!runId) return;
+    clearInterval(S.runTimer);
+    S.run = { id: runId, status: 'running', phase: null };
+    renderRunBanner();
+    S.runTimer = setInterval(function () {
+      api('GET', '/runs/' + encodeURIComponent(runId)).then(function (r) {
+        S.run = (r && r.run) || S.run;
+        renderRunBanner();
+        if (S.run && S.run.status !== 'running') {
+          clearInterval(S.runTimer);
+          if (S.run.status === 'failed') toast('Run failed: ' + (S.run.error || 'no reason given'), 'bad');
+          else toast('Run finished. Reloading the model.', 'ok');
+          selectVenture(S.ventureId);
+        }
+      }).catch(function () { clearInterval(S.runTimer); });
+    }, 3000);
+  }
+
+  /* ═══ render: rail + header ══════════════════════════════════════════ */
+
+  function renderRail() {
+    var html = S.ventures.map(function (v) {
+      var on = v.id === S.ventureId ? ' on' : '';
+      var meta = [v.stage || 'scoped', v.updatedAt ? String(v.updatedAt).slice(0, 10) : ''].filter(Boolean).join(' · ');
+      return '<button class="vitem' + on + '" type="button" data-vid="' + esc(v.id) + '">' +
+             '<b>' + esc(v.name || v.ideaText || 'Untitled venture') + '</b>' +
+             '<span class="meta">' + esc(meta) + '</span></button>';
+    }).join('');
+    $('vlist').innerHTML = html || '<div class="faint small" style="padding:6px 2px">Nothing yet.</div>';
+  }
+
+  function renderHeader() {
+    var v = S.venture || {};
+    $('vName').textContent = v.name || v.ideaText || 'Venture Plan';
+    $('vIdea').textContent = v.ideaText || v.idea || '';
+    var m = S.model;
+    var p = $('posture');
+    if (!m) {
+      p.hidden = true;
+      $('publishBanner').innerHTML = S.ventureId
+        ? '<div class="banner info">No computed model yet. Press <b>Recompute</b> — it is free — or <b>Run the analysts</b> ' +
+          'to have the bots draft the assumptions first.</div>' : '';
+      return;
+    }
+    p.hidden = false;
+
+    var t = m.traceability || {};
+    var stats = t.ledger || {};
+    var byConf = stats.byConfidence || (t.byConfidence) || {};
+    var soft = (t.softFigureIds || []).length;
+    var unsourced = (t.unsourcedFigureIds || []).length;
+    var computed = isNum(t.computedFigures) ? t.computedFigures : Object.keys(m.figures).length;
+    var quotedish = (byConf.quoted || 0) + (byConf.observed || 0);
+    var ledgerTotal = isNum(stats.total) ? stats.total : S.assumptions.length;
+
+    p.innerHTML =
+      pstat('Posture', postureWord(m.posture), postureNote(m.posture)) +
+      pstat('Figures resting on a guess', soft + ' of ' + computed,
+            'computed numbers whose weakest input is a model estimate or a guess') +
+      pstat('Assumptions quoted or observed', quotedish + ' of ' + ledgerTotal,
+            'the rest are benchmarks, estimates or placeholders') +
+      pstat('Unsourced inputs', String(unsourced), unsourced ? 'these block publication' : 'nothing load-bearing is unregistered');
+
+    var blockers = (m.issues || []).filter(function (i) { return i.severity === 'block'; });
+    if (m.canPublish === false || blockers.length) {
+      $('publishBanner').innerHTML = '<div class="banner bad"><b>This model will not publish.</b> ' +
+        esc(String(blockers.length)) + ' blocking issue(s). The engine refuses rather than printing a document with a ' +
+        'hole in it — the reasons are listed under <b>Numbers → What the engine refused</b>.</div>';
+    } else if (m.posture === 'estimate') {
+      $('publishBanner').innerHTML = '<div class="banner warn"><b>Planning instrument, not a quote.</b> ' +
+        'Every money figure here rests on at least one input nobody has priced. It is enough to decide whether to spend ' +
+        'money finding out; it is not enough to commit a purchase order.</div>';
+    } else {
+      $('publishBanner').innerHTML = '<div class="banner ok">Every money assumption in this model is quoted or observed.</div>';
+    }
+  }
+
+  function pstat(k, v, note) {
+    return '<div class="pstat" title="' + esc(note || '') + '"><div class="k">' + esc(k) + '</div>' +
+           '<div class="v nums">' + esc(v) + '</div></div>';
+  }
+  function postureWord(p) {
+    return p === 'actual' ? 'ACTUAL' : p === 'quoted' ? 'QUOTED' : p === 'estimate' ? 'ESTIMATE' : '—';
+  }
+  function postureNote(p) {
+    return p === 'actual' ? 'every money input is an observed transaction'
+         : p === 'quoted' ? 'every money input is quoted or observed'
+         : 'at least one money input is an estimate or a guess';
+  }
+
+  function renderRunBanner() {
+    var r = S.run;
+    if (!r || r.status !== 'running') { $('runBanner').innerHTML = ''; return; }
+    var phases = (r.phases || []).map(function (p) {
+      var icon = p.status === 'done' ? 'check' : p.status === 'failed' ? 'error' : 'loading';
+      return '<span class="chip neutral"><i class="codicon codicon-' + icon + '"></i>' + esc(p.name || '') + '</span>';
+    }).join(' ');
+    $('runBanner').innerHTML = '<div class="banner info"><b>Analysts running…</b> ' +
+      esc(r.phase ? 'phase: ' + r.phase : '') + ' <div class="row" style="margin-top:6px">' + phases + '</div></div>';
+  }
+
+  /* ═══ render: stage strip ════════════════════════════════════════════ */
+
+  function renderStages() {
+    var m = S.model;
+    var blockers = m ? (m.issues || []).filter(function (i) { return i.severity === 'block'; }) : [];
+    var stages = [
+      { t: 'Scope', ok: !!S.venture,
+        need: 'Describe the idea and let the strategist turn it into a product spec.' },
+      { t: 'Assumptions', ok: S.assumptions.length > 0,
+        need: 'No assumptions registered yet. Run the analysts, or add your own — every number needs one.' },
+      { t: 'Model', ok: !!m,
+        need: 'Nothing computed yet. Recompute is free and takes milliseconds.' },
+      { t: 'Documents', ok: !!(m && m.canPublish !== false && S.documents.length),
+        need: !m ? 'Needs a computed model first.'
+             : (m.canPublish === false)
+               ? blockers.length + ' blocking issue(s) must clear before a document renders: ' +
+                 blockers.slice(0, 2).map(function (b) { return b.code; }).join(', ') + (blockers.length > 2 ? '…' : '')
+               : 'Model is publishable. Generate the narrative to fill the document set.' },
+      { t: 'Export', ok: !!(m && S.documents.length),
+        need: 'An export needs a model snapshot and at least one document — it must never be rendered from unresolved inputs.' }
+    ];
+    var firstOpen = -1;
+    stages.forEach(function (s, i) { if (!s.ok && firstOpen < 0) firstOpen = i; });
+    $('stages').innerHTML = stages.map(function (s, i) {
+      var cls = s.ok ? 'done' : (i === firstOpen ? 'current' : '');
+      if (!s.ok && i === firstOpen && s.t === 'Documents' && m && m.canPublish === false) cls = 'blocked';
+      var need = s.ok ? 'Done.' : (i === firstOpen ? s.need : 'Waiting on the step before it.');
+      return '<div class="stage ' + cls + '"><div class="n">Step ' + (i + 1) + '</div>' +
+             '<div class="t">' + esc(s.t) + '</div><div class="need">' + esc(need) + '</div></div>';
+    }).join('');
+  }
+
+  /* ═══ figure rendering — the provenance spine ════════════════════════ */
+
+  /** Confidence of a figure, resolved from the engine's own weakest-link value. */
+  function figConfidence(f) {
+    if (!f) return null;
+    if (f.confidence) return f.confidence;
+    var refs = f.assumptionRefs || (f.inputs || []).map(function (i) { return i.ref; });
+    var worst = null;
+    refs.forEach(function (r) {
+      var a = findAssumption(r);
+      if (!a) return;
+      if (worst === null || CONFIDENCE.indexOf(a.confidence) > CONFIDENCE.indexOf(worst)) worst = a.confidence;
+    });
+    return worst;
+  }
+  function findAssumption(key) {
+    for (var i = 0; i < S.assumptions.length; i++) if (S.assumptions[i].key === key) return S.assumptions[i];
+    return null;
+  }
+
+  function confChip(conf, extra) {
+    var c = conf || 'none';
+    var word = conf || 'no source';
+    return '<span class="chip c-' + esc(c) + '" title="' + esc(CONFIDENCE_NOTE[conf] || 'this figure rests on nothing registered') +
+           '"><span class="dot"></span>' + esc(word) + (extra ? ' ' + esc(extra) : '') + '</span>';
+  }
+
+  /** A clickable figure: the number, then the chip that says how much to trust it. */
+  function figCell(id, opts) {
+    opts = opts || {};
+    var f = S.model && S.model.figures ? S.model.figures[id] : null;
+    if (!f) return '<span class="figref miss" title="the engine did not compute this figure">not computed</span>';
+    var conf = figConfidence(f);
+    var val = fmtFigure(f);
+    var negCls = (f.unit === 'micros' && f.value < 0) ? ' neg' : '';
+    return '<button class="figref' + negCls + '" type="button" data-fig="' + esc(id) + '">' + esc(val) + '</button>' +
+           (opts.chip === false ? '' : ' ' + confChip(conf));
+  }
+
+  function figTile(id, fallbackLabel) {
+    var f = S.model && S.model.figures ? S.model.figures[id] : null;
+    if (!f) {
+      return '<div class="tile"><div class="k">' + esc(fallbackLabel || id) + '</div>' +
+             '<div class="v faint">not computed</div>' +
+             '<div class="f">the engine did not produce this figure for this model</div></div>';
+    }
+    var conf = figConfidence(f);
+    var neg = (f.unit === 'micros' && f.value < 0) ? ' neg' : '';
+    return '<button class="tile" type="button" data-fig="' + esc(id) + '">' +
+           '<div class="k">' + esc(f.label || fallbackLabel || id) + '</div>' +
+           '<div class="v' + neg + '">' + esc(fmtFigure(f)) + '</div>' +
+           '<div>' + confChip(conf) + '</div>' +
+           '<div class="f">' + esc(f.formula || id) + '</div></button>';
+  }
+
+  /* ═══ view: decision ═════════════════════════════════════════════════ */
+
+  function renderPlan() {
+    if (S.view !== 'plan') return;
+    var m = S.model;
+    var out = '';
+
+    if (!m) {
+      $('view-plan').innerHTML = '<div class="card"><h2>Nothing computed yet</h2>' +
+        '<p class="muted small" style="margin:0">Press <b>Recompute</b> to run the engine over the assumptions on record, or ' +
+        '<b>Run the analysts</b> to have the bots draft them first. Recompute never calls a model and never spends anything.</p></div>';
+      return;
+    }
+
+    out += '<div class="card"><h2>The numbers a commitment turns on</h2><div class="tiles">' +
+      figTile('landed.buyerUnitMicros', 'Landed cost per unit') +
+      figTile('breakEven.contributionPerUnitMicros', 'Contribution per unit') +
+      figTile('financials.fundingRequiredMicros', 'Funding required before revenue') +
+      figTile('breakEven.units', 'Break-even volume') +
+      figTile('financials.netIncomeMicros', 'Net income over the horizon') +
+      figTile('bom.fullyLoadedUnitMicros', 'Factory cost per unit') +
+      '</div><div class="footnote">Every tile is clickable: it opens the derivation — the formula, and each assumption ' +
+      'underneath it with its source and confidence, editable in place.</div></div>';
+
+    out += renderInversionCard();
+    out += renderCashCard();
+    out += renderIssuesCard(true);
+
+    $('view-plan').innerHTML = out;
+    drawCharts();
+  }
+
+  function renderInversionCard() {
+    var inv = S.inversions;
+    var m = S.model;
+    var body;
+    if (!inv) {
+      body = '<p class="muted small" style="margin:0">The inversions have not been returned for this venture ' +
+             '(<code>GET /ventures/:id/inversion</code>). Nothing is being substituted for them — a made-up ceiling ' +
+             'is worse than a missing one.</p>';
+    } else {
+      var rows = [];
+      rows.push(invRow('Highest landed cost per unit the channels can carry',
+        inv.maxAffordableLandedUnitMicros, 'micros',
+        m && m.landed ? m.landed.buyerUnitMicros : null, 'the plan’s landed cost', 'lower-is-better'));
+      rows.push(invRow('Highest factory price that implies',
+        inv.maxAffordableFactoryUnitMicros, 'micros',
+        m && m.bom ? m.bom.fullyLoadedUnitMicros : null, 'the plan’s factory cost', 'lower-is-better'));
+      rows.push(invRow('Smallest run that breaks even',
+        inv.minViableVolumeUnits, 'units',
+        m ? m.runQtyUnits : null, 'the planned run', 'higher-is-better'));
+      rows.push(invRow('Sell-through the plan has to achieve',
+        inv.breakEvenSellThroughRatio, 'ratio', 1, 'everything you made', 'lower-is-better'));
+      body = '<div class="tbl"><table><thead><tr><th>What would have to be true</th>' +
+             '<th class="num">Threshold</th><th class="num">The plan</th><th class="num">Gap</th><th>Verdict</th></tr></thead>' +
+             '<tbody>' + rows.join('') + '</tbody></table></div>' +
+             '<div class="footnote">Threshold and plan are both engine figures. <b>Gap</b> is the difference between the two ' +
+             'columns beside it, shown so the decision is legible; it is not a separate calculation. A sell-through above ' +
+             '100% means there is no amount of selling that reaches break-even, because more than everything you made is ' +
+             'not available to sell.</div>';
+      var invIssues = (inv.issues || []);
+      if (invIssues.length) {
+        body += '<div class="banner warn" style="margin-top:10px">' + invIssues.map(function (i) {
+          return '<div>' + esc(i.message || i.code) + '</div>';
+        }).join('') + '</div>';
+      }
+    }
+    return '<div class="card"><h2>What would have to be true</h2>' +
+           '<p class="muted small" style="margin:-4px 0 12px">Run backwards from the decision: not "what does the plan say" ' +
+           'but "what is the worst value of each driver this venture survives".</p>' + body + '</div>';
+  }
+
+  function invRow(label, threshold, unit, actual, actualLabel, polarity) {
+    if (!isNum(threshold)) {
+      return '<tr><td>' + esc(label) + '</td><td class="num faint" colspan="4">no solution — the engine could not invert this driver</td></tr>';
+    }
+    var tTxt = fmtUnit(threshold, unit);
+    var aTxt = isNum(actual) ? fmtUnit(actual, unit) : '—';
+    var gapTxt = '—', verdict = 'no plan value to compare', cls = 'faint';
+    if (isNum(actual)) {
+      var gap = polarity === 'lower-is-better' ? (threshold - actual) : (actual - threshold);
+      var ok = gap >= 0;
+      gapTxt = (ok ? '+' : '−') + fmtUnit(Math.abs(gap), unit);
+      cls = ok ? 'pos' : 'neg';
+      verdict = ok ? 'headroom' : 'breached — the plan is on the wrong side of this';
+    }
+    return '<tr><td>' + esc(label) + '<div class="faint small">vs ' + esc(actualLabel) + '</div></td>' +
+           '<td class="num">' + esc(tTxt) + '</td><td class="num">' + esc(aTxt) + '</td>' +
+           '<td class="num ' + cls + '">' + esc(gapTxt) + '</td>' +
+           '<td class="' + cls + '">' + esc(verdict) + '</td></tr>';
+  }
+
+  function renderCashCard() {
+    var cash = (S.model && S.model.cash) || [];
+    if (!cash.length) return '';
+    var pk = S.model.peakCash || {};
+    return '<div class="card"><h2>Cash position over the horizon</h2>' +
+      '<div class="chart" data-chart="cash"></div>' +
+      '<div class="legend"><span><i style="background:var(--vp-accent)"></i>cumulative cash</span>' +
+      '<span><i style="background:var(--vp-bad)"></i>deepest point' +
+      (pk.month ? ' (' + esc(pk.month) + ')' : '') + '</span></div>' +
+      '<p class="muted small" style="margin:10px 0 0">A seasonal product is paid for months before it is sold. The trough — ' +
+      'not the annual profit — is the number that decides whether the venture is survivable.</p>' +
+      '<div class="row small" style="margin-top:8px">Funding required: ' + figCell('financials.fundingRequiredMicros') +
+      ' &nbsp;·&nbsp; Months underwater: ' + figCell('financials.monthsUnderwater') + '</div></div>';
+  }
+
+  function renderIssuesCard(compactOnly) {
+    var issues = (S.model && S.model.issues) || [];
+    if (!issues.length) return '';
+    var blocks = issues.filter(function (i) { return i.severity === 'block'; });
+    var shown = compactOnly ? blocks : issues;
+    if (!shown.length) return '';
+    var rows = shown.map(function (i) {
+      return '<tr><td><span class="chip sev-' + esc(i.severity || 'info') + '">' + esc(i.severity || 'info') + '</span></td>' +
+             '<td><code>' + esc(i.code || '') + '</code><div class="faint small">' + esc(i.where || '') + '</div></td>' +
+             '<td>' + esc(i.message || '') + '</td></tr>';
+    }).join('');
+    var title = compactOnly ? 'What the engine refused' : 'Everything the engine flagged';
+    return '<div class="card"><h2>' + esc(title) + ' <span class="faint">(' + shown.length + ')</span></h2>' +
+      '<div class="tbl"><table><thead><tr><th>Severity</th><th>Code</th><th>What it means</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody></table></div></div>';
+  }
+
+  /* ═══ view: assumptions ══════════════════════════════════════════════ */
+
+  function renderAssumptions() {
+    if (S.view !== 'assumptions') return;
+    var el = $('view-assumptions');
+    if (!S.assumptions.length) {
+      el.innerHTML = '<div class="card"><h2>No assumptions registered</h2>' +
+        '<p class="muted small" style="margin:0">Every number this app prints has to rest on a registered assumption ' +
+        'carrying a source and a confidence — that is the rule that stops a plan being fluent nonsense. ' +
+        '<b>Run the analysts</b> to have the bots draft them, then replace the ones that matter with real quotes.</p></div>';
+      return;
+    }
+
+    el.innerHTML = ledgerSummaryHtml() + '<div class="card">' + assumptionGroupsHtml() +
+      '<div class="footnote">Editing writes a NEW revision and supersedes the old one — a quote never erases the guess it ' +
+      'replaced, so the evidence that a number used to be invented survives.</div></div>';
+    drawCharts();
+  }
+
+  /** Counts are tallied off the ledger, never typed — the page headline IS the count. */
+  function ledgerTallies() {
+    var byConf = {}, byKind = {};
+    CONFIDENCE.forEach(function (c) { byConf[c] = 0; });
+    S.assumptions.forEach(function (a) {
+      if (byConf[a.confidence] === undefined) byConf[a.confidence] = 0;
+      byConf[a.confidence] += 1;
+      byKind[a.sourceKind] = (byKind[a.sourceKind] || 0) + 1;
+    });
+    return { byConf: byConf, byKind: byKind, soft: (byConf.estimated || 0) + (byConf.guessed || 0) };
+  }
+
+  function ledgerSummaryHtml() {
+    var t = ledgerTallies();
+    return '<div class="card"><h2>The ledger is the product</h2>' +
+      '<div class="banner ' + (t.soft ? 'warn' : 'ok') + '" style="margin-top:0">' +
+      '<b>' + t.soft + ' of ' + S.assumptions.length + '</b> registered assumptions are an estimate or an outright ' +
+      'placeholder. Each one is a number a human can go and replace with a real quote — and doing so recomputes the ' +
+      'whole plan on the server for free.</div>' +
+      '<div class="chart" data-chart="ledger" style="margin-top:12px"></div>' +
+      '<div class="legend">' + CONFIDENCE.map(function (c) {
+        return '<span><i style="background:' + confVar(c) + '"></i>' + esc(c) + ' ' + (t.byConf[c] || 0) + '</span>';
+      }).join('') + '</div>' +
+      '<div class="row small" style="margin-top:10px">' + SOURCE_KINDS.filter(function (k) { return t.byKind[k]; })
+        .map(function (k) { return '<span class="chip neutral">' + esc(SOURCE_LABEL[k]) + ' ' + t.byKind[k] + '</span>'; }).join('') +
+      '</div></div>';
+  }
+
+  /** Weakest-confidence-first inside each group, and groups holding a guess open by default. */
+  function assumptionGroupsHtml() {
+    var groups = {};
+    S.assumptions.forEach(function (a) { (groups[a.domain] = groups[a.domain] || []).push(a); });
+    return Object.keys(groups).sort().map(function (g) {
+      var list = groups[g].slice().sort(function (a, b) {
+        return CONFIDENCE.indexOf(b.confidence) - CONFIDENCE.indexOf(a.confidence) || (a.key < b.key ? -1 : 1);
+      });
+      var weak = list.filter(function (a) { return a.confidence === 'estimated' || a.confidence === 'guessed'; }).length;
+      return '<details class="agroup" ' + (weak ? 'open' : '') + '><summary>' +
+        '<i class="codicon codicon-folder"></i>' + esc(g) +
+        '<span class="g">' + list.length + ' assumption' + (list.length === 1 ? '' : 's') +
+        (weak ? ' · ' + weak + ' still a guess' : '') + '</span></summary>' +
+        '<div class="tbl" style="margin-top:8px"><table><thead><tr>' +
+        '<th>Assumption</th><th class="num">Value</th><th class="num">Range</th><th>Source</th><th>Confidence</th><th></th>' +
+        '</tr></thead><tbody>' + list.map(assumptionRow).join('') + '</tbody></table></div></details>';
+    }).join('');
+  }
+
+  function assumptionRow(a) {
+    var band = (isNum(a.low) && isNum(a.high))
+      ? fmtUnit(a.low, a.unit) + ' – ' + fmtUnit(a.high, a.unit)
+      : '<span class="faint">none</span>';
+    var src = esc(SOURCE_LABEL[a.sourceKind] || a.sourceKind) +
+      (a.sourceDetail ? '<div class="arow-src">' + esc(a.sourceDetail) + '</div>' : '') +
+      (a.sourceUrl ? '<div class="arow-src"><a href="' + esc(safeUrl(a.sourceUrl)) + '" target="_blank" rel="noopener">source</a></div>' : '');
+    return '<tr><td><b>' + esc(a.label) + '</b><div class="faint small"><code>' + esc(a.key) + '</code></div></td>' +
+      '<td class="num">' + esc(a.valueText || fmtUnit(a.value, a.unit)) + '</td>' +
+      '<td class="num band">' + band + '</td>' +
+      '<td>' + src + '</td>' +
+      '<td>' + confChip(a.confidence) + '</td>' +
+      '<td class="num"><button class="link" type="button" data-asm="' + esc(a.key) + '">' +
+      (a.sourceKind === 'model-estimate' ? 'replace with a quote' : 'edit') + '</button></td></tr>';
+  }
+
+  function confVar(c) {
+    if (c === 'quoted' || c === 'observed') return 'var(--vp-good)';
+    if (c === 'benchmarked') return 'var(--vp-info)';
+    if (c === 'estimated') return 'var(--vp-warn)';
+    return 'var(--vp-bad)';
+  }
+  function safeUrl(u) {
+    return /^https?:\/\//i.test(String(u)) ? String(u) : '#';
+  }
+
+  /* ═══ view: numbers ══════════════════════════════════════════════════ */
+
+  function renderNumbers() {
+    if (S.view !== 'numbers') return;
+    var m = S.model;
+    var el = $('view-numbers');
+    if (!m) { el.innerHTML = '<div class="card"><h2>Nothing computed yet</h2><p class="muted small" style="margin:0">Recompute first.</p></div>'; return; }
+
+    var out = '';
+    out += renderWaterfallCard();
+    out += renderTornadoCard();
+    out += renderPnlCard();
+    out += renderCashTableCard();
+    out += renderIssuesCard(false);
+    el.innerHTML = out;
+    drawCharts();
+  }
+
+  function renderWaterfallCard() {
+    var ws = (S.model && S.model.waterfalls) || [];
+    if (!ws.length) return '';
+    var cards = ws.map(function (w, idx) {
+      var rows = (w.steps || []).map(function (s) {
+        var cls = s.amountMicros < 0 ? 'neg' : 'pos';
+        return '<tr><td>' + esc(s.label || s.key) + '<div class="faint small">' + esc(s.basis || '') + '</div></td>' +
+               '<td class="num ' + cls + '">' + esc(usd(s.amountMicros)) + '</td></tr>';
+      }).join('');
+      var contribCls = w.contributionPerUnitMicros < 0 ? 'neg' : 'pos';
+      return '<div class="card tight" style="margin-bottom:10px">' +
+        '<h3>' + esc(w.channelId) + ' <span class="chip neutral">' + esc(w.kind || '') + '</span></h3>' +
+        '<div class="chart" data-chart="waterfall" data-idx="' + idx + '"></div>' +
+        '<div class="tbl" style="margin-top:8px"><table><thead><tr><th>Step</th><th class="num">Per unit</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody><tfoot><tr><td>Contribution per unit</td>' +
+        '<td class="num ' + contribCls + '">' + esc(usd(w.contributionPerUnitMicros)) + '</td></tr>' +
+        '<tr><td>Contribution rate</td><td class="num">' + esc(pctOfBps(w.contributionBps)) + '</td></tr></tfoot></table></div>' +
+        (w.contributionPerUnitMicros < 0
+          ? '<div class="banner bad" style="margin-top:8px">This channel loses money on every unit at this price. Volume makes it worse, not better.</div>'
+          : '') +
+        '</div>';
+    }).join('');
+    return '<div class="card"><h2>Where the shelf price goes</h2>' +
+      '<p class="muted small" style="margin:-4px 0 12px">One waterfall per channel: the price the customer pays, every ' +
+      'deduction between that and your bank account, and what is left to cover fixed costs.</p>' + cards + '</div>';
+  }
+
+  function renderTornadoCard() {
+    var bars = S.tornado;
+    var body;
+    if (!bars || !bars.length) {
+      body = '<p class="muted small" style="margin:0">No sensitivity sweep returned. Assumptions with no stated range are ' +
+             'excluded from the sweep by design rather than swept over an invented one, so a ledger with no ranges produces ' +
+             'no chart.</p>';
+    } else {
+      var rows = bars.map(function (b) {
+        return '<tr><td>' + esc(b.label || b.assumptionKey || b.assumptionId) + '</td>' +
+          '<td class="num">' + esc(fmtLoose(b.baseValue)) + '</td>' +
+          '<td class="num">' + esc(fmtLoose(b.lowValue)) + ' – ' + esc(fmtLoose(b.highValue)) + '</td>' +
+          '<td class="num">' + esc(usd(b.lowObjectiveMicros !== undefined ? b.lowObjectiveMicros : b.targetLow)) + '</td>' +
+          '<td class="num">' + esc(usd(b.highObjectiveMicros !== undefined ? b.highObjectiveMicros : b.targetHigh)) + '</td>' +
+          '<td class="num"><b>' + esc(usd(b.swingMicros !== undefined ? b.swingMicros : b.swing)) + '</b></td></tr>';
+      }).join('');
+      body = '<div class="chart" data-chart="tornado"></div>' +
+        '<div class="legend"><span><i style="background:var(--vp-info)"></i>at the low end of its range</span>' +
+        '<span><i style="background:var(--vp-warn)"></i>at the high end of its range</span>' +
+        '<span><i style="background:var(--vp-muted)"></i>the plan’s value</span></div>' +
+        '<div class="tbl" style="margin-top:10px"><table><thead><tr><th>Assumption</th><th class="num">Plan value</th>' +
+        '<th class="num">Its range</th><th class="num">Outcome at low</th><th class="num">Outcome at high</th>' +
+        '<th class="num">Swing</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+        '<div class="footnote">Each bar is the whole model rebuilt at that assumption’s low and high value. The one at ' +
+        'the top is the number worth spending money to find out first.</div>';
+    }
+    return '<div class="card"><h2>Which guess moves the answer most</h2>' + body + '</div>';
+  }
+
+  function fmtLoose(v) { return isNum(v) ? (Math.abs(v) >= 100000 ? usd(v) : String(v)) : '—'; }
+
+  function renderPnlCard() {
+    var pnl = (S.model && S.model.pnl) || [];
+    if (!pnl.length) return '';
+    var rows = pnl.map(function (r) {
+      return '<tr><td class="nums">' + esc(r.month) + '</td>' +
+        '<td class="num">' + esc(usd(r.revenueMicros, false)) + '</td>' +
+        '<td class="num">' + esc(usd(r.cogsMicros, false)) + '</td>' +
+        '<td class="num">' + esc(usd(r.grossProfitMicros, false)) + '</td>' +
+        '<td class="num">' + esc(usd(r.channelFeeMicros, false)) + '</td>' +
+        '<td class="num">' + esc(usd(r.marketingMicros, false)) + '</td>' +
+        '<td class="num">' + esc(usd(r.payrollMicros, false)) + '</td>' +
+        '<td class="num">' + esc(usd(r.opexMicros, false)) + '</td>' +
+        '<td class="num ' + (r.netIncomeMicros < 0 ? 'neg' : '') + '">' + esc(usd(r.netIncomeMicros, false)) + '</td>' +
+        '<td class="num ' + (r.cumulativeNetIncomeMicros < 0 ? 'neg' : '') + '">' + esc(usd(r.cumulativeNetIncomeMicros, false)) + '</td></tr>';
+    }).join('');
+    return '<div class="card"><h2>Profit and loss, by month</h2><div class="tbl"><table><thead><tr>' +
+      '<th>Month</th><th class="num">Revenue</th><th class="num">COGS</th><th class="num">Gross</th>' +
+      '<th class="num">Channel fees</th><th class="num">Marketing</th><th class="num">Payroll</th>' +
+      '<th class="num">Opex</th><th class="num">Net</th><th class="num">Cumulative</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      '<div class="footnote">Whole dollars. Cost of goods is recognised when a unit SELLS, not when it is bought — which is ' +
+      'why this table and the cash table below disagree, and why both are shown.</div></div>';
+  }
+
+  function renderCashTableCard() {
+    var cash = (S.model && S.model.cash) || [];
+    var wc = (S.model && S.model.workingCapital) || [];
+    if (!cash.length) return '';
+    var wcBy = {};
+    wc.forEach(function (r) { wcBy[r.month] = r; });
+    var rows = cash.map(function (r) {
+      var w = wcBy[r.month] || {};
+      return '<tr><td class="nums">' + esc(r.month) + '</td>' +
+        '<td class="num">' + esc(usd(r.inflowsMicros, false)) + '</td>' +
+        '<td class="num">' + esc(usd(r.outflowsMicros, false)) + '</td>' +
+        '<td class="num ' + (r.netMicros < 0 ? 'neg' : '') + '">' + esc(usd(r.netMicros, false)) + '</td>' +
+        '<td class="num ' + (r.cumulativeMicros < 0 ? 'neg' : '') + '">' + esc(usd(r.cumulativeMicros, false)) + '</td>' +
+        '<td class="num">' + (isNum(w.inventoryUnits) ? esc(count(w.inventoryUnits)) : '—') + '</td>' +
+        '<td class="num">' + (isNum(w.accountsReceivableMicros) ? esc(usd(w.accountsReceivableMicros, false)) : '—') + '</td></tr>';
+    }).join('');
+    return '<div class="card"><h2>Cash and working capital, by month</h2><div class="tbl"><table><thead><tr>' +
+      '<th>Month</th><th class="num">In</th><th class="num">Out</th><th class="num">Net</th>' +
+      '<th class="num">Cumulative</th><th class="num">Inventory units</th><th class="num">Receivables</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+  }
+
+  /* ═══ view: documents ════════════════════════════════════════════════ */
+
+  function renderDocuments() {
+    if (S.view !== 'documents') return;
+    var list = docListHtml();
+    $('view-documents').innerHTML =
+      exportCardHtml() +
+      '<div class="docsplit">' +
+      '<div class="card tight"><h2>Documents</h2><div class="doclist">' +
+      (list || '<div class="faint small">No document catalogue returned.</div>') + '</div></div>' +
+      '<div>' + docReaderHtml() + '</div></div>';
+  }
+
+  /** A document that was never generated is shown as unavailable, not as a blank page. */
+  function docListHtml() {
+    var known = {};
+    S.documents.forEach(function (d) { known[d.docKey] = d; });
+    var keys = S.catalog.length ? S.catalog
+                                : S.documents.map(function (d) { return { docKey: d.docKey, title: d.title }; });
+    return keys.map(function (c) {
+      var d = known[c.docKey];
+      var meta = d
+        ? ('v' + (d.version || 1) +
+           (d.generatedAt ? ' · ' + String(d.generatedAt).slice(0, 10) : '') +
+           (d.unverifiedNumbers ? ' · ' + d.unverifiedNumbers + ' unverified' : ''))
+        : 'not generated yet';
+      return '<button class="docitem' + ((S.doc && S.doc.docKey === c.docKey) ? ' on' : '') +
+             '" type="button" data-doc="' + esc(c.docKey) + '"' + (d ? '' : ' disabled') +
+             '><b>' + esc(c.title || c.docKey) + '</b><span class="meta">' + esc(meta) + '</span></button>';
+    }).join('');
+  }
+
+  function exportCardHtml() {
+    var links = ['plan.docx', 'model.xlsx', 'deck.pptx', 'bundle.zip'].map(function (f) {
+      return '<a class="btn" href="' + API + '/ventures/' + encodeURIComponent(S.ventureId) + '/export/' + f + '">' +
+             '<i class="codicon codicon-desktop-download"></i>' + esc(f) + '</a>';
+    }).join('');
+    return '<div class="card"><h2>Export</h2><div class="row">' + links + '</div>' +
+      '<div class="footnote">Exports render from the stored model snapshot. Without one the server answers 409 rather than ' +
+      'producing a document from unresolved inputs. There is no PDF renderer in this platform — the print view is the ' +
+      'path to a PDF, through your browser.</div></div>';
+  }
+
+  function docReaderHtml() {
+    if (!S.doc) {
+      return '<div class="card"><h2>Pick a document</h2><p class="muted small" style="margin:0">' +
+        'Each document is rendered from one immutable model snapshot, so it can never drift from the numbers that ' +
+        'produced it. A document that has not been generated is shown as unavailable rather than as an empty page.</p></div>';
+    }
+    var d = S.doc, unv = d.unverifiedNumbers || [];
+    return '<div class="card"><div class="row" style="justify-content:space-between;margin-bottom:10px">' +
+      '<h3 style="margin:0">' + esc(d.title || d.docKey) + '</h3><div class="row">' +
+      '<button class="subtle" type="button" id="docPrint"><i class="codicon codicon-file-pdf"></i> Print view</button>' +
+      '<button class="subtle" type="button" id="docRegen"><i class="codicon codicon-refresh"></i> Regenerate prose</button>' +
+      '</div></div>' +
+      '<div class="row small muted" style="margin-bottom:10px">version ' + esc(String(d.version || 1)) +
+      (d.modelId ? ' · model <code>' + esc(String(d.modelId).slice(0, 8)) + '</code>' : '') +
+      (d.assumptionsCited ? ' · cites ' + d.assumptionsCited.length + ' assumption(s)' : '') + '</div>' +
+      (unv.length
+        ? '<div class="banner warn"><b>' + unv.length + ' number(s) in this document’s prose match no figure and no ' +
+          'assumption in the model.</b> They were written by the model rather than computed, and are listed so a reader ' +
+          'can check them: ' + esc(unv.slice(0, 12).join(', ')) + (unv.length > 12 ? '…' : '') + '</div>'
+        : '') +
+      '<div class="md">' + mdToHtml(d.bodyMd || '') + '</div></div>';
+  }
+
+  function loadDoc(key) {
+    api('GET', '/ventures/' + encodeURIComponent(S.ventureId) + '/documents/' + encodeURIComponent(key))
+      .then(function (r) { S.doc = (r && (r.document || r)) || null; renderDocuments(); })
+      .catch(function (e) { fail(e, 'Document'); });
+  }
+
+  /* ═══ markdown ═══════════════════════════════════════════════════════
+     The documents are markdown with tables, blockquotes and inline code. Escaped
+     first, then transformed — so document text can never inject markup. */
+
+  function mdInline(escaped) {
+    return escaped
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
+      .replace(/_([^_\n]+)_/g, '<em>$1</em>')
+      .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (all, text, href) {
+        if (!/^(https?:\/\/|\/|#)/i.test(href)) return text;
+        return '<a href="' + href + '" target="_blank" rel="noopener">' + text + '</a>';
+      });
+  }
+
+  function mdToHtml(src) {
+    var lines = String(src || '').replace(/\r\n?/g, '\n').split('\n');
+    var out = [], i = 0, fence = false, fenceBuf = [];
+    function flushPara(buf) { if (buf.length) out.push('<p>' + mdInline(esc(buf.join(' '))) + '</p>'); }
+
+    var para = [];
+    while (i < lines.length) {
+      var raw = lines[i];
+      if (/^```/.test(raw)) {
+        if (fence) { out.push('<pre><code>' + esc(fenceBuf.join('\n')) + '</code></pre>'); fenceBuf = []; fence = false; }
+        else { flushPara(para); para = []; fence = true; }
+        i += 1; continue;
+      }
+      if (fence) { fenceBuf.push(raw); i += 1; continue; }
+
+      var line = raw.replace(/\s+$/, '');
+      if (!line.trim()) { flushPara(para); para = []; i += 1; continue; }
+
+      var h = line.match(/^(#{1,6})\s+(.*)$/);
+      if (h) { flushPara(para); para = []; out.push('<h' + h[1].length + '>' + mdInline(esc(h[2])) + '</h' + h[1].length + '>'); i += 1; continue; }
+
+      if (/^([-*_])\s*\1\s*\1[-*_\s]*$/.test(line)) { flushPara(para); para = []; out.push('<hr />'); i += 1; continue; }
+
+      if (/^\s*\|/.test(line) && i + 1 < lines.length && /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(lines[i + 1])) {
+        flushPara(para); para = [];
+        var tbl = mdTable(lines, i);
+        out.push(tbl.html); i = tbl.next;
+        continue;
+      }
+
+      if (/^\s*>/.test(line)) {
+        flushPara(para); para = [];
+        var q = [];
+        while (i < lines.length && /^\s*>/.test(lines[i])) { q.push(lines[i].replace(/^\s*>\s?/, '')); i += 1; }
+        out.push('<blockquote>' + mdToHtml(q.join('\n')) + '</blockquote>');
+        continue;
+      }
+
+      if (/^\s*[-*+]\s+/.test(line) || /^\s*\d+[.)]\s+/.test(line)) {
+        flushPara(para); para = [];
+        var lst = mdList(lines, i);
+        out.push(lst.html); i = lst.next;
+        continue;
+      }
+
+      para.push(line.trim());
+      i += 1;
+    }
+    if (fence && fenceBuf.length) out.push('<pre><code>' + esc(fenceBuf.join('\n')) + '</code></pre>');
+    flushPara(para);
+    return out.join('\n');
+  }
+
+  /** A pipe table. A right-aligned column becomes `.num` so figures line up. */
+  function mdTable(lines, start) {
+    var head = splitRow(lines[start]);
+    var align = splitRow(lines[start + 1]).map(function (c) {
+      return (/:\s*$/.test(c) && !/^\s*:/.test(c)) ? 'num' : '';
+    });
+    var i = start + 2, body = [];
+    while (i < lines.length && /^\s*\|/.test(lines[i])) { body.push(splitRow(lines[i])); i += 1; }
+    var html = '<div class="tbl"><table><thead><tr>' +
+      head.map(function (c, k) { return '<th class="' + (align[k] || '') + '">' + mdInline(esc(c.trim())) + '</th>'; }).join('') +
+      '</tr></thead><tbody>' +
+      body.map(function (r) {
+        return '<tr>' + r.map(function (c, k) {
+          return '<td class="' + (align[k] || '') + '">' + mdInline(esc(c.trim())) + '</td>';
+        }).join('') + '</tr>';
+      }).join('') + '</tbody></table></div>';
+    return { html: html, next: i };
+  }
+
+  function mdList(lines, start) {
+    var bullet = /^\s*[-*+]\s+/.test(lines[start]);
+    var re = bullet ? /^\s*[-*+]\s+/ : /^\s*\d+[.)]\s+/;
+    var tag = bullet ? 'ul' : 'ol', items = [], i = start;
+    while (i < lines.length && re.test(lines[i])) { items.push(lines[i].replace(re, '')); i += 1; }
+    return {
+      html: '<' + tag + '>' + items.map(function (t) { return '<li>' + mdInline(esc(t)) + '</li>'; }).join('') + '</' + tag + '>',
+      next: i
+    };
+  }
+
+  function splitRow(line) {
+    var t = line.trim().replace(/^\|/, '').replace(/\|$/, '');
+    return t.split('|');
+  }
+
+  /* ═══ drawer: derivation + editing ═══════════════════════════════════ */
+
+  function openDrawer(html) {
+    $('drawer').innerHTML = html;
+    $('drawer').hidden = false;
+    $('scrim').hidden = false;
+    $('drawer').scrollTop = 0;
+  }
+  function closeDrawer() { $('drawer').hidden = true; $('scrim').hidden = true; }
+
+  function drawerHead(title, sub) {
+    return '<div class="dh"><div><h3>' + esc(title) + '</h3>' +
+      (sub ? '<div class="muted small">' + esc(sub) + '</div>' : '') + '</div>' +
+      '<button class="subtle" type="button" id="dClose"><i class="codicon codicon-close"></i></button></div>';
+  }
+
+  function openFigure(id) {
+    var f = S.model && S.model.figures ? S.model.figures[id] : null;
+    if (!f) return;
+    openDrawer(drawerHead(f.label || id, 'figure ' + id) + '<div class="spin">Resolving the derivation…</div>');
+    api('GET', '/ventures/' + encodeURIComponent(S.ventureId) + '/model/figures/' + encodeURIComponent(id))
+      .then(function (r) { renderFigureDrawer(f, r && (r.derivation || r)); })
+      .catch(function () { renderFigureDrawer(f, null); });
+  }
+
+  function renderFigureDrawer(f, derivation) {
+    var refs = (derivation && derivation.inputs)
+      ? derivation.inputs.map(function (x) { return x.ref || x.assumptionId; })
+      : (f.assumptionRefs || []);
+    var formula = (derivation && derivation.formula) || f.formula || '';
+    var conf = figConfidence(f);
+
+    var rows = refs.map(function (ref) {
+      var a = findAssumption(ref);
+      if (!a) {
+        return '<tr><td><code>' + esc(ref) + '</code></td><td class="num faint">not in the ledger</td>' +
+               '<td>' + confChip(null) + '</td><td></td></tr>';
+      }
+      return '<tr><td><b>' + esc(a.label) + '</b><div class="faint small"><code>' + esc(a.key) + '</code></div></td>' +
+             '<td class="num">' + esc(a.valueText || fmtUnit(a.value, a.unit)) + '</td>' +
+             '<td>' + confChip(a.confidence) + '</td>' +
+             '<td class="num"><button class="link" type="button" data-asm="' + esc(a.key) + '">edit</button></td></tr>';
+    }).join('');
+
+    var missing = refs.filter(function (r) { return !findAssumption(r); }).length;
+
+    openDrawer(
+      drawerHead(f.label || f.id, 'figure ' + f.id) +
+      '<div class="tile" style="cursor:default"><div class="k">value</div>' +
+      '<div class="v' + (f.unit === 'micros' && f.value < 0 ? ' neg' : '') + '">' + esc(fmtFigure(f)) + '</div>' +
+      '<div>' + confChip(conf) + '</div></div>' +
+      (formula ? '<p class="small muted" style="margin:12px 0 4px"><b>How it is derived</b></p>' +
+                 '<code style="display:block;padding:8px;background:var(--vp-control);border-radius:8px;overflow-wrap:anywhere">' +
+                 esc(formula) + '</code>' : '') +
+      '<p class="small muted" style="margin:14px 0 4px"><b>What it rests on</b> — ' + refs.length +
+      ' assumption(s)' + (missing ? ', ' + missing + ' of which are not registered at all' : '') + '</p>' +
+      (refs.length
+        ? '<div class="tbl"><table><thead><tr><th>Assumption</th><th class="num">Value</th><th>Confidence</th><th></th></tr></thead>' +
+          '<tbody>' + rows + '</tbody></table></div>'
+        : '<p class="small faint" style="margin:0">This figure is a roll-up of other computed figures; the assumptions ' +
+          'sit under those.</p>') +
+      '<div class="footnote">A figure is worth its weakest input. The chip above shows the weakest confidence anywhere ' +
+      'in this chain, not the average.</div>'
+    );
+  }
+
+  /**
+   * The stored unit and the unit a human types are not the same thing. Money is kept
+   * as whole millionths of a dollar and rates as whole basis points, so the way back
+   * ROUNDS to an integer: `2.01 * 1e6` lands on 2009999.9999999998 in binary floating
+   * point, and shipping a fractional micro to an integer engine plants a rounding
+   * defect that only shows up as a cent of drift much later. A ratio is NOT rounded —
+   * it has no integer granularity, and rounding one would destroy it.
+   */
+  function unitBridge(unit) {
+    var micros = unit === 'micros', bps = unit === 'bps', ratio = unit === 'ratio';
+    return {
+      label: micros ? 'US dollars' : (bps || ratio) ? 'percent' : unit,
+      note: micros ? ' — whole millionths of a dollar, so a sub-cent component cost cannot round away to zero.'
+          : bps ? ' — whole basis points, because a contractual rate is exact.' : '.',
+      toUi: function (v) {
+        if (!isNum(v)) return null;
+        return micros ? v / MICROS_PER_DOLLAR : bps ? v / 100 : ratio ? v * 100 : v;
+      },
+      fromUi: function (n) {
+        if (micros) return roundHalfUp(n * MICROS_PER_DOLLAR);
+        if (bps) return roundHalfUp(n * 100);
+        return ratio ? n / 100 : n;
+      }
+    };
+  }
+
+  function assumptionEditorHtml(a, u) {
+    function inp(id, label, value) {
+      var ui = u.toUi(value);
+      return '<label class="f"><span>' + esc(label) + '</span><input id="' + id + '" type="number" step="any" value="' +
+        (isNum(ui) ? esc(String(ui)) : '') + '" /></label>';
+    }
+    var guess = a.sourceKind === 'model-estimate' || a.confidence === 'guessed' || a.confidence === 'estimated';
+    return drawerHead(a.label, a.key) +
+      (guess
+        ? '<div class="banner warn" style="margin-top:0"><b>This is a guess.</b> ' +
+          esc(CONFIDENCE_NOTE[a.confidence] || '') + ' Replacing it with a real quote is the most valuable thing you can ' +
+          'do to this plan — and recomputing afterwards costs nothing.</div>'
+        : '') +
+      '<div class="grid2" style="margin-top:12px">' +
+      inp('a_val', 'Value (' + u.label + ')', a.value) +
+      '<label class="f"><span>Confidence</span><select id="a_conf">' +
+        CONFIDENCE.map(function (c) {
+          return '<option value="' + c + '"' + (c === a.confidence ? ' selected' : '') + '>' + c + ' — ' + CONFIDENCE_NOTE[c] + '</option>';
+        }).join('') + '</select></label>' +
+      inp('a_low', 'Range low (' + u.label + ')', a.low) +
+      inp('a_high', 'Range high (' + u.label + ')', a.high) +
+      '</div>' +
+      '<label class="f"><span>Where it came from</span><select id="a_kind">' +
+        SOURCE_KINDS.map(function (k) {
+          return '<option value="' + k + '"' + (k === a.sourceKind ? ' selected' : '') + '>' + SOURCE_LABEL[k] + ' (' + k + ')</option>';
+        }).join('') + '</select></label>' +
+      '<label class="f"><span>Source detail — vendor, quote reference, publication, date</span>' +
+        '<input id="a_detail" type="text" value="' + esc(a.sourceDetail || '') + '" /></label>' +
+      '<label class="f"><span>Source URL (optional)</span>' +
+        '<input id="a_url" type="url" value="' + esc(a.sourceUrl || '') + '" /></label>' +
+      '<div class="row"><button class="primary" type="button" id="a_save"><i class="codicon codicon-save"></i> Save and recompute</button>' +
+      '<button class="subtle" type="button" id="a_hist">Revision history</button></div>' +
+      '<div class="footnote">You type ' + esc(u.label) + '; this is stored as <code>' + esc(a.unit) + '</code>' + u.note +
+      ' Saving writes a new revision; the old one is superseded, never erased.</div>' +
+      '<div id="a_impact"></div>';
+  }
+
+  function openAssumption(key) {
+    var a = findAssumption(key);
+    if (!a) { toast('That assumption is not in the loaded ledger.', 'bad'); return; }
+    var u = unitBridge(a.unit);
+    openDrawer(assumptionEditorHtml(a, u));
+    $('a_save').addEventListener('click', function () { saveAssumption(a, u.fromUi); });
+    $('a_hist').addEventListener('click', function () { showHistory(a); });
+  }
+
+  function saveAssumption(a, fromUi) {
+    function read(id) {
+      var raw = $(id).value;
+      if (raw === '' || raw === null) return null;
+      var n = Number(raw);
+      return isFinite(n) ? fromUi(n) : null;
+    }
+    var body = {
+      label: a.label,
+      unit: a.unit,
+      domain: a.domain,
+      valueNum: read('a_val'),
+      lowNum: read('a_low'),
+      highNum: read('a_high'),
+      sourceKind: $('a_kind').value,
+      sourceDetail: $('a_detail').value.trim() || null,
+      sourceUrl: $('a_url').value.trim() || null,
+      confidence: $('a_conf').value
+    };
+    if (!isNum(body.valueNum)) { toast('A value is required.', 'bad'); return; }
+
+    var before = snapshotHeadline();
+    $('a_save').disabled = true;
+    api('PATCH', '/ventures/' + encodeURIComponent(S.ventureId) + '/assumptions/' + encodeURIComponent(a.key), body)
+      .then(function () { return recompute(true); })
+      .then(function () {
+        return api('GET', '/ventures/' + encodeURIComponent(S.ventureId) + '/assumptions')
+          .then(function (r) {
+            S.assumptions = ((r && r.assumptions) || []).map(normAssumption);
+            S.summary = (r && r.summary) || S.summary;
+          }).catch(function () { return null; });
+      })
+      .then(function () {
+        renderAll();
+        var el = $('a_save'); if (el) el.disabled = false;
+        var imp = $('a_impact');
+        if (imp) imp.innerHTML = impactHtml(before, snapshotHeadline());
+        toast('Saved and recomputed. No model call was made.', 'ok');
+      })
+      .catch(function (e) { var el = $('a_save'); if (el) el.disabled = false; fail(e, 'Save assumption'); });
+  }
+
+  /** Capture the headline figures before an edit so the effect can be shown after. */
+  function snapshotHeadline() {
+    var snap = {};
+    HEADLINE.forEach(function (id) {
+      var f = S.model && S.model.figures ? S.model.figures[id] : null;
+      if (f) snap[id] = { label: f.label || id, value: f.value, unit: f.unit };
+    });
+    return snap;
+  }
+
+  function impactHtml(before, after) {
+    var rows = [];
+    Object.keys(after).forEach(function (id) {
+      var b = before[id], a = after[id];
+      if (b && b.value === a.value) return;
+      var was = b ? fmtUnit(b.value, b.unit) : 'not computed';
+      var dir = !b ? '' : (a.value > b.value ? ' ▲' : ' ▼');
+      rows.push('<div class="r"><span>' + esc(a.label) + '</span><span>' +
+        esc(was) + ' → <b>' + esc(fmtUnit(a.value, a.unit)) + '</b>' + dir + '</span></div>');
+    });
+    Object.keys(before).forEach(function (id) {
+      if (after[id]) return;
+      rows.push('<div class="r"><span>' + esc(before[id].label) + '</span><span>' +
+        esc(fmtUnit(before[id].value, before[id].unit)) + ' → <b>no longer computed</b></span></div>');
+    });
+    if (!rows.length) {
+      return '<div class="impact"><b class="small">No headline figure moved.</b>' +
+        '<div class="faint small" style="margin-top:4px">The plan does not turn on this input at the value you gave it. ' +
+        'The sensitivity chart under <b>Numbers</b> ranks the inputs that do.</div></div>';
+    }
+    return '<div class="impact"><b class="small">What moved</b>' + rows.join('') +
+      '<div class="faint small" style="margin-top:6px">Both figures come from the engine; the arrow is a comparison of the ' +
+      'two, not a separate calculation.</div></div>';
+  }
+
+  function showHistory(a) {
+    api('GET', '/ventures/' + encodeURIComponent(S.ventureId) + '/assumptions/' + encodeURIComponent(a.key) + '/history')
+      .then(function (r) {
+        var revs = (r && r.revisions) || [];
+        var rows = revs.map(function (x) {
+          var n = normAssumption(x);
+          return '<tr><td>' + esc(String(x.createdAt || '').slice(0, 16).replace('T', ' ')) + '</td>' +
+                 '<td class="num">' + esc(fmtUnit(n.value, n.unit)) + '</td>' +
+                 '<td>' + confChip(n.confidence) + '</td>' +
+                 '<td class="small">' + esc(n.authoredBy || SOURCE_LABEL[n.sourceKind] || '') + '</td></tr>';
+        }).join('');
+        openDrawer(drawerHead('Revision history', a.key) +
+          (rows ? '<div class="tbl"><table><thead><tr><th>When</th><th class="num">Value</th><th>Confidence</th><th>By</th></tr></thead>' +
+                  '<tbody>' + rows + '</tbody></table></div>'
+                : '<p class="muted small">Only one revision on record.</p>') +
+          '<div class="row" style="margin-top:12px"><button type="button" data-asm="' + esc(a.key) + '">Back to editing</button></div>');
+      }).catch(function (e) { fail(e, 'History'); });
+  }
+
+  /* ═══ charts ═════════════════════════════════════════════════════════
+     Every coordinate below maps a server-computed value onto a pixel. No chart
+     derives a business figure of its own; the waterfall's closing bar is drawn from
+     the engine's own contribution value rather than from the running total, so a
+     disagreement would be visible rather than hidden. */
+
+  function drawCharts() {
+    var nodes = document.querySelectorAll('.chart[data-chart]');
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i], kind = el.getAttribute('data-chart');
+      if (kind === 'cash') drawCash(el);
+      else if (kind === 'tornado') drawTornado(el);
+      else if (kind === 'waterfall') drawWaterfall(el, Number(el.getAttribute('data-idx')));
+      else if (kind === 'ledger') drawLedger(el);
+    }
+  }
+
+  function svgOpen(w, h) {
+    return '<svg viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h + '" role="img">';
+  }
+  function widthOf(el) { return Math.max(280, Math.floor(el.clientWidth || 640)); }
+
+  function niceTicks(min, max, n) {
+    if (!(max > min)) { max = min + 1; }
+    var span = (max - min) / n;
+    var mag = Math.pow(10, Math.floor(Math.log(span) / Math.LN10));
+    var step = mag;
+    [1, 2, 2.5, 5, 10].some(function (m) { if (mag * m >= span) { step = mag * m; return true; } return false; });
+    var t = [], v = Math.ceil(min / step) * step;
+    for (; v <= max + step * 0.001 && t.length < 12; v += step) if (v >= min && v <= max) t.push(v);
+    return t;
+  }
+
+  /* ── cash curve: one series, change over time ─────────────────────── */
+  function drawCash(el) {
+    var data = (S.model && S.model.cash) || [];
+    if (!data.length) { el.innerHTML = ''; return; }
+    var W = widthOf(el), H = 230, PL = 74, PR = 14, PT = 16, PB = 30;
+    var iw = W - PL - PR, ih = H - PT - PB;
+    var vals = data.map(function (d) { return d.cumulativeMicros; });
+    var lo = Math.min.apply(null, vals.concat([0])), hi = Math.max.apply(null, vals.concat([0]));
+    var pad = (hi - lo) * 0.08 || 1;
+    lo -= pad; hi += pad;
+    function x(i) { return PL + (data.length === 1 ? iw / 2 : (i / (data.length - 1)) * iw); }
+    function y(v) { return PT + ih - ((v - lo) / (hi - lo)) * ih; }
+
+    var s = svgOpen(W, H) + gridY(niceTicks(lo, hi, 4), y, PL, W - PR) +
+      '<line x1="' + PL + '" y1="' + y(0).toFixed(1) + '" x2="' + (W - PR) + '" y2="' + y(0).toFixed(1) +
+      '" stroke="var(--vp-line2)" stroke-width="1.5" />';
+
+    var area = 'M' + x(0).toFixed(1) + ',' + y(0).toFixed(1);
+    var line = '';
+    data.forEach(function (d, i) {
+      area += ' L' + x(i).toFixed(1) + ',' + y(d.cumulativeMicros).toFixed(1);
+      line += (i ? ' L' : 'M') + x(i).toFixed(1) + ',' + y(d.cumulativeMicros).toFixed(1);
+    });
+    area += ' L' + x(data.length - 1).toFixed(1) + ',' + y(0).toFixed(1) + ' Z';
+    s += '<path d="' + area + '" fill="var(--vp-accent)" fill-opacity="0.10" />';
+    s += '<path d="' + line + '" fill="none" stroke="var(--vp-accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />';
+
+    /* The trough is direct-labelled: it is the one point on this curve that decides
+       anything, and a number on every month would go unread. */
+    var tIdx = 0;
+    vals.forEach(function (v, i) { if (v < vals[tIdx]) tIdx = i; });
+    var lx = x(tIdx), anchor = lx > PL + iw * 0.6 ? 'end' : 'start';
+    s += '<circle cx="' + lx.toFixed(1) + '" cy="' + y(vals[tIdx]).toFixed(1) +
+         '" r="5" fill="var(--vp-bad)" stroke="var(--vp-panel)" stroke-width="2"><title>' +
+         esc('deepest cash position: ' + usd(vals[tIdx]) + ' in ' + data[tIdx].month) + '</title></circle>' +
+         '<text x="' + (lx + (anchor === 'end' ? -9 : 9)).toFixed(1) + '" y="' + (y(vals[tIdx]) + 15).toFixed(1) +
+         '" text-anchor="' + anchor + '" font-size="10.5" fill="var(--vp-bad)" style="font-variant-numeric:tabular-nums">' +
+         esc(usd(vals[tIdx], false)) + ' · ' + esc(data[tIdx].month) + '</text>';
+
+    [0, data.length - 1].forEach(function (i, k) {
+      s += '<text x="' + x(i).toFixed(1) + '" y="' + (H - 9) + '" text-anchor="' + (k ? 'end' : 'start') +
+           '" font-size="10" fill="var(--vp-faint)">' + esc(data[i].month) + '</text>';
+    });
+
+    s += '<rect x="' + PL + '" y="' + PT + '" width="' + iw + '" height="' + ih + '" fill="transparent" />' +
+         '<line id="cx" x1="0" y1="' + PT + '" x2="0" y2="' + (PT + ih) + '" stroke="var(--vp-accent)" ' +
+         'stroke-width="1" opacity="0" /></svg>';
+    el.innerHTML = s;
+    wireCashHover(el, data, W, PL, iw, x);
+  }
+
+  /** Crosshair + tooltip. The values are also in the cash table, never hover-only. */
+  function wireCashHover(el, data, W, PL, iw, x) {
+    var svg = el.querySelector('svg'), cx = el.querySelector('#cx');
+    if (!svg || !cx) return;
+    svg.addEventListener('mousemove', function (ev) {
+      var r = svg.getBoundingClientRect();
+      var px = (ev.clientX - r.left) * (W / (r.width || W));
+      var i = Math.round(((px - PL) / iw) * (data.length - 1));
+      if (i < 0) i = 0;
+      if (i > data.length - 1) i = data.length - 1;
+      cx.setAttribute('x1', x(i)); cx.setAttribute('x2', x(i)); cx.setAttribute('opacity', '0.7');
+      var d = data[i];
+      showTip(ev, '<b>' + esc(d.month) + '</b><br>cumulative ' + esc(usd(d.cumulativeMicros)) +
+        '<br>in ' + esc(usd(d.inflowsMicros)) + ' · out ' + esc(usd(d.outflowsMicros)));
+    });
+    svg.addEventListener('mouseleave', function () { cx.setAttribute('opacity', '0'); hideTip(); });
+  }
+
+  /** Recessive hairline gridlines with engine-formatted dollar ticks. */
+  function gridY(ticks, y, x0, x1) {
+    return ticks.map(function (t) {
+      return '<line x1="' + x0 + '" y1="' + y(t).toFixed(1) + '" x2="' + x1 + '" y2="' + y(t).toFixed(1) +
+        '" stroke="var(--vp-line)" stroke-width="1" />' +
+        '<text x="' + (x0 - 8) + '" y="' + (y(t) + 3.5).toFixed(1) + '" text-anchor="end" font-size="10" ' +
+        'fill="var(--vp-faint)" style="font-variant-numeric:tabular-nums">' + esc(usd(t, false)) + '</text>';
+    }).join('');
+  }
+
+  /* ── tornado: diverging around the plan value ─────────────────────── */
+  function drawTornado(el) {
+    var bars = (S.tornado || []).slice(0, 12);
+    if (!bars.length) { el.innerHTML = ''; return; }
+    var W = widthOf(el), rowH = 26, PL = Math.min(220, Math.max(120, Math.floor(W * 0.34))), PR = 16, PT = 22;
+    var H = PT + bars.length * rowH + 16;
+    var lows = bars.map(function (b) { return num2(b, 'low'); });
+    var highs = bars.map(function (b) { return num2(b, 'high'); });
+    var base = num2(bars[0], 'base');
+    var all = lows.concat(highs).concat([base]).filter(isNum);
+    var lo = Math.min.apply(null, all), hi = Math.max.apply(null, all);
+    var pad = (hi - lo) * 0.06 || 1; lo -= pad; hi += pad;
+    var iw = W - PL - PR;
+    function x(v) { return PL + ((v - lo) / (hi - lo)) * iw; }
+
+    var s = svgOpen(W, H);
+    s += '<line x1="' + x(base).toFixed(1) + '" y1="' + (PT - 8) + '" x2="' + x(base).toFixed(1) + '" y2="' + (H - 12) +
+         '" stroke="var(--vp-muted)" stroke-width="1.5" />';
+    s += '<text x="' + x(base).toFixed(1) + '" y="' + (PT - 12) + '" text-anchor="middle" font-size="10" ' +
+         'fill="var(--vp-muted)">the plan: ' + esc(usd(base, false)) + '</text>';
+
+    bars.forEach(function (b, i) {
+      s += tornadoRow(b, PT + i * rowH + 4, rowH - 10, PL, base, x);
+    });
+    s += '</svg>';
+    el.innerHTML = s;
+
+    var svg = el.querySelector('svg');
+    if (!svg) return;
+    svg.addEventListener('mousemove', function (ev) {
+      var r = svg.getBoundingClientRect();
+      var py = (ev.clientY - r.top) * (H / (r.height || H));
+      var i = Math.floor((py - PT) / rowH);
+      if (i < 0 || i >= bars.length) { hideTip(); return; }
+      var b = bars[i];
+      showTip(ev, '<b>' + esc(b.label || b.assumptionId) + '</b><br>' +
+        'at ' + esc(fmtLoose(b.lowValue)) + ' → ' + esc(usd(num2(b, 'low'))) + '<br>' +
+        'at ' + esc(fmtLoose(b.highValue)) + ' → ' + esc(usd(num2(b, 'high'))) + '<br>' +
+        'swing ' + esc(usd(b.swingMicros !== undefined ? b.swingMicros : b.swing)));
+    });
+    svg.addEventListener('mouseleave', hideTip);
+  }
+
+  /** One driver's pair of bars, diverging left/right from the plan's own value. */
+  function tornadoRow(b, yTop, h, PL, base, x) {
+    var out = '';
+    [[num2(b, 'low'), 'var(--vp-info)', 'low'], [num2(b, 'high'), 'var(--vp-warn)', 'high']].forEach(function (p) {
+      if (!isNum(p[0])) return;
+      var left = Math.min(x(base), x(p[0])), w = Math.abs(x(p[0]) - x(base));
+      if (w < 1) return;
+      out += '<rect x="' + left.toFixed(1) + '" y="' + yTop + '" width="' + w.toFixed(1) + '" height="' + h +
+        '" rx="3" fill="' + p[1] + '" fill-opacity="0.85" stroke="var(--vp-surface-gap)" stroke-width="2"><title>' +
+        esc((b.label || b.assumptionId || '') + ' at its ' + p[2] + ': ' + usd(p[0])) + '</title></rect>';
+    });
+    var label = String(b.label || b.assumptionKey || b.assumptionId || '');
+    if (label.length > 34) label = label.slice(0, 33) + '…';
+    return out + '<text x="' + (PL - 10) + '" y="' + (yTop + h - 2) + '" text-anchor="end" font-size="11" ' +
+      'fill="var(--vp-ink)">' + esc(label) + '</text>';
+  }
+  function num2(b, which) {
+    if (which === 'low') return isNum(b.lowObjectiveMicros) ? b.lowObjectiveMicros : b.targetLow;
+    if (which === 'high') return isNum(b.highObjectiveMicros) ? b.highObjectiveMicros : b.targetHigh;
+    return isNum(b.baseObjectiveMicros) ? b.baseObjectiveMicros : b.targetBase;
+  }
+
+  /* ── channel waterfall ────────────────────────────────────────────── */
+  function drawWaterfall(el, idx) {
+    var w = ((S.model && S.model.waterfalls) || [])[idx];
+    if (!w || !w.steps || !w.steps.length) { el.innerHTML = ''; return; }
+    var W = widthOf(el), PT = 14, PB = 46, H = 210, PL = 62, PR = 10;
+    var iw = W - PL - PR, ih = H - PT - PB;
+    var marks = waterfallMarks(w);
+
+    var all = [0];
+    marks.forEach(function (m) { all.push(m.from, m.to); });
+    var lo = Math.min.apply(null, all), hi = Math.max.apply(null, all);
+    var pad = (hi - lo) * 0.08 || 1; lo -= pad; hi += pad;
+    var bw = Math.max(6, Math.min(46, (iw / marks.length) - 6));
+    function x(i) { return PL + (i + 0.5) * (iw / marks.length); }
+    function y(v) { return PT + ih - ((v - lo) / (hi - lo)) * ih; }
+
+    var s = svgOpen(W, H) + gridY(niceTicks(lo, hi, 3), y, PL, W - PR);
+    marks.forEach(function (m, i) {
+      var top = Math.min(y(m.from), y(m.to)), h = Math.max(2, Math.abs(y(m.to) - y(m.from)));
+      var fill = m.total ? (m.to < 0 ? 'var(--vp-bad)' : 'var(--vp-good)')
+                         : (m.amount < 0 ? 'var(--vp-warn)' : 'var(--vp-accent)');
+      /* The <title> is the mark's accessible name AND its native tooltip, so the
+         value is reachable without a mouse — a hover tooltip must never be the sole
+         route to a number. It carries the value the bar was DRAWN from, which is
+         what makes a chart/engine disagreement visible instead of silent. */
+      s += '<rect x="' + (x(i) - bw / 2).toFixed(1) + '" y="' + top.toFixed(1) + '" width="' + bw.toFixed(1) +
+           '" height="' + h.toFixed(1) + '" rx="3" fill="' + fill + '" fill-opacity="' + (m.total ? '0.95' : '0.8') +
+           '" stroke="var(--vp-surface-gap)" stroke-width="2"><title>' +
+           esc(m.label + ': ' + usd(m.amount)) + '</title></rect>';
+    });
+    s += '<line x1="' + PL + '" y1="' + y(0).toFixed(1) + '" x2="' + (W - PR) + '" y2="' + y(0).toFixed(1) +
+         '" stroke="var(--vp-line2)" stroke-width="1.5" />';
+    s += waterfallAxisLabels(marks, x, H, w) + '</svg>';
+    el.innerHTML = s;
+
+    var svg = el.querySelector('svg');
+    if (!svg) return;
+    svg.addEventListener('mousemove', function (ev) {
+      var r = svg.getBoundingClientRect();
+      var px = (ev.clientX - r.left) * (W / (r.width || W));
+      var i = Math.floor((px - PL) / (iw / marks.length));
+      if (i < 0 || i >= marks.length) { hideTip(); return; }
+      var m = marks[i];
+      showTip(ev, '<b>' + esc(m.label) + '</b><br>' + esc(usd(m.amount)) +
+        (m.basis ? '<br><span style="opacity:.7">' + esc(m.basis) + '</span>' : ''));
+    });
+    svg.addEventListener('mouseleave', hideTip);
+  }
+
+  /**
+   * The bars, as positions. The intermediate steps stack on a running total, but the
+   * CLOSING bar is drawn from the engine's own `contributionPerUnitMicros` rather than
+   * from that total — so if the two ever disagree the chart shows it instead of
+   * quietly agreeing with itself.
+   */
+  /** Only the two end bars are labelled — a label on every step would collide. */
+  function waterfallAxisLabels(marks, x, H, w) {
+    var out = [0, marks.length - 1].map(function (i, k) {
+      var lbl = marks[i].label;
+      if (lbl.length > 18) lbl = lbl.slice(0, 17) + '…';
+      return '<text x="' + x(i).toFixed(1) + '" y="' + (H - 24) + '" text-anchor="' + (k ? 'end' : 'start') +
+        '" font-size="10" fill="var(--vp-faint)">' + esc(lbl) + '</text>';
+    }).join('');
+    return out + '<text x="' + x(marks.length - 1).toFixed(1) + '" y="' + (H - 10) + '" text-anchor="end" ' +
+      'font-size="10.5" fill="var(--vp-ink)" style="font-variant-numeric:tabular-nums">' +
+      esc(usd(w.contributionPerUnitMicros)) + '</text>';
+  }
+
+  function waterfallMarks(w) {
+    var running = 0, marks = [];
+    w.steps.forEach(function (s) {
+      var from = running;
+      running += s.amountMicros;
+      marks.push({ label: s.label || s.key, from: from, to: running, amount: s.amountMicros, basis: s.basis || '' });
+    });
+    marks.push({
+      label: 'Contribution', from: 0, to: w.contributionPerUnitMicros,
+      amount: w.contributionPerUnitMicros, total: true, basis: 'engine value'
+    });
+    return marks;
+  }
+
+  /* ── ledger composition: ordered confidence classes ───────────────── */
+  function drawLedger(el) {
+    var counts = {};
+    CONFIDENCE.forEach(function (c) { counts[c] = 0; });
+    S.assumptions.forEach(function (a) { if (counts[a.confidence] !== undefined) counts[a.confidence] += 1; });
+    var total = S.assumptions.length;
+    if (!total) { el.innerHTML = ''; return; }
+    var W = widthOf(el), H = 34, x = 0;
+    var s = svgOpen(W, H);
+    CONFIDENCE.forEach(function (c) {
+      var n = counts[c];
+      if (!n) return;
+      var w = (n / total) * W;
+      s += '<rect x="' + x.toFixed(1) + '" y="4" width="' + Math.max(0, w - 2).toFixed(1) + '" height="' + (H - 8) +
+           '" rx="4" fill="' + confVar(c) + '" fill-opacity="0.85" />';
+      if (w > 40) {
+        s += '<text x="' + (x + w / 2 - 1).toFixed(1) + '" y="' + (H / 2 + 4) + '" text-anchor="middle" font-size="11" ' +
+             'font-weight="700" fill="var(--vp-bg)">' + n + '</text>';
+      }
+      x += w;
+    });
+    s += '</svg>';
+    el.innerHTML = s;
+  }
+
+  function showTip(ev, html) {
+    var t = $('tip');
+    t.innerHTML = html;
+    t.hidden = false;
+    var x = ev.pageX + 14, y = ev.pageY + 14;
+    var maxX = document.documentElement.clientWidth - t.offsetWidth - 8;
+    if (x > maxX) x = Math.max(8, ev.pageX - t.offsetWidth - 14);
+    t.style.left = x + 'px';
+    t.style.top = y + 'px';
+  }
+  function hideTip() { $('tip').hidden = true; }
+
+  /* ═══ view switching + wiring ════════════════════════════════════════ */
+
+  function renderAll() {
+    renderHeader();
+    renderStages();
+    $('tabAsmCnt').textContent = S.assumptions.length ? '(' + S.assumptions.length + ')' : '';
+    $('tabDocCnt').textContent = S.documents.length ? '(' + S.documents.length + ')' : '';
+    renderPlan(); renderAssumptions(); renderNumbers(); renderDocuments();
+  }
+
+  function setView(v) {
+    S.view = v;
+    var tabs = document.querySelectorAll('.tab');
+    for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle('on', tabs[i].getAttribute('data-view') === v);
+    ['plan', 'assumptions', 'numbers', 'documents'].forEach(function (k) { $('view-' + k).hidden = k !== v; });
+    if (v === 'plan') renderPlan();
+    else if (v === 'assumptions') renderAssumptions();
+    else if (v === 'numbers') renderNumbers();
+    else renderDocuments();
+  }
+
+  document.addEventListener('click', function (ev) {
+    var t = ev.target;
+    var el = t.closest ? t.closest('[data-vid],[data-view],[data-fig],[data-asm],[data-doc]') : null;
+    if (el) {
+      if (el.hasAttribute('data-vid')) { selectVenture(el.getAttribute('data-vid')); return; }
+      if (el.hasAttribute('data-view')) { setView(el.getAttribute('data-view')); return; }
+      if (el.hasAttribute('data-fig')) { openFigure(el.getAttribute('data-fig')); return; }
+      if (el.hasAttribute('data-asm')) { openAssumption(el.getAttribute('data-asm')); return; }
+      if (el.hasAttribute('data-doc')) { loadDoc(el.getAttribute('data-doc')); return; }
+    }
+    if (t.id === 'dClose' || (t.closest && t.closest('#dClose'))) { closeDrawer(); return; }
+    if (t.id === 'scrim') { closeDrawer(); return; }
+    if (t.id === 'docPrint' || (t.closest && t.closest('#docPrint'))) {
+      if (S.doc) window.open(API + '/ventures/' + encodeURIComponent(S.ventureId) +
+        '/documents/' + encodeURIComponent(S.doc.docKey) + '/print', '_blank', 'noopener');
+      return;
+    }
+    if (t.id === 'docRegen' || (t.closest && t.closest('#docRegen'))) {
+      if (S.doc) startRun('narrate', S.doc.docKey);
+      return;
+    }
+  });
+
+  document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') closeDrawer(); });
+
+  $('newBtn').addEventListener('click', function () {
+    var c = $('newCard');
+    c.hidden = !c.hidden;
+    if (!c.hidden) $('n_idea').focus();
+  });
+  $('n_cancel').addEventListener('click', function () { $('newCard').hidden = true; });
+  $('n_go').addEventListener('click', newVenture);
+  $('recomputeBtn').addEventListener('click', function () { recompute(false); });
+  $('researchBtn').addEventListener('click', function () { startRun('full'); });
+
+  var rz;
+  window.addEventListener('resize', function () {
+    clearTimeout(rz);
+    rz = setTimeout(function () { drawCharts(); }, 160);
+  });
+
+  loadVentures();
+})();
+</script>
+</body>
+</html>

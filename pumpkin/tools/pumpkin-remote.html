@@ -15,13 +15,24 @@
     .row > * { flex:1; }
     select, input { min-height:44px; background:#12100c; color:#ffdca8; border:1px solid rgba(255,170,60,.25); border-radius:10px; padding:11px; font-size:16px; width:100%; }
     button { appearance:none; min-height:44px; border:1px solid rgba(255,170,60,.3); background:#2a1809; color:#ffdca8; padding:12px; border-radius:12px; font-size:15px; touch-action:manipulation; }
+    button:disabled, select:disabled, input:disabled { opacity:.45; cursor:not-allowed; }
     .seg.on { background:#ff8c1a; color:#1a0a00; border-color:#ffb020; font-weight:600; }
     .mic { width:220px; height:220px; border-radius:50%; margin:22px 0 10px; font-size:20px; font-weight:600;
       background:radial-gradient(circle at 50% 40%, #ff8c1a, #b34700); color:#1a0700; border:none; box-shadow:0 0 40px rgba(255,120,0,.4);
       transition:transform .08s, box-shadow .2s; }
     .mic:active, .mic.live { transform:scale(.95); box-shadow:0 0 70px rgba(53,208,122,.7); background:radial-gradient(circle at 50% 40%, #45e08a, #158f4c); color:#062; }
+    .mic:disabled { box-shadow:none; background:radial-gradient(circle at 50% 40%, #6b4a24, #3a2410); color:#2a1a08; transform:none; }
     .heard { min-height:44px; font-size:16px; text-align:center; max-width:420px; color:#fff3c0; }
     .status { font-size:12px; color:#ffcf7a; min-height:16px; text-align:center; }
+    .saved { width:100%; max-width:420px; margin-top:14px; }
+    .savedHead { display:flex; align-items:center; justify-content:space-between; font-size:12px; text-transform:uppercase; letter-spacing:.6px; color:#ffb020; margin-bottom:6px; }
+    .savedHead button { flex:0 0 auto; min-width:44px; padding:8px; }
+    .savedRow { display:flex; gap:6px; margin-bottom:6px; }
+    .savedRow .play { flex:1 1 auto; text-align:left; font-size:14px; line-height:1.3; overflow:hidden; }
+    .savedRow .play .src { display:block; font-size:10px; color:rgba(255,220,170,.45); text-transform:uppercase; letter-spacing:.5px; }
+    .savedRow .pin, .savedRow .del { flex:0 0 44px; padding:8px; font-size:16px; }
+    .savedRow .pin.on { background:#ff8c1a; color:#1a0a00; border-color:#ffb020; }
+    .savedEmpty { font-size:12px; color:rgba(255,220,170,.45); text-align:center; padding:8px 0; }
     .hint { font-size:12px; color:rgba(255,220,170,.45); margin-top:auto; padding-top:16px; text-align:center; }
     .demo-note { display:none; width:100%; max-width:420px; border:1px solid rgba(255,176,32,.45); background:rgba(255,140,26,.1); border-radius:10px; color:#ffcf7a; font-size:12px; line-height:1.45; padding:10px 12px; margin:0 0 14px; text-align:center; }
     body.demo .demo-note { display:block; }
@@ -41,7 +52,7 @@
     <button id="mAsk" class="seg">Ask pumpkin</button>
   </div>
   <div class="row">
-    <select id="roomSel"><option value="">Main</option></select>
+    <select id="roomSel"><option value="">Looking for the projector…</option></select>
   </div>
   <div class="row">
     <input id="lineText" type="text" placeholder="Or type a line…" />
@@ -51,7 +62,13 @@
   <button id="mic" class="mic">🎤<br>Hold to talk</button>
   <div class="heard" id="heard"></div>
   <div class="status" id="status"></div>
-  <div class="hint">Same login as the projector. Pick the screen's room above.</div>
+
+  <div class="saved">
+    <div class="savedHead"><span>Saved lines — tap to replay</span><button id="savedRefresh" title="Refresh saved lines">↻</button></div>
+    <div id="savedList"></div>
+  </div>
+
+  <div class="hint">Same login as the projector. Pick the screen's room above — “●” means that projector page is live right now.</div>
 
   <script src="/pumpkin/pumpkin-audio.js"></script>
   <script>
@@ -59,7 +76,17 @@
     'use strict';
     var qs=new URLSearchParams(location.search);
     var channel=String(qs.get('channel')||'pumpkin-preview').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,80)||'pumpkin-preview';
-    var S={ mode:'say', room:qs.get('room')||'', token:null, demo:qs.get('demo')==='1', channel:channel, bus:null };
+    // The pairing key three surfaces independently derive. MUST match the server's roomSlug()
+    // byte-for-byte — including trimming the dashes AFTER the 40-char slice, so that
+    // roomSlug(roomSlug(x)) === roomSlug(x). Trimming first makes a long label slug to something
+    // ending in "-", and re-slugifying that yields a DIFFERENT room: the phone then pairs a room
+    // the projector is not subscribed to and the only symptom is "no projector listening".
+    function roomSlug(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40).replace(/(^-|-$)/g,'')||'main'; }
+    // ?room= carries the room SLUG (that is what the control surface now emits, from the server).
+    // Slugify defensively so an older link that carried a LABEL ("Front Porch") still matches the
+    // option values, which are slugs — otherwise sel.value never matches and the picker opens blank.
+    var rawRoom=qs.get('room')||'';
+    var S={ mode:'say', room:(rawRoom?roomSlug(rawRoom):''), roomLabel:rawRoom, token:null, demo:qs.get('demo')==='1', channel:channel, bus:null, roomSig:'' };
     var audio=new window.PumpkinAudio('');
     function $(s){return document.querySelector(s);}
     function api(p,o){o=o||{};o.credentials='include';o.headers=Object.assign({'Content-Type':'application/json'},o.headers||{});return fetch(p,o).then(function(r){return r.json().catch(function(){return{};}).then(function(j){if(!r.ok){var err=new Error(j.message||j.error||('Request failed ('+r.status+')'));throw err;}return j;});});}
@@ -67,19 +94,62 @@
     function guestReply(text){var line=String(text||'').toLowerCase();if(/trick|treat|candy/.test(line))return{say:'A treat for the brave — but mind the shadows behind you!',expression:'mischief',intensity:.78};if(/scary|spooky|boo/.test(line))return{say:'Boo! The candle flickers, and the whole porch wakes up.',expression:'spooky',intensity:.9};var replies=[{say:'The candle heard you. Step closer, little mortal.',expression:'mischief',intensity:.68},{say:'Interesting... the porch remembers every Halloween whisper.',expression:'surprised',intensity:.62},{say:'Heh heh heh... that earns you one glowing pumpkin grin.',expression:'happy',intensity:.72}];var score=0;for(var i=0;i<line.length;i++)score+=line.charCodeAt(i);return replies[score%replies.length];}
 
     function setMode(m){ S.mode=m; $('#mSay').classList.toggle('on',m==='say'); $('#mAsk').classList.toggle('on',m==='ask'); }
+    /** Nothing may be sent until a room is resolvable — pushing into a room nobody is on is the
+     *  failure that reads as "the pumpkin is broken". */
+    function setControlsEnabled(on){ $('#mic').disabled=!on; $('#sendText').disabled=!on; $('#lineText').disabled=!on; }
+    /** The selected room's REAL label. Registering with the label (not the slug) keeps the room's
+     *  display name intact — register() overwrites the stored label with whatever it is given. */
+    function selectedRoomLabel(){
+      var opt=$('#roomSel').selectedOptions[0];
+      if(!opt||!opt.value) return '';
+      return opt.__label || String(opt.textContent||'').replace(/[●○]/g,'').trim();
+    }
     function loadRooms(){
-      if(S.demo){ var demo=$('#roomSel'); demo.innerHTML='<option value="browser-demo">Browser demo projector</option>'; S.room='browser-demo'; return; }
+      if(S.demo){ var demo=$('#roomSel'); demo.innerHTML='<option value="browser-demo">Browser demo projector</option>'; S.room='browser-demo'; setControlsEnabled(true); return; }
       api('/api/pumpkin/rooms').then(function(j){
         var sel=$('#roomSel'); var rooms=(j.rooms||[]);
-        if(!rooms.length){ return; }
-        sel.innerHTML='';
-        rooms.forEach(function(r){ var o=document.createElement('option'); o.value=r.room; o.textContent=r.label+(r.live?' ●':' ○'); sel.appendChild(o); });
-        if(S.room){ sel.value=S.room; } else { S.room=sel.value; }
-      });
+        if(!rooms.length){
+          // Say so, loudly. The old code returned here and left the hardcoded "Main" option in
+          // place, so ensureRoom() minted a phantom room 'main' that no projector was ever on.
+          sel.innerHTML='<option value="">No projector registered yet</option>';
+          sel.disabled=true; S.roomSig='';
+          setControlsEnabled(!!S.roomLabel);
+          $('#status').textContent = S.roomLabel
+            ? 'No projector is registered yet — sending will pair “'+S.roomLabel+'”. Open the projector page on that screen.'
+            : 'No projector is registered yet — open the projector link on the projector device, then wait a moment.';
+          return;
+        }
+        var sig=rooms.map(function(r){ return r.room+':'+(r.live?1:0); }).join('|');
+        if(sig!==S.roomSig){
+          sel.innerHTML='';
+          rooms.forEach(function(r){ var o=document.createElement('option'); o.value=r.room; o.textContent=r.label+(r.live?' ●':' ○'); o.__label=r.label; sel.appendChild(o); });
+          S.roomSig=sig;
+        }
+        sel.disabled=false;
+        // Only adopt a remembered/scanned room when it is ACTUALLY in the list — selecting a value
+        // no option carries silently leaves selectedIndex at -1 (the blank-picker bug).
+        var wanted=S.room||(S.roomLabel?roomSlug(S.roomLabel):'');
+        var match=wanted&&rooms.some(function(r){ return r.room===wanted; });
+        sel.value=match?wanted:rooms[0].room;
+        S.room=sel.value; S.roomLabel=selectedRoomLabel()||S.roomLabel;
+        setControlsEnabled(true);
+      }).catch(function(){ /* best-effort refresh; the picker keeps whatever it already resolved */ });
     }
     function ensureRoom(){
-      var label = $('#roomSel').selectedOptions[0] ? ($('#roomSel').selectedOptions[0].textContent||'Main').replace(/[●○]/g,'').trim() : (S.room||'Main');
-      return api('/api/pumpkin/rooms/register',{method:'POST',body:JSON.stringify({label:label})}).then(function(j){ S.room=j.room; S.token=j.token; return j; });
+      // Priority: the room the operator actually picked, then whatever ?room= carried (so a scanned
+      // QR can pair before the projector page is open). Never invent "Main".
+      var label=selectedRoomLabel()||S.roomLabel||'';
+      if(!label) return Promise.reject(new Error('Pick the projector’s room first — none is registered yet.'));
+      return api('/api/pumpkin/rooms/register',{method:'POST',body:JSON.stringify({label:label})}).then(function(j){
+        S.room=j.room; S.token=j.token;
+        var sel=$('#roomSel');
+        for(var i=0;i<sel.options.length;i++){ if(sel.options[i].value===j.room){ sel.selectedIndex=i; break; } }
+        return j;
+      });
+    }
+    function noListenerText(){
+      var label=selectedRoomLabel()||S.roomLabel||S.room||'this room';
+      return 'no projector listening on “'+label+'” — is the projector page open on that screen?';
     }
     function send(text){
       if(!text) return;
@@ -87,6 +157,7 @@
       if(S.demo){
         var reply=S.mode==='ask'?guestReply(text):{say:text,expression:'neutral',intensity:.6};
         S.bus.post({type:'speak',say:reply.say,expression:reply.expression,intensity:reply.intensity});
+        localRemember(reply);
         $('#status').textContent=S.mode==='ask'?'🎃 “'+reply.say+'”':'sent to the browser-demo projector';
         return;
       }
@@ -95,8 +166,66 @@
         return api(ep,{method:'POST',body:JSON.stringify({room:S.room,token:S.token,text:text})});
       }).then(function(j){
         if(j && j.listeners>0) $('#status').textContent='🎃 spoken on '+j.listeners+' screen(s)';
-        else $('#status').textContent='no projector listening on this room yet';
+        else $('#status').textContent=noListenerText();
+        loadSaved();
       }).catch(function(err){ $('#status').textContent=(err&&err.message)||'failed to send'; });
+    }
+
+    // ── Saved lines playlist: one tap = instant replay (no fresh generation). ──
+    var LOCAL_SAVED_KEY='oshal.pumpkin.demo.responses.v1';
+    function trunc(s){ s=String(s||''); return s.length>70?s.slice(0,67)+'…':s; }
+    function localSaved(){ try{ var rows=JSON.parse(window.localStorage.getItem(LOCAL_SAVED_KEY)||'[]'); return Array.isArray(rows)?rows:[]; }catch(e){ return []; } }
+    function localStore(rows){ try{ window.localStorage.setItem(LOCAL_SAVED_KEY,JSON.stringify(rows.slice(0,40))); }catch(e){} }
+    function localRemember(reply){
+      if(!reply||!reply.say) return;
+      var rows=localSaved().filter(function(r){ return String(r.say||'').toLowerCase()!==String(reply.say).toLowerCase(); });
+      rows.unshift({ id:'local-'+Date.now(), say:reply.say, expression:reply.expression||'neutral', intensity:(reply.intensity==null?0.6:reply.intensity), source:S.mode==='ask'?'autonomous':'mimic', pinned:false });
+      localStore(rows); renderSaved(rows);
+    }
+    function loadSaved(){
+      if(S.demo){ renderSaved(localSaved()); return; }
+      api('/api/pumpkin/responses').then(function(j){ renderSaved(j.responses||[]); }).catch(function(){ /* playlist degrades quietly */ });
+    }
+    function renderSaved(rows){
+      var host=$('#savedList'); host.innerHTML='';
+      if(!rows.length){ var e=document.createElement('div'); e.className='savedEmpty'; e.textContent='Every line the pumpkin speaks lands here — tap one to replay it instantly.'; host.appendChild(e); return; }
+      rows.forEach(function(r){
+        var row=document.createElement('div'); row.className='savedRow';
+        var play=document.createElement('button'); play.className='play'; play.title='Replay on the projector';
+        play.textContent='🎃 '+trunc(r.say);
+        var src=document.createElement('span'); src.className='src'; src.textContent=(r.source||'')+(r.playCount?(' · played '+r.playCount+'×'):''); play.appendChild(src);
+        play.onclick=function(){ replaySaved(r); };
+        var pin=document.createElement('button'); pin.className='pin'+(r.pinned?' on':''); pin.textContent=r.pinned?'★':'☆'; pin.title=r.pinned?'Unpin':'Pin (keep forever)';
+        pin.onclick=function(){ togglePin(r); };
+        var del=document.createElement('button'); del.className='del'; del.textContent='✕'; del.title='Delete saved line';
+        del.onclick=function(){ deleteSaved(r); };
+        row.appendChild(play); row.appendChild(pin); row.appendChild(del); host.appendChild(row);
+      });
+    }
+    function replaySaved(r){
+      if(S.demo){
+        S.bus.post({type:'speak',say:r.say,expression:r.expression||'neutral',intensity:(r.intensity==null?0.6:r.intensity)});
+        $('#status').textContent='🎃 replayed “'+trunc(r.say)+'”';
+        return;
+      }
+      $('#status').textContent='Replaying…';
+      ensureRoom().then(function(){
+        return api('/api/pumpkin/rooms/replay',{method:'POST',body:JSON.stringify({room:S.room,token:S.token,id:r.id})});
+      }).then(function(j){
+        if(j && j.listeners>0) $('#status').textContent='🎃 replayed on '+j.listeners+' screen(s)';
+        else $('#status').textContent=noListenerText();
+        loadSaved();
+      }).catch(function(err){ $('#status').textContent=(err&&err.message)||'replay failed'; });
+    }
+    function togglePin(r){
+      if(S.demo){ var rows=localSaved(); rows.forEach(function(x){ if(x.id===r.id) x.pinned=!x.pinned; }); localStore(rows); renderSaved(rows); return; }
+      api('/api/pumpkin/responses/'+encodeURIComponent(r.id),{method:'PATCH',body:JSON.stringify({pinned:!r.pinned})})
+        .then(loadSaved).catch(function(err){ $('#status').textContent=(err&&err.message)||'pin failed'; });
+    }
+    function deleteSaved(r){
+      if(S.demo){ localStore(localSaved().filter(function(x){ return x.id!==r.id; })); renderSaved(localSaved()); return; }
+      api('/api/pumpkin/responses/'+encodeURIComponent(r.id),{method:'DELETE'})
+        .then(loadSaved).catch(function(err){ $('#status').textContent=(err&&err.message)||'delete failed'; });
     }
 
     var listening=false;
@@ -106,13 +235,19 @@
     function stop(){ if(!listening) return; audio.stopListening(); listening=false; $('#mic').classList.remove('live'); }
 
     $('#mSay').onclick=function(){setMode('say');}; $('#mAsk').onclick=function(){setMode('ask');};
+    // Without this the visible selection and S.room disagreed until the first send, and the 15s
+    // room poll kept re-selecting the stale S.room over the operator's pick.
+    $('#roomSel').onchange=function(){ S.room=this.value; S.roomLabel=selectedRoomLabel()||S.roomLabel; $('#status').textContent=''; };
     $('#sendText').onclick=function(){var input=$('#lineText');var text=input.value.trim();if(!text){$('#status').textContent='type a line first';return;}send(text);};
     $('#lineText').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();$('#sendText').click();}});
     var mic=$('#mic');
     mic.addEventListener('pointerdown',function(e){e.preventDefault();try{mic.setPointerCapture(e.pointerId);}catch(err){}start();});
     ['pointerup','pointercancel','lostpointercapture'].forEach(function(type){mic.addEventListener(type,function(e){e.preventDefault();stop();});});
+    $('#savedRefresh').onclick=function(){loadSaved();};
     if(S.demo){document.body.classList.add('demo');S.bus=createDemoBus(S.channel);}
-    setMode('say'); loadRooms(); setInterval(loadRooms,15000);
+    // Start closed unless we already know a room; loadRooms() opens the controls the moment one exists.
+    setControlsEnabled(S.demo||!!S.roomLabel);
+    setMode('say'); loadRooms(); loadSaved(); setInterval(loadRooms,15000);
   })();
   </script>
 </body>

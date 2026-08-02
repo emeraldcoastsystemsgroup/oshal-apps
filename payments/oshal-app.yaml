@@ -35,13 +35,19 @@ theme: ocean
 
 source:
   type: git-subdir
-  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: payments
   ref: main
 
 # Kernel skills + core connector infra only — no app, tool, or connector-install deps.
 # (dependencies.connectors is the runtime connector ALLOW-LIST: this app's surfaces
 # offer the two merchant rails.)
+# Kernel skills this package IMPORTS (ADR-085 §2). Declared because an undeclared import is
+# invisible to the prune guard: the first carve that drops the skill would break this app at
+# MOUNT time, not at compile time. See docs/apps/kernel-skills.md.
+uses:
+  - payments         # payments-routes.js calls the kernel payments engine (ADR-093: only the surface carved)
+
 dependencies:
   apps: []
   tools: []

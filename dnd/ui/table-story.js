@@ -32,6 +32,9 @@
  * 2026-07-23 00:22:11 | roger.murphy@emeraldcoastsystemsgroup.com  | Keep ordinary rules/help conversation text-and-voice only so paid cutaways remain reserved for openings, combat rounds, and confirmed kills.
  * 2026-07-23 11:21:50 | roger.murphy@emeraldcoastsystemsgroup.com  | Preserve active narration across ordinary multiplayer state reconciliation instead of cutting audio on every revision.
  * 2026-07-23 11:36:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Adopt byte-equivalent authoritative replies without cancelling the active dice, narration, or death-save presenter.
+ * 2026-07-27 22:05:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Release every joined player from the lobby when the host begins ANY quest mode, not only combat, so a story-first investigation cannot run behind a stuck join-code screen.
+ * 2026-07-27 23:55:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Announce once when /sync reports newer served table code than this page is running — a whole chapter was played on stale JS with no way to know.
+ * 2026-07-31 23:40:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Roadmap #13: a rolled LEAD d20 (sharedRoll.lead) submits to the exploration commit instead of DM narration — the same overlay, the same requested/rolled/resolved lifecycle, a different landing. Overlay copy says what is actually happening (recording the outcome, not a DM reply).
  */
 
 'use strict';
@@ -289,12 +292,17 @@ function diceResultCopy(ctx, result) {
 }
 async function submitDiceNarration(ctx, copy) {
   if (ctx.submitting) return; ctx.submitting = true; openStory();
-  ctx.el.querySelector('.dice-ask').textContent = `${copy.summary} The result is locked. The Dungeon Master is responding…`;
-  ctx.rollButton.disabled = true; ctx.rollButton.textContent = 'DM IS RESPONDING…'; ctx.closeButton.textContent = 'Keep result & hide';
-  const response = await dmNarrate(copy.resultText, { rollResult: true, rollSummary: copy.summary, rollId: ctx.shared ? ctx.req.id : null });
+  // A LEAD roll (roadmap #13) lands on the exploration commit, not DM narration —
+  // same overlay, same requested/rolled/resolved lifecycle, different landing.
+  const leadRoll = !!(ctx.shared && ctx.req && ctx.req.lead);
+  ctx.el.querySelector('.dice-ask').textContent = `${copy.summary} The result is locked. ${leadRoll ? 'The table is recording the outcome…' : 'The Dungeon Master is responding…'}`;
+  ctx.rollButton.disabled = true; ctx.rollButton.textContent = leadRoll ? 'RECORDING…' : 'DM IS RESPONDING…'; ctx.closeButton.textContent = 'Keep result & hide';
+  const response = leadRoll
+    ? await commitLeadRoll(ctx.req).catch(() => null)
+    : await dmNarrate(copy.resultText, { rollResult: true, rollSummary: copy.summary, rollId: ctx.shared ? ctx.req.id : null });
   if (!ctx.el.isConnected) return;
   if (response && response.ok) {
-    ctx.el.querySelector('.dice-ask').textContent = `${copy.summary} The Dungeon Master answered — play continues.`;
+    ctx.el.querySelector('.dice-ask').textContent = `${copy.summary} ${leadRoll ? 'The outcome is on the table — play continues.' : 'The Dungeon Master answered — play continues.'}`;
     ctx.rollButton.disabled = false; ctx.rollButton.textContent = 'RETURN TO BOARD'; ctx.rollButton.onclick = () => ctx.el.remove();
     clearTimeout(ctx.removeTimer); ctx.removeTimer = setTimeout(() => { if (ctx.el.isConnected) ctx.el.remove(); }, 1400); return;
   }
@@ -317,7 +325,7 @@ async function finishResolvedDiceContext(ctx) {
   if (!ctx.done) await revealDiceResult(ctx, ctx.req, false);
   if (!ctx.el.isConnected) return;
   const copy = diceResultCopy(ctx, ctx.req);
-  ctx.el.querySelector('.dice-ask').textContent = `${copy.summary} The Dungeon Master answered — play continues.`;
+  ctx.el.querySelector('.dice-ask').textContent = `${copy.summary} ${ctx.req && ctx.req.lead ? 'The outcome is on the table — play continues.' : 'The Dungeon Master answered — play continues.'}`;
   ctx.rollButton.disabled = false; ctx.rollButton.textContent = 'RETURN TO BOARD'; ctx.rollButton.onclick = () => ctx.el.remove();
   ctx.closeButton.disabled = false; ctx.closeButton.textContent = 'Return to board'; ctx.closeButton.onclick = () => ctx.el.remove();
   clearTimeout(ctx.removeTimer); ctx.removeTimer = setTimeout(() => { if (ctx.el.isConnected) ctx.el.remove(); }, 1800);
@@ -639,6 +647,7 @@ function applyAuthoritativeState(nextState, nextRev, nextSheets, nextSheetsRev) 
   if (modeWas !== board.mode && !TV) {
     if (board.mode === 'resolved' || board.mode === 'complete') showResolvedState();
     else if (board.mode === 'defeat') showDefeatState();
+    else if (board.mode === 'exploration') resumeExploration();
   }
 }
 async function restoreAuthoritativeBoard() {
@@ -730,6 +739,27 @@ async function reconcileRewindSync(response, epoch, campaignId) {
   return true;
 }
 
+// Screens a player can still be holding while the table is only being staged.
+// Every one of them is a lie the moment the host starts the quest, so the
+// synchronizer must retire them for ANY live mode — a story-first campaign
+// opens in `exploration`, never `combat`.
+const STAGING_SCREENS = ['lobby', 'tv-lobby', 'character-import', 'claim-heroes'];
+
+/**
+ * @description Retire a staging screen once the shared table is live, and hand the player the running mode.
+ * @returns {boolean} True when a staging screen was retired by this call.
+ */
+function leaveStagingScreenForLiveQuest() {
+  if (!board || !['exploration', 'combat'].includes(board.mode)) return false;
+  if (!STAGING_SCREENS.includes($('overlayCard').dataset.screen)) return false;
+  closeOverlay();
+  if (TV) return true;
+  if (board.mode === 'exploration') resumeExploration();
+  else setStoryOpen(false);
+  banner('The host began the quest — you are in the story now.');
+  return true;
+}
+
 /** @description Apply one poll response in branch-safe deterministic order. */
 async function reconcileSyncResponse(response, epoch, campaignId) {
   const responseMayPresent = archiveResponseMayPresent();
@@ -754,13 +784,23 @@ async function reconcileSyncResponse(response, epoch, campaignId) {
   }
   if (!syncContextCurrent(epoch, campaignId)) return;
   resumeCombatAfterSeatChange(seatsChanged, stateReconciled);
-  if ((seatsChanged || sheetsChanged) && $('overlayCard').dataset.screen === 'lobby') showLobby();
-  if (board.mode === 'combat' && ['lobby', 'tv-lobby', 'character-import', 'claim-heroes'].includes($('overlayCard').dataset.screen)) closeOverlay();
+  if (board.mode === 'setup' && (seatsChanged || sheetsChanged) && $('overlayCard').dataset.screen === 'lobby') showLobby();
+  leaveStagingScreenForLiveQuest();
 }
 
 /** @description Invalidate any pre-rewind poll before its abandoned tail can land. */
 function pauseSyncForRewind() {
   clearInterval(syncTimer); syncTimer = null; syncEpoch++; syncInFlight = false;
+}
+// One announcement per page life: a stale tab keeps working (the server is the
+// authority), but its player deserves to know newer table code is being served.
+let staleBuildAnnounced = false;
+function noteServerBuild(build) {
+  if (staleBuildAnnounced || !build) return;
+  const mine = typeof window !== 'undefined' && window.__dndBuild;
+  if (!mine || mine === build) return;
+  staleBuildAnnounced = true;
+  banner('The table was updated while you played — refresh this page to load the new version.');
 }
 function startSync() {
   clearInterval(syncTimer);
@@ -774,6 +814,7 @@ function startSync() {
       const requestRev = rev, requestSeq = lastSeq, requestSheetsRev = sheetsRev;
       const r = await api(`/sync?campaignId=${campaignId}&rev=${requestRev}&seq=${requestSeq}&sheetsRev=${encodeURIComponent(requestSheetsRev || '')}`, { timeoutMs: 8000 });
       if (epoch !== syncEpoch || !campaign || campaign.campaign_id !== campaignId || !r.ok) return;
+      noteServerBuild(r.build);
       await reconcileSyncResponse(r, epoch, campaignId);
     } catch (_e) { /* transient */ }
     finally { if (epoch === syncEpoch) syncInFlight = false; }

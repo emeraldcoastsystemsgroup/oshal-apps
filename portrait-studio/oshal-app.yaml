@@ -7,7 +7,7 @@
 #     human-type body, hands in frame, in a themed scene — American Gothic with
 #     a pitchfork, steel-mill worker, Renaissance noble, astronaut, …
 #
-# ADR-085 package: self-contained, installed from the oshal-applications store,
+# ADR-085 package: self-contained, installed from the oshal-apps store,
 # nothing compiled into the swarm core. Every path below is package-relative.
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -27,7 +27,7 @@ scope: public
 
 source:
   type: git-subdir
-  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: portrait-studio
   ref: main
 

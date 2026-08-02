@@ -18,16 +18,46 @@ resume-studio / profile-studio / mobile swipe surfaces; jobs knowledge graph.
   `chatBot: career-hunter` drives the cockpit chat panel), the 12 CLI tools
   (`career_database` … `career_refresh_status`), 10 ribbon tiles, ticketType
   `career-application` + workflow, `guestTier: readonly` request.
-- `src-routes/` — the 9 route modules (compiled to `routes/` by `oshal-app build`):
+- `src-routes/` — the 12 route modules (compiled to `routes/` by `oshal-app build`):
   the hub (`career-hunter-routes`), the cron (`career-hunter-cron` — 18:00 CT scrape +
   07:00 CT digest + boot catch-up, gated by `CAREER_HUNTER_CRON`, started at mount),
-  digest, title-score, resume-studio, profile-studio, artifacts, job-guide, and the
-  jobs graph. Surfaces serve from this package's `tools/` (`__dirname`-relative).
-- `tools/` — 10 surfaces + `career-hunter.css` (loaded via `/api/career-hunter/static/`).
+  digest, title-score, resume-studio, profile-studio, artifacts, job-guide, the
+  jobs graph, plus the two the board leans on — `career-board-feed` (the feed's query
+  planner) and `career-resume-preview` (the in-surface packet preview). Surfaces serve
+  from this package's `tools/` (`__dirname`-relative).
+- `tools/` — 11 surfaces + `career-hunter.css` (loaded via `/api/career-hunter/static/`).
 - `migrations/` — idempotent copies of 031/077/082 + **new `090-career-rls.sql`**
   (closes the audit-found gap: digest + score settings shipped without owner RLS).
-- `tests/` — the 4 app-owned specs (resume alias, digest ×2, title-score).
+- `tests/` — 8 app-owned suites: the vitest specs (resume alias, digest ×2, title-score,
+  board dismiss filter, graph ingestion) and the dependency-free `node --test` suites the
+  `career-hunter` store-ci job runs against the COMPILED modules (`board-feed-plan`,
+  `board-surface`, `resume-preview`, `migration-index-names`).
 - `scripts/` — the graph + insights smoke scripts.
+
+## Two things about the board that are not obvious from the code
+
+**The feed is planned, not joined** (`career-board-feed`). The obvious query — join the corpus,
+LEFT JOIN the user's signals, sort — took **50 seconds** on the live store (1.45M postings /
+2.0GB `corpus.db`, of which **1.1GB is `description` text**, so every posting row SQLite touches
+drags ~2.6KB the board never renders through the page cache). The feed instead drives from
+`user_signals` through `idx_user_scored` in sort-key order, bounded by a candidate pool, and
+reaches the corpus only for that bounded set; signal-side predicates are pushed INTO the pool so
+the index walk is range-bounded. Same 150 rows, same order — **37ms**. Two rules that keep it
+that way: predicates stay **sargable** (`p.target_role = 1`, never `COALESCE(p.target_role,0) = 1`
+— equivalent, but no index can serve the second), and the board's SELECT never grows to include
+`p.description`. The board indexes + `ANALYZE` live in `engine/jobhunter/db.py`'s schema, so a
+fresh install gets them; if a board is slow on a new box, check `sqlite_stat1` exists first.
+
+**The packet preview serves HTML, not the PDF** (`career-resume-preview`, `?as=html`). No mobile
+browser renders a PDF in an `<iframe>` — iOS has no in-page PDF renderer at all and only hands
+PDFs to its native viewer on *top-level* navigations, so the frame keeps its full CSS box and
+paints nothing, while `load` still fires so the page cannot detect it. It renders fine on every
+desktop, which is why the blank preview was reported more than once before it was found. The
+generator writes the HTML *first* and prints the PDF from it, so a byte-exact source of every
+packet is already on disk beside it; the preview serves that sibling with an appended
+`@media screen` stylesheet (the templates are laid out for 8.5in). A missing sibling **404s and
+must never fall back to the PDF** — a silent fallback restores the invisible preview with no way
+to tell. The PDF stays the artifact of record and every surface keeps a link to open it.
 
 ## What deliberately stays in the framework (ADR-093 interim)
 

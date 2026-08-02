@@ -1,6 +1,6 @@
 # hello-oshal — the minimal working example
 
-The smallest real OSHAL app package: one self-contained route + one ribbon tile. Use it to
+The smallest real OSHAL app package: one self-contained route + one themed ribbon surface. Use it to
 prove the install loop, and copy it as the starting point for a new extension.
 
 ```

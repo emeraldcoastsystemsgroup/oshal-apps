@@ -11,11 +11,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Portrait Studio</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
 <style>
   :root {
-    --bg: #101418; --panel: #181f26; --panel2: #1f2831; --line: #2c3843;
-    --text: #e8eef4; --dim: #93a4b3; --accent: #4da3ff; --accent2: #ffb454;
-    --ok: #4ecf8a; --err: #ff6b6b; --radius: 12px;
+    --bg: var(--bg-primary, #101418);
+    --panel: var(--bg-card, #181f26);
+    --panel2: var(--bg-tertiary, #1f2831);
+    --line: var(--border-color, #2c3843);
+    --text: var(--text-primary, #e8eef4);
+    --dim: var(--text-secondary, #93a4b3);
+    --accent: var(--accent-primary, #4da3ff);
+    --accent2: var(--status-warning, #ffb454);
+    --ok: var(--status-success, #4ecf8a);
+    --err: var(--status-error, #ff6b6b);
+    --radius: 12px;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);

@@ -1,0 +1,100 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — payroll ("Payroll")
+#
+# Run an ADP-style payroll over your own employee roster: employees with W-4 +
+# election profiles, pay runs (gross → pre-tax → federal percentage-method
+# withholding + FICA with wage-base/additional-Medicare YTD caps → flat state →
+# net), printable pay stubs, and register / quarterly-liability / W-2-preview
+# reports.
+#
+# Deterministic I/O — no LLM, no bot. Tax math is arithmetic over the versioned
+# tables in src-routes/payroll-tax-tables.ts (2026 figures, sources noted in the
+# module); an LLM never computes a dollar. The payments-pattern app shape.
+#
+# oshal COMPUTES payroll and PRODUCES the artifacts — the ACH file, the checks,
+# the 941/940/RT-6 worksheets, the W-2s and the EFW2 submission. Your own bank
+# and the tax agencies execute them; oshal transmits nothing and holds no funds.
+# Every irreversible action (approve, void, generate an ACH file, produce a W-2
+# or EFW2, allocate check numbers, rewrite an account from a notification of
+# change) sits behind the explicit-confirm 428 gate.
+#
+# Every table is user_sub-scoped (one OIDC sub = one company) with tier-1
+# owner RLS applied at the lazy-DDL chokepoint — no migrations needed.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: payroll
+suite: ai-finance   # ADR-097: primary catalog shelf — the app serves the business owner-operator
+displayName: Payroll
+description: >-
+  Run payroll for your team, ADP-style. Earnings CODES (regular, overtime, double
+  time, holiday, PTO, sick, commission, tips, imputed income) with FLSA overtime
+  computed PER WORKWEEK and a weighted regular rate; typed deductions with annual
+  caps, arrears, and garnishments applied in statutory priority under one CCPA
+  ceiling; encrypted SSN/EIN so a W-2 is a document rather than a preview;
+  gross-up; void corrections; a change audit log; and GL journal + federal
+  deposit-schedule reports. Produces the artifacts that get people paid and
+  returns filed — the NACHA ACH file, printable checks, Form 941/940 and Florida
+  RT-6 worksheets, issuable W-2s and the SSA EFW2 submission — then reads the
+  bank's returns and notifications of change back in, so a failed deposit is
+  visible instead of silent. Deterministic engine — no LLM ever computes a
+  dollar, and every tax constant cites the primary IRS/SSA document it was
+  verified against. oshal computes and produces; your bank and the agencies
+  execute. It transmits nothing.
+version: 2.2.0
+status: active
+
+theme: ocean
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: payroll
+  ref: main
+
+# Kernel skills this package IMPORTS (ADR-085 s2). Declared because an undeclared
+# import is invisible to the prune guard: the first carve that drops the skill
+# would break this app at MOUNT time, not at compile time.
+uses:
+  - memory         # @/features/personal-data vault crypto — SSN/bank encryption at rest
+
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+# Payroll data is employee PII + compensation — guests never reach it.
+guestTier: blocked
+
+# Compiled-JS route (built from src-routes/ by `oshal-app build`). One OIDC mount;
+# every handler also self-checks callerSub; POST /runs/:id/approve additionally
+# requires the explicit write confirmation (428 without it).
+routes:
+  - module: routes/payroll-routes.js
+    factory: createPayrollRoutes
+    mountPath: /api/payroll
+    auth: oidc
+    requiresContext: true
+
+# No ticketType / bots — payroll is a deterministic controller-side app.
+# No migrations: owner-scoped tables are created lazily at the RLS chokepoint.
+migrations: []
+
+ui:
+  static:
+    - toolName: payroll-home
+      label: Payroll
+      icon: codicon codicon-organization
+      iframeUrl: /api/payroll/
+      section: top
+
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  defaultView: payroll-home

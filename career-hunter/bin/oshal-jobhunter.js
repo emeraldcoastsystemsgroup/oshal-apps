@@ -188,16 +188,23 @@ async function main() {
       + 'print(json.dumps({"dir":res.get("dir"),"changelog":cl}))']); break;
     // query: the bot's read-the-career-database TOOL — a scoped JSON snapshot of THIS user's
     // hunt (fresh high-fit count, top matches, pipeline counts, top gap themes). Read-only.
-    case 'query': runs.push(['-c', 'import json\nfrom jobhunter import db\n'
+    case 'query': {
+      // freshHighFit keyed off posted_date via SQLite date('now',...). Both wrong: the
+      // function is not valid Postgres, and posted_date is NULL for ~26% of postings
+      // and holds the SCRAPE date for another 286,663 -- the count was meaningless in
+      // either backend. Cutoff is computed here and compared against first_seen_at,
+      // which is populated for 100% of rows and works verbatim in both.
+      const _D3 = new Date(Date.now() - 3 * 864e5).toISOString().slice(0, 10);
+      runs.push(['-c', 'import json\nfrom jobhunter import db\n'
       + 'with db.connect() as conn:\n'
-      + ' fresh=conn.execute("SELECT COUNT(*) FROM postings WHERE active=1 AND COALESCE(target_role,0)=1 AND COALESCE(ai_fit_score,fit_score,0)>=70 AND posted_date>=date(\'now\',\'-3 days\')").fetchone()[0]\n'
+      + ' fresh=conn.execute("SELECT COUNT(*) FROM postings WHERE active=1 AND COALESCE(target_role,0)=1 AND COALESCE(ai_fit_score,fit_score,0)>=70 AND first_seen_at >= \'' + _D3 + '\'").fetchone()[0]\n'
       + ' top=[dict(title=r[0],company=r[1],fit=r[2],status=r[3],salary_max=r[4],posted=r[5]) for r in conn.execute("SELECT p.title,c.name,COALESCE(p.ai_fit_score,p.fit_score),p.status,p.salary_max,p.posted_date FROM postings p JOIN companies c ON c.id=p.company_id WHERE p.active=1 AND COALESCE(p.target_role,0)=1 ORDER BY COALESCE(p.ai_fit_score,-1) DESC LIMIT 10").fetchall()]\n'
       + ' pipe={r[0]:r[1] for r in conn.execute("SELECT status,COUNT(*) FROM postings WHERE status IS NOT NULL AND status<>\'new\' GROUP BY status").fetchall()}\n'
       + ' recent_applied=[dict(title=r[0],company=r[1],fit=r[2],salary_max=r[3],applied_at=r[4]) for r in conn.execute("SELECT p.title,c.name,COALESCE(p.ai_fit_score,p.fit_score),p.salary_max,p.applied_at FROM postings p JOIN companies c ON c.id=p.company_id WHERE p.status=\'applied\' ORDER BY p.applied_at DESC LIMIT 8").fetchall()]\n'
       + 'gaps_top=[]\n'
       + 'try:\n from jobhunter import gaps\n if gaps.is_scanned():\n  t,_=gaps.themes_with_stats(); gaps_top=[dict(title=gaps.title_of(x["key"]),n_jobs=x.get("n_jobs",0)) for x in sorted([x for x in t if x.get("addressable") and x.get("n_jobs",0)>0],key=lambda x:-x.get("n_jobs",0))[:5]]\n'
       + 'except Exception: pass\n'
-      + 'print(json.dumps({"freshHighFit":{"days":3,"minFit":70,"count":fresh},"topMatches":top,"recentApplied":recent_applied,"pipeline":pipe,"topGaps":gaps_top}, default=str))']); break;
+      + 'print(json.dumps({"freshHighFit":{"days":3,"minFit":70,"count":fresh},"topMatches":top,"recentApplied":recent_applied,"pipeline":pipe,"topGaps":gaps_top}, default=str))']); break; }
     case 'discover':runs.push(['-m', 'jobhunter', 'discover', ...(rest.length ? rest : ['--all-missing'])]); break;
     // seturl: set an EXISTING company's careers URL — detect ATS + scrape now (JSON out).
     // The admin "Companies" surface calls this: `seturl --company-id N --url <careers-url>`.

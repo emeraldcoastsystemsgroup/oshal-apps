@@ -5,6 +5,13 @@
   Scorecard (forward-test evidence gate). One long scroll was split into three tabs so each
   view is self-contained; all three data sources still load eagerly on open, tabs only gate
   visibility. Self-contained: no external assets.
+
+  2026-07-30 — THE SCAN NO LONGER HAPPENS WHEN YOU OPEN THIS PAGE. A background poller keeps
+  a snapshot warm on a configured cadence (default hourly), so /scan answers instantly and the
+  header states the snapshot's AGE instead of making you watch a 23-second feed walk. New:
+  "Scan now" (fires an out-of-band refresh, returns immediately), an Alerts tab (what Jarvis
+  has already been told), and a Settings tab rendered from the manifest's settings.schema —
+  cadence for operators, alert thresholds per person.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -111,6 +118,14 @@
   #dlg-err { color: var(--red); font-size: 11px; margin-top: 10px; display: none; }
   .btn-primary { background: #238636; border: 1px solid #2ea043; color: #fff; border-radius: 6px; padding: 7px 16px; font-weight: 600; cursor: pointer; }
   .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+  /* ── Settings tab: one row per manifest settings.schema key ── */
+  .set-grid { display: grid; grid-template-columns: minmax(260px, 1fr) 170px; gap: 8px 16px; align-items: center; max-width: 720px; }
+  .set-grid label { font-size: 12px; }
+  .set-grid label small { display: block; color: var(--dim); font-size: 11px; }
+  .set-grid input, .set-grid select { width: 100%; }
+  .set-grid input[type=checkbox] { width: auto; }
+  .set-grid .locked { color: var(--dim); font-size: 11px; text-align: right; }
+  .stale-pill { padding: 1px 7px; border-radius: 9px; background: #9e6a03aa; color: #ffe8b3; font-size: 11px; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -126,6 +141,8 @@
     <button class="tab active" data-tab="scan" role="tab" aria-selected="true">Scan <span class="tab-badge" id="badge-scan"></span></button>
     <button class="tab" data-tab="account" role="tab" aria-selected="false">Account <span class="tab-badge" id="badge-account"></span></button>
     <button class="tab" data-tab="scorecard" role="tab" aria-selected="false">Scorecard <span class="tab-dot" id="dot-scorecard" title="strategy status"></span></button>
+    <button class="tab" data-tab="alerts" role="tab" aria-selected="false">Alerts <span class="tab-badge" id="badge-alerts"></span></button>
+    <button class="tab" data-tab="settings" role="tab" aria-selected="false">Settings</button>
   </nav>
 </div>
 <main>
@@ -151,7 +168,17 @@
         <option value="playable">playable+</option>
       </select>
       <button id="refresh">Refresh</button>
+      <!-- Distinct actions, deliberately labelled: Refresh re-reads the stored snapshot (instant);
+           Scan now asks the poller for an out-of-band walk (returns immediately, lands in ~30s). -->
+      <button id="scan-now" title="Ask the background scanner for a fresh walk now">Scan now</button>
       <span class="meta" id="counts"></span>
+      <span class="spacer"></span>
+      <span class="meta" id="scan-freshness"></span>
+    </div>
+    <div class="warn" id="awaiting-banner" style="display:none;font-size:12px;padding:10px 12px;margin-bottom:12px">
+      <b>The background scanner hasn't produced its first snapshot yet.</b><br>
+      An empty table below is not a "fold" verdict — there is simply nothing scanned yet. The first
+      walk runs shortly after start (~30s), or press <b>Scan now</b>.
     </div>
     <table id="tbl" style="display:none">
       <thead><tr>
@@ -208,6 +235,46 @@
       Only a <b>PROVEN</b> strategy (one that beats the market's Brier) is allowed to size a real bet. Optimism has to be earned, not assumed.
     </p>
   </section>
+
+  <!-- ── TAB: Alerts — what the background scan has already told you about ── -->
+  <section class="tab-panel" data-panel="alerts" role="tabpanel" hidden>
+    <div class="panel">
+      <h2>Alert history <span class="meta" style="text-transform:none;font-weight:400">— each hand is announced ONCE, the first time it clears your floor</span></h2>
+      <table style="width:100%">
+        <thead><tr><th>When</th><th>Market</th><th>Hand</th><th class="num">Net edge</th><th>Sent via</th></tr></thead>
+        <tbody id="alert-rows"></tbody>
+      </table>
+      <div class="meta" id="alerts-empty" style="margin-top:8px">Nothing yet. When the background scan finds a hand that clears your alert floor, it lands in your Jarvis feed and is listed here.</div>
+    </div>
+    <p class="explain">
+      Alerts are <b>first-seen</b>: the scan re-finds the same hand every cycle, so re-announcing it would train you to ignore it.
+      Change the floor, the strength, or the daily cap on the <b>Settings</b> tab. <b>Jarvis</b> gets these in his feed —
+      ask him "what did the Kalshi scan find?" and he answers from what actually happened, not a fresh scan.
+    </p>
+  </section>
+
+  <!-- ── TAB: Settings — rendered from the manifest's settings.schema ── -->
+  <section class="tab-panel" data-panel="settings" role="tabpanel" hidden>
+    <div class="panel">
+      <h2>Background scan <span class="meta" style="text-transform:none;font-weight:400">— the cadence this deployment scans on</span></h2>
+      <div id="set-deployment" class="set-grid"></div>
+      <div class="meta" id="set-deployment-note" style="margin-top:8px"></div>
+    </div>
+    <div class="panel">
+      <h2>My alerts</h2>
+      <div id="set-user" class="set-grid"></div>
+    </div>
+    <div class="pf-row" style="margin-bottom:14px">
+      <button class="btn-primary" id="set-save">Save settings</button>
+      <span class="meta" id="set-msg"></span>
+    </div>
+    <p class="explain">
+      Defaults ship in the app's <code>oshal-app.yaml</code> (<code>settings.schema</code>) — that file is the source of truth for a
+      fresh install. What you save here overrides it for this deployment (cadence, operator-only) or for you (alerts), and takes
+      effect within a minute without a restart. Outward delivery (email/SMS/Telegram) is <b>off until you turn it on</b> and rides
+      your saved channel + quiet hours from the notification preference center.
+    </p>
+  </section>
 </main>
 
 <dialog id="bet-dlg">
@@ -240,11 +307,12 @@
   <b>Edge (net)</b> = True P − (ask + taker fee). <b>Stake</b> = quarter-Kelly, halved per risk flag, capped at 5% of bankroll.
   Orders are limit-only and confirm-gated; the LIVE exchange is refused unless explicitly enabled.
   <b>Stake is forced to 0% until a strategy out-scores the market on settled predictions</b> — the hand is still shown, it just hasn't earned a slice of the bankroll. Every hand here is recorded as a prediction and graded at settlement.
+  This table is a <b>snapshot</b> kept warm by the background scanner on the cadence in <b>Settings</b> — opening this page never waits on a scan.
 </footer>
 <script>
 (function () {
   'use strict';
-  var state = { hands: [], payload: null, portfolio: null, betHand: null };
+  var state = { hands: [], payload: null, portfolio: null, betHand: null, settings: null };
   function $(id) { return document.getElementById(id); }
   function money(x) { return '$' + Number(x || 0).toFixed(2); }
   // Kalshi's quadratic taker fee, mirrored from kalshi-fees.ts (10-lot basis, ceil to the cent).
@@ -349,14 +417,47 @@
     else if (anyFailing) { dot.className = 'tab-dot show'; dot.style.background = 'var(--amber)'; }
     else { dot.className = 'tab-dot'; }
   }
+  /* ── Background-scan freshness: the header line that replaced the 23-second wait. ─────── */
+  function ago(seconds) {
+    if (seconds === null || seconds === undefined) return 'never';
+    if (seconds < 90) return Math.round(seconds) + 's ago';
+    if (seconds < 5400) return Math.round(seconds / 60) + 'm ago';
+    return (seconds / 3600).toFixed(1) + 'h ago';
+  }
+  function untilText(iso) {
+    if (!iso) return '';
+    var ms = new Date(iso).getTime() - Date.now();
+    if (ms <= 0) return 'due now';
+    return ms < 90000 ? ('in ' + Math.round(ms / 1000) + 's') : ('in ' + Math.round(ms / 60000) + 'm');
+  }
+  function renderFreshness(p) {
+    var s = (p && p.scan) || {};
+    var el = $('scan-freshness');
+    if (!el) return;
+    var bits = [];
+    if (s.running) bits.push('<b>scanning now…</b>');
+    else if (p && p.awaitingFirstScan) bits.push('no snapshot yet');
+    else bits.push('scanned ' + ago(s.ageSeconds));
+    if (s.stale && !s.running && !(p && p.awaitingFirstScan)) bits.push('<span class="stale-pill">STALE</span>');
+    if (s.enabled === false) bits.push('background scan OFF');
+    else if (s.nextRunAt && !s.running) bits.push('next ' + untilText(s.nextRunAt));
+    if (s.intervalMinutes) bits.push('every ' + s.intervalMinutes + 'm');
+    if (s.lastMs) bits.push('took ' + (s.lastMs / 1000).toFixed(1) + 's');
+    if (s.lastError) bits.push('<span style="color:var(--red)">last error: ' + esc(s.lastError) + '</span>');
+    el.innerHTML = bits.join(' · ');
+    $('awaiting-banner').style.display = (p && p.awaitingFirstScan) ? '' : 'none';
+    var btn = $('scan-now');
+    if (btn) { btn.disabled = !!s.running; btn.textContent = s.running ? 'Scanning…' : 'Scan now'; }
+  }
   function load() {
     $('error').style.display = 'none';
-    $('refresh').disabled = true; $('refresh').textContent = 'Scanning…';
+    $('refresh').disabled = true; $('refresh').textContent = 'Loading…';
     fetch('/api/kalshi/scan', { credentials: 'same-origin' })
       .then(function (r) { if (!r.ok) return r.json().then(function (b) { throw new Error(b.error || ('HTTP ' + r.status)); }); return r.json(); })
       .then(function (p) {
         state.payload = p; state.hands = p.hands || [];
         renderScorecard(p);
+        renderFreshness(p);
         $('exch-dot').style.background = p.exchangeActive ? 'var(--green)' : 'var(--red)';
         $('exch-label').textContent = p.exchangeActive ? 'trading active' : 'trading halted';
         $('calib-label').textContent = 'calibration: ' + (p.calibrationGeneratedAt ? new Date(p.calibrationGeneratedAt).toLocaleString() : 'missing');
@@ -368,6 +469,150 @@
       })
       .catch(function (e) { $('error').textContent = 'Scan failed: ' + e.message; $('error').style.display = ''; $('tbl').style.display = 'none'; $('empty').style.display = 'none'; })
       .then(function () { $('refresh').disabled = false; $('refresh').textContent = 'Refresh'; });
+  }
+
+  /* ── "Scan now": ask, don't wait. POST returns 202; we poll the snapshot until it changes. ── */
+  function scanNow() {
+    var btn = $('scan-now');
+    var before = (state.payload && state.payload.generatedAt) || null;
+    btn.disabled = true; btn.textContent = 'Scanning…';
+    fetch('/api/kalshi/scan/run', { method: 'POST', credentials: 'same-origin' })
+      .then(function (r) { return r.json().then(function (b) { if (!r.ok) throw new Error(b.error || ('HTTP ' + r.status)); return b; }); })
+      .then(function () {
+        var tries = 0;
+        // ~3 minutes of 6-second polls: a full walk is ~25s, but the public tier can be slow and
+        // a manual click must not leave the button stuck if it takes longer than usual.
+        var poll = setInterval(function () {
+          tries += 1;
+          fetch('/api/kalshi/scan', { credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (p) {
+              if (!p) return;
+              var changed = p.generatedAt && p.generatedAt !== before;
+              var idle = !(p.scan && p.scan.running);
+              state.payload = p; state.hands = p.hands || [];
+              renderFreshness(p); render(); renderScorecard(p);
+              if (changed || (idle && tries > 3) || tries >= 30) { clearInterval(poll); loadAlerts(); }
+            })
+            .catch(function () { /* transient — the next poll retries */ });
+        }, 6000);
+      })
+      .catch(function (e) { $('error').textContent = 'Scan request failed: ' + e.message; $('error').style.display = ''; btn.disabled = false; btn.textContent = 'Scan now'; });
+  }
+
+  /* ── Alerts: what the background scan has already told this user (and Jarvis). ─────────── */
+  function loadAlerts() {
+    return fetch('/api/kalshi/alerts', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : { alerts: [] }; })
+      .then(function (b) {
+        var rows = b.alerts || [];
+        var tb = $('alert-rows'); tb.innerHTML = '';
+        rows.forEach(function (a) {
+          var d = a.detail || {};
+          var tr = document.createElement('tr');
+          tr.innerHTML =
+            '<td class="meta">' + esc(new Date(a.created_at).toLocaleString()) + '</td>' +
+            '<td><div class="title">' + esc(d.title || a.ticker) + '</div><div class="ticker">' + esc(a.ticker) + '</div></td>' +
+            '<td><span class="badge b-' + esc(a.strength || 'playable') + '">' + esc(a.strength || '—') + '</span>' +
+            (d.side ? ' <span class="side-' + esc(d.side) + '">' + esc(String(d.side).toUpperCase()) + '</span>' : '') + '</td>' +
+            '<td class="num edge-pos">+' + ((Number(a.edge_net) || 0) * 100).toFixed(1) + '¢</td>' +
+            '<td class="meta">' + esc(a.channel || 'none') + (a.delivered ? '' : ' <span style="color:var(--amber)">(not delivered)</span>') + '</td>';
+          tb.appendChild(tr);
+        });
+        $('alerts-empty').style.display = rows.length ? 'none' : '';
+        setBadge('badge-alerts', rows.length ? String(rows.length) : '', '');
+      })
+      .catch(function () { /* the tab just stays empty */ });
+  }
+
+  /* ── Settings: rendered from the MANIFEST's settings.schema (labels, bounds, scope). ──── */
+  function settingInput(key, spec, value, editable) {
+    var type = String(spec.type || 'string');
+    var el;
+    if (type === 'boolean') {
+      el = document.createElement('input'); el.type = 'checkbox'; el.checked = value === true;
+    } else if (Array.isArray(spec.enum)) {
+      el = document.createElement('select');
+      spec.enum.forEach(function (opt) {
+        var o = document.createElement('option'); o.value = opt; o.textContent = opt; el.appendChild(o);
+      });
+      el.value = String(value);
+    } else if (type === 'integer' || type === 'number') {
+      el = document.createElement('input'); el.type = 'number'; el.value = String(value);
+      if (spec.min !== undefined) el.min = String(spec.min);
+      if (spec.max !== undefined) el.max = String(spec.max);
+      if (type === 'integer') el.step = '1';
+    } else {
+      el = document.createElement('input'); el.type = 'text'; el.value = String(value);
+    }
+    el.id = 'set-f-' + key;
+    el.disabled = !editable;
+    return el;
+  }
+  function renderSettings(s) {
+    state.settings = s;
+    var schema = s.schema || {};
+    ['deployment', 'user'].forEach(function (scope) {
+      var host = $('set-' + scope); host.innerHTML = '';
+      var editable = (s.editable && s.editable[scope]) || [];
+      Object.keys(schema).forEach(function (key) {
+        var spec = schema[key] || {};
+        if (String(spec.scope || 'user') !== scope) return;
+        var label = document.createElement('label');
+        label.setAttribute('for', 'set-f-' + key);
+        var bounds = (spec.min !== undefined && spec.max !== undefined) ? ('allowed ' + spec.min + '–' + spec.max) : '';
+        label.innerHTML = esc(spec.label || key) + '<small>' + esc(key) + (bounds ? ' · ' + bounds : '') + '</small>';
+        host.appendChild(label);
+        var may = editable.indexOf(key) >= 0;
+        var cell = document.createElement('div');
+        cell.appendChild(settingInput(key, spec, s.config[key], may));
+        host.appendChild(cell);
+      });
+    });
+    var note = $('set-deployment-note');
+    note.innerHTML = s.isOperator
+      ? 'You are an operator — the cadence knobs above are editable and apply to <b>every</b> user of this deployment.'
+      : 'The cadence is deployment-wide, so only an operator can change it. Your own alert settings below are yours to set.';
+  }
+  function loadSettings() {
+    return fetch('/api/kalshi/settings', { credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(renderSettings)
+      .catch(function (e) { $('set-msg').textContent = 'Could not load settings: ' + e.message; });
+  }
+  function collectSettings(scope) {
+    var s = state.settings, out = {};
+    var editable = (s.editable && s.editable[scope]) || [];
+    editable.forEach(function (key) {
+      var el = $('set-f-' + key); if (!el) return;
+      var spec = (s.schema || {})[key] || {};
+      if (String(spec.type) === 'boolean') out[key] = el.checked;
+      else if (String(spec.type) === 'integer' || String(spec.type) === 'number') out[key] = Number(el.value);
+      else out[key] = el.value;
+    });
+    return out;
+  }
+  function saveSettings() {
+    if (!state.settings) return;
+    var btn = $('set-save');
+    btn.disabled = true; $('set-msg').textContent = 'Saving…';
+    var scopes = ['user'];
+    if (state.settings.isOperator) scopes.push('deployment');
+    // Sequential PUTs so the second sees the first's row — and so one failure is attributable.
+    scopes.reduce(function (chain, scope) {
+      return chain.then(function () {
+        var settings = collectSettings(scope);
+        if (!Object.keys(settings).length) return null;
+        return fetch('/api/kalshi/settings', {
+          method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scope: scope, settings: settings }),
+        }).then(function (r) { return r.json().then(function (b) { if (!r.ok) throw new Error(b.error || ('HTTP ' + r.status)); return b; }); });
+      });
+    }, Promise.resolve())
+      .then(function () { $('set-msg').textContent = 'Saved — the scanner picks this up within a minute.'; return loadSettings(); })
+      .then(function () { return load(); })
+      .catch(function (e) { $('set-msg').textContent = 'Save failed: ' + e.message; })
+      .then(function () { btn.disabled = false; });
   }
 
   /* ── Phase 2: portfolio ───────────────────────────────────────────────────── */
@@ -501,6 +746,8 @@
     tabEls[t].addEventListener('click', function () { activateTab(this.getAttribute('data-tab')); });
   }
   $('refresh').addEventListener('click', load);
+  $('scan-now').addEventListener('click', scanNow);
+  $('set-save').addEventListener('click', saveSettings);
   $('pf-refresh').addEventListener('click', loadPortfolio);
   $('dlg-confirm').addEventListener('click', submitBet);
   $('dlg-count').addEventListener('input', dlgSummary);
@@ -510,7 +757,12 @@
   $('f-strength').addEventListener('change', render);
   loadStatus().then(loadPortfolio);
   load();
-  setInterval(load, 180000);
+  loadAlerts();
+  loadSettings();
+  // The snapshot read is now cheap (one row), so poll it every 30s: the freshness line stays
+  // honest, a poller cycle appears on its own, and nothing here ever triggers a scan.
+  setInterval(load, 30000);
+  setInterval(loadAlerts, 120000);
   setInterval(loadPortfolio, 60000);
 })();
 </script>

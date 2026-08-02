@@ -42,6 +42,7 @@ exports.createCareerHunterRoutes = createCareerHunterRoutes;
  * 2026-07-17 02:05:00 | roger.murphy@emeraldcoastsystemsgroup.com | Admin refresh trigger (operator: run the whole jobs pipeline from the cockpit, no dev-tool round-trips): POST /run/refresh fires the SAME evening scrape+index chain the 18:00 cron runs, detached, single-flighted in the cron module; GET /run/refresh reports {running, corpusFreshAt}. Auth = career admin via OIDC session OR a trusted in-container service call (X-Service-Secret + X-Oshal-User-Sub, still admin-checked) — the career_refresh bot tool's path. listStoreUsers now excludes underscore-prefixed dirs (backup dirs parked in the tenant dir had become phantom cron users).
  * 2026-07-21 21:40:00 | roger.murphy@emeraldcoastsystemsgroup.com | Fix operator-reported board misbehavior: dismissed jobs came back on every reload. Dismiss persists user_signals.status='dismissed' and the surface animates the card away without reloading (ac34b79), but GET /jobs only filtered on status when the caller named one — so the default feed still returned dismissed rows, and they re-rendered with no Dismiss button (the surface hides it at that status), leaving un-clearable cards. 70 were sitting in the live default view. buildJobFilters now excludes dismissed unless an explicit status is requested (the "Dismissed" tab sends status=dismissed and still lists them), and is hoisted to module scope + exported so the rule is directly testable.
  * 2026-07-21 22:05:00 | roger.murphy@emeraldcoastsystemsgroup.com | Fix carve regression surfaced by the same board report: the engine CLI const was hardcoded to cwd()/scripts/oshal-jobhunter.js, but the carve (core 7194f417) deleted that file from the framework — the package ships its own at bin/. Every engine spawn died with MODULE_NOT_FOUND, so the board's Match/Score buttons did nothing and the nightly title pass logged titlePass:{ran:false,reason:'engine-failed'} for every user. Resolution is now override → packaged bin (sibling of compiled routes/) → legacy core path, via exported resolveEngineCli().
+ * 2026-07-24 02:40:00 | roger.murphy@emeraldcoastsystemsgroup.com | Explicit opt-in automation gate (operator directive 2026-07-24: drafts were auto-generated + queued for jobs the operator never picked). enqueueForUser now takes a trigger and DEFAULT-DENIES automated callers unless the user's career_automation_settings row (migration 091) explicitly opts in to auto_generate — absent row = OFF. The human /enqueue-drafts click passes trigger:'manual' and keeps working. Settings routes registered via registerCareerAutomationRoutes (career-automation module).
  *
  * @module career-hunter-routes
  */
@@ -57,9 +58,12 @@ const connector_token_crypto_1 = require("@/app/routes/connector-token-crypto");
 const career_resume_studio_routes_1 = require("./career-resume-studio-routes");
 const career_profile_studio_routes_1 = require("./career-profile-studio-routes");
 const career_digest_1 = require("./career-digest");
+const career_automation_1 = require("./career-automation");
 const career_artifacts_1 = require("./career-artifacts");
 const career_job_guide_1 = require("./career-job-guide");
 const career_title_score_1 = require("./career-title-score");
+const career_board_feed_1 = require("./career-board-feed");
+const career_resume_preview_1 = require("./career-resume-preview");
 const logger = (0, logger_1.createChildLogger)({ module: 'career-hunter-routes' });
 const TOOL_DIR = path_1.default.resolve(__dirname, '..', 'tools'); // ADR-085: surfaces ship in this package's tools/ (compiled file lives in <pkg>/routes/)
 /**
@@ -95,13 +99,25 @@ function userPaths(userSub) {
         userDb: path_1.default.join(userDir, `user-${userSub}.db`),
     };
 }
-/** Open the user's signals DB with the shared corpus ATTACHed. Null if not seeded yet. */
+/** Open the user's signals DB with the shared corpus ATTACHed. Null if not seeded yet.
+ *  The two pragmas matter on this store: corpus.db is ~2GB and SQLite's default 2MB page cache
+ *  re-reads the same b-tree interior pages on every request. A 64MB cache plus a 256MB mmap
+ *  window keeps the hot index pages resident for the cost of ~2ms at open (measured), which is
+ *  why the handle is still opened per request rather than pooled — pooling would buy the same 2ms
+ *  and add a stale-inode failure mode after the nightly corpus rebuild. */
 function openUserDb(userSub, readonly = true) {
     const { corpusDb, userDb } = userPaths(userSub);
     if (!fs_1.default.existsSync(corpusDb) || !fs_1.default.existsSync(userDb))
         return null;
     const db = new better_sqlite3_1.default(userDb, { readonly });
     db.exec(`ATTACH DATABASE '${corpusDb.replace(/'/g, "''")}' AS corpus`);
+    try {
+        db.pragma('cache_size=-65536');
+        db.pragma('mmap_size=268435456');
+    }
+    catch (err) {
+        logger.warn({ err }, 'career db pragma tuning skipped');
+    }
     return db;
 }
 /** Career-hunter admin allow-list. Company-URL remediation writes to the SHARED corpus
@@ -218,8 +234,18 @@ function ensureBoard(userSub) {
     return port;
 }
 /** Create approval_required application tickets for a user's top-N fresh scored roles.
- *  Shared by the /enqueue-drafts route and the cron. Returns how many were created. */
-async function enqueueForUser(ctx, userSub, limit = 10) {
+ *  Shared by the /enqueue-drafts route and the cron. Returns how many were created.
+ *  AUTOMATION IS EXPLICIT OPT-IN (operator directive 2026-07-24): any caller that is not a
+ *  direct human action (trigger 'manual') is gated server-side on the user's auto_generate
+ *  opt-in — absent row = OFF, so the cron generates NOTHING for a user who never opted in. */
+async function enqueueForUser(ctx, userSub, limit = 10, opts = {}) {
+    if (opts.trigger !== 'manual') {
+        const auto = await (0, career_automation_1.readAutomationSettingsSystem)(ctx, userSub);
+        if (!auto.autoGenerate) {
+            logger.info({ userSub }, 'auto-draft enqueue skipped: user has not opted in to automation');
+            return 0;
+        }
+    }
     const pool = ctx.pool;
     const db = openUserDb(userSub);
     if (!db)
@@ -330,71 +356,17 @@ function runUserScore(userSub, opts = {}) {
     });
 }
 /**
- * @description Builds the WHERE clause for the board's job feed from the surface's query params.
- *   Module-scoped (not a route closure) so the dismissed-exclusion rule below is directly testable.
- *
- *   Dismissed jobs are excluded unless the caller asks for a specific status. The board's Dismiss
- *   button persists `user_signals.status='dismissed'` and animates the card away WITHOUT reloading,
- *   so a feed that still returned dismissed rows looked correct until the next refresh — then every
- *   dismissed job reappeared, and rendered with no Dismiss button (the surface hides it at that
- *   status), leaving un-clearable cards in the feed. Clicking the "Dismissed" pipeline tab sends
- *   `status=dismissed`, which takes the explicit branch and still lists them.
- *
- * @param query - Express request query for the board feed (`status`, `lane`, `q`, filters).
- * @returns The composed SQL fragment and its positional bind arguments.
+ * The board feed's filter composition and query plan live in ./career-board-feed. Re-exported here
+ * because that is where the dismissed-exclusion rule has always been imported from, and the rule
+ * itself is load-bearing: dismissed jobs are excluded unless the caller asks for a specific status.
+ * The board's Dismiss button persists `user_signals.status='dismissed'` and animates the card away
+ * WITHOUT reloading, so a feed that still returned dismissed rows looked correct until the next
+ * refresh — then every dismissed job reappeared, and rendered with no Dismiss button (the surface
+ * hides it at that status), leaving un-clearable cards. The "Dismissed" pipeline tab sends
+ * `status=dismissed`, which takes the explicit branch and still lists them.
  */
 function buildJobFilters(query) {
-    const where = ['p.active = 1'];
-    const args = [];
-    const g = (k) => (typeof query[k] === 'string' ? query[k].trim() : '');
-    if (g('lane') !== 'all')
-        where.push('COALESCE(p.target_role,0) = 1');
-    if (g('q')) {
-        where.push('(p.title LIKE ? OR p.description LIKE ?)');
-        args.push(`%${g('q')}%`, `%${g('q')}%`);
-    }
-    const minScore = parseInt(g('min_score'), 10);
-    if (minScore > 0) {
-        where.push('COALESCE(s.ai_fit_score,s.fit_score,0) >= ?');
-        args.push(minScore);
-    }
-    if (g('company')) {
-        where.push('c.name LIKE ?');
-        args.push(`%${g('company')}%`);
-    }
-    if (g('remote') === '0' || g('remote') === '1') {
-        where.push('p.remote = ?');
-        args.push(Number(g('remote')));
-    }
-    if (g('state')) {
-        where.push('p.state = ?');
-        args.push(g('state').toUpperCase());
-    }
-    if (g('type')) {
-        where.push('p.job_type = ?');
-        args.push(g('type'));
-    }
-    const days = parseInt(g('days'), 10);
-    if (days > 0) {
-        where.push("p.posted_date IS NOT NULL AND p.posted_date >= date('now', ?)");
-        args.push(`-${days} days`);
-    }
-    const minPay = parseInt(g('min_pay'), 10);
-    if (minPay > 0) {
-        where.push('COALESCE(p.salary_max,p.salary_min,0) >= ?');
-        args.push(minPay);
-    }
-    if (g('status')) {
-        where.push('s.status = ?');
-        args.push(g('status'));
-    }
-    else
-        where.push("COALESCE(s.status,'') <> 'dismissed'");
-    if (g('source')) {
-        where.push('c.source_lists LIKE ?');
-        args.push(`%"${g('source')}"%`);
-    }
-    return { whereSql: where.join(' AND '), args };
+    return (0, career_board_feed_1.buildJobFilters)(query);
 }
 function createCareerHunterRoutes(ctx) {
     const router = (0, express_1.Router)();
@@ -435,6 +407,9 @@ function createCareerHunterRoutes(ctx) {
     (0, career_profile_studio_routes_1.registerCareerProfileStudio)(router, ctx);
     // Daily digest settings + preview + send-now (module: career-digest; cron calls its batch).
     (0, career_digest_1.registerCareerDigestRoutes)(router, ctx);
+    // Automation opt-in state + save (module: career-automation; DEFAULT OFF — the cron's
+    // generate/enqueue steps and the bulk submit rail gate on these flags server-side).
+    (0, career_automation_1.registerCareerAutomationRoutes)(router, ctx);
     // Upload MORE than a resume (work samples, emails, LinkedIn export, status reports) -> absorb
     // into the profile; and "talk to the job" (per-posting conversational agent that does the work).
     (0, career_artifacts_1.registerCareerArtifacts)(router, ctx);
@@ -541,30 +516,12 @@ function createCareerHunterRoutes(ctx) {
         ORDER BY updated_at DESC LIMIT 200`, [TENANT, userSub])).rows;
         res.json({ applications: rows });
     });
-    // ── Native board data — faithful port of the legacy engine dashboard index.
-    //    Reads corpus postings + companies LEFT JOIN per-user signals (signal fields on s),
-    //    scoped to the signed-in user. Filters: q/min_score/company/remote/state/type/days/
-    //    min_pay/status/source/lane. Sort: ai/prob/highwin/keyword/salary/company/posted/
-    //    recent/generated/applied. Computes P(land) (recency-decay × referral) + High-Win.
-    const LAND_PROB = "CAST(MIN(100.0, COALESCE(s.ai_fit_score,s.fit_score,0) "
-        + "* MAX(0.25, POW(0.5,(JULIANDAY('now')-JULIANDAY(COALESCE(p.posted_date,p.first_seen_at)))/28.0)) "
-        + "* (1.0+0.35*COALESCE(c.referral,0))) AS INT)";
-    const HIGH_WIN = "CAST(MIN(100, COALESCE(s.ai_fit_score,s.fit_score,0) "
-        + "+ CASE WHEN LOWER(p.title) LIKE '%clear%' OR LOWER(p.title) LIKE '%secret%' OR LOWER(p.title) LIKE '%ts/sci%' OR LOWER(p.title) LIKE '%polygraph%' THEN 12 ELSE 0 END "
-        + "+ CASE WHEN LOWER(p.title) LIKE '%ai%' OR LOWER(p.title) LIKE '%devops%' OR LOWER(p.title) LIKE '%sre%' OR LOWER(p.title) LIKE '%site reliab%' OR LOWER(p.title) LIKE '%platform%' OR LOWER(p.title) LIKE '%automation%' OR LOWER(p.title) LIKE '%machine learning%' THEN 8 ELSE 0 END "
-        + "+ CASE WHEN LOWER(COALESCE(c.industry,'')) LIKE '%gov%' OR LOWER(COALESCE(c.industry,'')) LIKE '%defense%' OR LOWER(COALESCE(c.industry,'')) LIKE '%national security%' OR LOWER(COALESCE(c.industry,'')) LIKE '%aerospace%' OR LOWER(COALESCE(c.industry,'')) LIKE '%autonomy%' OR LOWER(COALESCE(c.industry,'')) LIKE '%intelligence%' THEN 12 ELSE 0 END) AS INT)";
-    const SORT_MAP = {
-        ai: 'COALESCE(s.ai_fit_score,-1) DESC, COALESCE(s.fit_score,0) DESC',
-        prob: `${LAND_PROB} DESC, COALESCE(s.ai_fit_score,0) DESC`,
-        highwin: `${HIGH_WIN} DESC, ${LAND_PROB} DESC`,
-        keyword: 'COALESCE(s.fit_score,0) DESC',
-        salary: 'COALESCE(p.salary_max,0) DESC',
-        company: 'c.name ASC, s.ai_fit_score DESC',
-        posted: 'p.posted_date DESC NULLS LAST',
-        recent: 'p.first_seen_at DESC',
-        generated: 's.generated_at DESC NULLS LAST',
-        applied: 's.applied_at DESC NULLS LAST',
-    };
+    // ── Native board data — the user's ranked feed over the shared corpus.
+    //    Filters: q/min_score/company/remote/state/type/days/min_pay/status/source/lane.
+    //    Sort: ai/prob/highwin/keyword/salary/company/posted/recent/generated/applied.
+    //    Planning (candidate pool, filter push-down, tail-fill) lives in ./career-board-feed —
+    //    see that module for why this is not one flat join. Response carries `pooled`/`poolSize`
+    //    so the surface can say what a corpus-keyed sort was ranked within.
     router.get('/jobs', (req, res) => {
         const userSub = (0, caller_sub_2.callerSub)(req);
         if (!userSub) {
@@ -576,28 +533,17 @@ function createCareerHunterRoutes(ctx) {
             res.json({ jobs: [], empty: true });
             return;
         }
+        const started = Date.now();
         try {
-            const { whereSql, args } = buildJobFilters(req.query);
-            const order = SORT_MAP[String(req.query.sort || 'ai')] || SORT_MAP.ai;
-            const per = Math.min(Math.max(Number(req.query.per) || 120, 1), 300);
-            const page = Math.max(1, Number(req.query.page) || 1);
-            const jobs = db.prepare(`SELECT p.id, p.title, c.name AS company, p.location, p.url, p.posted_date, p.first_seen_at,
-                p.job_type, p.remote, p.state, p.salary_min, p.salary_max, p.salary_currency, p.salary_period, p.salary_source, p.target_role,
-                COALESCE(c.referral,0) AS referral, c.industry,
-                s.fit_score, s.ai_fit_score, s.ai_fit_rationale, s.status, s.applied_at, s.promoted_at, s.generated_at, s.notes,
-                ${LAND_PROB} AS land_prob, ${HIGH_WIN} AS high_win,
-                CASE WHEN s.resume_path IS NOT NULL AND s.resume_path<>'' THEN 1 ELSE 0 END AS has_resume,
-                CASE WHEN s.cover_path  IS NOT NULL AND s.cover_path<>''  THEN 1 ELSE 0 END AS has_cover
-           FROM corpus.postings_corpus p
-           JOIN corpus.companies c ON c.id = p.company_id
-           LEFT JOIN user_signals s ON s.posting_id = p.id
-          WHERE ${whereSql}
-          ORDER BY ${order}
-          LIMIT ? OFFSET ?`).all(...args, per, (page - 1) * per);
-            res.json({ jobs, page, per });
+            const result = (0, career_board_feed_1.fetchBoardPage)(db, req.query);
+            logger.info({
+                userSub, sort: req.query.sort || 'ai', per: result.per, page: result.page,
+                rows: result.jobs.length, poolSize: result.poolSize, ms: Date.now() - started,
+            }, 'career board feed served');
+            res.json(result);
         }
         catch (err) {
-            logger.error({ err }, 'career jobs read failed');
+            logger.error({ err, ms: Date.now() - started }, 'career jobs read failed');
             res.status(500).json({ error: 'read failed' });
         }
         finally {
@@ -620,9 +566,19 @@ function createCareerHunterRoutes(ctx) {
             return;
         }
         try {
-            const byStatus = db.prepare(`SELECT COALESCE(NULLIF(status,''),'(scored)') AS status, COUNT(*) AS n
-           FROM user_signals GROUP BY COALESCE(NULLIF(status,''),'(scored)') ORDER BY n DESC`).all();
-            const total = db.prepare('SELECT COUNT(*) AS n FROM user_signals').get().n;
+            // Grouping on the bare column (not COALESCE(NULLIF(...))) is what lets this ride
+            // idx_user_status as a covering scan instead of evaluating an expression per row over
+            // ~1.3M signals; the empty/NULL bucket is folded in JS. Totalling the groups also drops
+            // the separate COUNT(*), so the whole endpoint is one index pass (402ms -> 180ms).
+            const raw = db.prepare('SELECT status, COUNT(*) AS n FROM user_signals GROUP BY status').all();
+            const buckets = new Map();
+            let total = 0;
+            for (const row of raw) {
+                const key = row.status || '(scored)';
+                buckets.set(key, (buckets.get(key) || 0) + row.n);
+                total += row.n;
+            }
+            const byStatus = [...buckets].map(([status, n]) => ({ status, n })).sort((a, b) => b.n - a.n);
             res.json({ byStatus, total });
         }
         catch (err) {
@@ -722,6 +678,25 @@ function createCareerHunterRoutes(ctx) {
         const safeRoot = path_1.default.resolve(userDir);
         if (!filePath || !path_1.default.resolve(filePath).startsWith(safeRoot) || !fs_1.default.existsSync(filePath)) {
             res.status(404).json({ error: 'not found' });
+            return;
+        }
+        // `as=html` serves the generated HTML the PDF was printed from, for in-surface preview:
+        // no mobile browser renders a PDF in an iframe, so the PDF path can only ever produce an
+        // empty frame there. 404 when the sibling is absent — falling back to the PDF would
+        // silently restore the invisible preview. See ./career-resume-preview.
+        if (req.query.as === 'html') {
+            const htmlPath = (0, career_resume_preview_1.resolvePreviewPath)(filePath, userDir);
+            if (!htmlPath) {
+                res.status(404).json({ error: 'no html preview' });
+                return;
+            }
+            try {
+                res.type('html').send((0, career_resume_preview_1.buildPreviewHtml)(htmlPath));
+            }
+            catch (err) {
+                logger.error({ err }, 'resume html preview failed');
+                res.status(404).json({ error: 'no html preview' });
+            }
             return;
         }
         res.sendFile(filePath, (err) => { if (err) {
@@ -1084,7 +1059,7 @@ function createCareerHunterRoutes(ctx) {
             res.status(401).json({ error: 'unauthorized' });
             return;
         }
-        const created = await enqueueForUser(ctx, userSub, Number(req.body?.limit) || 10);
+        const created = await enqueueForUser(ctx, userSub, Number(req.body?.limit) || 10, { trigger: 'manual' });
         res.json({ created });
     });
     // ── Approve (optionally with OSHAL) -> run the draft, advance the ticket ───
@@ -1263,7 +1238,9 @@ function createCareerHunterRoutes(ctx) {
             res.status(500).json({ ok: false, err: 'no user stores' });
             return;
         }
-        void cron.runEveningScrapeIndex(ctx, users);
+        // manualRefresh: an explicit operator/admin action refreshes the DATA (scrape + keyword
+        // index) even with zero automation opt-ins; draft generation stays per-user gated.
+        void cron.runEveningScrapeIndex(ctx, users, { manualRefresh: true });
         logger.info({ sub, users: users.length }, 'career refresh: full scrape+index chain started');
         res.json({ ok: true, started: true, users: users.length, note: 'scrape+index runs detached; poll GET /run/refresh' });
     });

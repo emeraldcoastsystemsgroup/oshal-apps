@@ -24,12 +24,18 @@ status: active
 
 source:
   type: git-subdir
-  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: storage
   ref: main
 
 # Runtime connector allow-list — the storage surfaces drive Dropbox + GitHub via the
 # per-user broker; the Files tile (core /api/files) also browses Google Drive.
+# Kernel skills this package IMPORTS (ADR-085 §2). Declared because an undeclared import is
+# invisible to the prune guard: the first carve that drops the skill would break this app at
+# MOUNT time, not at compile time. See docs/apps/kernel-skills.md.
+uses:
+  - storage          # storage-routes.js calls the kernel storage-target resolver
+
 dependencies:
   apps: []
   tools: []

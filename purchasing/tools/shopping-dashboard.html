@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Shop — Concierge</title>
+  <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+  <script src="/shared/ui/js/surface-theme.js"></script>
   <link rel="stylesheet" href="/api/purchasing/purchasing.css" />
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
@@ -79,13 +81,22 @@
     async function ensureList() {
       if (listId) return listId;
       const { lists } = await api('/lists');
-      listId = lists[0] ? lists[0].list_id : (await api('/lists', { method: 'POST', body: '{}' })).list.list_id;
+      if (lists[0]) {
+        listId = lists[0].list_id;
+        return listId;
+      }
+      const created = await api('/lists', { method: 'POST', body: '{}' });
+      if (!created.list) {
+        setStatus('Lists are read-only in guest mode. Sign in to create one.');
+        return null;
+      }
+      listId = created.list.list_id;
       return listId;
     }
 
     let lastQuery = '';
     async function addToList(item, basis) {
-      await ensureList();
+      if (!await ensureList()) return;
       const reason = basis || (item.onSale ? 'on rollback' : 'best match');
       await api('/lists/' + listId + '/items', {
         method: 'POST',
@@ -132,7 +143,10 @@
     });
 
     async function loadList() {
-      await ensureList();
+      if (!await ensureList()) {
+        $('#list-items').innerHTML = '<p class="empty">Sign in to create and manage a shopping list.</p>';
+        return;
+      }
       const { items } = await api('/lists/' + listId + '/items');
       const wrap = $('#list-items');
       if (!items.length) { wrap.innerHTML = '<p class="empty">Your list is empty.</p>'; return; }
@@ -155,7 +169,7 @@
     }
 
     $('#checkout').addEventListener('click', async () => {
-      await ensureList();
+      if (!await ensureList()) return;
       setStatus('Building your cart…');
       const r = await api('/checkout', { method: 'POST', body: JSON.stringify({ listId }) });
       const box = $('#checkout-result');

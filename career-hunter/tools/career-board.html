@@ -71,8 +71,24 @@
   .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:9px 15px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; } .toast.show { opacity:1; } .toast.err { border-color:var(--danger); color:var(--danger); }
   ::-webkit-scrollbar{width:11px;height:11px} ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px} ::-webkit-scrollbar-track{background:transparent}
   html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
+  /* Packet preview. The height is viewport-relative rather than a fixed 640px: on a phone a
+     hardcoded 640px box is most of the screen, and when it failed to render (a PDF in a subframe
+     never does on mobile) it was 640px of nothing — the operator's "takes up screenspace but you
+     dont see the preview". Capped so it stays a preview on a desktop monitor too. */
+  .rzbox { width: 100%; height: min(640px, 60vh); border: 1px solid var(--line, #2a2f3a);
+           border-radius: 8px; background: #fff; overflow: hidden; }
+  .rzbox iframe { width: 100%; height: 100%; border: 0; display: block; background: #fff; }
+  .rzmsg { display: flex; align-items: center; justify-content: center; height: 100%;
+           padding: 12px; text-align: center; font-size: 12px; color: #444; }
+  .rzmsg a { color: #1F3A5F; font-weight: 600; }
+  .rzpdf { display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 600;
+           color: var(--accent2, #7dd3a0); text-decoration: none; }
+  .rzpdf:hover { text-decoration: underline; }
+
   @media (max-width: 640px) {
     .wrap { padding: 14px 12px 40px; }
+    /* Phones get a shorter frame AND a real minimum, so the preview is scrollable, not a slab. */
+    .rzbox { height: min(460px, 55vh); }
     .bar { gap: 6px; }
     .bar input[type=search] { width: 100%; min-width: 0; }
     .bar input, .bar select { font-size: 16px; padding: 8px 10px; }
@@ -147,7 +163,7 @@ async function loadStats(){
     const order=['generated','applied','interview','offer','promoted','deferred','dismissed']; const map=Object.fromEntries(byStatus.map(s=>[s.status,s.n]));
     const tabs=[{k:'',label:'All'}].concat(order.filter(s=>map[s]).map(s=>({k:s,label:LABELS[s]||(s[0].toUpperCase()+s.slice(1)),n:map[s]})));
     tabsEl.innerHTML=tabs.map(t=>`<button class="tab${t.k===activeStatus?' active':''}" data-k="${t.k}">${t.label}${t.n!=null?`<span class="n">${t.n}</span>`:''}</button>`).join('');
-    tabsEl.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{ activeStatus=b.dataset.k; loadStats(); loadJobs(); });
+    tabsEl.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{ activeStatus=b.dataset.k; rememberFilters(); loadStats(); loadJobs(); });
   } catch(e){ tabsEl.innerHTML=''; }
 }
 
@@ -177,19 +193,76 @@ function card(j){
   </div>`;
 }
 
+// ── Filter memory ────────────────────────────────────────────────────────────
+// The board is an iframe surface, so every ribbon navigation reloads this document and drops any
+// in-memory state. The filter set is therefore persisted to localStorage on every change and
+// restored before the first fetch. An explicit filter in the URL always wins, so a bookmarked or
+// shared link renders what it says rather than whatever this browser last looked at.
+const FILTER_KEY='career-board.filters.v1';
+const FILTER_IDS=['q','sort','min_score','min_pay','days'];
+const ALL_FILTER_KEYS=FILTER_IDS.concat(['remote','status']);
+
+function currentFilters(){
+  const f={};
+  FILTER_IDS.forEach(k=>{ const v=$(k).value; if(v) f[k]=v; });
+  if($('remote').checked) f.remote='1';
+  if(activeStatus) f.status=activeStatus;
+  return f;
+}
+function applyFilters(f){
+  FILTER_IDS.forEach(k=>{ if(f[k]!=null) $(k).value=f[k]; });
+  $('remote').checked = f.remote==='1';
+  activeStatus = f.status||'';
+}
+function restoreFilters(){
+  const url=Object.fromEntries(new URLSearchParams(location.search));
+  const fromUrl=ALL_FILTER_KEYS.some(k=>url[k]!=null);
+  let saved={};
+  if(!fromUrl){ try{ saved=JSON.parse(localStorage.getItem(FILTER_KEY)||'{}')||{}; }catch(e){ saved={}; } }
+  applyFilters(fromUrl?url:saved);
+}
+function rememberFilters(){
+  const f=currentFilters();
+  try{ localStorage.setItem(FILTER_KEY, JSON.stringify(f)); }catch(e){ /* private mode — session only */ }
+  // Mirror into this frame's URL so the view is bookmarkable/shareable, not just sticky.
+  try{
+    const qs=new URLSearchParams(f).toString();
+    history.replaceState(null,'', qs ? location.pathname+'?'+qs : location.pathname);
+  }catch(e){ /* replaceState is best-effort */ }
+}
+function clearFilters(){
+  FILTER_IDS.forEach(k=>{ $(k).value = k==='sort' ? 'ai' : ''; });
+  $('remote').checked=false; activeStatus='';
+  rememberFilters(); loadStats(); loadJobs();
+}
+
+function jobsQuery(){
+  const p=new URLSearchParams(currentFilters());
+  p.set('per','150');
+  return p;
+}
+function fetchJobs(){
+  return fetch('/api/career-hunter/jobs?'+jobsQuery()).then(r=>r.json());
+}
+function renderJobs(data){
+  const { jobs=[], empty, pooled, poolSize, exhausted } = data||{};
+  if(empty){ listEl.innerHTML='<div class="empty">No job data yet. Run a pull from Career Settings.</div>'; countEl.textContent=''; return; }
+  const filtered=Object.keys(currentFilters()).some(k=>k!=='sort');
+  const notes=[];
+  // Say what the ranking was actually computed over rather than implying a whole-corpus sort.
+  if(jobs.length && pooled && poolSize) notes.push(`ranked within your top ${poolSize.toLocaleString()} matches`);
+  if(jobs.length && exhausted) notes.push('no further scored matches for this filter');
+  countEl.innerHTML = (jobs.length?`${jobs.length} shown`:'')
+    + (notes.length?` <span class="hint">· ${esc(notes.join(' · '))}</span>`:'')
+    + (filtered?` <a href="#" id="clearFilters" class="hint" style="text-decoration:underline">clear filters</a>`:'');
+  const cf=$('clearFilters'); if(cf) cf.onclick=e=>{ e.preventDefault(); clearFilters(); };
+  listEl.innerHTML = jobs.length ? jobs.map(card).join('')
+    : '<div class="empty">No scored jobs match these filters.</div>';
+}
 async function loadJobs(){
   listEl.innerHTML='<div class="empty">Loading…</div>'; countEl.textContent='';
-  const p=new URLSearchParams();
-  if(activeStatus) p.set('status',activeStatus);
-  ['q','sort','min_score','min_pay','days'].forEach(k=>{ const v=$(k).value; if(v) p.set(k,v); });
-  if($('remote').checked) p.set('remote','1');
-  p.set('per','150');
-  try {
-    const { jobs=[], empty } = await (await fetch('/api/career-hunter/jobs?'+p)).json();
-    if(empty){ listEl.innerHTML='<div class="empty">No job data yet. Run a pull from Career Settings.</div>'; return; }
-    countEl.textContent = jobs.length?`${jobs.length} shown`:'';
-    listEl.innerHTML = jobs.length ? jobs.map(card).join('') : '<div class="empty">No jobs match these filters.</div>';
-  } catch(e){ listEl.innerHTML='<div class="empty">Could not load jobs: '+esc(e.message)+'</div>'; }
+  try { renderJobs(await fetchJobs()); }
+  catch(e){ listEl.innerHTML='<div class="empty">Could not load jobs: '+esc(e.message)+'</div>'; }
 }
 
 // ── Submission ───────────────────────────────────────────────────────────────
@@ -262,7 +335,11 @@ async function toggleDetail(id){
   const el=document.getElementById('d'+id);
   if(!el.hidden){ el.hidden=true; return; }
   el.hidden=false; el.innerHTML='<div style="color:var(--muted);font-size:12px;padding:8px">Loading…</div>';
-  try { const { job } = await (await fetch('/api/career-hunter/jobs/'+id)).json(); el.innerHTML=detailHtml(job); }
+  try {
+    const { job } = await (await fetch('/api/career-hunter/jobs/'+id)).json();
+    el.innerHTML=detailHtml(job);
+    rzPreviewInit(el);   // the packet preview is fetched, so it has to be kicked off after render
+  }
   catch(e){ el.innerHTML='<div style="color:var(--danger);font-size:12px">'+esc(e.message)+'</div>'; }
 }
 function detailHtml(j){
@@ -313,16 +390,20 @@ function genLinksHtml(j){
   const r=j.has_resume?`<a class="btn go" href="/api/career-hunter/resume?id=${j.id}&kind=resume" target="_blank" rel="noopener">View resume ↓</a>`:'';
   const c=j.has_cover?`<a class="btn" href="/api/career-hunter/resume?id=${j.id}&kind=cover" target="_blank" rel="noopener">View cover ↓</a>`:'';
   const when=j.generated_at?` · generated ${esc(String(j.generated_at).slice(0,10))}`:'';
-  // Inline pre-submission preview: the exact PDF that would be submitted, right here on the board.
+  // Inline pre-submission preview. This renders the generated HTML the packet PDF was printed
+  // from — NOT the PDF. Pointing an iframe at the PDF is what made this preview invisible on
+  // phones: no mobile browser renders a PDF in a subframe, so the frame kept its full box and
+  // painted nothing. The PDF stays one tap away, because it is the artifact the employer gets.
   const prev = j.has_resume ? `
     <div class="rzprev" style="margin-top:10px">
-      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
         <b style="font-size:12px">Preview before you submit</b>
-        <button class="btn sm" data-k="resume" onclick="rzPreview(${j.id},'resume',this)">Résumé</button>
+        <button class="btn sm active" data-k="resume" onclick="rzPreview(${j.id},'resume',this)">Résumé</button>
         ${j.has_cover?`<button class="btn sm" data-k="cover" onclick="rzPreview(${j.id},'cover',this)">Cover</button>`:''}
       </div>
-      <iframe id="rzframe-${j.id}" src="/api/career-hunter/resume?id=${j.id}&kind=resume" title="Résumé preview"
-              style="width:100%;height:640px;border:1px solid var(--line,#2a2f3a);border-radius:8px;background:#fff"></iframe>
+      <div id="rzbox-${j.id}" class="rzbox"><div class="rzmsg">Loading preview…</div></div>
+      <a class="rzpdf" id="rzpdf-${j.id}" href="/api/career-hunter/resume?id=${j.id}&kind=resume"
+         target="_blank" rel="noopener">Open the exact PDF that gets submitted ↗</a>
     </div>` : '';
   // The submit action belongs directly under the thing you just reviewed — reading the résumé and
   // then hunting for the button elsewhere is what made this surface look like it had no submit at all.
@@ -333,10 +414,47 @@ function genLinksHtml(j){
     </div>` : '';
   return `<div class="genlinks" style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">${r}${c}<span style="color:var(--accent2);font-size:11px;font-weight:600">resume ready${when}</span></div>${prev}${send}`;
 }
-/** Swap the inline preview iframe between the résumé and cover PDF for a job. */
-function rzPreview(id, kind, btn){
-  const f=document.getElementById('rzframe-'+id); if(f) f.src='/api/career-hunter/resume?id='+id+'&kind='+kind;
+/**
+ * Render the inline packet preview for a job into #rzbox-<id>.
+ *
+ * Fetches the HTML the PDF was printed from and hands it to a fully sandboxed iframe via srcdoc.
+ * Fetching rather than pointing `src` at the URL is what lets a missing preview be DETECTED — an
+ * iframe fires `load` even on a 404, so a src-based preview cannot tell a rendered document from
+ * an error page. `sandbox=""` (no tokens) puts the document in an opaque origin with scripting,
+ * forms and navigation all disabled; the résumé HTML needs none of them.
+ */
+async function rzPreview(id, kind, btn){
+  const box=document.getElementById('rzbox-'+id); if(!box) return;
+  const pdf=document.getElementById('rzpdf-'+id);
+  const pdfUrl='/api/career-hunter/resume?id='+id+'&kind='+kind;
+  if(pdf){ pdf.href=pdfUrl; pdf.textContent = kind==='cover'
+    ? 'Open the exact cover letter PDF ↗' : 'Open the exact PDF that gets submitted ↗'; }
   if(btn&&btn.parentElement) btn.parentElement.querySelectorAll('.btn.sm').forEach(b=>b.classList.toggle('active', b===btn));
+  box.innerHTML='<div class="rzmsg">Loading preview…</div>';
+  try {
+    const r=await fetch(pdfUrl+'&as=html');
+    if(!r.ok) throw new Error('no preview');
+    const html=await r.text();
+    const f=document.createElement('iframe');
+    f.title = kind==='cover' ? 'Cover letter preview' : 'Résumé preview';
+    f.setAttribute('sandbox','');
+    f.setAttribute('referrerpolicy','no-referrer');
+    f.loading='lazy';
+    f.srcdoc=html;
+    box.replaceChildren(f);
+  } catch(e){
+    // A real fallback, not a dead frame: opening the PDF in a new tab is a TOP-LEVEL navigation,
+    // which is the one PDF path both iOS and Android handle natively.
+    box.innerHTML='<div class="rzmsg">No inline preview for this document — '
+      + '<a href="'+esc(pdfUrl)+'" target="_blank" rel="noopener">open the PDF ↗</a></div>';
+  }
+}
+/** Kick off previews for any cards whose detail panel just rendered. */
+function rzPreviewInit(root){
+  (root||document).querySelectorAll('.rzbox').forEach(b=>{
+    if(b.dataset.loaded) return; b.dataset.loaded='1';
+    rzPreview(b.id.replace('rzbox-',''), 'resume', null);
+  });
 }
 async function doGenerate(id,oshal){
   const gi=document.getElementById('g-'+id); const guidance=(gi&&gi.value||'').trim();
@@ -395,9 +513,10 @@ async function setReferral(cid,level){
     if(!r.ok) throw new Error('HTTP '+r.status); toast('Referral set — P(land) updated');
   } catch(e){ toast('Failed: '+e.message,true); }
 }
-let qt; $('q').addEventListener('input',()=>{ clearTimeout(qt); qt=setTimeout(loadJobs,300); });
-['sort','min_score','min_pay','days'].forEach(k=>$(k).addEventListener('change',loadJobs));
-$('remote').addEventListener('change',loadJobs);
+const refilter=()=>{ rememberFilters(); loadJobs(); };
+let qt; $('q').addEventListener('input',()=>{ clearTimeout(qt); qt=setTimeout(refilter,300); });
+['sort','min_score','min_pay','days'].forEach(k=>$(k).addEventListener('change',refilter));
+$('remote').addEventListener('change',refilter);
 
 // ── Getting started: a new user has no indexed resume, so the board can't score anything.
 // Gate the board behind a one-time resume upload + index. ───────────────────────────────
@@ -459,11 +578,21 @@ async function buildBoard(){
     checkOnboarding();
   } catch(e){ toast('Build failed: '+e.message,true); renderBuildBoard(); }
 }
-async function checkOnboarding(){
+// The onboarding gate used to run BEFORE the feed: /resume/state resolved, and only then did the
+// board start fetching jobs + stats. That put two serialized round-trips in front of the first
+// paint for every returning user, to answer a question that is "yes" for all of them. The three
+// requests are now issued together and the gate only decides what to SHOW.
+async function checkOnboarding(prefetch){
+  const feed = prefetch ? fetchJobs().catch(e=>({error:e})) : null;
+  if(prefetch) loadStats();
   let st; try { st=await (await fetch('/api/career-hunter/resume/state')).json(); }
   catch(e){ st={hasResume:true,scored:1}; } // never block the board on a status hiccup
   const ob=$('onboard');
-  if(st && st.hasResume && st.scored>0){ ob.hidden=true; boardControls(true); loadStats(); loadJobs(); return; }
+  if(st && st.hasResume && st.scored>0){
+    ob.hidden=true; boardControls(true);
+    if(feed){ const d=await feed; if(d && !d.error){ renderJobs(d); return; } }
+    loadStats(); loadJobs(); return;
+  }
   boardControls(false); ob.hidden=false;
   if(st && st.indexing){ renderIndexing(); setTimeout(checkOnboarding,6000); return; }
   if(st && st.hasResume){ renderBuildBoard(); return; }   // resume done, no scored jobs yet
@@ -498,7 +627,8 @@ async function loadWorkers(){
   } catch(e){ if(el){ el.textContent=''; } }
 }
 
-checkOnboarding();
+restoreFilters();       // must precede the first fetch so it carries the remembered filter
+checkOnboarding(true);  // prefetch the feed in parallel with the onboarding gate
 loadWorkers();
 const nsel=$('nodeSel'); if(nsel) nsel.addEventListener('change', loadWorkers);
 setInterval(loadWorkers, 30000);

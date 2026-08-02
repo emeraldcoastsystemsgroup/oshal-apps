@@ -16,7 +16,8 @@ Signal-justified stock trading (ADR-052) — carved out of OSHAL core 2026-07-20
   - `/api/trading/autopilot` (`service-or-oidc`) — the operator switch over the
     kernel-resident advisor schedules (the loops themselves stay kernel).
   - `/api/trading/lab` (`service-or-oidc`) — the ADR-092 Strategy Lab (backtests,
-    forward walks, regressions, ADR-095 apply/revert with its confirm guard).
+    forward walks, regressions, ADR-095 apply/revert with its confirm guard) plus
+    the **Strategy Studio** conversational endpoints (`POST /draft`, `POST /studio`).
   - `/api/trading-charts` (`public`, self-guarded) — the vendored chart lib
     (public MIT asset from `tools/vendor/`) + `GET /bars` (callerSub 401).
 - `tools/trading.html` + `tools/vendor/lightweight-charts.js` (the surface).
@@ -24,8 +25,30 @@ Signal-justified stock trading (ADR-052) — carved out of OSHAL core 2026-07-20
   weather-analyst) — the kernel registry entries + ai-lab personas stay framework-resident.
 - The five `trading_*` cli tools over the KERNEL-resident `scripts/oshal-trade-ops.js`.
 - `tests/` — the guards that carved WITH their subjects:
-  `trading-performance-fallback.spec.ts` (the /performance SPY-base regression) and
-  `trading-surface-live-gate.spec.ts` (the surface's live/confirm gates).
+  `trading-performance-fallback.spec.ts` (the /performance SPY-base regression),
+  `trading-surface-live-gate.spec.ts` (the surface's live/confirm gates), and
+  `trading-strategy-studio-refine.spec.ts` (the Studio refine-in-place contract).
+
+## Strategy Studio (conversational design + refine-in-place)
+
+The **Strategy Studio** tab is a chat (typed or spoken) with the trading-analyst bot.
+A message becomes a research-grounded design: the analyst cites the curated corpus in
+`src-routes/trading-strategy-research.ts` (invented citations are dropped at parse),
+drafts a `StrategyConfig`, saves it to the caller's Strategy Lab as a candidate, runs
+a real ~2-year backtest, and narrates the result (shown + spoken via `/api/voice`).
+
+Follow-up messages **refine the SAME strategy in place** (the workflow-assistant
+contract): the current config feeds back into the prompt, only what was asked
+changes, and the store resets the forward walk + baseline on the config change.
+An unmappable or ambiguous ask returns `{ needsInput, message }` — a clarifying
+question in the chat — never an error. Blends are refused conversationally (their
+components are embedded snapshots; rebuild them in the Lab). Prompt + parse live in
+`src-routes/trading-strategy-studio-prompt.ts`.
+
+Going live stays human-gated: the studio result's **Apply live…** button runs the
+same percent-of-profile prompt + `confirm:true` gate as the Lab's Apply, and refining
+a strategy that is currently applied never touches the live override (it keeps its
+embedded snapshot until re-applied — the response says so explicitly).
 
 ## What stays in the OSHAL framework (ADR-093)
 

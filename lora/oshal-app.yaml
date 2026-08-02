@@ -34,7 +34,7 @@ description: >-
   matrix, and improve it by regenerating data aimed at its weak spots and retraining — with every
   version scored objectively so "better" is a number. Generation/validation run free on your GPU box;
   paid escalation never happens without an approval gate.
-version: 1.0.0
+version: 1.0.1
 status: active
 
 # Per-app skin — indigo so the model-lab reads distinct from the sakura Video Studio.
@@ -42,7 +42,7 @@ theme: indigo
 
 source:
   type: git-subdir
-  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: lora
   ref: main
 
@@ -65,7 +65,7 @@ voice:
 # The LoRA Studio's bot — reason-only, inline on the api (claude-code), own agent_id
 # (own cost line), registered by the loader from this manifest (zero core-registry edits).
 bots:
-  - agentId: a0000000-0000-0000-0000-000000000049
+  - agentId: a0000000-0000-0000-0000-000000000065
     name: lora-director
     persona: personas/lora-director.yaml
     role: lora/model-trainer

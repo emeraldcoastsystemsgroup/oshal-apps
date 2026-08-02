@@ -30,6 +30,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-23 03:10:00 | roger.murphy@emeraldcoastsystemsgroup.com | Initial compose module: GET /compose (surface) + GET /compose/targets (connected/workspace-scoped platforms) + POST /compose/variants (per-platform rewrites on the comms bot) + POST /compose/image (real image generation via the media-generation kernel skill, returned as a preview data-URL, spend captured) + POST /compose/publish (exact approved text to X/LinkedIn/Facebook via the connector token, confirm-gated, no LLM). Reads the parent-owned workspace tables to scope "posting as workspace".
+ * 2026-07-31 18:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Export PLATFORMS + PUBLISHABLE + platformProviders (additive, no behavior change) so the Stage broadcast pane fans out through this module's exact platform spec and the SAME publishTo path — never a parallel rail (the same reuse contract the calendar executor already follows).
  *
  * @module switchboard-compose-routes
  */
@@ -59,8 +60,8 @@ const botClient = new BotNodeClient(createRegistryEndpointResolver());
 const IMAGE_TIMEOUT_MS = 90_000;
 
 /** Per-platform authoring spec: char limit (for the card meter), the connector provider, brand label. */
-interface PlatformSpec { limit: number; provider: string; label: string }
-const PLATFORMS: Record<string, PlatformSpec> = {
+export interface PlatformSpec { limit: number; provider: string; label: string }
+export const PLATFORMS: Record<string, PlatformSpec> = {
   x: { limit: 280, provider: 'twitter', label: 'X' },
   twitter: { limit: 280, provider: 'twitter', label: 'X' },
   linkedin: { limit: 3000, provider: 'linkedin', label: 'LinkedIn' },
@@ -73,7 +74,7 @@ const PLATFORMS: Record<string, PlatformSpec> = {
 const VARIANT_PLATFORMS = ['x', 'linkedin', 'facebook', 'instagram', 'threads'];
 
 /** Platforms with a REAL publish binding here (mirrors social-routes POST /post exactly). */
-const PUBLISHABLE = new Set(['x', 'twitter', 'linkedin', 'facebook']);
+export const PUBLISHABLE = new Set(['x', 'twitter', 'linkedin', 'facebook']);
 
 /** Signed-in user's OIDC sub, or null. */
 function callerSub(req: Request): string | null {
@@ -91,7 +92,7 @@ function servePage(dir: string, file: string): RequestHandler {
 }
 
 /** The connector providers that back a given post platform (for the workspace-membership guard). */
-function platformProviders(platform: string): string[] {
+export function platformProviders(platform: string): string[] {
   if (platform === 'x' || platform === 'twitter') return ['twitter'];
   if (platform === 'linkedin') return ['linkedin'];
   if (platform === 'facebook' || platform === 'instagram' || platform === 'threads') return ['meta-business', 'facebook'];

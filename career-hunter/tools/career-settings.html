@@ -1,6 +1,8 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Career Hunter — Settings</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js"></script>
 <link rel="stylesheet" href="/api/career-hunter/static/career-hunter.css">
 <style>
 @media (max-width: 640px) {
@@ -59,6 +61,24 @@
       <button class="btn" id="digestPreview">Preview today's digest</button>
     </div>
     <div id="digestOut" class="hint" style="white-space:pre-wrap"></div>
+  </div>
+
+  <div class="card">
+    <h2>Automation</h2>
+    <p class="hint"><b>Off unless you turn it on.</b> With automation off, OSHAL never generates
+    application drafts or queues submissions on its own — the nightly run leaves your queue
+    untouched, and everything happens only when you click it. Opting in to <b>auto-generate</b>
+    lets the nightly run AI-score fresh matches and add draft applications to your Approvals
+    queue (you still approve each one). <b>Auto-submit</b> additionally allows bulk queueing of
+    ready applications for desktop submission without a per-job click.</p>
+    <div class="row">
+      <label class="hint" style="margin:0;display:flex;align-items:center;gap:6px"><input type="checkbox" id="autoGenerate"> Auto-generate drafts from the nightly run</label>
+      <label class="hint" style="margin:0;display:flex;align-items:center;gap:6px"><input type="checkbox" id="autoSubmit"> Allow bulk auto-submit of ready applications</label>
+    </div>
+    <div class="row">
+      <span id="autoState" class="pill-no">Checking…</span>
+      <button class="btn primary" id="autoSave">Save automation settings</button>
+    </div>
   </div>
 
   <div class="card">
@@ -173,8 +193,23 @@ $('#artUpload').onclick = async()=>{
     }, 4000);
   }catch(e){ o.textContent='Upload failed: '+e.message; toast('Upload failed'); }
 };
+async function refreshAutomation(){
+  const s = await fetch(API+'/automation/state').then(r=>r.json()).catch(()=>({}));
+  $('#autoGenerate').checked = s.autoGenerate === true;
+  $('#autoSubmit').checked = s.autoSubmit === true;
+  const on = s.autoGenerate === true || s.autoSubmit === true;
+  $('#autoState').className = on?'pill-ok':'pill-no';
+  $('#autoState').textContent = on
+    ? '● Automation ON: '+[s.autoGenerate?'auto-generate':null, s.autoSubmit?'auto-submit':null].filter(Boolean).join(' + ')
+    : '○ Automation OFF — nothing runs without you';
+}
+$('#autoSave').onclick = async()=>{
+  const r = await jpost(API+'/settings/automation',{autoGenerate:$('#autoGenerate').checked===true, autoSubmit:$('#autoSubmit').checked===true});
+  toast(r.ok?'Automation settings saved':(r.error||'Failed')); refreshAutomation();
+};
 refreshState();
 refreshDigest();
 refreshTitles();
+refreshAutomation();
 </script>
 </body></html>

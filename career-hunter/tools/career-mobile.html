@@ -135,8 +135,13 @@ main{flex:1 1 auto;position:relative;overflow:hidden}
 .tab{flex:1;text-align:center;padding:9px;border-radius:10px;font-weight:800;font-size:.82rem;color:var(--muted);background:var(--card2);cursor:pointer}
 .tab.active{color:var(--ink);background:var(--card);border:1px solid var(--line)}
 .tabpane{flex:1 1 auto;overflow:auto;-webkit-overflow-scrolling:touch;padding:14px}
-.tabpane.pdf{padding:0}
-.tabpane iframe{width:100%;height:100%;border:0;background:#fff}
+/* Packet panes are a column: the document fills the pane and scrolls inside its own frame, with
+   the "open the real PDF" action pinned under it. min-height:0 is load-bearing — without it the
+   flex item refuses to shrink and the link is pushed off the bottom of the sheet. */
+.tabpane.pdf{padding:0;display:flex;flex-direction:column;overflow:hidden}
+.packet-frame{flex:1 1 auto;min-height:0;background:#fff}
+.tabpane iframe{width:100%;height:100%;border:0;background:#fff;display:block}
+.packet-pdf{flex:0 0 auto;margin:10px 12px calc(10px + var(--safe-b));text-decoration:none;text-align:center}
 .kchips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
 .kchips .ok{color:var(--green);border-color:rgba(78,163,99,.35)}
 .kchips .gap{color:var(--amber);border-color:rgba(224,165,75,.35)}
@@ -463,12 +468,11 @@ async function openReview(id){
       ${gaps.length?`<div class="kchips">${gaps.map(m=>`<span class="chip gap">△ ${esc(m)}</span>`).join('')}</div>`:''}
       ${job.url?`<a class="btn block ghost" style="margin-top:12px;text-decoration:none;text-align:center" href="${esc(job.url)}" target="_blank" rel="noopener">Open posting ↗</a>`:''}
       ${job.description?`<div style="margin-top:14px;color:var(--muted);white-space:pre-wrap;font-size:.86rem">${esc(String(job.description).slice(0,4000))}</div>`:''}`;
-    $('#pane-resume').innerHTML = job.has_resume
-      ? `<iframe src="${CH}/resume?id=${id}" title="Résumé"></iframe>`
-      : `<div class="empty">No résumé packet on file for this role.</div>`;
-    $('#pane-cover').innerHTML = job.has_cover
-      ? `<iframe src="${CH}/resume?id=${id}&kind=cover" title="Cover letter"></iframe>`
-      : `<div class="empty">No cover letter on file.</div>`;
+    // Packet panes render the generated HTML the PDF was printed from — never the PDF itself.
+    // A PDF in an iframe does not render in ANY mobile browser (iOS has no in-page PDF renderer;
+    // Android hands off to a download), so the pane used to be a full-height blank white sheet.
+    renderPacketPane('resume', id, job.has_resume);
+    renderPacketPane('cover', id, job.has_cover);
     renderReviewFoot(job);
   }catch(e){ $('#pane-posting').innerHTML='<div class="empty">Could not load. '+esc(e.message)+'</div>'; }
 }
@@ -503,6 +507,39 @@ async function doApply(job){
         </div>
       </div>`);
     $('#markApplied').onclick=async()=>{ await jpost(CH+'/jobs/'+reviewId+'/status',{status:'applied'}); toast('Marked applied'); closeReview(); loadReady(); refreshBadges(); };
+  }
+}
+
+/**
+ * Fill a packet pane with the generated HTML of the résumé/cover, plus a link to the real PDF.
+ *
+ * The HTML is FETCHED and handed to a sandboxed iframe via srcdoc rather than set as `src`,
+ * because an iframe fires `load` even for a 404 — a src-based pane cannot tell a rendered
+ * document from an error page, which is how the blank pane went unnoticed. `sandbox=""` gives the
+ * document an opaque origin with no scripting; the résumé markup needs nothing.
+ */
+async function renderPacketPane(kind, id, has){
+  const pane=$('#pane-'+kind);
+  const label = kind==='cover' ? 'cover letter' : 'résumé';
+  if(!has){ pane.innerHTML=`<div class="empty">No ${label} on file for this role.</div>`; return; }
+  const pdfUrl = `${CH}/resume?id=${id}${kind==='cover'?'&kind=cover':''}`;
+  // Opening the PDF is a TOP-LEVEL navigation — the one PDF path iOS and Android both handle.
+  const pdfLink = `<a class="btn block ghost packet-pdf" href="${esc(pdfUrl)}" target="_blank"
+     rel="noopener">Open the exact PDF ↗</a>`;
+  pane.innerHTML = `<div class="empty">Loading ${label}…</div>`;
+  try {
+    const r = await fetch(pdfUrl + '&as=html');
+    if(!r.ok) throw new Error('no preview');
+    const html = await r.text();
+    pane.innerHTML = `<div class="packet-frame"></div>${pdfLink}`;
+    const f=document.createElement('iframe');
+    f.title = kind==='cover' ? 'Cover letter' : 'Résumé';
+    f.setAttribute('sandbox','');
+    f.setAttribute('referrerpolicy','no-referrer');
+    f.srcdoc = html;
+    pane.querySelector('.packet-frame').appendChild(f);
+  } catch(e){
+    pane.innerHTML = `<div class="empty">No inline preview for this ${label}.</div>${pdfLink}`;
   }
 }
 

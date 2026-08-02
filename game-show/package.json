@@ -1,9 +1,11 @@
 {
   "name": "oshal-app-game-show",
-  "version": "0.3.0",
+  "version": "0.10.0",
   "private": true,
   "description": "AI game show — one show-agnostic engine, games as plug-in modules (ADR-112)",
   "scripts": {
-    "test": "node tests/game-show-engine.test.js && node tests/jeopardy.test.js && node tests/host-guards.test.js && node tests/timers.test.js && node tests/overrides.test.js"
+    "test": "node tests/game-show-engine.test.js && node tests/npc.test.js && node tests/jeopardy.test.js && node tests/host-guards.test.js && node tests/timers.test.js && node tests/overrides.test.js && node tests/fast-money.test.js && node tests/speaker-lease.test.js && node tests/wheel.test.js && node tests/whammy.test.js && node tests/whammy-set.test.js && node tests/leaderboard.test.js && node tests/cutaways.test.js",
+    "test:browser": "node tests/browser-playthrough.test.js",
+    "test:shots": "node tests/browser-set-shots.js"
   }
 }

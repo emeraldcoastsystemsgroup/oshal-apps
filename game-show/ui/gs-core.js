@@ -4,6 +4,9 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-21 21:52:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Game Show surface core: the API client, the shared client store, the rev-based sync poll (with per-seat presence-frame busting), fire-and-forget host TTS for speaker surfaces, DOM helpers, and the action/answer/host senders. One synced state; every surface renders it.
+ * 2026-07-24 14:00:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Backlog burn-down: ?as=<seatId> pins a surface to a hotseat podium (the rehearsal view's clickers; owner-only server-side); exactly ONE device per room synthesizes TTS (lease claimed on the poll, lines queue instead of overlapping — #8); incoming 'react' events invoke GS.onReact so every surface shows the room's reactions (#16).
+ * 2026-07-25 23:00:00 | roger.murphy@emeraldcoastsystemsgroup.com  | GS.wantLobby (?lobby=1) so the bootstrap can skip the resume-last-room path and show the lobby's show picker on demand.
+ * 2026-07-26 19:12:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Every incoming event is also handed to GS.onBeat (next to the GS.onReact dispatch) so the broadcast chrome can score reveals/strikes/wins as sound cues.
  */
 
 /* global window, document, navigator */
@@ -16,15 +19,26 @@
   var GS = window.GS = {
     base: BASE,
     view: (qs.get('view') || 'stage').toLowerCase(),   // stage | tv | clicker | host | audience | help
+    explicitView: qs.has('view'),   // a URL that names a view already made the phone-mode choice
     joinCode: (qs.get('join') || '').toUpperCase(),
     roomId: qs.get('room') || null,
+    wantLobby: qs.has('lobby'),   // ?lobby=1 skips the resume-last-room boot so a new show can be picked
     // shared store (one synced state, every surface renders it)
     room: null, seats: [], state: {}, rev: 0, seq: 0, scoreboard: [], events: [], show: null,
     presenceRev: {}, camBust: {}, lastHostAt: 0, render: null, _timer: null,
     skew: 0,          // serverNow - browserNow, so every surface counts down to the SAME deadline
     shows: [],        // catalog from /shows, for the lobby picker
-    actAs: null,      // hotseat: the host may drive any podium (seatId) instead of their own
+    // Hotseat: the host may drive any podium (seatId) instead of their own. ?as=
+    // pins it for the life of the tab — the rehearsal view uses one pinned clicker
+    // per house podium. The server enforces owner-only on every actorSeatId.
+    actAs: qs.get('as') || null,
+    deviceId: 'dev-' + Math.random().toString(36).slice(2, 10),   // per-tab identity for the speaker lease
+    isVoice: false,   // whether THIS device holds the room's TTS lease
+    onReact: null,    // surface hook: called with each incoming reaction event content
   };
+
+  /** @description The podium this surface acts as (pinned hotseat first, else my seat). */
+  GS.actingSeat = function () { return GS.actAs || ((GS.mySeat() || {}).seatId || null); };
 
   // ── DOM helpers ─────────────────────────────────────────────────────────
   GS.el = function (tag, attrs) {
@@ -76,15 +90,38 @@
     return BASE + '/presence/' + GS.roomId + '/' + seat.seatId + '.jpg?v=' + (GS.camBust[seat.seatId] || 0);
   };
 
-  // ── Host voice (fire-and-forget on speaker surfaces only) ─────────────────
-  GS.speak = function (line) {
-    if (!line || !GS.isSpeaker()) return;
+  // ── Host voice: ONE speaker per room, lines queue instead of overlapping ──
+  // Speaker surfaces claim a short-TTL lease each poll (TV outranks the host
+  // desk); only the holder synthesizes. Everyone else stays caption-only.
+  var ttsQueue = [], ttsPlaying = false;
+
+  function playNextLine() {
+    if (ttsPlaying || !ttsQueue.length) return;
+    var line = ttsQueue.shift();
+    ttsPlaying = true;
     GS.api.post('/tts', { text: line.slice(0, 900) }).then(function (r) {
-      if (!r.body || !r.body.ok || !r.body.audio) return;   // caption-only when unavailable — never a robot voice
+      if (!r.body || !r.body.ok || !r.body.audio) { ttsPlaying = false; playNextLine(); return; }   // caption-only when unavailable — never a robot voice
       var audio = document.getElementById('gs-audio');
       audio.src = 'data:' + (r.body.mime || 'audio/mpeg') + ';base64,' + r.body.audio;
-      audio.play().catch(function () {});
-    }).catch(function () {});
+      audio.onended = function () { ttsPlaying = false; playNextLine(); };
+      audio.onerror = function () { ttsPlaying = false; playNextLine(); };
+      audio.play().catch(function () { ttsPlaying = false; playNextLine(); });
+    }).catch(function () { ttsPlaying = false; playNextLine(); });
+  }
+
+  GS.speak = function (line) {
+    if (!line || !GS.isSpeaker() || !GS.isVoice) return;
+    if (ttsQueue.length >= 4) ttsQueue.shift();   // never build a backlog of stale lines
+    ttsQueue.push(line);
+    playNextLine();
+  };
+
+  /** @description Claim/renew this room's speaker lease (speaker surfaces only). */
+  GS.claimVoice = function () {
+    if (!GS.roomId || !GS.isSpeaker()) return;
+    GS.api.post('/speaker', { roomId: GS.roomId, deviceId: GS.deviceId, priority: GS.view === 'tv' ? 2 : 1 })
+      .then(function (r) { GS.isVoice = !!(r.body && r.body.speaker); })
+      .catch(function () {});
   };
 
   // ── Senders ───────────────────────────────────────────────────────────────
@@ -92,7 +129,11 @@
     if (!result.body) return result;
     if (result.body.ok === false) { GS.toast(result.body.error || 'Not allowed.'); return result; }
     if (typeof result.body.rev === 'number') GS.rev = result.body.rev;
-    if (result.body.state) GS.state = result.body.state;
+    // Immediate local echo: the acting device re-renders NOW (your own buzz shows
+    // the ✋ instantly). The poll it advances to the new rev, so the sync reports
+    // changed=false and nothing else would repaint this page until the next beat —
+    // found by the automated browser playthrough.
+    if (result.body.state) { GS.state = result.body.state; if (typeof GS.render === 'function') GS.render(); }
     GS.poll();   // pull seats/scoreboard/events right away
     return result;
   }
@@ -119,6 +160,14 @@
     if (Array.isArray(data.events) && data.events.length) {
       GS.events = GS.events.concat(data.events);
       GS.seq = data.events[data.events.length - 1].seq;
+      // Reactions are transient floats, not board state — hand them to the surface.
+      if (typeof GS.onReact === 'function') {
+        data.events.forEach(function (e) { if (e.kind === 'react') GS.onReact(e.content); });
+      }
+      // Every event is also a show beat — the broadcast chrome scores it as sfx.
+      if (typeof GS.onBeat === 'function') {
+        data.events.forEach(function (e) { GS.onBeat(e); });
+      }
       changed = true;
     }
     if (data.status && GS.room) GS.room.status = data.status;
@@ -153,6 +202,7 @@
   GS.startSync = function () {
     if (GS._timer) clearInterval(GS._timer);
     var cadence = GS.view === 'tv' ? 1000 : 1400;
-    GS._timer = setInterval(GS.poll, cadence);
+    GS._timer = setInterval(function () { GS.poll(); GS.claimVoice(); }, cadence);
+    GS.claimVoice();
   };
 })();

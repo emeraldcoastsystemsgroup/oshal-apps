@@ -31,6 +31,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-23 03:10:00 | roger.murphy@emeraldcoastsystemsgroup.com | Initial compose module: GET /compose (surface) + GET /compose/targets (connected/workspace-scoped platforms) + POST /compose/variants (per-platform rewrites on the comms bot) + POST /compose/image (real image generation via the media-generation kernel skill, returned as a preview data-URL, spend captured) + POST /compose/publish (exact approved text to X/LinkedIn/Facebook via the connector token, confirm-gated, no LLM). Reads the parent-owned workspace tables to scope "posting as workspace".
+ * 2026-07-31 18:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Export PLATFORMS + PUBLISHABLE + platformProviders (additive, no behavior change) so the Stage broadcast pane fans out through this module's exact platform spec and the SAME publishTo path — never a parallel rail (the same reuse contract the calendar executor already follows).
  *
  * @module switchboard-compose-routes
  */
@@ -68,6 +69,8 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.PUBLISHABLE = exports.PLATFORMS = void 0;
+exports.platformProviders = platformProviders;
 exports.publishTo = publishTo;
 exports.createComposeRoutes = createComposeRoutes;
 const express_1 = require("express");
@@ -88,7 +91,7 @@ const COMMS_BOT_AGENT_ID = 'b0000000-0000-0000-0000-000000000001';
 const botClient = new agent_management_1.BotNodeClient((0, agent_management_1.createRegistryEndpointResolver)());
 /** Hard ceiling on a single vendor image call so a stuck provider can't hang the request. */
 const IMAGE_TIMEOUT_MS = 90_000;
-const PLATFORMS = {
+exports.PLATFORMS = {
     x: { limit: 280, provider: 'twitter', label: 'X' },
     twitter: { limit: 280, provider: 'twitter', label: 'X' },
     linkedin: { limit: 3000, provider: 'linkedin', label: 'LinkedIn' },
@@ -99,7 +102,7 @@ const PLATFORMS = {
 /** The variant platforms the composer offers (pure text rewriting — always available). */
 const VARIANT_PLATFORMS = ['x', 'linkedin', 'facebook', 'instagram', 'threads'];
 /** Platforms with a REAL publish binding here (mirrors social-routes POST /post exactly). */
-const PUBLISHABLE = new Set(['x', 'twitter', 'linkedin', 'facebook']);
+exports.PUBLISHABLE = new Set(['x', 'twitter', 'linkedin', 'facebook']);
 /** Signed-in user's OIDC sub, or null. */
 function callerSub(req) {
     const u = req.oidc?.user;
@@ -158,7 +161,7 @@ async function runOnBot(ctx, kind, sub, prompt) {
 }
 /** Build the platform-appropriate rewrite prompt (X = one tweet, LinkedIn = post, else concise). */
 function variantPrompt(platform, source) {
-    const p = PLATFORMS[platform];
+    const p = exports.PLATFORMS[platform];
     const tail = ['Keep the author’s meaning and voice. Output ONLY the post text — no preamble, no quotes.', '', '---', source];
     if (platform === 'x' || platform === 'twitter') {
         return [`Rewrite the following into a single ${p.label} post (a tweet).`, 'HARD LIMIT 280 characters. One punchy hook, no thread, 0–2 hashtags.', ...tail].join('\n');
@@ -305,8 +308,8 @@ function createComposeRoutes(ctx) {
                 const isConnected = provs.some((p) => connected.has(p));
                 const inWorkspace = !ws || provs.some((p) => ws.has(p));
                 return {
-                    platform, label: PLATFORMS[platform].label, limit: PLATFORMS[platform].limit,
-                    publishable: PUBLISHABLE.has(platform), connected: isConnected, inWorkspace,
+                    platform, label: exports.PLATFORMS[platform].label, limit: exports.PLATFORMS[platform].limit,
+                    publishable: exports.PUBLISHABLE.has(platform), connected: isConnected, inWorkspace,
                 };
             });
             res.json({ targets, workspaceScoped: Boolean(workspaceId) });
@@ -330,7 +333,7 @@ function createComposeRoutes(ctx) {
             return;
         }
         const requested = Array.isArray(body.platforms) ? body.platforms.filter((x) => typeof x === 'string') : [];
-        const platforms = [...new Set(requested.map((p) => p.toLowerCase()).filter((p) => PLATFORMS[p]))].slice(0, 5);
+        const platforms = [...new Set(requested.map((p) => p.toLowerCase()).filter((p) => exports.PLATFORMS[p]))].slice(0, 5);
         if (!platforms.length) {
             res.status(400).json({ error: 'platforms required (x | linkedin | facebook | instagram | threads)' });
             return;
@@ -339,7 +342,7 @@ function createComposeRoutes(ctx) {
             const variants = [];
             for (const platform of platforms) {
                 const draft = await runOnBot(ctx, `variant-${platform}`, sub, variantPrompt(platform, text));
-                variants.push({ platform, label: PLATFORMS[platform].label, limit: PLATFORMS[platform].limit, publishable: PUBLISHABLE.has(platform), text: draft.trim() });
+                variants.push({ platform, label: exports.PLATFORMS[platform].label, limit: exports.PLATFORMS[platform].limit, publishable: exports.PUBLISHABLE.has(platform), text: draft.trim() });
             }
             res.json({ variants });
         }
@@ -391,12 +394,12 @@ function createComposeRoutes(ctx) {
             res.status(400).json({ error: 'text required' });
             return;
         }
-        if (!PUBLISHABLE.has(platform)) {
+        if (!exports.PUBLISHABLE.has(platform)) {
             res.status(400).json({ error: 'unsupported_platform', message: 'Publish supports x, linkedin, facebook.' });
             return;
         }
         if (!(0, explicit_write_confirmation_1.hasExplicitWriteConfirmation)(body)) {
-            res.status(428).json((0, explicit_write_confirmation_1.confirmationRequiredPayload)('no-post', `Publishing to ${PLATFORMS[platform]?.label || platform}`));
+            res.status(428).json((0, explicit_write_confirmation_1.confirmationRequiredPayload)('no-post', `Publishing to ${exports.PLATFORMS[platform]?.label || platform}`));
             return;
         }
         // Attaching a generated image to a published post has NO real binding here (social-routes has no
@@ -408,7 +411,7 @@ function createComposeRoutes(ctx) {
         try {
             const ws = await workspaceProviders(ctx.pool, sub, String(body.workspaceId || '').trim() || null);
             if (ws && ws.size && !platformProviders(platform).some((p) => ws.has(p))) {
-                res.status(403).json({ error: 'workspace_mismatch', message: `${PLATFORMS[platform]?.label || platform} is not one of this workspace's accounts.` });
+                res.status(403).json({ error: 'workspace_mismatch', message: `${exports.PLATFORMS[platform]?.label || platform} is not one of this workspace's accounts.` });
                 return;
             }
             const result = await publishTo(ctx, sub, platform, text);

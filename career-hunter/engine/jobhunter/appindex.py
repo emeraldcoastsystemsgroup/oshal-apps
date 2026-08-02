@@ -48,6 +48,30 @@ def _href(relpath):
 
 
 def _rows():
+    """Every posting this user has generated a packet for, newest first.
+
+    Dual-mode with no changes needed, and deliberately so — this is the shape a ported
+    reader is SUPPOSED to end up in:
+
+      - `postings` must stay the compat VIEW (097) in postgres mode, never career_postings.
+        ai_fit_score, generated_at, status, resume_path and cover_path are all per-user
+        columns that exist only through the RLS-filtered joins. Reading the base table here
+        would fail on undefined columns — and the index is per-person by definition: it
+        lists the packets THIS user generated.
+      - `resume_path IS NOT NULL` needs no dialect work; it is the join reaching (or not)
+        career_user_applications, and RLS makes "not mine" indistinguishable from "not
+        generated", which is the correct answer to give.
+      - `generated_at` comes back as the same ISO-8601 TEXT SQLite stored (097 casts
+        TIMESTAMPTZ with to_char), so `[:10]` in build() still slices a date and the string
+        ORDER BY is still chronological.
+      - `NULLS LAST` is explicit standard syntax in both engines (SQLite >= 3.30).
+      - No `?` and no literal `%`, so it executes verbatim.
+
+    The one real difference is row ORDER within a tie: `c.name` sorts under the database's
+    collation, byte-order in SQLite vs the cluster's locale in Postgres, so mixed-case
+    company names can interleave differently. Cosmetic — this is a filterable listing, and
+    nothing downstream depends on the tie order.
+    """
     with db.connect() as conn:
         return conn.execute(
             """SELECT p.id, p.ats_job_id, p.title, p.location, p.ai_fit_score,

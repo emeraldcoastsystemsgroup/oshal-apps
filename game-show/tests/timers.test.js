@@ -50,6 +50,15 @@ const restamped = clock.stamp({ ...s, host: { line: 'nice buzz' } }, SHOW, NOW +
 check(restamped.timer.endsAt === NOW + 10000, 'a same-window re-stamp KEEPS the original deadline');
 check(clock.stamp({ ...s, phase: 'over' }, SHOW, NOW + 1).timer === undefined, 'a closed window clears the clock');
 
+// Show #4 (Whammy) found this: a lapse resolved into a state where the SAME window
+// is open again (one turn, several presses) kept the dead deadline — every poll
+// re-fired the timeout, machine-gunning an AFK player's remaining presses. An
+// expired same-key window gets a FRESH deadline on re-stamp; a live one never does.
+const expiredRestamp = clock.stamp(s, SHOW, NOW + 10001);
+check(expiredRestamp.timer.endsAt === NOW + 10001 + 10000, 'an EXPIRED same-key window restarts on re-stamp');
+const pausedExpiry = clock.pause({ ...s, timer: { ...s.timer } }, NOW + 3000);
+check(clock.stamp(pausedExpiry, SHOW, NOW + 999999).timer.pausedAt !== null, 'a paused window never counts as expired for the re-stamp');
+
 let paused = clock.pause(s, NOW + 3000);
 check(clock.expired(paused, NOW + 999999) === false, 'a paused clock never lapses');
 check(clock.remaining(paused, NOW + 999999) === 7000, 'a paused clock holds the time that was left');

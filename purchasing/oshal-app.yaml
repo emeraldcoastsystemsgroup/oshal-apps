@@ -30,7 +30,7 @@ status: active  # active | inactive
 
 source:
   type: git-subdir
-  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: purchasing
   ref: main
 

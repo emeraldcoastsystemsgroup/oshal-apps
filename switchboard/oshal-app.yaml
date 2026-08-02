@@ -6,12 +6,13 @@
 # is that app. The identity is the telephone switchboard: every line, from every
 # platform, routed onto one board by one operator.
 #
-# This package is being built pane-by-pane. SHIPPED here: the **Today** pane — a
-# single, prioritized, time-ordered stream of everything that needs the signed-in
-# user, pulled from the stores the kernel already fills and normalized onto one
-# board. Threads (person-centric unified timeline) and Stage (broadcast composer)
-# are the next slices; the retire/carve of the three predecessor packages (social,
-# email-summarizer, feeds) happens once those land and Today is signed off.
+# This package is being built pane-by-pane. SHIPPED here: the **Today** pane (the
+# single prioritized stream), the portal sections (Inbox / Calendar / Compose), the
+# **Threads** pane (one chronological timeline per counterpart over the ingested
+# inbox store, read-only), and the **Stage** pane (broadcast fan-out composer —
+# compose once, confirm once per send, fan out through the same publish path
+# Compose uses). The retire/carve of the three predecessor packages (social,
+# email-summarizer, feeds) happens once the panes are signed off.
 #
 # What STAYS framework-resident (reused, not rebuilt — ADR-093):
 #   - the communications-bot REAL node (comms container + registry block b0…0001 +
@@ -33,27 +34,36 @@ description: >-
   whole day in one place instead of app-hopping. Reads run on your own connector
   tokens; ranking and drafting run on the communications bot with cost captured
   per user. Nothing is sent or posted without your say-so.
-version: 0.1.0
+version: 0.3.0
 status: active
 
 source:
   type: git-subdir
-  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: switchboard
   ref: main
 
 # Runtime connector allow-list — the mailbox/calendar the board reads, the phone leg,
 # and the social platforms whose inbox-fed notifications feed the stream. All via the
 # per-user broker; the board never holds raw creds.
+# Kernel skills this package IMPORTS (ADR-085 §2). Declared because an undeclared import is
+# invisible to the prune guard: the first carve that drops the skill would break this app at
+# MOUNT time, not at compile time. See docs/apps/kernel-skills.md.
+uses:
+  - media-generation # switchboard-compose-routes.js generates post imagery
+
 dependencies:
   apps: []
   tools: []
   connectors: [google, outlook, twilio, linkedin, twitter, meta-business, facebook, slack]
 
-# Per-app skin (approved palette) — graphite reads as the calm, neutral "board".
+# Per-app skin (approved palette) — forest reads as the calm, steady "board".
 # Every colour in the surface is derived from the framework theme tokens, so this
 # is just the default; the operator's chosen theme always wins.
-theme: graphite
+# (Swapped off graphite 2026-07-31: the operator gave graphite to finance, and the
+# bundle-theme canon is 11 distinct themes with no repeats — switchboard takes the
+# forest that finance freed.)
+theme: forest
 
 # Switchboard's chat agent IS the communications-bot — the real, secure node (own
 # container, NO master key) that owns the inbox-fed signals. The node (container +
@@ -94,6 +104,13 @@ ui:
       icon: codicon codicon-mail
       iframeUrl: /api/switchboard/inbox
       section: top
+    # Threads (ADR-113 next slice, shipped): one chronological timeline per counterpart
+    # over the already-ingested inbox store — read-only, existing identity model.
+    - toolName: switchboard-threads
+      label: Threads
+      icon: codicon codicon-comment-discussion
+      iframeUrl: /api/switchboard/threads
+      section: top
     - toolName: switchboard-calendar
       label: Calendar
       icon: codicon codicon-calendar
@@ -103,6 +120,21 @@ ui:
       label: Compose
       icon: codicon codicon-edit
       iframeUrl: /api/switchboard/compose
+      section: top
+    # Stage (ADR-113 next slice, shipped): the broadcast fan-out composer — compose once,
+    # pick channels, confirm the send, fan out through Compose's own publish path.
+    - toolName: switchboard-stage
+      label: Stage
+      icon: codicon codicon-megaphone
+      iframeUrl: /api/switchboard/stage
+      section: top
+    # social.oshal.ai bundle (operator decision 2026-07-31): the standalone Feeds app rides
+    # alongside Switchboard's own inbox/social/calendar/compose set. Distinct toolName from
+    # feeds' own tile (ADR-085 D11).
+    - toolName: switchboard-feeds
+      label: Feeds
+      icon: codicon codicon-rss
+      iframeUrl: /api/feeds/dashboard
       section: top
     # The professional multi-workspace model (ADR-113): organize connected accounts
     # into named brand/identity desks. Sits in the bottom section like a settings view.

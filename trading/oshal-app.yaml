@@ -55,12 +55,12 @@ description: >-
   reason over it, and place the trade through your broker (Alpaca) — with a full decision
   trail from every order back to the signal that triggered it. Paper-trade and live-trade as
   two separate books. Cash equities. No crypto.
-version: 1.0.0
+version: 1.1.1
 status: active
 
 source:
   type: git-subdir
-  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: trading
   ref: main
 
@@ -290,6 +290,15 @@ ui:
       label: Intelligent Trades
       icon: codicon codicon-pulse
       iframeUrl: /api/trading/
+      section: top
+    # World Intelligence tile (world/oshal-app.yaml, auth: public route) surfaced directly in
+    # the trading ribbon — signal-justified trades benefit from the same geopolitical/economic
+    # read the world app already produces. Distinct toolName from world's own 'world-dashboard'
+    # (ADR-085 D11: tool/tile names are effectively global — never reuse another app's).
+    - toolName: intelligent-trades-world
+      label: World Intelligence
+      icon: codicon codicon-globe
+      iframeUrl: /api/world/app
       section: top
 
 ribbon:

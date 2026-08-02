@@ -8,6 +8,110 @@ movement before ending the turn. The game
 persists the exact result before the DM dramatizes it, archives the campaign, and
 levels the party up.
 
+## v0.19.0 - the lead roll lands on the big shared d20
+
+Released 2026-07-31 America/Chicago by
+roger.murphy@emeraldcoastsystemsgroup.com.
+
+The contested skill check behind an investigation lead was resolved and
+narrated, but it was the one dramatic roll in the game that never touched the
+shared dice overlay — the server rolled privately and the table read about it.
+
+**A lead tap now opens the big shared d20 every device watches.** The server
+persists a `sharedRoll` request carrying the lead's contract — the nominated
+hero, the skill it really tests, the DC, and the hero's true skill modifier
+(ability plus proficiency, which the DM path's ability-only sheet math cannot
+see). The acting player rolls it through the **same `/roll` route** as every
+other check, spectators watch the same die land, and the new exploration
+`commit-roll` action applies the outcome exactly once — the discovery or the
+ledgered miss — while resolving the die **in the same write**. Lead crit
+semantics ride the shared die: a natural 20 always finds it, a natural 1 always
+fumbles. The requested/rolled/resolved protocol is the only dice path; there is
+no parallel rail.
+
+Edges are honest: only one shared roll may pend at a time (`ROLL_PENDING`),
+only the roller (or the host, for an AI companion) may commit, a lead someone
+else discovered mid-roll resolves the die as a dedupe instead of stranding it,
+the muddled escape hatch (whole party failed) still lands without dice, and the
+DM narration path refuses lead rolls outright (`ROLL_NOT_NARRATABLE`) so the
+storyteller can never resolve a die whose outcome belongs to the investigation.
+
+Guards: `tests/dnd-exploration-service.test.js` (request → land → commit, crit
+semantics, commit authorization, dedupe-not-strand) and
+`tests/dnd-shared-roll.test.js` (the `/roll` route honors the precomputed
+modifier, lead crits, and the narration refusal without ever invoking the
+storyteller).
+
+## v0.18.x - conversation is a table truth; motion and art are server truths
+
+v0.18.0 released 2026-07-31, v0.18.1 (bundle metadata only) 2026-07-31,
+America/Chicago, by roger.murphy@emeraldcoastsystemsgroup.com.
+
+A live Crownfall session proved two lies: the narrator said heroes moved and
+met people while the four PC tokens never left their spawn block, and a whole
+investigation chapter produced zero images while the illustrator pipeline sat
+healthy. Root cause both times: the walk and the art triggers lived only in
+client JS — stale tabs and non-owner devices silently dropped them.
+
+**Every committed narrate exchange now runs through `lib/dnd-story-motion.js`**:
+the exchange deterministically matches the person/place/object the fiction
+engaged (the player's own words weigh triple the narration; people win ties)
+and walks the acting hero beside that figure in an authoritative board write
+every device renders via ordinary sync. Reaching a person requests a
+first-meeting portrait under a deduped `meet:` key — the first time someone
+speaks with Tovin there is a picture of Tovin, and it only ever costs once.
+When the last four story beats carry no image, the newest beat is illustrated
+(`beat:<archive seq>`, cadence derived from the archive so restores and rewinds
+cannot desync it). Combat boards are never touched, and a failed embellishment
+never fails the DM reply.
+
+**Discovered leads stand on the map** (`lib/dnd-lead-cast.js`): the person,
+place, or object the party found is cast as a real figure at the spot the
+acting hero walked to, already-discovered leads reconcile on every action (a
+chapter played before figures existed fills itself in), and a person-lead
+naming someone already standing on the map must declare `prop:` — a guard that
+found nine unlinked leads across three adventures. Stale tabs confess: `/sync`
+announces once when the served table code is newer than the page.
+
+## v0.17.0 - a lead is a question put to ONE hero
+
+Released 2026-07-26 America/Chicago by
+roger.murphy@emeraldcoastsystemsgroup.com.
+
+Investigation chapters used to be a row of checkboxes anyone could green-light:
+whoever tapped first resolved a clue, the host could tick the whole board alone,
+and nothing said which character the fiction would actually send.
+
+**Every lead now nominates a hero.** `ui/leads.js` derives the skill a lead really
+tests from its authored type — an object is *investigation*, a person is
+*persuasion*, a place is *perception* — then ranks the seated party on ability plus
+class training and names one hero. The rogue is sent to the chalkboard, the cleric
+to the person, the fighter to scout the roof. Ties break on hero id, so every
+device nominates the same character without asking the server. Authors override
+per lead with `skill`, `dc`, and `spot`; nothing needed re-authoring, and all 64
+existing leads gained a map position for free.
+
+**The table coaxes the right player.** Each lead card says who it is for and why
+(`Della · investigation +4`); on that player's device their own leads are lit with
+a **YOURS** badge, and the dock tells them which leads are theirs to work. Anyone
+else may still take it — but stepping in is a deliberate second tap, not an
+accident.
+
+**The server owns the outcome.** `/explore` nominates, verifies the caller
+actually plays that hero, rolls the contest itself (d20 + skill vs DC), and
+records who found each clue, so the Story log reads *"Della uncovers the Silver
+Cup"*. A clue can no longer be resolved by an anonymous caller or an idle
+companion. Each hero gets one attempt per lead; a miss keeps the lead open for
+somebody else. Once the whole party has failed one it relents, muddled — cold dice
+can never deadlock a chapter.
+
+**Investigating is a move, not a click.** The acting hero walks to the lead's spot
+on the map before it resolves.
+
+Guards: `tests/dnd-leads.test.js` (35 checks — skill inference, nomination ties,
+deterministic spots, the contested roll) plus service cases for the nomination
+refusal, hero theft, one-try-each, and the deadlock escape hatch.
+
 ## v0.16.1 - the whole campaign shelf fits
 
 Released 2026-07-23 America/Chicago by
@@ -653,6 +757,29 @@ Tracked so this stays honest about what is and isn't built:
    D-pad click away. Any signed-in TV browser already works via `?mode=tv`.
 10. **RLS hardening** — the schema is per-user by app-layer scoping today; add
    per-request GUC RLS policies as defense-in-depth.
+11. ~~**Draw the leads on the map.**~~ **Shipped** across v0.17.x–v0.18.0:
+   discovered leads are cast as real figures (`lib/dnd-lead-cast.js`), the
+   acting hero visibly crosses to them (an authoritative board write, not a
+   client animation), and already-discovered leads reconcile on every action.
+   Still true to the original ask's spirit but narrower: *undiscovered* leads
+   deliberately have no board presence — a clue not yet found is not on the map.
+12. **Many more cutaways.** The operator's ask was roughly nineteen times the
+   v0.17.0 cinematic density. Shipped so far: per-discovery and chapter-complete
+   art (v0.17.0), first-meeting portraits under a deduped `meet:` key and the
+   every-fourth-story-beat cadence (v0.18.0) — all keyed so replays never
+   regenerate art. Still open: the big combat beats (a natural 20, a natural 1,
+   first blood, a hero dropping, a level-up, a boss reveal), cheap local
+   transitions for the common beats, and a per-campaign cap.
+   **Done when:** those beats each request a keyed cutaway, local transitions
+   cover the common ones, generated art is reserved for the big ones, and a
+   per-campaign cap is enforced and visible. (Budget math: generated art is
+   about $0.04 per image, so ~20 beats is under a dollar a session — the cap
+   exists to stop a runaway, not to ration the drama.)
+13. ~~**Put the lead roll on the big d20.**~~ **Shipped in v0.19.0** — a lead
+   attempt opens the shared d20 for the acting player, every device watches it
+   land via the requested/rolled/resolved protocol, and the exploration
+   `commit-roll` action applies the outcome exactly once. See the v0.19.0
+   changelog entry above.
 
 ## Dev notes
 

@@ -394,6 +394,9 @@ def run_render(limit=None):
     """Render-based resolution for companies HTTP couldn't crack (JS-loaded sites)."""
     from playwright.sync_api import sync_playwright
     with db.connect() as c:
+        # READ stays on `companies` in both backends — a real table in sqlite mode, the 097
+        # compat VIEW in postgres mode, same columns either way. Only the WRITES below have
+        # to name the base table.
         rows = [dict(r) for r in c.execute(
             "SELECT id, name, careers_url, homepage FROM companies WHERE ats_type IS NULL ORDER BY name").fetchall()]
     if limit:
@@ -414,8 +417,9 @@ def run_render(limit=None):
                 except Exception:
                     postings = None
                 if postings:
+                    ct = db.companies_table()
                     with db.connect() as c:
-                        c.execute("UPDATE companies SET ats_type=?, ats_token=?, discover_status='found' WHERE id=?",
+                        c.execute(f"UPDATE {ct} SET ats_type=?, ats_token=?, discover_status='found' WHERE id=?",
                                   (atype, token, r["id"]))
                         seen = set()
                         for p in postings:
@@ -423,7 +427,7 @@ def run_render(limit=None):
                                 continue
                             db.upsert_posting(c, r["id"], p); seen.add(str(p["ats_job_id"]))
                         db.deactivate_missing(c, r["id"], seen)
-                        c.execute("UPDATE companies SET last_scraped_at=? WHERE id=?", (db.now(), r["id"]))
+                        c.execute(f"UPDATE {ct} SET last_scraped_at=? WHERE id=?", (db.now(), r["id"]))
                     unlocked += 1; total += len(postings)
                     print(f"  [{i}/{len(rows)}] UNLOCKED {r['name']} ({atype}): {len(postings)}", flush=True)
                     continue
@@ -438,6 +442,9 @@ def run_all(limit=None, workers=10):
     """Resolve + scrape every no-data company we can. Concurrent."""
     import concurrent.futures as cf
     with db.connect() as c:
+        # READ stays on `companies` in both backends — a real table in sqlite mode, the 097
+        # compat VIEW in postgres mode, same columns either way. Only the WRITES below have
+        # to name the base table.
         rows = [dict(r) for r in c.execute(
             "SELECT id, name, careers_url, homepage FROM companies WHERE ats_type IS NULL ORDER BY name").fetchall()]
     if limit:
@@ -460,8 +467,9 @@ def run_all(limit=None, workers=10):
             done += 1
             if hit and postings:
                 atype, token = hit
+                ct = db.companies_table()
                 with db.connect() as c:
-                    c.execute("UPDATE companies SET ats_type=?, ats_token=?, discover_status='found' WHERE id=?",
+                    c.execute(f"UPDATE {ct} SET ats_type=?, ats_token=?, discover_status='found' WHERE id=?",
                               (atype, token, r["id"]))
                     seen = set()
                     for p in postings:
@@ -469,7 +477,7 @@ def run_all(limit=None, workers=10):
                             continue
                         db.upsert_posting(c, r["id"], p); seen.add(str(p["ats_job_id"]))
                     db.deactivate_missing(c, r["id"], seen)
-                    c.execute("UPDATE companies SET last_scraped_at=? WHERE id=?", (db.now(), r["id"]))
+                    c.execute(f"UPDATE {ct} SET last_scraped_at=? WHERE id=?", (db.now(), r["id"]))
                 unlocked += 1; total += len(postings)
                 print(f"  [{done}/{len(rows)}] UNLOCKED {r['name']} ({atype}): {len(postings)}", flush=True)
             elif done % 25 == 0:

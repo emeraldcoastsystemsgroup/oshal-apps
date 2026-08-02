@@ -5,6 +5,9 @@
  * -----------------------------------------------------------------------------
  * 2026-07-21 20:34:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Family Feud — the reference show. Buzz-driven face-off, play with strikes, a one-guess steal, round multipliers, and the prompt/ingest pairs the host bot uses to generate surveys and judge guesses. Pure and server-authoritative.
  * 2026-07-22 02:26:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Declare the timed windows (windowFor) and what a lapse means (onTimeout) so no beat hangs forever — a dead buzzer hands the board to the trailing team, a dead answer routes through the existing judged-miss path. Add show-specific host overrides for stuck-game recovery (re-open buzzer, force-reveal, clear strike, set control, skip round).
+ * 2026-07-24 12:15:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Fast Money endgame (backlog #6, delegated to feud-fast-money.js so this file stays inside the size limits) and localJudge (exact text/alias hits rule without an LLM call — the aliases were generated for exactly this).
+ * 2026-07-25 22:45:00 | roger.murphy@emeraldcoastsystemsgroup.com  | npcMove — the Feud NPC brain for one-person game night: buzz the face-off, answer from the board the server already holds (skill decides hit rate and whether it takes the top answer), miss with a spoken wrong guess. No LLM; flows through the existing judge shape.
+ * 2026-07-26 09:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Fast Money delegates to the fastMoney npcMove like every other fm-* beat — an NPC picked for the endgame now actually plays it.
  */
 
 'use strict';
@@ -12,6 +15,7 @@
 const buzzer = require('../buzzer');
 const director = require('../director');
 const interview = require('../interview');
+const fastMoney = require('./feud-fast-money');
 
 const ID = 'family-feud';
 const STRIKE_LIMIT = 3;
@@ -61,16 +65,22 @@ function initialState(room, seats, now = Date.now()) {
 }
 
 /** @description The host may only build a survey between rounds, never mid-round. */
-function canGenerate(state) { return ['faceoff', 'play', 'steal'].indexOf(state.phase) < 0; }
+function canGenerate(state) {
+  if (fastMoney.isFmPhase(state.phase)) return fastMoney.canGenerate(state);
+  return ['faceoff', 'play', 'steal'].indexOf(state.phase) < 0;
+}
 
 /** @description Whether the whole game has been decided (all rounds played out). */
 function isGameOver(state) {
+  if (state.phase === 'fm-reveal') return true;               // Fast Money played out
+  if (fastMoney.isFmPhase(state.phase)) return false;         // Fast Money in progress
   return (Number(state.round) || 0) >= (state.board.roundsTotal || DEFAULT_ROUNDS)
     && ['round-win', 'scoreboard', 'outro'].includes(state.phase);
 }
 
 /** @description Prompt the host bot to generate this round's survey as one json block. */
 function generatePrompt(state, ctx = {}) {
+  if (fastMoney.isFmPhase(state.phase)) return fastMoney.generatePrompt(state, ctx);
   const round = (Number(state.round) || 0) + 1;
   const count = answersForRound(round);
   const used = (ctx.usedQuestions || []).slice(-12).map((q) => `- ${q}`).join('\n') || '- (none yet)';
@@ -99,6 +109,7 @@ function normalizeAnswers(list, count) {
 
 /** @description Merge a generated survey into the board and open the face-off buzzer. */
 function ingestGenerated(state, json, now = Date.now()) {
+  if (fastMoney.isFmPhase(state.phase)) return fastMoney.ingestGenerated(state, json, now);
   const round = (Number(state.round) || 0) + 1;
   const question = String((json && json.question) || '').trim().slice(0, 200);
   const answers = normalizeAnswers(json && json.answers, answersForRound(round));
@@ -140,10 +151,16 @@ function reduceBuzz(state, action, actor, now) {
 }
 
 /** @description Pure, non-LLM mechanics: buzzing, interview answers, phase moves. */
-function reduce(state, action, actor = {}, now = Date.now()) {
+function reduce(state, action, actor = {}, now = Date.now(), ctx = {}) {
   switch (action && action.type) {
     case 'buzz':
       return reduceBuzz(state, action, actor, now);
+    case 'startFastMoney': {
+      // Only once the main game is decided — Fast Money replaces the outro, it
+      // never interrupts a round.
+      if (!isGameOver(state) || fastMoney.isFmPhase(state.phase)) return { ok: false, error: 'NOT_FAST_MONEY_TIME' };
+      return fastMoney.start(state, action, actor, now, ctx);
+    }
     case 'answerInterview': {
       const result = interview.answer(state, actor.seatId, action.text, now);
       return result.ok ? { ok: true, state: result.state, cue: { interviewReact: true } } : { ok: false, error: result.reason };
@@ -161,6 +178,7 @@ function reduce(state, action, actor = {}, now = Date.now()) {
 
 /** @description Gate whether an actor may submit an answer right now (before spending an LLM call). */
 function canAnswer(state, actor = {}) {
+  if (fastMoney.isFmPhase(state.phase)) return fastMoney.canAnswer(state, actor);
   const board = state.board;
   if (state.phase === 'faceoff') {
     const faceoff = board.faceoff || {};
@@ -177,8 +195,29 @@ function canAnswer(state, actor = {}) {
   return { ok: false, reason: 'NOT_ANSWER_PHASE' };
 }
 
+/** @description Normalize a guess for exact text/alias comparison. */
+function normGuess(text) {
+  return String(text || '').toLowerCase().replace(/[^a-z0-9 ]+/g, '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * @description Rule an exact text/alias hit without spending an LLM call. Never
+ *   rules a miss locally — leniency is what the LLM judge is for.
+ */
+function localJudge(state, guess) {
+  if (fastMoney.isFmPhase(state.phase)) return fastMoney.localJudge(state, guess);
+  if (['faceoff', 'play', 'steal'].indexOf(state.phase) < 0) return null;
+  const g = normGuess(guess);
+  if (!g) return null;
+  const idx = (state.board.answers || []).findIndex(
+    (a) => normGuess(a.text) === g || (a.aliases || []).indexOf(g) >= 0
+  );
+  return idx >= 0 ? { matchIndex: idx, canonical: state.board.answers[idx].text, reason: 'exact match' } : null;
+}
+
 /** @description Prompt the host bot to judge one contestant guess as one json block. */
 function judgePrompt(state, guess, ctx = {}) {
+  if (fastMoney.isFmPhase(state.phase)) return fastMoney.judgePrompt(state, guess);
   const answers = state.board.answers
     .map((answer, i) => `  [${i}] ${answer.text} (aliases: ${(answer.aliases || []).join(', ') || 'none'})`)
     .join('\n');
@@ -280,7 +319,8 @@ function applySteal(state, judge, actor, now) {
 }
 
 /** @description Apply a judged guess to whichever answer phase the board is in. */
-function applyJudgement(state, judge, actor = {}, now = Date.now()) {
+function applyJudgement(state, judge, actor = {}, now = Date.now(), ctx = {}) {
+  if (fastMoney.isFmPhase(state.phase)) return fastMoney.applyJudgement(state, judge, actor, now);
   const value = judge || {};
   // This show owns its judge shape — reject anything that is not a usable ruling.
   if (!Number.isFinite(Number(value.matchIndex))) return { ok: false, error: 'BAD_RULING' };
@@ -306,6 +346,7 @@ const WINDOW_MS = { buzz: 20000, answer: 20000, play: 25000, interview: 45000 };
 function windowFor(state) {
   const iv = state.interview;
   if (iv && iv.active && iv.status === 'asked') return { kind: 'interview', ms: WINDOW_MS.interview, seatId: iv.seatId, note: 'Answering the host' };
+  if (fastMoney.isFmPhase(state.phase)) return fastMoney.windowFor(state);
   const board = state.board || {};
   if (state.phase === 'faceoff') {
     const faceoff = board.faceoff || {};
@@ -350,6 +391,7 @@ function timeoutFaceoffBuzz(state, now) {
 /** @description Apply a lapsed window: a dead buzzer hands over, a dead answer is a miss. */
 function onTimeout(state, timer, now = Date.now(), ctx = {}) {
   if (!timer) return { ok: false, error: 'NO_TIMER' };
+  if (String(timer.kind).indexOf('fm-') === 0) return fastMoney.onTimeout(state, timer, now);
   if (timer.kind === 'interview') {
     return { ok: true, state: interview.end(state), event: { kind: 'interview', content: 'The interview timed out' } };
   }
@@ -420,6 +462,49 @@ function override(state, action, ctx = {}, now = Date.now()) {
   }
 }
 
+// ── NPC brain: what would this seat do right now? (engine half in lib/npc.js) ─
+// Decisions are made against the board the server already holds — no LLM. A hit
+// returns the show's own judge shape ({matchIndex}) so the act flows through
+// applyJudgement exactly like a human's judged answer.
+
+/** Plausibly-wrong guesses for an NPC miss — the strike path needs a spoken line. */
+const NPC_MISSES = [
+  'a rubber duck', 'my uncle Steve', 'cheese?', 'the moon', 'a bigger boat',
+  'socks', 'karaoke', 'a nap', 'pizza rolls', 'good vibes',
+];
+
+/**
+ * @description The move an NPC podium would make right now, or null.
+ * @param {object} state - Current game state.
+ * @param {object} actor - { seatId, team, name } for the NPC seat.
+ * @param {object} ctx - { profile, roll } from the engine (deterministic).
+ * @returns {{action:object}|{guess:string, judgement:object}|null}
+ */
+function npcMove(state, actor, ctx = {}) {
+  if (fastMoney.isFmPhase(state.phase)) return fastMoney.npcMove(state, actor, ctx);
+  const prof = ctx.profile || {};
+  if (state.phase === 'faceoff' && state.buzz && state.buzz.open) {
+    const faceoff = state.board.faceoff || {};
+    if (faceoff.stage === 'second' && faceoff.awaitingTeam && actor.team !== faceoff.awaitingTeam) return null;
+    // A shy roll buzzes LATE, never NEVER — a refusal is a frozen roll, and a
+    // whole stage of frozen-shy bots is dead air until the clock bails it out.
+    const late = ctx.roll('ring') >= (prof.ring || 0.5);
+    return { action: { type: 'buzz', serial: state.buzz.serial }, late };
+  }
+  if (!canAnswer(state, actor).ok) return null;
+  const answers = state.board.answers || [];
+  const open = answers.map((answer, i) => ({ answer, i })).filter((x) => !x.answer.revealed);
+  if (!open.length) return null;
+  if (ctx.roll('hit') < (prof.hit || 0.5)) {
+    // Answers are stored ranked, so open[0] is the best remaining — a sharp NPC
+    // takes it; others land somewhere on the board like a real cousin would.
+    const pick = prof.top ? open[0] : open[Math.floor(ctx.roll('pick') * open.length)];
+    return { guess: pick.answer.text, judgement: { matchIndex: pick.i, canonical: pick.answer.text, reason: 'npc' } };
+  }
+  const miss = NPC_MISSES[Math.floor(ctx.roll('miss') * NPC_MISSES.length)];
+  return { guess: miss, judgement: { matchIndex: -1, canonical: '', reason: 'npc miss' } };
+}
+
 /** @description One-line board context reused across spoken host prompts. */
 function boardSummary(state) {
   const board = state.board;
@@ -459,5 +544,6 @@ module.exports = {
   id: ID, title: 'Family Feud', tagline: 'Name the top survey answers before three strikes.',
   teams: true, minPlayers: 2, maxPlayers: 10,
   initialState, reduce, canAnswer, canGenerate, generatePrompt, ingestGenerated, judgePrompt,
-  applyJudgement, spokenPrompt, scoreboard, isGameOver, windowFor, onTimeout, override,
+  localJudge, applyJudgement, spokenPrompt, scoreboard, isGameOver, windowFor, onTimeout, override,
+  npcMove,
 };

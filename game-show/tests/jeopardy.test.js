@@ -4,6 +4,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-22 02:40:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Plays a COMPLETE Jeopardy game through the shared Show interface — board pick, ring-in, correct/wrong scoring with re-buzz, Daily Double wager, board exhaustion, and Final Jeopardy wagering — proving a second show plugs into the engine with no engine changes. Plain `node tests/jeopardy.test.js`.
+ * 2026-07-24 12:45:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Double Jeopardy (backlog #7): the game now plays TWO boards — round 1 exhaustion opens 'round-break', round 2 generates at doubled values with two Daily Doubles, and only round-2 exhaustion opens the final. Plus localJudge exact-match coverage.
  */
 
 'use strict';
@@ -41,8 +42,9 @@ const find = (board, pred) => {
 };
 
 // ── Both shows registered, engine untouched ──────────────────────────────────
-check(registry.has('jeopardy') && registry.has('family-feud'), 'both shows are registered');
-check(registry.list().length === 2, 'catalog lists two shows');
+check(registry.has('jeopardy') && registry.has('family-feud'), 'both original shows are registered');
+check(registry.has('wheel') && registry.has('whammy'), 'shows #3 and #4 are registered');
+check(registry.list().length === 4, 'catalog lists four shows');
 check(registry.get('jeopardy').teams === false && registry.get('family-feud').teams === true, 'one show is individual, one is teamed');
 
 // ── Opening + generation ─────────────────────────────────────────────────────
@@ -92,24 +94,40 @@ let buzz3 = jeopardy.reduce(wrong.state, { type: 'buzz', serial: wrong.state.buz
 check(buzz3.ok && buzz3.state.phase === 'answer', 'the other player can still ring in');
 
 // ── Play the whole board out (Daily Double included) ─────────────────────────
-let cur = jeopardy.applyJudgement(buzz3.state, { correct: true }, P1, NOW, CTX).state;
-let guard = 0;
-while (cur.phase !== 'final-setup' && guard++ < 40) {
-  if (cur.phase === 'board') {
-    const next = find(cur.board, (q) => !q.used);
-    if (!next) break;
-    cur = jeopardy.reduce(cur, { type: 'pick', cat: next.cat, row: next.row }, P1, NOW, CTX).state;
-  } else if (cur.phase === 'daily-wager') {
-    const w = jeopardy.reduce(cur, { type: 'wager', amount: 400 }, P1, NOW, CTX);
-    check(w.ok && w.state.phase === 'answer' && w.state.board.wager.amount === 400, 'a Daily Double wager sends the picker straight to the response');
-    cur = w.state;
-  } else if (cur.phase === 'clue') {
-    cur = jeopardy.reduce(cur, { type: 'buzz', serial: cur.buzz.serial }, P1, NOW, CTX).state;
-  } else if (cur.phase === 'answer') {
-    cur = jeopardy.applyJudgement(cur, { correct: true }, P1, NOW, CTX).state;
-  } else break;
+function playBoardOut(start, until) {
+  let state = start, guard = 0, wagerChecked = false;
+  while (state.phase !== until && guard++ < 80) {
+    if (state.phase === 'board') {
+      const next = find(state.board, (q) => !q.used);
+      if (!next) break;
+      state = jeopardy.reduce(state, { type: 'pick', cat: next.cat, row: next.row }, P1, NOW, CTX).state;
+    } else if (state.phase === 'daily-wager') {
+      const w = jeopardy.reduce(state, { type: 'wager', amount: 400 }, P1, NOW, CTX);
+      if (!wagerChecked) { check(w.ok && w.state.phase === 'answer' && w.state.board.wager.amount === 400, 'a Daily Double wager sends the picker straight to the response'); wagerChecked = true; }
+      state = w.state;
+    } else if (state.phase === 'clue') {
+      state = jeopardy.reduce(state, { type: 'buzz', serial: state.buzz.serial }, P1, NOW, CTX).state;
+    } else if (state.phase === 'answer') {
+      state = jeopardy.applyJudgement(state, { correct: true }, P1, NOW, CTX).state;
+    } else break;
+  }
+  return state;
 }
-check(cur.phase === 'final-setup', 'exhausting the board moves the game to Final Jeopardy setup');
+let cur = playBoardOut(jeopardy.applyJudgement(buzz3.state, { correct: true }, P1, NOW, CTX).state, 'round-break');
+check(cur.phase === 'round-break', 'exhausting the ROUND-1 board opens Double Jeopardy, not the final');
+check(jeopardy.canGenerate(cur) === true, 'the host may build the Double Jeopardy board');
+check(jeopardy.windowFor(cur) === null, 'the round break is not on the clock');
+check(/DOUBLE JEOPARDY/.test(jeopardy.generatePrompt(cur, {})), 'the round-2 prompt asks for a Double Jeopardy board');
+
+// ── Double Jeopardy: doubled values, two Daily Doubles ───────────────────────
+const dj = jeopardy.ingestGenerated(cur, makeBoard(2), NOW);
+check(dj.ok && dj.state.round === 2 && dj.state.phase === 'board', 'the Double Jeopardy board opens round 2');
+check(dj.state.board.categories[0].clues[0].value === 400 && dj.state.board.categories[0].clues[4].value === 2000, 'Double Jeopardy values are doubled ($400–$2000)');
+const djDailies = dj.state.board.categories.reduce((n, c) => n + c.clues.filter((q) => q.isDaily).length, 0);
+check(djDailies === 2, 'Double Jeopardy places two Daily Doubles');
+check(dj.state.board.control === 'p1', 'control carries into Double Jeopardy');
+cur = playBoardOut(dj.state, 'final-setup');
+check(cur.phase === 'final-setup', 'exhausting the ROUND-2 board moves the game to Final Jeopardy setup');
 check(jeopardy.canGenerate(cur) === true, 'the host may build the final clue');
 
 // ── Final Jeopardy: wager, answer, crown ─────────────────────────────────────
@@ -139,6 +157,14 @@ check(jeopardy.isGameOver(done.state) === true, 'the game reports over');
 
 const sb = jeopardy.scoreboard(done.state, SEATS);
 check(sb[0].seatId === 'p1' && sb[0].score > sb[1].score, 'scoreboard ranks individuals by score');
+
+// ── localJudge: exact hits rule free, everything else defers to the LLM ──────
+const liveClue = { ...gen.state, board: { ...gen.state.board, pick: plain } };
+const target = gen.state.board.categories[plain.cat].clues[plain.row].answer;
+check(jeopardy.localJudge(liveClue, 'What is ' + target + '?').correct === true, 'an exact response (with the question phrasing) rules correct locally');
+check(jeopardy.localJudge(liveClue, target.toUpperCase()) !== null, 'case never matters to the local judge');
+check(jeopardy.localJudge(liveClue, 'something else entirely') === null, 'a non-match is NOT ruled locally — the lenient LLM judge decides');
+check(jeopardy.localJudge({ ...gen.state, board: { ...gen.state.board, pick: null } }, target) === null, 'no live clue, no local ruling');
 
 // ── Feud still holds after the interface generalization ──────────────────────
 check(feud.canGenerate({ phase: 'lobby' }) === true && feud.canGenerate({ phase: 'play' }) === false, 'feud gates generation on its own phases');

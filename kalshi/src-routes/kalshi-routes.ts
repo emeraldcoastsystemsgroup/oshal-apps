@@ -1,11 +1,14 @@
 /**
  * Kalshi prediction-markets routes — the `?app=kalshi` surface and its data feeds.
  *
- * Read-only in this phase: serves the surface HTML plus the live "poker hand" scan (open markets
- * evaluated against the settled-market calibration table, net of fees) and the calibration table
- * itself. Order placement lands with the authed connector phase and will be confirm-gated like
- * the trading autopilot's risky-write guards. Scan results are cached in-process so the cockpit
- * can't hammer Kalshi's public API.
+ * Serves the surface HTML plus the "poker hand" scan (open markets evaluated against the
+ * settled-market calibration table, net of fees), the calibration table, the forward-test
+ * scorecard, and the Phase-2 portfolio/confirm-gated orders.
+ *
+ * NOTHING HERE SCANS ON DEMAND ANY MORE (2026-07-30). `GET /scan` reads the snapshot the
+ * background poller (kalshi-scan-cron) keeps warm and returns immediately with its age; the scan
+ * itself lives in kalshi-scan-engine. `POST /scan/run` asks for an out-of-band refresh and answers
+ * 202 without waiting. See kalshi-scan-cron for why (a 23-second feed walk on the request path).
  *
  * CHANGE LOG
  * -----------------------------------------------------------------------------
@@ -14,6 +17,7 @@
  * 2026-07-13 00:55:00 | roger.murphy@emeraldcoastsystemsgroup.com | Initial — GET / (surface), /scan (cached ranked hands), /calibration (table + freshness), /status (exchange + table age). Auth: mounted behind serviceSecretOr(requiresAuth) in server.ts; handlers also self-gate via callerSub.
  * 2026-07-13 20:40:00 | roger.murphy@emeraldcoastsystemsgroup.com | Phase 2 (ADR-094): GET /portfolio (balance/positions/resting via the caller's brokered key), POST /orders (validateOrderRequest guards + LIVE-key hard gate off the DETECTED env — never a client flag — unless KALSHI_LIVE_ENABLED; audited to kalshi_orders with the justifying hand snapshot, rejections too), DELETE /orders/:id, GET /orders/history. Signature createKalshiRoutes(pool, apiDir); schema self-heals (migration 074 is the bootstrap copy).
  * 2026-07-19 21:25:00 | roger.murphy@emeraldcoastsystemsgroup.com | Carved out of OSHAL core into the kalshi app package (ADR-085 Wave 3, "skill with a surface"). Standard (ctx) factory; the surface serves from ctx.appPackageDir/tools (load-time env fallback, D10) through the kernel's servePage helper. Relative imports flip to @/ aliases: @/app/routes/trading-routes-helpers (callerSub + servePage — global-search-routes also imports them, they stay kernel) + @/app/routes/connectors-routes (getValidAccessToken). The prediction-markets ENGINE stays kernel (@/features/prediction-markets — connector-account-lookup real-imports probeKalshiAccount, the oshal-kalshi-* CLIs + specs source it; NOT orphaned, D8 verified). The ADR-094 confirm/fail-closed order posture — validateOrderRequest guards, the LIVE-key hard gate off the DETECTED env unless KALSHI_LIVE_ENABLED, blocked/rejected/placed all audited to kalshi_orders — is byte-identical to the kernel original.
+ * 2026-07-30 04:05:00 | roger.murphy@emeraldcoastsystemsgroup.com | The scan came OFF the request path (operator: "kalshi task takes too long ... it should always be running on new ops every x ms based on configuration ... every hour, and jarvis should be notified ... only if you have the application"). The live api's own log is the evidence: openPaged=60000 evaluable=6 hands=1 ms=23125 — every cold open paid a 23s feed walk, and an api recreate threw the in-process cache away so the next visitor paid again. Now: runScan/calibration/prediction-recording moved to kalshi-scan-engine; the poller in kalshi-scan-cron (started here, so it exists only while this app is ACTIVE) keeps a durable Postgres snapshot warm on a configured cadence and posts NEW playable hands to each entitled user's Jarvis feed; GET /scan serves that snapshot instantly with freshness metadata; new POST /scan/run (202, single-flighted), GET+PUT /settings (deployment cadence knobs are operator-only, alert knobs are per-user, both clamped by the pure config module), GET /alerts.
  *
  * @module kalshi-routes
  */
@@ -25,25 +29,24 @@ import * as path from 'path';
 import type { Pool } from 'pg';
 import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
-import type { BetHand, CalibrationTable, KalshiMarket, KalshiOrderRequest, KalshiSeriesMeta } from '@/features/prediction-markets';
+import type { KalshiOrderRequest } from '@/features/prediction-markets';
 import {
-  cancelKalshiOrder, exchangeTradingActive, getKalshiPortfolio, getScorecard, getSeriesMeta,
-  kalshiLiveOrdersEnabled, listMarketsFiltered, mayStrategyStake, parseKalshiSecret,
-  placeKalshiOrder, rankHands, validateOrderRequest,
+  cancelKalshiOrder, exchangeTradingActive, getKalshiPortfolio, getScorecard,
+  kalshiLiveOrdersEnabled, parseKalshiSecret, placeKalshiOrder, validateOrderRequest,
 } from '@/features/prediction-markets';
 import { getValidAccessToken } from '@/app/routes/connectors-routes';
 import { callerSub, servePage } from '@/app/routes/trading-routes-helpers';
+import { isOperator } from '@/shared/middleware/authz';
+import {
+  DEPLOYMENT_SCOPE, listAlerts, loadCalibration, manifestSettingsSchema, readSettingsRow,
+  readSnapshot, resolveConfig, writeSettingsRow,
+} from './kalshi-scan-engine';
+import { scanFreshness, keysForScope } from './kalshi-scan-config';
+import {
+  ALERT_TOPIC, manualRunAllowed, scanNow, scanRuntimeStatus, startKalshiScanCron,
+} from './kalshi-scan-cron';
 
 const log = createChildLogger({ module: 'kalshi-routes' });
-
-/** Evaluable markets RETAINED per scan — the feed walk keeps paging (up to maxPaged batches of
- *  1000) until it holds this many real books; >99% of the flat feed is parlay legs. */
-const SCAN_MAX_MARKETS = Number(process.env.KALSHI_SCAN_MAX_MARKETS) || 1500;
-/** Scan cache TTL ms — the cockpit refresh interval floors here. */
-const SCAN_TTL_MS = Number(process.env.KALSHI_SCAN_TTL_MS) || 120_000;
-
-let scanCache: { at: number; payload: unknown } | null = null;
-let scanInFlight: Promise<unknown> | null = null;
 
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -62,82 +65,6 @@ function surfaceDir(appPackageDir: string | undefined): string {
     path.resolve(__dirname, '../tools'),
   ].filter(Boolean) as string[];
   return candidates.find((d) => fs.existsSync(path.join(d, 'kalshi.html'))) || candidates[candidates.length - 1];
-}
-
-function calibrationPath(): string {
-  return path.resolve(process.cwd(), 'config-seed', 'kalshi-calibration.json');
-}
-
-function loadCalibration(): { table: CalibrationTable | null; mtime: string | null } {
-  try {
-    const p = calibrationPath();
-    const stat = fs.statSync(p);
-    return { table: JSON.parse(fs.readFileSync(p, 'utf8')) as CalibrationTable, mtime: stat.mtime.toISOString() };
-  } catch {
-    return { table: null, mtime: null };
-  }
-}
-
-/** Evaluable = real single market with a two-sided book and at least one trade printed. */
-function evaluableMarket(m: KalshiMarket): boolean {
-  return !m.isMultivariate && m.yesAsk > 0 && m.noAsk > 0 && m.volume > 0;
-}
-
-/** The scan's hands come from the calibration engine — score them under that name. */
-const SCAN_STRATEGY = 'calibration';
-
-/**
- * Pre-register the scan's hands as PREDICTIONS so the strategy you can actually click "Bet" on is
- * also the strategy reality grades. Until this existed, only the weather model was scored while
- * the calibration hands — the ones with Bet buttons — were never written down and never graded.
- * Immutable: ON CONFLICT DO NOTHING, so a hand's first-seen probability is the one it is judged on.
- */
-async function recordScanPredictions(pool: Pool, hands: BetHand[]): Promise<void> {
-  for (const h of hands) {
-    await pool.query(
-      `INSERT INTO kalshi_predictions
-         (strategy, ticker, event_ticker, series_ticker, predicted_prob, market_prob, edge_net,
-          stake_fraction, side, rationale, close_time)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-       ON CONFLICT (strategy, ticker) DO NOTHING`,
-      [SCAN_STRATEGY, h.ticker, h.eventTicker, h.ticker.split('-')[0], h.trueProb, h.price, h.edgeNet,
-        h.stakeFraction, h.side,
-        JSON.stringify({ strength: h.strength, confidence: h.confidence, calibrationN: h.calibrationN, riskFlags: h.riskFlags }),
-        h.closeTime],
-    ).catch((err) => log.error({ err, ticker: h.ticker }, 'scan prediction record failed'));
-  }
-}
-
-async function runScan(pool: Pool): Promise<unknown> {
-  const started = Date.now();
-  const { table, mtime } = loadCalibration();
-  if (!table) throw new Error('calibration table missing — run scripts/oshal-kalshi-calibration.ts');
-  const [active, walk] = await Promise.all([
-    exchangeTradingActive().catch(() => false),
-    listMarketsFiltered({ status: 'open' }, evaluableMarket, { maxKeep: SCAN_MAX_MARKETS }),
-  ]);
-  const seriesByTicker = new Map<string, KalshiSeriesMeta>();
-  for (const m of walk.markets) {
-    if (!seriesByTicker.has(m.seriesTicker)) seriesByTicker.set(m.seriesTicker, await getSeriesMeta(m.seriesTicker));
-  }
-  let hands: BetHand[] = rankHands(walk.markets, seriesByTicker, table);
-
-  // Record BEFORE gating, so the prediction is judged on what the model actually believed.
-  await recordScanPredictions(pool, hands);
-
-  // THE EVIDENCE GATE: a strategy may only size a stake once it has out-scored the market on
-  // settled predictions. Unproven or failing ⇒ stakes forced to zero — the hand is still shown
-  // (with its reasoning), it just may not claim a slice of the bankroll it hasn't earned.
-  const gate = await mayStrategyStake(pool, SCAN_STRATEGY);
-  if (!gate.mayStake) hands = hands.map((h) => ({ ...h, stakeFraction: 0 }));
-
-  const scorecard = await getScorecard(pool).catch(() => []);
-  log.info({ openPaged: walk.paged, evaluable: walk.markets.length, hands: hands.length, mayStake: gate.mayStake, ms: Date.now() - started }, 'kalshi scan complete');
-  return {
-    generatedAt: new Date().toISOString(), exchangeActive: active, calibrationGeneratedAt: table.generatedAt,
-    calibrationFileMtime: mtime, openPaged: walk.paged, evaluable: walk.markets.length, hands,
-    strategy: SCAN_STRATEGY, mayStake: gate.mayStake, gateReason: gate.reason, scorecard,
-  };
 }
 
 /** Self-heal the audit table (mirrors the trading routes' ensureSchema pattern; migration 074 is
@@ -169,9 +96,11 @@ async function resolveCreds(pool: Pool, req: Request, res: Response): Promise<{ 
 }
 
 /**
- * @description Build the Kalshi app routes: the surface + edge scan (Phase 1) and the
- * portfolio/orders execution layer (Phase 2 — confirm-gated, demo exchange unless
- * KALSHI_LIVE_ENABLED, every order audited to kalshi_orders with its hand snapshot).
+ * @description Build the Kalshi app routes: the surface + the edge-scan snapshot feeds (Phase 1),
+ * the settings/alerts surface for the always-on background scan, and the portfolio/orders execution
+ * layer (Phase 2 — confirm-gated, demo exchange unless KALSHI_LIVE_ENABLED, every order audited to
+ * kalshi_orders with its hand snapshot). Also STARTS the background scan poller, which is what
+ * scopes it to deployments that actually have this app installed.
  * @param ctx - The per-package app context (pool for order audit + connector token resolution;
  * appPackageDir for the bundled surface per D10).
  * @returns The configured router.
@@ -181,21 +110,135 @@ export function createKalshiRoutes(ctx: AppContext): Router {
   const toolsDir = surfaceDir(ctx.appPackageDir);
   const router = Router();
   ensureKalshiSchema(pool).catch((err) => log.error({ err }, 'kalshi schema ensure failed'));
+  // "Only if you have the application": the always-on scan is started HERE, by the app's own route
+  // factory, so it exists exactly while this package is installed + active — never on a deployment
+  // that doesn't have kalshi. Idempotent per process (a package reload re-invokes this factory).
+  startKalshiScanCron(ctx);
 
   router.get('/', servePage(toolsDir, 'kalshi.html'));
   router.get('/ui', servePage(toolsDir, 'kalshi.html'));
 
+  // THE SNAPSHOT READ. Never scans, never blocks: the poller owns the feed walk. Before the first
+  // scan lands the answer is an honest 200 with `hands: []` + `awaitingFirstScan` — an EMPTY table
+  // on this surface means "the evaluator folded everything", so a not-yet-scanned state must say
+  // which of the two it is rather than borrowing the fold's wording.
   router.get('/scan', async (req: Request, res: Response) => {
     if (!callerSub(req)) { res.status(401).json({ error: 'authentication required' }); return; }
     try {
-      if (scanCache && Date.now() - scanCache.at < SCAN_TTL_MS) { res.json(scanCache.payload); return; }
-      if (!scanInFlight) {
-        scanInFlight = runScan(pool).then((payload) => { scanCache = { at: Date.now(), payload }; return payload; })
-          .finally(() => { scanInFlight = null; });
+      const cfg = await resolveConfig(ctx, callerSub(req));
+      const snap = await readSnapshot(pool);
+      const runtime = scanRuntimeStatus();
+      const fresh = scanFreshness(snap?.generatedAt ?? null, cfg, Date.now());
+      if (!snap) {
+        res.json({
+          generatedAt: null, hands: [], evaluable: 0, openPaged: 0, scorecard: [], awaitingFirstScan: true,
+          exchangeActive: false, calibrationGeneratedAt: null, calibrationFileMtime: null,
+          strategy: 'calibration', mayStake: false,
+          gateReason: 'the background scan has not produced its first snapshot yet',
+          scan: { ...fresh, running: runtime.running, intervalMinutes: cfg.scanIntervalMinutes, enabled: cfg.scanEnabled, lastError: runtime.lastError },
+        });
+        return;
       }
-      res.json(await scanInFlight);
+      res.json({
+        ...snap.payload,
+        awaitingFirstScan: false,
+        scan: {
+          ...fresh, running: runtime.running, intervalMinutes: cfg.scanIntervalMinutes,
+          enabled: cfg.scanEnabled, lastError: runtime.lastError, lastMs: snap.payload.scanMs ?? runtime.lastMs,
+          lastSource: runtime.lastSource,
+        },
+      });
     } catch (err) {
-      log.error({ err }, 'kalshi scan failed');
+      log.error({ err }, 'kalshi snapshot serve failed');
+      res.status(503).json({ error: (err as Error).message });
+    }
+  });
+
+  // Out-of-band refresh ("Scan now"). Answers 202 immediately — a 23-second wait is exactly what
+  // this rework removed — and is single-flighted in the cron, so double-clicking costs nothing.
+  router.post('/scan/run', async (req: Request, res: Response) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'authentication required' }); return; }
+    const runtime = scanRuntimeStatus();
+    if (runtime.running) {
+      res.status(202).json({ started: false, alreadyRunning: true, startedAt: runtime.startedAt });
+      return;
+    }
+    // Throttled: each manual run is a 60-page walk on a shared ~3 rps public tier, and this route
+    // is open to any signed-in user. Unthrottled, a click loop pins the scanner and risks a 429
+    // for the whole deployment (self-review, 2026-07-30).
+    const gate = manualRunAllowed();
+    if (!gate.allowed) {
+      res.status(429).set('Retry-After', String(gate.retryAfterSeconds)).json({
+        started: false, error: `a manual scan ran recently — try again in ${gate.retryAfterSeconds}s`,
+        retryAfterSeconds: gate.retryAfterSeconds,
+      });
+      return;
+    }
+    void scanNow(ctx, 'manual').catch(() => { /* recorded in the runtime status + logged */ });
+    log.info({ sub }, 'kalshi manual scan requested');
+    res.status(202).json({ started: true, startedAt: new Date().toISOString() });
+  });
+
+  /* ─── Settings (the YAML defaults, overridable per deployment + per user) ────── */
+
+  // GET returns the RESOLVED config the caller actually runs under, plus the raw override rows and
+  // which keys the caller may edit — so the surface renders exactly the knobs it is allowed to save.
+  router.get('/settings', async (req: Request, res: Response) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'authentication required' }); return; }
+    try {
+      const operator = isOperator(req);
+      res.json({
+        // `schema` is the manifest's own settings.schema — the surface renders the panel FROM the
+        // YAML (labels, bounds, scope), so "config lives in the yaml" is literally true here.
+        schema: manifestSettingsSchema(ctx.appPackageDir),
+        config: await resolveConfig(ctx, sub),
+        deploymentConfig: await resolveConfig(ctx, null),
+        overrides: {
+          deployment: await readSettingsRow(pool, DEPLOYMENT_SCOPE),
+          user: await readSettingsRow(pool, sub),
+        },
+        editable: { user: keysForScope('user'), deployment: operator ? keysForScope('deployment') : [] },
+        isOperator: operator,
+        alertTopic: ALERT_TOPIC,
+        scan: scanRuntimeStatus(),
+      });
+    } catch (err) {
+      log.error({ err }, 'kalshi settings read failed');
+      res.status(503).json({ error: (err as Error).message });
+    }
+  });
+
+  // PUT saves one scope. The USER scope is always the caller's own row (never a sub from the body);
+  // the DEPLOYMENT scope changes how often this deployment scans for everyone, so it is
+  // operator-only — a fail-closed 403 rather than a silently-ignored write.
+  router.put('/settings', async (req: Request, res: Response) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'authentication required' }); return; }
+    const body = (req.body || {}) as { scope?: string; settings?: unknown };
+    const scope = body.scope === 'deployment' ? 'deployment' : 'user';
+    if (scope === 'deployment' && !isOperator(req)) {
+      res.status(403).json({ error: 'the scan cadence is deployment-wide — operator only' });
+      return;
+    }
+    try {
+      const stored = await writeSettingsRow(pool, scope === 'deployment' ? DEPLOYMENT_SCOPE : sub, scope, body.settings);
+      res.json({ ok: true, scope, stored, config: await resolveConfig(ctx, sub) });
+    } catch (err) {
+      log.error({ err, scope }, 'kalshi settings write failed');
+      res.status(503).json({ error: (err as Error).message });
+    }
+  });
+
+  /** The caller's own alert history — what the background scan has already told them about. */
+  router.get('/alerts', async (req: Request, res: Response) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'authentication required' }); return; }
+    try {
+      res.json({ alerts: await listAlerts(pool, sub, Number(req.query.limit) || 50) });
+    } catch (err) {
+      log.error({ err }, 'kalshi alerts read failed');
       res.status(503).json({ error: (err as Error).message });
     }
   });
@@ -218,13 +261,25 @@ export function createKalshiRoutes(ctx: AppContext): Router {
   });
 
   router.get('/status', async (req: Request, res: Response) => {
-    if (!callerSub(req)) { res.status(401).json({ error: 'authentication required' }); return; }
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'authentication required' }); return; }
     try {
       const { table, mtime } = loadCalibration();
+      const cfg = await resolveConfig(ctx, sub);
+      const snap = await readSnapshot(pool);
+      const runtime = scanRuntimeStatus();
       res.json({
         exchangeActive: await exchangeTradingActive().catch(() => false),
         calibration: table ? { generatedAt: table.generatedAt, fileMtime: mtime, sampleCounts: table.sampleCounts } : null,
-        scanCachedAt: scanCache ? new Date(scanCache.at).toISOString() : null,
+        // Kept for compatibility with the surface's older field name; the snapshot IS the cache now.
+        scanCachedAt: snap?.generatedAt ?? null,
+        scan: {
+          ...scanFreshness(snap?.generatedAt ?? null, cfg, Date.now()),
+          enabled: cfg.scanEnabled, intervalMinutes: cfg.scanIntervalMinutes,
+          running: runtime.running, lastMs: snap?.payload.scanMs ?? runtime.lastMs,
+          lastError: runtime.lastError, lastSource: runtime.lastSource, cyclesRun: runtime.cyclesRun,
+        },
+        notify: { jarvis: cfg.notifyJarvis, outward: cfg.notifyOutward, topic: ALERT_TOPIC },
         liveOrdersEnabled: kalshiLiveOrdersEnabled(),
       });
     } catch (err) {

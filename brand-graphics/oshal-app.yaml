@@ -29,7 +29,7 @@ theme: midnight
 
 source:
   type: git-subdir
-  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: brand-graphics
   ref: main
 

@@ -1,7 +1,7 @@
 {
   "$schema": "https://github.com/emeraldcoastsystemsgroup/open-shal/blob/main/docs/adr/085-remote-app-packages-and-registries.md",
   "version": 1,
-  "name": "oshal-applications",
+  "name": "oshal-apps",
   "description": "The OSHAL app store — installable app packages (ADR-085 git-subdir sources).",
   "apps": [
     {
@@ -9,7 +9,7 @@
       "suite": "ai-engineering",
       "displayName": "Hello OSHAL",
       "description": "The minimal working example — one route, one ribbon tile. Copy it to start a new extension.",
-      "version": "1.0.1",
+      "version": "1.1.0",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -18,7 +18,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "hello-oshal",
         "ref": "main"
       },
@@ -41,7 +41,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "little-monsters",
         "ref": "main"
       },
@@ -64,7 +64,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "brand-graphics",
         "ref": "main"
       },
@@ -76,7 +76,7 @@
       "suite": "ai-creative",
       "displayName": "LoRA Studio",
       "description": "Train a reusable character (a \"sprite\") from images and captions, validate it on a fixed held-out matrix, and improve it by targeting its weak spots — every version scored so \"better\" is a number. Runs free on your GPU box.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "theme": "indigo",
       "dependencies": {
         "apps": [],
@@ -85,7 +85,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "lora",
         "ref": "main"
       },
@@ -106,7 +106,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "youtube-kids",
         "ref": "main"
       },
@@ -130,7 +130,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "payments",
         "ref": "main"
       },
@@ -142,7 +142,7 @@
       "suite": "ai-finance",
       "displayName": "Finance",
       "description": "Link your banks and brokerages via Plaid and see everything in one place — net worth, accounts, holdings, spending — with a plain-English brief. Read-only aggregation; money movement is explicit-confirm gated.",
-      "version": "1.0.0",
+      "version": "1.1.1",
       "theme": "forest",
       "dependencies": {
         "apps": [],
@@ -151,7 +151,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "finance",
         "ref": "main"
       },
@@ -173,7 +173,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "movies",
         "ref": "main"
       },
@@ -195,7 +195,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "spotify",
         "ref": "main"
       },
@@ -206,8 +206,8 @@
       "name": "rides",
       "suite": "ai-home",
       "displayName": "Get a Ride",
-      "description": "AI Uber Rides concierge — pickup + destination in, ride options with labelled fare estimates out, and a ready deep link you confirm and pay in your own Uber app.",
-      "version": "1.0.0",
+      "description": "AI Uber Rides concierge on a real map — set pickup and destination by pin or address, see the measured distance, compare ride types with labelled fare estimates, and hand off a ready deep link you confirm and pay in your own Uber app.",
+      "version": "1.1.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -217,7 +217,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "rides",
         "ref": "main"
       },
@@ -239,7 +239,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "eats",
         "ref": "main"
       },
@@ -261,7 +261,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "purchasing",
         "ref": "main"
       },
@@ -270,10 +270,10 @@
     },
     {
       "name": "career-hunter",
-      "suite": "ai-productivity",
-      "displayName": "Career Hunter",
-      "description": "The job-hunting swarm: nightly scrape over ~1,240 companies, AI fit scoring, approval-gated applications, recruiter tracking, resume + LinkedIn profile studios, morning digest, and a mobile swipe deck. ONE registered agent; the Python engine ships in the package (bin/ + engine/) — core keeps only the interpreter.",
-      "version": "1.3.0",
+      "suite": "ai-knowledge",
+      "displayName": "Intelligent Career",
+      "description": "Reads openings from employers' own public ATS job feeds into a shared corpus, scores every posting against your private career profile, and turns the best fits into a human-in-the-loop application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume + cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.",
+      "version": "1.6.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -281,7 +281,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "career-hunter",
         "ref": "main"
       },
@@ -292,9 +292,9 @@
       "name": "presentations",
       "suite": "ai-productivity",
       "displayName": "AI Office",
-      "description": "One outline, three artifacts — a themed PowerPoint deck, Word document, or live Excel workbook. Ten shared looks, twenty layouts, fully editable in Microsoft Office, Google Workspace or LibreOffice; saves to Dropbox, Google Drive, OneDrive, or OSHAL local. The deck-generation engine stays framework-resident (kernel skill); this package is the studio surface.",
-      "version": "2.0.0",
-      "theme": "midnight",
+      "description": "One outline, three artifacts — a themed PowerPoint deck, Word document, or live Excel workbook. Ten shared looks, twenty layouts, fully editable in Microsoft Office, Google Workspace or LibreOffice; saves to Dropbox, Google Drive, OneDrive, or OSHAL local. A guided visual start walks you from artifact to look to outline — or talk to the Guide, open a file, or type one line and AI drafts it all. Phone-friendly: dictate instead of typing, resume recent files in one tap, drive edits with tap chips. My files is a real file browser - click a file for download, open-in-provider, or edit-and-regenerate. The deck-generation engine stays framework-resident (kernel skill); this package is the studio surface.",
+      "version": "2.4.0",
+      "theme": "light-blue",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -308,7 +308,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "presentations",
         "ref": "main"
       },
@@ -333,7 +333,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "storage",
         "ref": "main"
       },
@@ -354,7 +354,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "portrait-studio",
         "ref": "main"
       },
@@ -366,7 +366,7 @@
       "suite": "ai-home",
       "displayName": "Smart Home",
       "description": "Your smart home, one surface — read device state and scenes across SmartThings and Google Home, ask the home bot to run a routine, and let scheduled 'morning routine' tickets drive the house. The home-bot node, home-data store, and the scheduler's home-control branch stay framework-resident; this package is the surface over them.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "theme": "forest",
       "dependencies": {
         "apps": [],
@@ -378,7 +378,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "home",
         "ref": "main"
       },
@@ -405,7 +405,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "social",
         "ref": "main"
       },
@@ -427,7 +427,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "job-apply",
         "ref": "main"
       },
@@ -450,7 +450,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "feeds",
         "ref": "main"
       },
@@ -472,7 +472,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "cloud",
         "ref": "main"
       },
@@ -493,7 +493,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "identity",
         "ref": "main"
       },
@@ -515,7 +515,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "travel",
         "ref": "main"
       },
@@ -535,7 +535,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "camera",
         "ref": "main"
       },
@@ -555,7 +555,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "drone",
         "ref": "main"
       },
@@ -575,7 +575,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "spaces",
         "ref": "main"
       },
@@ -595,7 +595,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "sat-ops",
         "ref": "main"
       },
@@ -607,7 +607,7 @@
       "suite": "ai-creative",
       "displayName": "Pumpkin",
       "description": "Animated talking jack-o'-lantern Halloween prop - project a glowing procedural pumpkin face into an inflatable, with a lip-syncing mouth. The public browser demo has locally interactive control, projector, voice, saved looks, and same-device remote tabs without server writes or AI spend; signed-in mode adds owner-scoped cross-device pairing and autonomous pumpkin-bot replies.",
-      "version": "1.0.1",
+      "version": "1.2.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -615,7 +615,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "pumpkin",
         "ref": "main"
       },
@@ -627,7 +627,7 @@
       "suite": "ai-creative",
       "displayName": "Creative Studio",
       "description": "A creative bot that just keeps making short kid-safe videos - it rotates a public-domain library (fables, fairytales, famous sayings), animates each ~100-word story across ~10 continuous Google Vids Extend scenes on the remote worker (ADR-080), downloads the finished MP4, and saves it to your content folder + Google Drive. The shared vids-operator desktop worker, its registry entries, and the oshal-vids CLI stay framework-resident; the /api/vids surface it tiles is owned by the vids app (declared dependency); this package is the manifest + tools + tile over them.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "theme": "midnight",
       "dependencies": {
         "apps": [
@@ -638,7 +638,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "creative-studio",
         "ref": "main"
       },
@@ -658,7 +658,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "daily-trade-recap",
         "ref": "main"
       },
@@ -679,7 +679,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "video",
         "ref": "main"
       },
@@ -700,7 +700,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "vids",
         "ref": "main"
       },
@@ -726,7 +726,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "email-summarizer",
         "ref": "main"
       },
@@ -737,8 +737,8 @@
       "name": "kalshi",
       "suite": "ai-finance",
       "displayName": "Kalshi Prediction Markets",
-      "description": "Find mispriced event contracts on Kalshi (ADR-094). Every open market is evaluated like a poker hand - calibrated true probability (from Kalshi's own settled-market tape, no history means no edge) versus price plus fees - and playable hands are ranked with quarter-Kelly stakes and explicit risk flags. Portfolio + order placement ride the per-user connector, confirm-gated and demo-exchange-first (KALSHI_LIVE_ENABLED gates live money; every order and refusal audited). The prediction-markets engine, the kalshi connector + broker key, the calibration/forward-test CLIs, and the default tile stay framework-resident; this package is the surface + confirm-gated order routes over them.",
-      "version": "1.0.0",
+      "description": "Find mispriced event contracts on Kalshi (ADR-094). Every open market is evaluated like a poker hand - calibrated true probability (from Kalshi's own settled-market tape, no history means no edge) versus price plus fees - and playable hands are ranked with quarter-Kelly stakes and explicit risk flags. Portfolio + order placement ride the per-user connector, confirm-gated and demo-exchange-first (KALSHI_LIVE_ENABLED gates live money; every order and refusal audited). The prediction-markets engine, the kalshi connector + broker key, the calibration/forward-test CLIs, and the default tile stay framework-resident; this package is the surface + confirm-gated order routes over them. The scan runs in the BACKGROUND on a cadence configured in the manifest (default hourly) and posts new playable hands to the user's Jarvis feed; the surface serves the last snapshot instantly instead of waiting on a feed walk, and the cadence/alert thresholds are editable from the app's Settings tab.",
+      "version": "1.1.0",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -749,7 +749,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "kalshi",
         "ref": "main"
       },
@@ -761,7 +761,7 @@
       "suite": "ai-finance",
       "displayName": "Intelligent Trades",
       "description": "Signal-justified stock trading (ADR-052). Capture a market signal, let the trading-analyst reason it into a decision tree, and execute through the provider-agnostic BrokerAdapter (Alpaca paper / Schwab live) - every order FK-bound to its justifying decision and signals. Dual paper/live books, PAPER-ONLY by default; the env-level live gate (TRADING_LIVE_ENABLED + explicit confirm) and the whole autopilot/engine stay framework-resident - this package is the four route surfaces (/api/trading, /autopilot, /lab, /trading-charts), the cockpit surface + vendored chart lib, the trading_* operator tools, and the analyst/feed-bot manifest. NOTE: package directory is 'trading' (install trading); the registered app name stays intelligent-trades.",
-      "version": "1.0.0",
+      "version": "1.1.1",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -770,7 +770,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "trading",
         "ref": "main"
       },
@@ -782,7 +782,7 @@
       "suite": "ai-knowledge",
       "displayName": "World Intelligence",
       "description": "Shared world intelligence (ADR-061 Layer B) - multi-source news feeds classified into a bias-aware sentiment graph (political + economic + outlet-kind axes), entity co-mention graph, and historical series. Ask the analyst what the press is saying about X and get a structured, bias-contextualized read, not a misleading average. The Layer-B engine (src/features/world-data), the deterministic world-schedule dispatcher, scripts/oshal-world.js, the world-analyst registry entry, and the default tile stay framework-resident; this package is the /api/world surface (fail-closed token-guarded writes, open reads), the world-analyst manifest, the seven world_* tools, and the refresh/pulse schedules.",
-      "version": "1.0.0",
+      "version": "1.0.2",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -791,7 +791,7 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "world",
         "ref": "main"
       },
@@ -803,7 +803,7 @@
       "suite": "ai-creative",
       "displayName": "Dungeon Master",
       "description": "Play D&D with an AI Dungeon Master on a cinematic shared board: claimed heroes and visible AI companions follow an explicit move, action, target, dice, result, and advance loop with natural narration, saved characters, multiplayer join codes, playback, and rewind. Open SRD 5.1 (CC-BY).",
-      "version": "0.14.4",
+      "version": "0.19.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -811,8 +811,199 @@
       },
       "source": {
         "type": "git-subdir",
-        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-applications",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
         "path": "dnd",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "game-show",
+      "suite": "ai-creative",
+      "displayName": "Game Show",
+      "description": "TV-style AI game night: Family Feud, Jeopardy, Wheel of Fortune and Whammy, each with its own television set — podium characters, sound cues and opening titles. Play solo against skill-tiered AI contestants, or hand everyone a phone as a buzzer.",
+      "version": "0.10.0",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "game-show",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "games",
+      "suite": "ai-creative",
+      "displayName": "Games",
+      "description": "A focused cockpit toolbar with direct launchers for the AI Dungeon Master and Game Show.",
+      "version": "1.1.0",
+      "dependencies": {
+        "apps": [
+          "dnd",
+          "game-show"
+        ],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "games",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "bake-off",
+      "suite": "ai-engineering",
+      "displayName": "AI Bake-Off",
+      "description": "Race one job across every AI lane you already have, grade every output on the shared quality judge, and get the cheapest lane that still clears your quality bar.",
+      "version": "1.0.0",
+      "theme": "midnight",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "bake-off",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "life",
+      "suite": "ai-home",
+      "displayName": "Life",
+      "description": "One desk for everything lifestyle: movies & TV, music, food delivery, rides, shopping, travel, payments, and the weekly AI Bake-Off — each already its own app, gathered here so you don't have to hunt the full catalog for them.",
+      "version": "1.0.0",
+      "theme": "sakura",
+      "dependencies": {
+        "apps": [
+          "movies",
+          "spotify",
+          "eats",
+          "rides",
+          "purchasing",
+          "travel",
+          "payments",
+          "bake-off"
+        ],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "life",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "switchboard",
+      "suite": "ai-productivity",
+      "displayName": "Switchboard",
+      "description": "Every line, one board. Switchboard pulls your mail, DMs, texts, calls, and social mentions into a single prioritized stream — the Today board — so you triage your whole day in one place instead of app-hopping. Reads run on your own connector tokens; ranking and drafting run on the communications bot with cost captured per user. Nothing is sent or posted without your say-so.",
+      "version": "0.3.0",
+      "theme": "forest",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [
+          "google",
+          "outlook",
+          "twilio",
+          "linkedin",
+          "twitter",
+          "meta-business",
+          "facebook",
+          "slack"
+        ]
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "switchboard",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "system",
+      "suite": "ai-productivity",
+      "displayName": "System",
+      "description": "One desk for account infrastructure: Identity Hub, Storage, and Cloud accounts — each already its own app, gathered here so you don't have to hunt the full catalog.",
+      "version": "1.0.0",
+      "theme": "gray",
+      "dependencies": {
+        "apps": [
+          "identity",
+          "storage",
+          "cloud"
+        ],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "system",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "payroll",
+      "suite": "ai-finance",
+      "displayName": "Payroll",
+      "description": "Run payroll for your team, ADP-style, then PAY and FILE from the same place. Earnings codes with FLSA overtime computed per workweek; typed deductions with garnishment priority; encrypted SSN/EIN; gross-up; void corrections. Produces the NACHA ACH file your own bank executes, Form 941 and 940 worksheets with real line numbers, and issuable W-2s. Deterministic — no LLM computes a dollar. oshal generates; your bank and EFTPS execute.",
+      "version": "2.1.0",
+      "theme": "ocean",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "payroll",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
+    },
+    {
+      "name": "venture-plan",
+      "suite": "ai-finance",
+      "displayName": "Venture Plan",
+      "description": "Turn an idea into the venture document set a real decision needs — bill of materials, landed cost, channel margin, profit, cash and working capital, schedule, org, funding ask. Bots supply assumptions with a source, a band and a confidence; a deterministic engine does every calculation. Every number is either computed and traceable, or visibly a labelled guess you should go replace with a quote.",
+      "version": "1.0.0",
+      "theme": "graphite",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "venture-plan",
         "ref": "main"
       },
       "audit": "pending",

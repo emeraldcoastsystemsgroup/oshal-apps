@@ -33,6 +33,7 @@
  * 2026-07-17 02:05:00 | roger.murphy@emeraldcoastsystemsgroup.com | Killed-scrape recovery + day-slot fixes (2026-07-16 night: two api recreates killed the 18:00 scrape mid-run; 0 rows landed and NOTHING recovered it). (1) Catch-up staleness is now WINDOW-ANCHORED — "was the corpus refreshed since the most recent 18:00-CT window?" — instead of a flat >20h age test, which a killed evening run always passes (the corpus still looks fresh from the previous refresh). (2) A pre-window catch-up firing no longer consumes TODAY's slot: the recovery scrape belongs to yesterday, so tonight's 18:00 window still runs; same fix for the digest — a pre-07:00 boot used to stamp lastRun.digest while the >20h guard refused the send, silently skipping the day's 07:00 digest. (3) Catch-up score is skipped when the recovery chain just fired (it ends in scoreAllUsers itself; two concurrent scorers would fight over the single-writer per-user SQLite). runEveningScrapeIndex is now exported + single-flighted so the admin refresh route/tool can trigger the same chain.
  * 2026-07-17 02:35:00 | roger.murphy@emeraldcoastsystemsgroup.com | Recovery signal → COMPLETION MARKER (.last-evening-run in the tenant dir, on the volume). Ten minutes after the first recovery fired, ANOTHER agent's deploy recreated the api and killed it — and because the scrape writes rows progressively, the partially-scraped corpus looked "refreshed since the window" and the corpus-timestamp test refused to re-fire. Only a chain that finishes with a successful scrape writes the marker; catch-up fires whenever the marker predates the most recent 18:00 window (or is missing). Survives any number of mid-run recreates.
  * 2026-07-19 17:55:00 | roger.murphy@emeraldcoastsystemsgroup.com | Evening chain now mirrors each user's freshly-indexed jobs into their person graph (ADR-045 — the package-side call for kernel 85931d2a's ingestJobsForPerson). Fired fire-and-forget (void) right after each user's index step (pull for users[0], match for the rest); ingestJobsGraphForUser is fail-open by contract (engine-absent no-op, errors logged + swallowed), so the scrape/index rhythm is never blocked or failed by graph availability.
+ * 2026-07-24 02:45:00 | roger.murphy@emeraldcoastsystemsgroup.com | AUTOMATION IS EXPLICIT OPT-IN (operator directive 2026-07-24: the chain generated + queued application drafts for jobs the operator never picked). Per-user gate on career_automation_settings.auto_generate (migration 091, absent row = OFF): scoreAllUsers now SKIPS the AI score + title pass + draft enqueue for any user who has not opted in, and a CRON-triggered evening chain skips the shared scrape entirely when NO user has opted in. The operator's explicit admin refresh (POST /run/refresh / the career_refresh tool) passes manualRefresh:true — it still refreshes the shared corpus + keyword index (data, no LLM, no tickets), while score/enqueue stay per-user gated.
  *
  * @module career-hunter-cron
  */
@@ -43,6 +44,7 @@ import type { AppContext } from '@/app/composition/app-context';
 import { runSharedPull, runUserScore, runUserMatch, enqueueForUser, listStoreUsers, userPaths } from './career-hunter-routes';
 import { sendDigestsForAllUsers } from './career-digest';
 import { dueForCronScore, markCronScore, runTitlePassForUser } from './career-title-score';
+import { readAutomationSettingsSystem } from './career-automation';
 import { ingestJobsGraphForUser } from './career-graph-routes';
 
 const logger = createChildLogger({ module: 'career-hunter-cron' });
@@ -113,6 +115,13 @@ const SCORE_FIRST_SEEN_DAYS = Math.max(1, Number(process.env.CAREER_SCORE_FIRST_
 async function scoreAllUsers(ctx: AppContext, opts: { catchup?: boolean } = {}): Promise<void> {
   for (const userSub of listStoreUsers()) {
     try {
+      // EXPLICIT OPT-IN (2026-07-24): no auto_generate opt-in → no AI score, no title pass,
+      // no draft enqueue for this user. Absent settings row = OFF (default-deny).
+      if (!(await readAutomationSettingsSystem(ctx, userSub)).autoGenerate) {
+        logger.info({ userSub, catchup: !!opts.catchup },
+          'career-hunter cron: user skipped — automation opt-in is OFF');
+        continue;
+      }
       let keywordPass = 'ran';
       if (opts.catchup && !(await dueForCronScore(ctx.pool, userSub))) {
         keywordPass = 'skipped-cursor';
@@ -144,12 +153,36 @@ let eveningChainRunning = false;
  * funnel here, and two concurrent chains would double-scrape + fight over the SQLite writers.
  * @param ctx app context
  * @param users the per-user store subs to index (from listStoreUsers)
- * @returns true when the chain ran; false when one was already in flight
+ * @param opts manualRefresh: true when an operator explicitly asked for a data refresh
+ * (POST /run/refresh / the career_refresh tool) — the scrape+index runs even with zero
+ * automation opt-ins because it is a data refresh, not application automation; the
+ * score/enqueue steps stay per-user gated inside scoreAllUsers either way
+ * @returns true when the chain ran; false when one was already in flight or it was skipped
  */
-export async function runEveningScrapeIndex(ctx: AppContext, users: string[]): Promise<boolean> {
+export async function runEveningScrapeIndex(
+  ctx: AppContext, users: string[], opts: { manualRefresh?: boolean } = {},
+): Promise<boolean> {
   if (eveningChainRunning) {
     logger.warn('career-hunter cron: evening scrape/index already in flight — skipped');
     return false;
+  }
+  // EXPLICIT OPT-IN (2026-07-24): a CRON-triggered chain with no opted-in users does nothing
+  // at all — no scrape, no score, no drafts. Only the operator's explicit refresh bypasses
+  // the scrape gate (and only the scrape/index: drafts stay gated per user).
+  if (!opts.manualRefresh) {
+    let anyOptedIn = false;
+    for (const u of users) {
+      try {
+        if ((await readAutomationSettingsSystem(ctx, u)).autoGenerate) { anyOptedIn = true; break; }
+      } catch (err) {
+        logger.error({ err, userSub: u }, 'career-hunter cron: automation opt-in read failed — treating as OFF');
+      }
+    }
+    if (!anyOptedIn) {
+      logger.info({ users: users.length },
+        'career-hunter cron: evening chain skipped — no user has opted in to automation');
+      return false;
+    }
   }
   eveningChainRunning = true;
   logger.info({ users: users.length }, 'career-hunter cron: evening scrape + index starting');

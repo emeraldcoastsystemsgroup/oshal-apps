@@ -16,6 +16,7 @@
  * 2026-07-22 23:30:56 | roger.murphy@emeraldcoastsystemsgroup.com  | Include the focused full-character and current-resource client in public and inline assets.
  * 2026-07-23 00:01:42 | roger.murphy@emeraldcoastsystemsgroup.com  | Include the immersive gameplay-rail controller immediately before final screen wiring.
  * 2026-07-23 09:30:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Accept paced visible dice presentation while guarding the served tactical turn flow.
+ * 2026-07-28 00:20:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Cover leads.js in served and inlined asset order — it was in UI_SCRIPTS but absent from table.html, so the served document silently lacked DnDLeads and every client-side nomination/walk feature was dead in production.
  */
 
 'use strict';
@@ -28,7 +29,7 @@ const { createDndRoutes } = require('../routes/dnd-routes');
 
 const root = path.join(__dirname, '..');
 const scripts = [
-  'engine.js', 'table-runtime.js', 'table-voice.js', 'table-dice.js', 'table-presentation.js', 'table-turns.js', 'table-combat-narration.js', 'table-automation.js',
+  'engine.js', 'leads.js', 'table-runtime.js', 'table-voice.js', 'table-dice.js', 'table-presentation.js', 'table-turns.js', 'table-combat-narration.js', 'table-automation.js',
   'table-outcomes.js', 'table-story.js', 'table-character-sheet.js', 'table-seats.js', 'table-playback.js', 'table-immersive.js', 'table-screens.js',
 ];
 

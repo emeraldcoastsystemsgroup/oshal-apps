@@ -35,7 +35,7 @@ scope: public
 # Where this package came from — the installer pins ref+sha at install time.
 source:
   type: git-subdir
-  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: little-monsters
   ref: main
 

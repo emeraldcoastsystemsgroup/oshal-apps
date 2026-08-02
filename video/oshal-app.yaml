@@ -39,9 +39,16 @@ theme: sakura
 
 source:
   type: git-subdir
-  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: video
   ref: main
+
+# Kernel skills this package IMPORTS (ADR-085 §2). Declared because an undeclared import is
+# invisible to the prune guard: the first carve that drops the skill would break this app at
+# MOUNT time, not at compile time. See docs/apps/kernel-skills.md.
+uses:
+  - media-generation # video-routes.js renders through the video-generation slice (Veo + storyboard)
+  - storage          # video-routes.js saves finished MP4s through the kernel storage target
 
 dependencies:
   apps: []
@@ -113,6 +120,17 @@ routes:
     factory: createBotVideoRoutes
     mountPath: /api/video
     auth: oidc   # what core server.ts mounted (requiresAuth — ADR-085 D2)
+    requiresAuth: true
+    requiresContext: true
+  # The joke-shorts pump's controls: import the show library, enrol a show (the operator's
+  # one-time authorization for its render spend), read the node's availability + the run
+  # ledger, run one cycle on demand. The pump ENGINE is framework-resident (ADR-093:
+  # src/app/series-pump.ts + vids-node-availability.ts); this package owns the content and
+  # the switches. Auth-gated exactly like the studio — enrolling a show authorizes spend.
+  - module: routes/video-pump-routes.js
+    factory: createVideoPumpRoutes
+    mountPath: /api/video/pump
+    auth: oidc
     requiresAuth: true
     requiresContext: true
 

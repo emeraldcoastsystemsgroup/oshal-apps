@@ -39,15 +39,19 @@ describe('buildJobFilters — dismissed jobs must not come back on reload', () =
     expect(args).toContain('%platform%');
   });
 
-  it('leaves the always-on active/lane predicates intact', () => {
+  it('leaves the always-on active/lane predicates intact, in their sargable form', () => {
     const { whereSql } = buildJobFilters(defaultFeed);
     expect(whereSql).toContain('p.active = 1');
-    expect(whereSql).toContain('COALESCE(p.target_role,0) = 1');
+    // Was COALESCE(p.target_role,0) = 1. Identical results on a 0/1/NULL column, but the COALESCE
+    // form is unindexable, so the planner could not use idx_corpus_lane (active, target_role) and
+    // fell back to materialising ~157K joined rows — the operator-reported 50s board load.
+    expect(whereSql).toContain('p.target_role = 1');
+    expect(whereSql).not.toContain('COALESCE(p.target_role');
   });
 
   it('drops the lane predicate for lane=all but still hides dismissed', () => {
     const { whereSql } = buildJobFilters({ lane: 'all' });
-    expect(whereSql).not.toContain('COALESCE(p.target_role,0) = 1');
+    expect(whereSql).not.toContain('p.target_role = 1');
     expect(whereSql).toContain("COALESCE(s.status,'') <> 'dismissed'");
   });
 });

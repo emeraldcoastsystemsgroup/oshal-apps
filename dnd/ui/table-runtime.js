@@ -92,7 +92,9 @@ function sceneTokenDefinition(token) {
   const scene = SC();
   if (!token || !scene) return null;
   if (token.kind === 'monster') return (scene.monsters || []).find((entry) => entry.instanceId === token.id) || null;
-  if (token.kind === 'prop') return (scene.props || []).find((entry) => entry.id === token.id) || null;
+  // A figure cast from a discovered lead has no authored props entry — it carries its
+  // own identity, so inspecting it must fall through to the token instead of blanking.
+  if (token.kind === 'prop') return (scene.props || []).find((entry) => entry.id === token.id) || (token.leadId ? token : null);
   return null;
 }
 function tokenDisplayName(token) {

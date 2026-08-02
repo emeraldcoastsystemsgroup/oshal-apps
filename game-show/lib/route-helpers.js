@@ -4,6 +4,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-21 20:52:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Shared HTTP, identity, body-reading, transaction, and DTO helpers for the Game Show route factory and services.
+ * 2026-07-25 22:50:00 | roger.murphy@emeraldcoastsystemsgroup.com  | seatDto exposes the NPC skill (derived from the synthetic subject, which itself never leaks) so surfaces can mark AI players.
  */
 
 'use strict';
@@ -109,12 +110,14 @@ function roomDto(row, sub) {
 
 /** @description Project one seat with a caller-relative `me` flag; never leaks user_sub. */
 function seatDto(row, sub) {
+  const npcParts = String(row.user_sub || '').startsWith('npc:') ? String(row.user_sub).split(':') : null;
   return {
     seatId: row.seat_id, name: row.display_name || 'Player', team: row.team || null,
     podiumIndex: row.podium_index == null ? null : Number(row.podium_index),
     role: row.role || 'player', presenceKind: row.presence_kind || 'avatar',
     avatarId: row.avatar_id || null, presenceRev: Number(row.presence_rev) || 0,
     score: Number(row.score) || 0, me: row.user_sub === sub,
+    npc: npcParts ? npcParts[1] : null,
   };
 }
 

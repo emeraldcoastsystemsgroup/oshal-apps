@@ -12,6 +12,8 @@
  * 2026-07-23 00:01:42 | roger.murphy@emeraldcoastsystemsgroup.com  | Supply every story request with recent authoritative campaign history so revisiting a location cannot erase rescued NPCs or other resolved facts.
  * 2026-07-23 00:12:33 | roger.murphy@emeraldcoastsystemsgroup.com  | Make table conversation distinguish help, investigation, and declared actions so the Dungeon Master can break loops with grounded, actionable guidance.
  * 2026-07-23 12:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Ground every Dungeon Master mode in the selected campaign's title, tone, and authored world.
+ * 2026-07-31 11:15:00 | roger.murphy@emeraldcoastsystemsgroup.com  | After each ordinary story exchange, hand the committed narration to the story-motion service: the acting hero walks beside whoever the fiction engaged and the exchange's art is requested server-side — the table's dominant play path (free Ask-the-DM conversation) previously narrated movement and meetings that never appeared on the board or as images.
+ * 2026-07-31 23:25:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Lead rolls ride the SAME shared d20 (roadmap #13): performSharedRoll honors a request's precomputed modifier (a lead's skill bonus includes proficiency, which the ability-only sheet derivation cannot see) and applies lead crit semantics (a natural 20 always finds it, a natural 1 always fumbles) when the request carries a lead contract; the DM narration path refuses lead rolls — their outcome is committed by the exploration service, never narrated into being.
  */
 
 'use strict';
@@ -494,7 +496,7 @@ function authorizedRollActor(sub, access, state, request, seats, rev) {
   return { actorSlug };
 }
 
-/** @description Roll and persist one authorized requested shared check. */
+/** @description Roll and persist one authorized requested shared check. A request carrying its own precomputed modifier (a LEAD roll — skill bonus including proficiency, which the ability-only sheet derivation cannot see) keeps it; a lead request also uses the investigation's crit semantics: a natural 20 always finds it, a natural 1 always fumbles. */
 async function performSharedRoll(deps, db, campaignId, state, request, actorSlug) {
   const sheets = await db.query(
     'SELECT sheet FROM dnd_characters WHERE campaign_id=$1 AND slug=$2',
@@ -503,11 +505,16 @@ async function performSharedRoll(deps, db, campaignId, state, request, actorSlug
   if (!sheets.rowCount) return { ok: false, code: 'CHARACTER_NOT_FOUND', error: 'That hero sheet is unavailable.', state };
   let natural = typeof deps.dndRollD20 === 'function' ? Number(deps.dndRollD20()) : NaN;
   if (!Number.isInteger(natural) || natural < 1 || natural > 20) natural = crypto.randomInt(1, 21);
-  const modifier = sharedRollModifier(sheets.rows[0].sheet, request.ability);
+  const modifier = Number.isFinite(Number(request.modifier))
+    ? Math.trunc(Number(request.modifier))
+    : sharedRollModifier(sheets.rows[0].sheet, request.ability);
   const total = natural + modifier;
+  const success = request.lead
+    ? natural === 20 || (natural !== 1 && total >= Number(request.dc))
+    : total >= Number(request.dc);
   const result = {
     ...request, actorSlug, natural, modifier, total,
-    success: total >= Number(request.dc), status: 'rolled', rolledAt: new Date().toISOString(),
+    success, status: 'rolled', rolledAt: new Date().toISOString(),
   };
   const next = { ...state, sharedRoll: result };
   const saved = await db.query(
@@ -586,6 +593,12 @@ async function sharedRollNarrationContext(deps, sub, body) {
   const roll = state.sharedRoll;
   if (!roll || roll.id !== rollId || roll.status !== 'rolled') {
     return { ok: false, code: 'ROLL_NOT_READY', error: 'That shared roll is not waiting for narration.', state, rev };
+  }
+  // A LEAD roll's outcome is committed by the exploration service (discovery or
+  // ledgered miss) — narrating it here would resolve the die without ever
+  // applying the investigation result. Refuse; the surface knows the other path.
+  if (roll.lead) {
+    return { ok: false, code: 'ROLL_NOT_NARRATABLE', error: 'This roll belongs to the investigation — the table commits its outcome directly.', state, rev };
   }
   const auth = narrationAuthorization(sub, campaign, state, roll, playerRows.rows || []);
   return auth.ok ? { ...auth, state, rev, roll } : auth;
@@ -811,8 +824,21 @@ async function completeDmExchange(deps, sub, body, mode, guard, taskId, requestI
     if (body.rollId) directives.transition = await resolveSharedRollNarration(deps, sub, body.campaignId, body.rollId, guard);
     const archiveEntry = await archiveNarration(deps, sub, mode, body, directives.narration, guard);
     if (body.campaignId && !archiveEntry) return staleDmResponse(requestId);
-    const output = { ok: true, requestId, narration: directives.narration, mode, choices: directives.choices, roll: directives.roll, grant: directives.grant, archiveEntry };
-    return enrichDmOutput(deps, body, directives, output);
+    const output = await enrichDmOutput(deps, body, directives, {
+      ok: true, requestId, narration: directives.narration, mode, choices: directives.choices, roll: directives.roll, grant: directives.grant, archiveEntry,
+    });
+    // The committed exchange becomes a table truth: the acting hero walks beside
+    // whoever the fiction engaged and the beat's art is requested server-side.
+    // Runs AFTER enrichment — its board write postdates any shared-roll transition,
+    // so its state (which includes that roll) must be the one the caller applies.
+    if (mode === 'narrate' && !body.rollId && body.campaignId && deps.storyMotion) {
+      const motion = await deps.storyMotion.conversationBeat(sub, body, directives.narration, archiveEntry);
+      if (motion && motion.moved) {
+        output.state = motion.state; output.rev = motion.rev;
+        output.walked = { hero: motion.heroSlug, target: motion.target };
+      }
+    }
+    return output;
   } catch (error) {
     if (error && error.code === 'DM_STALE') return staleDmResponse(requestId);
     throw error;

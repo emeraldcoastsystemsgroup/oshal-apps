@@ -12,14 +12,15 @@
  *
  * Controller/bot split (ADR-036): this slice is cheap data-access ONLY — pure CRUD over the
  * caller's own rows. It calls NO LLM (drafting reasoning stays on the comms bot in the sibling
- * composer). The scheduled-time EXECUTOR that actually publishes a post at scheduled_at is NOT
- * part of this slice and is deliberately not faked here — see the module's build-spec deferral.
+ * composer). The scheduled-time EXECUTOR also ships in this module (see startScheduledPostExecutor):
+ * armed only by SWITCHBOARD_PUBLISH_EXECUTOR=true, it publishes due posts via the same path Compose uses.
  *
  * CHANGE LOG
  * -----------------------------------------------------------------------------
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-23 03:10:00 | roger.murphy@emeraldcoastsystemsgroup.com | Initial calendar module: the Content Calendar model (oshal_switchboard_scheduled_posts, lazy DDL + owner-RLS) + week-grid surface + scheduled-post CRUD (GET /calendar, GET/POST /calendar/posts, PATCH/DELETE /calendar/posts/:id). Workspace-scoped reads. No LLM in the path; the scheduled-time publish executor is deferred (not faked).
+ * 2026-07-31 12:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | Comment-only truth sweep: the scheduled-post executor SHIPPED in this module (the "calendar scheduled-post executor (closes the deferral)" commit) but this header and the package README still said it was NOT part of the slice. Header + README corrected to the as-built state; no code change.
  *
  * @module switchboard-calendar-routes
  */

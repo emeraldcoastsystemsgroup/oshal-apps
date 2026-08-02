@@ -11,6 +11,13 @@
 # destination, show ride options (UberX/Comfort/XL/Black) with estimated fares,
 # and hand off a ready Uber ride deep link.
 #
+# 1.1.0 — the map is real. The surface draws OpenStreetMap tiles under the Leaflet
+# build vendored at tools/vendor/leaflet: KEYLESS, so it works on a fresh clone with
+# no account anywhere. Setting GOOGLE_MAPS_BROWSER_KEY upgrades the same surface to
+# Google (road-routed polyline + Places autocomplete). Fares are now modelled from
+# the MEASURED distance between the two geocoded pins; an address that does not
+# resolve yields no fare rather than a fabricated one.
+#
 # Checkout truth: requesting a ride on a third party's behalf needs Uber for
 # Business; this app's personal path is a UNIVERSAL DEEP LINK the rider confirms
 # and pays in their own Uber app. No payment or rider credentials touch OSHAL.
@@ -20,14 +27,15 @@ name: rides
 suite: ai-home   # ADR-097: primary catalog shelf (tools keep their own category:)
 displayName: Rides
 description: >-
-  AI transportation concierge — estimate Uber fares, compare ride types, and hand
-  off a ready Uber ride link. Other swarm bots can ask it to plan a trip.
-version: 1.0.0
+  AI transportation concierge on a real map — set pickup and destination by pin or
+  address, see the measured distance, compare Uber ride types, and hand off a ready
+  Uber ride link. Other swarm bots can ask it to plan a trip.
+version: 1.1.0
 status: active
 
 source:
   type: git-subdir
-  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: rides
   ref: main
 

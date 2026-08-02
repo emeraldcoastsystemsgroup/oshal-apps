@@ -1,0 +1,45 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Neon Noodle Jam — ep-01 "The Wiggly Beat" delivered 2026-07-08. Its intro clip is
+# cached on the render node.
+#
+# Beat Bean's description is the canonical example of the props-after-"with" rule:
+# the original "bean drummer holding two glow sticks" made the DRUMSTICKS speak.
+# ─────────────────────────────────────────────────────────────────────────────
+
+slug: neon-noodle-jam
+title: Neon Noodle Jam
+scenesPerEpisode: 4
+orientation: Landscape
+introClip: 04-neon-noodle-jam-intro-FINAL.mp4
+
+premise: |
+  Glow Bowl Alley is a nighttime noodle market where the streetlights play xylophone notes. Nori
+  Noodle's band is assembling the quietest block party in town, one friendly beat at a time. Every
+  episode a rhythm goes wrong in a musical way, everybody plays over each other, and the fix is
+  making room for somebody else. Bouncy, neon, and kind — loud is fine as long as it is gentle.
+
+styleLock: >-
+  bright rubber-hose 2D animation with neon outlines, bouncy noodle limbs, blacklight music-club
+  colors, playful squash and stretch, no lens effects
+
+cast:
+  - name: Nori Noodle
+    description: long wiggly noodle with a neon green scarf; dances first and thinks later.
+  - name: Beat Bean
+    description: small round bean with two glow sticks; practical, punchy, and keeps time.
+  - name: Xylo X
+    description: tall X-shaped streetlight with a rainbow rail; plays notes with both arms.
+  - name: Mina Moonbun
+    description: soft moon-shaped bun with a singing voice; keeps loud fun gentle.
+
+jokeSeeds:
+  - Nori wiggles so hard the beat runs away down the alley without the band.
+  - A bass note grows into a bubble and lifts the drummer politely out of the song.
+  - The band wants a parade, but the sleeping dumplings need a quiet kind of loud.
+  - Xylo X loses one color bar and everybody hums the missing note differently.
+  - Everyone counts the band in and all four counts are different numbers.
+  - Mina Moonbun sings so softly the audience leans in and falls over.
+  - The encore starts before the song does.
+  - Beat Bean's metronome is right and the whole band votes against it.
+  - A streetlight plays a note nobody in the band can reach.
+  - The quietest block party gets a noise complaint for being too quiet.

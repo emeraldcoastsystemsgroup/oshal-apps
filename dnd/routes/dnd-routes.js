@@ -29,10 +29,13 @@
  * 2026-07-23 00:01:42 | roger.murphy@emeraldcoastsystemsgroup.com  | Serve the immersive table and gameplay-rail controller before final screen wiring.
  * 2026-07-23 02:35:01 | roger.murphy@emeraldcoastsystemsgroup.com  | Bind narration to the configured Google Cloud provider used by the Algenib-first voice chain.
  * 2026-07-23 12:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Serve an adventure catalog and shared pre-combat exploration service across multiple campaign worlds.
+ * 2026-07-27 23:55:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Fingerprint the served client code, stamp it into the table document, and echo it from /sync so a stale tab can tell its player to refresh; ride the media service into exploration for server-side discovery art.
+ * 2026-07-31 11:20:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Ride the story-motion service into the Dungeon Master so free conversation walks the acting hero and earns art the same server-authoritative way lead attempts do.
  */
 
 'use strict';
 
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { CharacterImportError, normalizeInternalSheet } = require('../lib/character-import');
@@ -44,6 +47,7 @@ const { createCampaignService } = require('../lib/dnd-campaign-service');
 const { createDmService, parseDirectives } = require('../lib/dnd-dm-service');
 const { createExplorationService } = require('../lib/dnd-exploration-service');
 const { createMediaService } = require('../lib/dnd-media-service');
+const { createStoryMotionService } = require('../lib/dnd-story-motion');
 const { createTimelineService } = require('../lib/dnd-timeline-service');
 const {
   activeTokenFor, buildSpatialBrief, campaignParty, importCharacterFile,
@@ -55,6 +59,9 @@ const {
 const FALLBACK_ROOT = process.env.OSHAL_APP_PACKAGE_DIR || path.resolve(__dirname, '..');
 const UI_SCRIPTS = [
   'engine.js',
+  // Pure lead math (nomination, DC, map spots) — the surface and the authoritative
+  // server run this same module, so both agree on who a lead is for.
+  'leads.js',
   'table-runtime.js',
   'table-voice.js',
   'table-dice.js',
@@ -108,6 +115,20 @@ function inlineUiScripts(html, sources) {
   }, html);
 }
 
+/**
+ * @description Fingerprint the exact client code this route instance serves. Injected
+ *   into the table document and echoed by /sync, so a browser holding a table loaded
+ *   before a mid-session redeploy can detect the skew and ask its player to refresh —
+ *   the 2026-07-27 session ran an entire chapter on stale JS with no way to know.
+ * @param {Map<string,string>} sources - The inlined UI script bodies, in order.
+ * @returns {string} A short stable content hash.
+ */
+function buildFingerprint(sources) {
+  const hash = crypto.createHash('sha256');
+  for (const [name, body] of sources) hash.update(name).update('|').update(body);
+  return hash.digest('hex').slice(0, 12);
+}
+
 /** @description Assemble immutable content helpers and bounded backend services. */
 function buildEnvironment(ctx) {
   const context = ctx || {};
@@ -119,19 +140,31 @@ function buildEnvironment(ctx) {
   const hydratedSheet = (slug, sheet) => mergeLegacyInventory(sheet, heroBySlug.get(slug));
   const base = { ...content, pool: context.pool, adventureById, sceneById, hydratedSheet };
   const campaign = createCampaignService(base);
-  const exploration = createExplorationService({ ...base, campaign });
+  const media = createMediaService({ pool: context.pool, campaign, logger: context.logger, ttsProviderId: 'google-cloud-tts' });
+  // media rides into exploration so discovery art is generated server-side —
+  // authoritative, deduped by eventKey, independent of which client acted.
+  const exploration = createExplorationService({ ...base, campaign, media, logger: context.logger });
+  // media rides into the DM the same way: ordinary conversation walks the acting
+  // hero and earns first-meeting / stale-beat art as authoritative server truths.
+  const storyMotion = createStoryMotionService({
+    pool: context.pool, campaign, media, sceneById, logger: context.logger,
+  });
+  const uiSources = loadUiSources(root);
   return {
-    ...base, context, root, campaign, exploration, uiSources: loadUiSources(root),
+    ...base, context, root, campaign, exploration, uiSources, media,
+    // Content fingerprint of the served client code: reloading the package mints a
+    // new value only when the code actually changed. /sync echoes it so a browser
+    // that predates a mid-session deploy can tell its player to refresh.
+    buildId: buildFingerprint(uiSources),
     contentBundle: {
       heroes: content.heroes, defaultParty: content.defaultParty,
       monsters: content.bestiary, adventure: content.adventure,
       adventures: content.adventures,
     },
     dm: createDmService({
-      ...base, root, campaign, orchestrator: context.orchestrator, logger: context.logger,
+      ...base, root, campaign, storyMotion, orchestrator: context.orchestrator, logger: context.logger,
       dndRollD20: context.dndRollD20, dmDeadlineMs: context.dndDmDeadlineMs,
     }),
-    media: createMediaService({ pool: context.pool, campaign, logger: context.logger, ttsProviderId: 'google-cloud-tts' }),
     timeline: createTimelineService({ ...base, campaign }),
   };
 }
@@ -143,7 +176,9 @@ async function serveTable(env, res) {
     res.statusCode = 200;
     res.setHeader('content-type', 'text/html; charset=utf-8');
     res.setHeader('cache-control', 'no-store');
-    res.end(inlineUiScripts(html, env.uiSources));
+    const stamped = html.replace('</title>',
+      `</title>\n  <script data-dnd-build>window.__dndBuild=${JSON.stringify(env.buildId)};</script>`);
+    res.end(inlineUiScripts(stamped, env.uiSources));
   } catch (_error) {
     sendJson(res, 404, { error: 'surface missing' });
   }
@@ -285,7 +320,12 @@ async function dispatchGet(env, sub, res, parsed) {
   const handlers = {
     '/campaigns': () => env.campaign.listCampaigns(sub),
     '/state': () => env.campaign.loadState(sub, campaignId),
-    '/sync': () => getSync(env, sub, parsed),
+    '/sync': async () => {
+      const result = await getSync(env, sub, parsed);
+      // Piggyback the served-code fingerprint so a stale tab can announce itself.
+      if (result && result.ok) result.build = env.buildId;
+      return result;
+    },
     '/characters': () => env.campaign.listSavedCharacters(sub),
     '/snapshots': () => env.timeline.listSnapshots(sub, campaignId),
   };

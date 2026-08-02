@@ -1,0 +1,42 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Detective Dot and the Sock Clock — ep-01 "The Case of the Left Sock" delivered
+# 2026-07-08. Its intro clip is cached on the render node.
+# ─────────────────────────────────────────────────────────────────────────────
+
+slug: detective-dot
+title: Detective Dot and the Sock Clock
+scenesPerEpisode: 4
+orientation: Landscape
+introClip: 05-detective-dot-sock-clock-intro-FINAL.mp4
+
+premise: |
+  Laundry Lane is a cozy laundry-room city where socks, buttons and clocks all have tiny jobs.
+  Detective Dot takes on one very small mystery per episode — a missing sock, a clock running late,
+  a button with an alibi — and solves it by noticing something everybody else walked past. Gentle
+  comic-mystery: the culprit is always an innocent misunderstanding, never a villain.
+
+styleLock: >-
+  flat comic-panel animation with thick outlines, halftone textures, poppy color cards, quick zooms,
+  freeze-frame clue circles, no lens effects
+
+cast:
+  - name: Detective Dot
+    description: round kid detective with a magnifier hat; notices the one tiny detail that matters.
+  - name: Sock Clock
+    description: striped sock-shaped clock with two hands; loses track of time but never of hope.
+  - name: Button Bob
+    description: tiny four-holed button with strong opinions; suspects everybody, politely.
+  - name: Linty Lou
+    description: fluffy grey lint cloud with a soft voice; finds every clue completely by accident.
+
+jokeSeeds:
+  - The missing left sock has been on the detective's own foot the entire episode.
+  - Sock Clock is nine minutes late and insists the whole room is nine minutes early.
+  - Button Bob accuses the dryer, the lamp, and finally himself.
+  - Linty Lou sneezes and the sneeze solves the case.
+  - The clue circle freezes on something entirely irrelevant and everyone respects it.
+  - A suspect lineup is assembled and every suspect is the same sock.
+  - The case is solved in scene one and the crew keeps investigating out of politeness.
+  - Detective Dot's magnifier makes everything enormous except the actual clue.
+  - Somebody folds the evidence and now it matches.
+  - The Great Sock Parade starts and the marching order is a mystery of its own.

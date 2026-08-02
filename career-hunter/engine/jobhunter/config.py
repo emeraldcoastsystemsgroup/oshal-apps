@@ -27,6 +27,24 @@ TENANT = os.environ.get("OSHAL_TENANT", "default")
 CORPUS_DB = Path(os.environ.get("JOBHUNTER_CORPUS_DB", DATA_DIR / "corpus.db"))
 USER_DB = Path(os.environ.get("JOBHUNTER_USER_DB", DATA_DIR / f"user-{USER_SUB}.db"))
 
+# ── Storage backend selector (JOBHUNTER_STORE) ───────────────────────────────
+# 'sqlite' (DEFAULT) keeps the two SQLite shapes above EXACTLY as they were — the nightly
+# scrape runs against them and nothing in the Postgres path may perturb that. 'postgres'
+# routes every read and write to the swarm database (career_postings + the FORCE-RLS
+# per-user tables, migrations 095/096/097) over DATABASE_URL.
+#
+# Deliberately a value, not a boolean flag: 'sqlite' vs 'postgres' reads unambiguously in
+# a crontab and in a container env, and an unrecognised value falls back to sqlite rather
+# than half-enabling anything.
+STORE = (os.environ.get("JOBHUNTER_STORE") or "sqlite").strip().lower()
+POSTGRES = STORE == "postgres"
+
+# Only consulted in postgres mode. This is the same connection string every other process
+# in the api container uses, so the engine runs as the app role (oshal_app) — which is
+# NOT a superuser and does NOT have BYPASSRLS, and therefore cannot escape the row
+# policies even by accident. Never point this at a superuser DSN.
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
 # Generated resume/cover PDFs. In OSHAL multi-user mode the node wrapper sets
 # JOBHUNTER_DATA to the per-user dir on the persistent api-output volume, so resumes
 # land there (DATA_DIR/applications) and SURVIVE container recreates. Legacy single-user

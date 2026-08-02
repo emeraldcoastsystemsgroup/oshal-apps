@@ -149,6 +149,31 @@
         <div id="seriesList" style="margin-top:12px"></div>
       </details>
 
+      <!--
+        THE JOKE PUMP. The same conductor, run on a schedule instead of by hand. Two switches per
+        show and they mean different things: "On" puts the show in the rotation (it will be written,
+        which is free); "Auto-approve" is the operator standing in for the approval gate, and is the
+        only thing that lets the pump spend render credits. A show can be On without it — the pump
+        writes the scripts and parks them for you.
+      -->
+      <details id="pumpBox" style="margin-top:14px;border:1px solid var(--line,#2a2a3a);border-radius:10px;padding:12px 14px">
+        <summary style="cursor:pointer;font-weight:600">🔁 The joke pump <span class="hint">— keep the shows producing on their own</span></summary>
+
+        <div class="bar" style="margin-top:12px;gap:10px;flex-wrap:wrap;align-items:center">
+          <button class="btn ghost" onclick="pumpLoad()">↻ Refresh</button>
+          <button class="btn ghost" onclick="pumpImport()">⬇ Import the show library</button>
+          <button class="btn" id="pumpRunBtn" onclick="pumpRun()">▶ Run one cycle now</button>
+          <button class="btn ghost" onclick="pumpLoad(true)">🔍 Probe the render node</button>
+          <span class="hint" id="pumpHint"></span>
+        </div>
+
+        <div id="pumpNode" class="hint" style="margin-top:10px"></div>
+        <div id="pumpShows" style="margin-top:12px"></div>
+
+        <div class="lbl" style="margin-top:16px">Recent cycles <span class="hint">— including the ones it declined to run, and why</span></div>
+        <div id="pumpRuns" class="hint" style="margin-top:6px">—</div>
+      </details>
+
       <div id="sbWrap" style="display:none">
         <div class="lbl" style="margin-top:20px">3 · Storyboard <span class="hint" id="sbMeta"></span></div>
         <label>Title</label><input id="title" />
@@ -307,6 +332,111 @@ async function loadSeries() {
   } catch (e) { /* the panel is optional; never break the studio over it */ }
 }
 loadSeries();
+
+/* ── THE JOKE PUMP ─────────────────────────────────────────────────────────────────────
+   Two switches per show, and they are NOT the same switch:
+     On            — the show joins the rotation. Its episodes get written. Writing is free.
+     Auto-approve  — you standing in for the approval gate. This is the only thing that lets
+                     the pump spend render credits, and it is bounded by the daily cap.
+   Everything the pump does (including refusing to run, and why) lands in the cycle list. */
+
+const OUTCOME_LABEL = {
+  skipped: 'declined', started: 'writing', scripted: 'written, waiting for you',
+  rendering: 'rendering', delivered: 'delivered', failed: 'failed',
+};
+
+async function pumpLoad(probe) {
+  $('pumpHint').textContent = probe ? 'Asking the render node…' : '';
+  try {
+    const [showsRes, statusRes] = await Promise.all([
+      fetch('/api/video/pump/shows'),
+      fetch('/api/video/pump/status' + (probe ? '?probe=1' : '')),
+    ]);
+    const shows = await showsRes.json();
+    const st = await statusRes.json();
+    $('pumpHint').textContent = '';
+
+    const n = st.node || {};
+    const p = n.probe || null;
+    $('pumpNode').innerHTML = `<b>Render node:</b> ${n.available ? '✅ free' : '⏸ ' + esc(n.check || 'busy')}`
+      + ` — ${esc(n.reason || '')}`
+      + (p ? ` <span class="hint">(chrome ${p.chromeTotal}, signed-in ${p.chromeDebug}, ${p.availableMb}MB available, commit ${p.commitPct}%)</span>` : '')
+      + `<br><b>Scheduler:</b> ${st.pumpEnabled ? 'on' : 'off (set VIDEO_PUMP_ENABLED=true to let it run by itself)'}`
+      + (st.dueNext ? ` · <b>next up:</b> ${esc(st.dueNext.title)}` : ' · nothing due');
+
+    const rows = (shows.shows || []).map((s) => {
+      const e = s.enrollment;
+      const on = e && e.enabled;
+      const auto = e && e.standing_authorization;
+      const paused = e && e.paused_reason;
+      return `<div class="vid" style="margin-top:8px">
+        <div class="vt">${esc(s.title)} <span class="hint">· ${s.cast.length} characters · ${s.seeds} jokes queued</span></div>
+        ${e ? `<div class="vm">${e.episodes_made || 0} made${e.last_success_at ? ' · last ' + new Date(e.last_success_at).toLocaleString() : ''}${paused ? ' · <b style="color:#e88">paused: ' + esc(e.paused_reason) + '</b>' : ''}</div>` : '<div class="vm">not imported yet</div>'}
+        <div class="bar" style="gap:12px;flex-wrap:wrap;align-items:center;margin-top:4px">
+          <label><input type="checkbox" ${on ? 'checked' : ''} onchange="pumpEnroll('${esc(s.slug)}')" id="on-${esc(s.slug)}" /> On</label>
+          <label><input type="checkbox" ${auto ? 'checked' : ''} onchange="pumpEnroll('${esc(s.slug)}')" id="auto-${esc(s.slug)}" /> Auto-approve renders</label>
+          <label>Max/day <input type="number" min="0" max="24" value="${e ? e.daily_cap : 1}" style="width:56px" id="cap-${esc(s.slug)}" onchange="pumpEnroll('${esc(s.slug)}')" /></label>
+          ${paused ? `<button class="btn ghost" onclick="pumpResume('${esc(s.slug)}')">Resume</button>` : ''}
+        </div>
+      </div>`;
+    });
+    $('pumpShows').innerHTML = rows.join('') || '<div class="empty">No shows yet — hit “Import the show library”.</div>';
+    if ((shows.rejected || []).length) {
+      $('pumpShows').innerHTML += `<div class="hint" style="margin-top:8px;color:#e88">Refused: ${shows.rejected.map((r) => esc(r.file + ' — ' + r.why)).join('<br>')}</div>`;
+    }
+
+    const runs = st.runs || [];
+    $('pumpRuns').innerHTML = runs.length ? runs.map((r) => `<div>${new Date(r.created_at).toLocaleString()} · <b>${esc(r.show_slug || '')}</b> · ${esc(OUTCOME_LABEL[r.outcome] || r.outcome)}`
+      + `${r.episode_title ? ' — ' + esc(r.episode_title) : ''}`
+      + `${r.outcome_reason ? ' <span class="hint">(' + esc(r.outcome_reason) + ')</span>' : ''}`
+      + `${r.drive_url ? ' · <a href="' + r.drive_url + '" target="_blank">watch</a>' : ''}</div>`).join('') : '—';
+  } catch (e) { $('pumpHint').textContent = 'Could not load the pump.'; }
+}
+
+async function pumpImport() {
+  $('pumpHint').textContent = 'Importing…';
+  try {
+    const r = await fetch('/api/video/pump/shows/import', { method: 'POST' });
+    const j = await r.json();
+    $('pumpHint').textContent = j.message || (j.error || 'done');
+    pumpLoad();
+  } catch (e) { $('pumpHint').textContent = 'Import failed.'; }
+}
+
+async function pumpEnroll(slug) {
+  const body = {
+    enabled: $('on-' + slug).checked,
+    standingAuthorization: $('auto-' + slug).checked,
+    dailyCap: Number($('cap-' + slug).value),
+  };
+  try {
+    const r = await fetch(`/api/video/pump/shows/${encodeURIComponent(slug)}/enroll`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const j = await r.json();
+    $('pumpHint').textContent = j.error ? j.error : 'saved';
+  } catch (e) { $('pumpHint').textContent = 'Could not save.'; }
+}
+
+async function pumpResume(slug) {
+  await fetch(`/api/video/pump/shows/${encodeURIComponent(slug)}/resume`, { method: 'POST' });
+  pumpLoad();
+}
+
+async function pumpRun() {
+  $('pumpRunBtn').disabled = true;
+  $('pumpHint').textContent = 'Checking the node, then starting one episode… (up to two minutes)';
+  try {
+    const r = await fetch('/api/video/pump/run', { method: 'POST' });
+    const j = await r.json();
+    const c = j.cycle || {};
+    $('pumpHint').textContent = j.error ? j.error : `${c.action}: ${c.detail || ''}`;
+  } catch (e) { $('pumpHint').textContent = 'The cycle could not be run.'; }
+  $('pumpRunBtn').disabled = false;
+  pumpLoad();
+}
+
+$('pumpBox').addEventListener('toggle', () => { if ($('pumpBox').open) pumpLoad(); });
 </script>
 </body>
 </html>

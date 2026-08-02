@@ -4,6 +4,8 @@
  * DATE/TIME           | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-15 18:22:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial: the pumpkin prop domain types — a PumpkinPreset is the full, serializable "look + motion + voice" config the projector canvas renders and the control surface edits. One preset = everything a jack-o'-lantern look needs.
+ * 2026-07-24 07:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Saved-responses playlist types (PumpkinSavedResponse + PumpkinResponseSource): every spoken line persists per user for one-tap replay from the remote — no fresh LLM generation needed live on the porch.
+ * 2026-08-01 22:15:00 | roger.murphy@emeraldcoastsystemsgroup.com   | PumpkinSettings carries roomLabel. The control surface has always SENT it on Launch and the route dropped it on the floor, so the short-form projector URL the runbook tells you to type could never restore the room — the projector came up in 'main' while the cockpit and the phone pushed into 'front-porch'.
  */
 
 /** The two run modes of the prop. `mimic` = say back what the operator feeds via mic (no LLM); `autonomous` = converse in character via pumpkin-bot. */
@@ -110,6 +112,39 @@ export interface PumpkinPreset {
 export interface PumpkinSettings {
   activePreset: string;
   mode: PumpkinMode;
+  /**
+   * The room LABEL (not the slug) the operator last launched with. This is the field that makes the
+   * short-form projector URL — `{origin}/pumpkin/` with nothing after the slash — land in the right
+   * room, which is the only URL worth typing on a projector device's on-screen keyboard.
+   */
+  roomLabel: string;
+}
+
+/** Where a saved response came from: an operator-fed mimic line, an autonomous bot reply, or a manual save. */
+export type PumpkinResponseSource = 'mimic' | 'autonomous' | 'manual';
+
+/** A remembered spoken line — one playlist entry, replayable with one tap (no LLM round trip). */
+export interface PumpkinSavedResponse {
+  /** Row id (UUID). */
+  id: string;
+  /** The line to speak aloud. */
+  say: string;
+  /** Face expression to ease toward while speaking. */
+  expression: PumpkinExpression;
+  /** Delivery size 0..1. */
+  intensity: number;
+  /** Provenance of the line. */
+  source: PumpkinResponseSource;
+  /** Pinned lines survive the recency cap (the operator's keepers). */
+  pinned: boolean;
+  /** How many times the line has been replayed from the playlist. */
+  playCount: number;
+  /** Last replay time (ISO), or null if never replayed. */
+  lastPlayedAt: string | null;
+  /** First-saved time (ISO). */
+  createdAt: string | null;
+  /** Last save/refresh time (ISO) — the playlist recency key. */
+  updatedAt: string | null;
 }
 
 /** The in-character reply envelope pumpkin-bot returns in autonomous mode. */

@@ -1,0 +1,42 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Cardboard Cosmo Crew — ep-01 "Launch Box" delivered 2026-07-08 (DRIVE_OK +
+# VALIDATE_OK, 0.0s silence). Its intro clip is cached on the render node.
+# ─────────────────────────────────────────────────────────────────────────────
+
+slug: cardboard-cosmo-crew
+title: Cardboard Cosmo Crew
+scenesPerEpisode: 4
+orientation: Landscape
+introClip: 03-cardboard-cosmo-crew-intro-FINAL.mp4
+
+premise: |
+  A bedroom floor is outer space: cardboard rockets, blanket galaxies, bottle-cap planets, sticker
+  constellations. A kid-made space crew has moon mail to deliver before lights-out, and every
+  episode one very small obstacle becomes a mission-critical crisis solved by imagination and a
+  checklist. Cheerful, handmade, and gentle — space is friendly here and nothing is ever in danger.
+
+styleLock: >-
+  paper-craft stop-motion with cardboard textures, tape seams, crayon stars, bottle-cap planets,
+  playful handmade shadows, no lens effects
+
+cast:
+  - name: Pip Pilot
+    description: brave paper-cup astronaut with crayon buttons; amazed by absolutely everything.
+  - name: Rumi Rocket
+    description: squeaky cardboard rocket with tape wings; loyal, dramatic, and very loud.
+  - name: Stella Sticker
+    description: shiny paper star with five points; shines brighter when somebody says please.
+  - name: Captain Boxley
+    description: square cardboard captain with a clipboard; takes every checklist very seriously.
+
+jokeSeeds:
+  - The rocket refuses to launch until everyone checks their imaginary seatbelts.
+  - A roll of tape becomes an asteroid that sticks to everything except the plan.
+  - Captain Boxley's checklist has one item on it, twice.
+  - A sock comet zooms past carrying the envelope they were about to deliver.
+  - The crew counts down from ten and forgets which number comes after four.
+  - Stella Sticker will only navigate if she is asked politely, at length.
+  - Rumi Rocket announces liftoff so dramatically that liftoff is a letdown.
+  - The moon turns out to be a pillow, and the pillow was expected home by bedtime.
+  - Pip Pilot puts the helmet on backwards and reports that space looks unusually cardboard.
+  - The mission needs two crew members and all four insist they are essential.

@@ -1,0 +1,286 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — venture-plan ("Venture Plan")
+#
+# Takes an idea in plain language and produces the document set somebody would
+# actually need to decide whether to build it and sell it: concept, market and
+# channel, bill of materials, manufacturing, suppliers, landed cost, compliance,
+# unit economics, profit statement, cash and working capital, sensitivity, org,
+# schedule, go-to-market, funding ask — and the assumption register that makes
+# the other sixteen honest.
+#
+# THE ARCHITECTURE IS A SPLIT, AND THE SPLIT IS THE PRODUCT. A business plan
+# whose numbers a language model narrated is worse than no plan: it reads as
+# researched, so a person commits tooling money against it. So:
+#
+#   - The four bots below supply ASSUMPTIONS ONLY — a value, a unit, a band, a
+#     source and a confidence. They are instructed to do no arithmetic, and the
+#     engine hard-caps a model-authored record at `estimated` confidence on the
+#     way in, so a model cannot certify its own guess as a quote.
+#   - EVERY calculation happens in `routes/venture-*.js` — fourteen pure modules
+#     with no clock, no randomness and no network, covered by hand-derived tests
+#     (the golden values are written out in comments and the code was made to
+#     match them, not the reverse).
+#   - Every printed figure carries the assumptions it rests on and the WEAKEST
+#     confidence anywhere in its chain. A figure resting on an unregistered input
+#     turns `canPublish` false — the document is refused, not footnoted.
+#
+# WHAT THIS PACKAGE DELIBERATELY DOES NOT DECLARE:
+#
+#   - No `schedules:`. A recurring re-plan is four paid model calls per venture,
+#     so a package that shipped with a cron enabled would start spending on
+#     install. Re-baselining on a cadence is a real want and belongs behind an
+#     explicit per-user opt-in; it is in the README as the next increment.
+#   - No `connectors:`. Nothing here talks to a third party on the user's behalf.
+#     Every input is either typed by the operator or authored by a bot and
+#     labelled as such.
+#   - No containers on any bot. All four are concierge nodes resolved inline on
+#     the api (docs/building-a-bot.md Form B) — reason-only brains with no
+#     shell-out and no store of their own. Four containers would add four
+#     heartbeating processes for zero capability.
+#   - No `reviewerBot`. "Which assumption most changes the answer" is a tornado
+#     chart, which is arithmetic; a critic bot would opine where the engine can
+#     measure.
+#   - No `guestTier`. Every surface exposes the caller's own venture and spends
+#     their money.
+#
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: venture-plan
+suite: ai-finance   # ADR-097: one primary shelf, chosen by WHO IT SERVES — the owner-operator
+                    # deciding whether to commit capital and place a manufacturing order. It emits
+                    # documents, but the shelf is never derived from the artifact.
+displayName: Venture Plan
+description: >-
+  Turn an idea into the venture document set a real decision needs — bill of materials,
+  landed cost, channel margin, profit, cash and working capital, schedule, org, funding ask.
+  Bots supply assumptions with a source, a band and a confidence; a deterministic engine does
+  every calculation. Every number is either computed and traceable, or visibly a labelled guess
+  you should go replace with a quote.
+version: 1.0.0
+status: active
+scope: person
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: venture-plan
+  ref: main
+
+# ─────────────────────────────────────────────────────────────────────────────
+# KERNEL SKILLS this package IMPORTS (ADR-085 §2 / ADR-090 D8). Declared because
+# an undeclared import is invisible to the prune guard: the first carve that
+# dropped the skill would break this app at MOUNT time, not at compile time.
+#
+# `deck-generation` — the export layer renders the plan as .docx, the financial
+#   model as .xlsx and the decision deck as .pptx through
+#   @/features/presentation-generation (renderDocx / renderXlsx / renderPptx).
+#   There is no PDF renderer in either repo, so PDF is browser print, and the
+#   README says so rather than implying an export that does not exist.
+# `notifications` — a full run is four model calls across four bots and takes
+#   minutes, so it runs out-of-band and the owner is told when it lands, through
+#   the kernel notification router and their own preference-center routing.
+# ─────────────────────────────────────────────────────────────────────────────
+uses:
+  - deck-generation
+  - notifications
+
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+theme: graphite
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — four, and the reason is pipeline shape rather than taxonomy. The real
+# dependency graph has a CODE phase in the middle of it:
+#
+#   strategist (scope) → bom-analyst → (market-analyst ∥ ops-analyst)
+#                      → [ the deterministic engine ] → strategist (narrate)
+#
+# One bot cannot express that: two of the four run in parallel, one runs strictly
+# AFTER the arithmetic on inputs the others never see, and the operator's core
+# workflow is a per-domain re-run ("a quote came back — redo only the BOM"),
+# which a monolithic call cannot do without paying for all four.
+#
+# They also carry four DIFFERENT strict output contracts. Folding them into one
+# persona bleeds the schemas into each other, and a component cost arriving as a
+# market assumption silently corrupts the roll-up.
+#
+# NONE of them computes anything. Each persona says so explicitly, and the engine
+# enforces it structurally: a bot-authored record is capped at `estimated`
+# confidence, and the narrator writes figures as {{fig:…}} tokens that THROW at
+# render time when they name a figure the engine did not compute.
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  # The conversational face and the ticket worker. Two modes, one rule: language
+  # over structure, never a number of its own.
+  - agentId: b7000000-0000-0000-0000-000000000001
+    name: venture-strategist
+    persona: personas/venture-strategist.yaml
+    role: finance/venture-strategist
+    jarvisMode: delegate
+    capabilities:
+      - venture-scoping
+      - business-plan-narration
+      - decision-memo-writing
+      - evidence-sequencing
+    routingKeywords:
+      - business plan
+      - what would it cost to make
+      - turn my idea into a plan
+      - can i sell this in a store
+      - unit economics
+      - break even
+      - is this worth building
+      - venture plan
+
+  # The highest-consequence surface in the package — the one bot that names
+  # physical parts and price levels. Tightest contract, and it never sees the
+  # financial model.
+  - agentId: b7000000-0000-0000-0000-000000000002
+    name: venture-bom-analyst
+    persona: personas/venture-bom-analyst.yaml
+    role: finance/venture-bom-analyst
+    capabilities:
+      - bill-of-materials-drafting
+      - component-cost-banding
+      - supplier-category-identification
+    routingKeywords:
+      - bill of materials
+      - bom
+      - what parts
+      - component cost
+      - what is it made of
+      - cost to make one
+      - tooling cost
+      - moq
+
+  # A different evidence base entirely — observed shelf prices, channel rate
+  # cards, seasonality, returns. Emits no part and no component cost.
+  - agentId: b7000000-0000-0000-0000-000000000003
+    name: venture-market-analyst
+    persona: personas/venture-market-analyst.yaml
+    role: finance/venture-market-analyst
+    capabilities:
+      - demand-scenario-drafting
+      - competitive-price-observation
+      - channel-terms-research
+      - seasonality-modelling
+    routingKeywords:
+      - who would buy this
+      - what should i price it at
+      - retail margin
+      - amazon fees
+      - competitors
+      - market size
+      - seasonality
+      - return rate
+
+  # Runs AFTER the BOM is frozen and is handed the roll-up — a dependency one bot
+  # could not express. Owns the two guesses that do real damage if stated
+  # confidently: customs classification and certification scope.
+  - agentId: b7000000-0000-0000-0000-000000000004
+    name: venture-ops-analyst
+    persona: personas/venture-ops-analyst.yaml
+    role: finance/venture-operations-analyst
+    capabilities:
+      - manufacturing-planning
+      - logistics-and-duty-assumptions
+      - certification-path-identification
+      - backward-schedule-drafting
+      - headcount-planning
+    routingKeywords:
+      - how do i manufacture this
+      - lead time
+      - tooling
+      - freight
+      - landed cost
+      - import duty
+      - hts code
+      - certification
+      - ul listing
+      - production schedule
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — the packaged router, mounted /api/venture on activation.
+#
+# requiresAuth: true is load-bearing. Every endpoint either exposes the caller's
+# own venture — their idea, their costs, their cash position — or spends their
+# money on a model call. The handlers ALSO self-gate on callerSub before any
+# query and scope every statement to it, with owner-or-operator RLS underneath as
+# the backstop.
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - module: routes/venture-routes.js
+    factory: createVentureRoutes
+    mountPath: /api/venture
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DATABASE MIGRATIONS — owned by this package. src-routes/venture-schema.ts
+# applies the same statements at route-factory time, so the app works whether or
+# not APP_PACKAGE_MIGRATIONS is on.
+#
+# The assumption table is APPEND-ONLY on purpose. A vendor quote does not edit a
+# guess; it writes a new row and supersedes the old one. The evidence that the
+# plan once rested on an estimate is not an implementation detail — it is the
+# product.
+# ─────────────────────────────────────────────────────────────────────────────
+migrations:
+  - migrations/001-venture-core.sql
+  - migrations/002-venture-supply-chain.sql
+  - migrations/003-venture-outputs.sql
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon icon opens the venture console: the venture
+# list, the stage rail, the assumption register with its source chips and inline
+# operator override (the "replace this guess with a real quote" action), the
+# numbers pane where every figure opens its own derivation, and the document set.
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: venture-home
+      label: Venture Plan
+      icon: codicon codicon-graph-line
+      iframeUrl: /api/venture/
+      section: top
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WORKFLOW — tickets of type 'venture-plan' route to the strategist, so a
+# swarm-initiated re-baseline ("the injection-mould quote came back at $14.20 —
+# redo the plan") files a real ticket on the kernel queue instead of borrowing
+# another app's ticket type.
+#
+# The phases are the MECHANICAL pipeline. The spend discipline layered on top of
+# it — stages 0-4 and gates G0-G4, where each stage may buy only the evidence the
+# NEXT gate needs and G1 kills on the OPTIMISTIC end of every band — lives in the
+# personas and in METHOD terms in the README. The `compute` phase is the reason
+# this cannot be expressed as a `staged:` workflow: the staged executor has no way
+# to run a deterministic engine between two model calls, so the package's own
+# out-of-band orchestrator owns the graph and this workflow is the swarm-facing
+# door. Do not later "simplify" it into stages; that would drop the arithmetic.
+# ─────────────────────────────────────────────────────────────────────────────
+ticketType: venture-plan
+workflow:
+  name: Venture Plan Pipeline
+  pipeline: venture-plan
+  workerBot: venture-strategist
+  phases:
+    - scope     # the idea becomes a scoped venture; no number the operator did not say
+    - assume    # the three analysts author assumptions — value, unit, band, source, confidence
+    - compute   # the deterministic engine; NO model call happens in this phase
+    - narrate   # prose over a frozen model, written as figure tokens rather than numerals
+    - deliver   # the document set, its posture, and the one number worth buying next
+
+chatBot: venture-strategist
+
+ribbon:
+  hideFrameworkItems:
+    - addressbook
+    - calendar
+    - echo
+  defaultView: venture-home

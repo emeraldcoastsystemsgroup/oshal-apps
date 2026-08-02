@@ -1,0 +1,67 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — system ("System")
+# Pure launcher (operator decision 2026-07-31, same shape as games/oshal-app.yaml):
+# owns no runtime, no data, no bots of its own. system.oshal.ai is the front door
+# for the account-infrastructure apps — identity, storage, cloud — that are useful
+# on their own but don't need their own dedicated subdomain each.
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: system
+suite: ai-productivity   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: System
+description: >-
+  One desk for account infrastructure: Identity Hub, Storage, and Cloud accounts —
+  each already its own app, gathered here so you don't have to hunt the full catalog.
+version: 1.0.0
+status: active
+scope: public
+theme: gray
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: system
+  ref: main
+
+# Installing this launcher also resolves every sibling (games-launcher precedent) —
+# npm-style dependency resolution, fail-closed.
+dependencies:
+  apps:
+    - identity
+    - storage
+    - cloud
+  tools: []
+  connectors: []
+
+# The launcher owns no runtime or data. Its surfaces route to the installed apps.
+ui:
+  static:
+    - toolName: system-identity
+      label: Identity Hub
+      icon: codicon codicon-key
+      iframeUrl: /api/identity/
+      section: top
+    - toolName: system-storage
+      label: Storage
+      icon: codicon codicon-database
+      iframeUrl: /api/storage/assistant/ui
+      section: top
+    - toolName: system-cloud
+      label: Cloud Accounts
+      icon: codicon codicon-cloud
+      iframeUrl: /utilities   # core framework surface — stays kernel-mounted (cloud's own tile matches)
+      section: top
+
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  hideChatPanel: true
+  defaultView: system-identity

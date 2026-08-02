@@ -13,6 +13,7 @@
  *   tool (scripts/oshal-vids.js) can reach it.
  * 2026-07-05 13:29:28 | roger.murphy@emeraldcoastsystemsgroup.com   | SECURITY: router is now mounted behind serviceSecretOr(requiresAuth) in server.ts — the earlier unguarded loopback mount left /api/vids anonymous-callable through the public tunnel
  * 2026-07-19 22:20:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Carved out of OSHAL core into the vids app package (ADR-085 Wave 3, "skill with a surface"). Standard (ctx) factory unchanged; the remote-client registry (the mesh the SHARED vids-operator desktop worker polls — framework-resident per ADR-093) now imports via the @/ alias. The manifest mounts the same /api/vids with auth: service-or-oidc (what core server.ts mounted), so the in-container vids_generate / creative_* CLI tools keep reaching it with X-Service-Secret. The vids_jobs schema ships as a migrations/ COPY of kernel 059 for fresh installs.
+ * 2026-07-24 20:45:00 | @codex-surface-audit | Make the Vids surface inherit the swarm control-plane theme and keep its job table usable on phone-sized screens.
  */
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -222,14 +223,15 @@ function createVidsRoutes(ctx) {
 // Self-contained surface: lists jobs, submits a prompt, shows worker presence.
 // Follows the swarm theme by reading the parent document's data-theme when embedded.
 const SURFACE_HTML = `<!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="midnight">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Vids Studio</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
 <style>
-  :root{--bg:#0b1220;--panel:#121a2b;--line:#23304b;--text:#e7eefc;--muted:#9fb0d0;--accent:#10b981;--bad:#f87171;--warn:#fbbf24}
-  html[data-theme="light"]{--bg:#f4f7fc;--panel:#fff;--line:#dbe3f0;--text:#0b1f3a;--muted:#5a6b88;--accent:#0f9d76}
+  :root{--bg:var(--bg-primary,#0b1220);--panel:var(--bg-card,#121a2b);--line:var(--border-color,#23304b);--text:var(--text-primary,#e7eefc);--muted:var(--text-secondary,#9fb0d0);--accent:var(--accent-primary,#10b981);--bad:var(--status-error,#f87171);--warn:var(--status-warning,#fbbf24)}
   *{box-sizing:border-box} body{margin:0;font:14px/1.5 Inter,system-ui,Segoe UI,sans-serif;background:var(--bg);color:var(--text)}
   .wrap{max-width:900px;margin:0 auto;padding:18px}
   h1{font:600 18px Archivo,Inter,sans-serif;margin:0 0 2px} .sub{color:var(--muted);margin:0 0 16px}
@@ -246,6 +248,14 @@ const SURFACE_HTML = `<!doctype html>
   .st.done{color:var(--accent);border-color:var(--accent)} .st.failed{color:var(--bad);border-color:var(--bad)}
   .st.running,.st.queued{color:var(--warn);border-color:var(--warn)} .idea{max-width:380px}
   .empty{color:var(--muted);text-align:center;padding:18px}
+  @media(max-width:640px){
+    .wrap{padding:14px}
+    .card{padding:12px}
+    .row select{flex:1 1 140px;min-width:0}
+    th:nth-child(3),td:nth-child(3),th:nth-child(4),td:nth-child(4){display:none}
+    th,td{padding:8px 4px}
+    .idea{max-width:none;overflow-wrap:anywhere}
+  }
 </style>
 </head>
 <body>

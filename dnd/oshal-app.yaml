@@ -27,6 +27,11 @@
 # 2026-07-23 11:21:50 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.15.4 with uninterrupted natural narration, visible speaking feedback, and post-action movement during speech.
 # 2026-07-23 13:15:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.16.0 with four story-first campaigns, shared evidence-driven investigations, campaign selection, and themed illustrated maps.
 # 2026-07-23 13:30:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.16.1 with a visually verified unclipped campaign shelf at desktop and phone sizes.
+# 2026-07-27 22:05:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.16.2 so a joined player leaves the lobby for any live quest mode and sees their seat instead of the host join code.
+# 2026-07-27 23:10:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.17.1 so a discovered lead walks onto the map: the person, place, or object the party found becomes a real figure on the hero's square instead of a line in the log.
+# 2026-07-27 23:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.17.2: every lead attempt walks the acting hero across the map in the authoritative write, discovery and chapter art generate server-side, and a stale tab is told to refresh after a mid-session deploy.
+# 2026-07-28 00:20:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.17.3 from the adversarial verify pass: serve leads.js (client nomination/walk was dead in production without it), keep figures off walls and spawn seats, log soft illustrator outages, and dedupe raced attempts on found clues.
+# 2026-07-31 23:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.19.0 (roadmap #13): a lead attempt opens the big SHARED d20 — the request carries the lead contract and true skill modifier, the die lands via the same /roll route as every check, and the exploration commit applies discovery-or-miss while resolving the die in one write. Lead crits ride the shared die; the DM narration path refuses lead rolls.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL App Package — Dungeon Master (AI D&D at the table)
@@ -57,8 +62,9 @@ description: >-
   inventory, abilities, and spells. You control only your claimed hero; clearly
   labeled AI companions run empty seats. Choose a bundled SRD hero or import
   your own PDF/JSON character sheet. Rules run on the open CC-BY D&D SRD 5.1.
-version: 0.16.1
+version: 0.19.0
 status: active
+theme: black
 
 # The app TILE is public so every signed-in player sees it in the ribbon (a
 # person-scoped app auto-loaded at boot has no owner stamped, so RLS hides it
@@ -70,7 +76,7 @@ scope: public
 # Where this package came from — the installer pins ref+sha at install time.
 source:
   type: git-subdir
-  url: https://github.com/emeraldcoastsystemsgroup/oshal-applications
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: dnd
   ref: main
 
