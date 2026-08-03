@@ -1,0 +1,237 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — ocean-lab ("Ocean Lab")
+#
+# An ambient-energy design lab. A person shapes a machine that moves on flow it
+# does not carry — tidal/current harvest, soil-thermal harvest, and the rotor
+# that feeds them — and reads a verdict computed by real models: tidal harmonic
+# superposition, the soil thermal-wave solution, a Hess-Smith vortex panel
+# method, and blade-element momentum theory with Prandtl tip+hub loss. Geometry
+# lofts to a watertight mesh and exports to STL / OBJ / OpenSCAD / DXF.
+#
+# The ENGINE IS BUNDLED — src-routes/engine/ compiled to routes/engine/. Nothing
+# is fetched, nothing is called out to, and there is no LLM in any path here: the
+# numbers are deterministic in-process arithmetic. That is why this package
+# declares no bot. A design lab that only computes owns no domain data and has
+# nothing to reason about (sat-ops precedent — a package may own no tables).
+#
+# PROVENANCE, stated once and repeated on both surfaces: every site, soil and
+# constituent set is an ILLUSTRATIVE PARAMETER SET over a real model. No survey
+# data. No hardware was built. See the design study in the core repo at
+# docs/research/autonomous-explorer-design-study.md — specifically its "What is
+# not true" section — before quoting a number out of this app.
+#
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: ocean-lab
+suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
+displayName: Ocean Lab
+description: >-
+  Ambient-energy design lab — model a machine that moves on tidal and current
+  flow or on the soil thermal gradient, size its rotor with real blade-element
+  momentum theory, and export printable geometry. Two surfaces: a harvest siting
+  console (marine and ground energy budgets, seasonal gap analysis, storage
+  sizing) and a blade studio (NACA sections, panel-method polars, Cp sweeps,
+  STL/OBJ/SCAD/DXF export). Every model runs in-process and deterministically;
+  every site parameter is illustrative, not surveyed.
+version: 1.0.0
+status: active
+scope: person
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: ocean-lab
+  ref: main
+
+# No connectors, no dependencies: the engine is bundled and local.
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TOOLS — every one is route-backed and deterministic. A bot that calls these
+# gets arithmetic, not an opinion; the numbers are the engine's, never a model's.
+# ─────────────────────────────────────────────────────────────────────────────
+tools:
+  - name: ocean-lab-capabilities
+    displayName: Ocean Lab Capabilities
+    type: api
+    category: engineering
+    description: Report the lab's domains, surfaces, and the exact bound tables the routes reject on.
+    executor: { executorType: api, apiEndpoint: "GET /api/ocean-lab/capabilities" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Read-only. Call FIRST when composing a request — the returned limits are the SAME numbers the
+      simulate/solve routes enforce, so pre-validating against them avoids a 400.
+    routingTags: [ocean, energy, capabilities]
+    tags: [ocean-lab, route-backed]
+
+  - name: ocean-lab-sites
+    displayName: Harvest Site Catalogue
+    type: api
+    category: engineering
+    description: List the illustrative tidal sites and soil profiles the harvest simulation accepts, with the route's bound table.
+    executor: { executorType: api, apiEndpoint: "GET /api/ocean-lab/harvest/sites" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      These are ILLUSTRATIVE parameter sets, not harmonic constants for any real station. Say so
+      whenever you quote one; never present a result from them as site-specific.
+    routingTags: [ocean, tidal, soil, sites]
+    tags: [ocean-lab, route-backed]
+
+  - name: ocean-lab-simulate
+    displayName: Simulate Energy Budget
+    type: api
+    category: engineering
+    description: Integrate a marine (tidal/current) or ground (soil-thermal) energy budget over time — harvest, loads, state of charge, seasonal gaps, and the perpetual verdict.
+    executor: { executorType: api, apiEndpoint: "POST /api/ocean-lab/harvest/simulate" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        domain: { type: string, enum: [marine, ground] }
+        unit: { type: object }
+        options: { type: object }
+      required: [domain, unit]
+    usageInstructions: >-
+      Quote the verdict fields verbatim. NOTE the load-bearing distinction the model enforces: an
+      annual energy SURPLUS does not mean the machine survives the year — read `longestGapHours`
+      and `minSocFraction` before calling any design perpetual.
+    routingTags: [ocean, energy, budget, simulate]
+    tags: [ocean-lab, route-backed]
+
+  - name: ocean-lab-rotor-solve
+    displayName: Solve Rotor (BEMT)
+    type: api
+    category: engineering
+    description: Solve a blade with blade-element momentum theory — per-station induction, section polars from a vortex panel method, Prandtl tip and hub loss, Glauert high-induction correction, and the resulting power coefficient.
+    executor: { executorType: api, apiEndpoint: "POST /api/ocean-lab/rotor/solve" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        blade: { type: object }
+        flow: { type: object }
+        options: { type: object }
+      required: [blade, flow]
+    usageInstructions: >-
+      Cp is bounded by Betz (16/27 = 0.5926) and the solver approaches it from below — a returned Cp
+      above that is a bug worth reporting, never a result. Small rotors legitimately return far less.
+    routingTags: [ocean, rotor, bemt, aerodynamics]
+    tags: [ocean-lab, route-backed]
+
+  - name: ocean-lab-cp-curve
+    displayName: Cp vs Tip-Speed Ratio
+    type: api
+    category: engineering
+    description: Sweep tip-speed ratio and return the Cp curve plus the peak operating point for a blade.
+    executor: { executorType: api, apiEndpoint: "POST /api/ocean-lab/rotor/cp-curve" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        blade: { type: object }
+        flow: { type: object }
+      required: [blade, flow]
+    usageInstructions: >-
+      The sweep is synchronous and bounded by the route's element-solve ceiling; ask for fewer
+      points rather than retrying a 400.
+    routingTags: [ocean, rotor, cp, sweep]
+    tags: [ocean-lab, route-backed]
+
+  - name: ocean-lab-rotor-harvest
+    displayName: Rotor-Fed Harvest Budget
+    type: api
+    category: engineering
+    description: Run the marine energy budget with the turbine's power coefficient taken from a solved BEMT blade instead of an assumed constant.
+    executor: { executorType: api, apiEndpoint: "POST /api/ocean-lab/rotor/harvest" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        blade: { type: object }
+        site: { type: object }
+        loads: { type: array }
+        storage: { type: object }
+      required: [blade, site]
+    usageInstructions: >-
+      This is the composition worth using — it replaces the hand-assumed Cp in a harvest run with a
+      computed one. Report which Cp it used alongside the verdict.
+    routingTags: [ocean, rotor, energy, harvest]
+    tags: [ocean-lab, route-backed]
+
+  - name: ocean-lab-export
+    displayName: Export Blade Geometry
+    type: api
+    category: engineering
+    description: Loft a blade to a watertight triangle mesh and export it as STL (ascii or binary), OBJ, OpenSCAD or DXF, with the mesh validation report.
+    executor: { executorType: api, apiEndpoint: "POST /api/ocean-lab/rotor/export" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        blade: { type: object }
+        format: { type: string, enum: [stl, stl-binary, obj, scad, dxf] }
+      required: [blade]
+    usageInstructions: >-
+      The response carries a mesh validation report (open edges, non-manifold edges, degenerate
+      facets, Euler characteristic). Surface it — topology being closed is NOT a promise the part is
+      printable, because self-intersection is not checked.
+    routingTags: [ocean, cad, export, stl, mesh]
+    tags: [ocean-lab, route-backed]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACES — two, because they are two different jobs: siting an
+# energy budget, and shaping the rotor that feeds it. Both self-served by this
+# package's route from tools/ (ctx.appPackageDir).
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: ocean-lab-harvest-console
+      label: Harvest Console
+      icon: codicon codicon-pulse
+      iframeUrl: /api/ocean-lab/harvest-console
+      section: top
+    - toolName: ocean-lab-blade-studio
+      label: Blade Studio
+      icon: codicon codicon-settings-gear
+      iframeUrl: /api/ocean-lab/blade-studio
+      section: top
+
+# One mounted factory composing both halves. requiresAuth is TRUE and is the real
+# guard: express-openid-connect runs authRequired:false, so an unwrapped packaged
+# route is anonymous — and these routes integrate up to two million synchronous
+# timesteps, which is a denial of service against the controller's only thread,
+# not merely a slow response.
+routes:
+  - module: routes/ocean-lab-routes.js
+    factory: createOceanLabRoutes
+    mountPath: /api/ocean-lab
+    requiresAuth: true
+    requiresContext: true
+
+# No migrations: every result is computed on demand from the posted design.
+# This surface owns no tables and no RAG collections (sat-ops precedent).
+
+# RIBBON VISIBILITY — focus mode for /cockpit?app=ocean-lab
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  hideChatPanel: true
+  defaultView: ocean-lab-harvest-console

@@ -1,0 +1,447 @@
+<!doctype html>
+<!--
+  Harvest Siting Console — the ground-thermal harvest domain beside the marine one.
+  A self-contained cockpit surface: all physics is mirrored client-side in harvest-console.js, so
+  the page is fully usable with /api/ocean-lab/harvest absent (the server is a cross-check, never a
+  dependency). Consumes the framework theme tokens READ-ONLY; every rule below either reads a
+  framework token or defines a surface-local alias. (.html is exempt from the CHANGE LOG header
+  and the file-size rules.)
+-->
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Harvest Siting Console</title>
+<!-- Theme files scope to [data-theme="…"] with NO bare :root fallback, so the default stamped on
+     <html> above is what gives this surface any colour at all; surface-theme.js then follows the
+     operator's live choice (an iframe does not inherit the parent's data-theme). -->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  :root {
+    --bg: var(--bg-primary);
+    --panel: var(--bg-card);          /* translucent by design — never used as an opaque cover */
+    --panel2: var(--bg-tertiary);
+    --solid: var(--bg-secondary);
+    --line: var(--border-color);
+    --line2: var(--border-color-hover);
+    --text: var(--text-primary);
+    --dim: var(--text-secondary);
+    --muted: var(--text-muted);
+    --accent: var(--accent-primary, #7c7cff);
+    --ok: var(--status-success, #34d399);
+    --warn: var(--status-warning, #fbbf24);
+    --danger: var(--status-error, #f87171);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text); overflow-x: hidden;
+    font: 14.5px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .page { max-width: 1400px; margin: 0 auto; padding: 22px 20px 80px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ── Header ──────────────────────────────────────────────────────────── */
+  header.hero h1 { font-size: 23px; margin: 0 0 4px; letter-spacing: .2px; }
+  header.hero p { color: var(--dim); font-size: 13.2px; margin: 0 0 6px; max-width: 900px; line-height: 1.62; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700;
+    letter-spacing: .06em; text-transform: uppercase; padding: 4px 9px; border-radius: 6px;
+    border: 1px solid var(--line); background: var(--panel2); color: var(--muted); white-space: nowrap;
+  }
+
+  /* ── The one filter band, above everything it scopes ──────────────────── */
+  .controls {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(178px, 1fr)); gap: 11px 14px;
+    margin: 16px 0 18px; padding: 15px 16px;
+  }
+  .ctl { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .ctl > label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 700; }
+  .ctl .row { display: flex; align-items: center; gap: 8px; }
+  .ctl output { font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; min-width: 62px; text-align: right; }
+  select, input[type="number"] {
+    width: 100%; background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 6px 9px; font: inherit; font-size: 12.8px; min-width: 0;
+  }
+  input[type="range"] { width: 100%; accent-color: var(--accent); min-width: 0; }
+  .btn {
+    border: 1px solid var(--line); background: var(--panel2); color: var(--text);
+    border-radius: 8px; padding: 6px 11px; font: inherit; font-size: 12px; font-weight: 600;
+    cursor: pointer; white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--accent); }
+
+  /* ── Verdict band ─────────────────────────────────────────────────────── */
+  .verdict { display: flex; flex-wrap: wrap; align-items: center; gap: 18px 26px; padding: 16px 18px; margin-bottom: 16px; }
+  .verdict .lead { display: flex; align-items: baseline; gap: 11px; min-width: 250px; }
+  .verdict .icon { font-size: 20px; line-height: 1; }
+  /* Hero figure: same sans as everything else, proportional figures (never tabular at this size). */
+  .verdict .word { font-size: 40px; font-weight: 600; line-height: 1.05; letter-spacing: -.6px; }
+  .verdict.is-good .icon, .verdict.is-good .word { color: var(--ok); }
+  .verdict.is-bad .icon, .verdict.is-bad .word { color: var(--danger); }
+  .verdict .note { color: var(--dim); font-size: 12.6px; flex: 1 1 280px; min-width: 240px; line-height: 1.55; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(122px, 1fr)); gap: 10px; flex: 2 1 460px; }
+  .stat-card { border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; }
+  .stat-card .v { font-size: 19px; line-height: 1.2; }
+  .stat-card .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-top: 3px; }
+
+  /* ── Cards ────────────────────────────────────────────────────────────── */
+  .section-card { border: 1px solid var(--line); border-radius: 14px; padding: 15px 17px 17px; margin-bottom: 16px; }
+  .section-card > h2 { font-size: 14.5px; margin: 0 0 3px; display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  .section-card > .cap { color: var(--muted); font-size: 12.2px; line-height: 1.6; margin: 4px 0 11px; max-width: 1010px; }
+  .section-card > .cap b { color: var(--dim); font-weight: 600; }
+  .two-up { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; }
+  @media (max-width: 900px) { .two-up { grid-template-columns: minmax(0, 1fr); } }
+
+  /* ── Charts ───────────────────────────────────────────────────────────── */
+  /* The canvas carries its own OPAQUE plot ground (--bg-primary is the only fully opaque token).
+     Drawing on the translucent card would punch a hard rectangle through the glass, and the
+     palette was validated against this exact surface. */
+  .chart { position: relative; width: 100%; }
+  .chart canvas {
+    display: block; width: 100%; background: var(--bg-primary);
+    border: 1px solid var(--line); border-radius: 10px;
+  }
+  #cv-heatmap { height: 470px; }
+  #cv-delta { height: 410px; }
+  #cv-soc { height: 270px; }
+  #cv-cutaway { height: 392px; }
+  #cv-match { height: 250px; }
+  #cv-marine { height: 350px; }
+  @media (max-width: 700px) {
+    #cv-heatmap { height: 400px; } #cv-delta { height: 360px; } #cv-cutaway { height: 340px; }
+  }
+
+  /* Legend: always present for two or more series. The dot carries identity; the text stays ink. */
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 10px 0 0; font-size: 12px; color: var(--dim); }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .legend i { width: 11px; height: 11px; border-radius: 3px; flex: none; background: var(--muted); }
+  .legend i.line { height: 3px; width: 18px; border-radius: 2px; }
+  .legend i.wash { opacity: .34; }
+
+  /* ── Table view — the WCAG-clean twin of every chart ───────────────────── */
+  .scroller { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+  table { border-collapse: collapse; width: 100%; font-size: 12.8px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tbody th { font-weight: 500; color: var(--dim); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text); }
+  tbody tr:hover { background: rgba(127, 127, 127, .07); }
+
+  .callout {
+    border: 1px solid var(--line); background: var(--panel2); color: var(--dim);
+    border-radius: 10px; padding: 10px 12px; font-size: 12.4px; line-height: 1.62; margin: 11px 0 0;
+  }
+  .callout.warn { border-color: rgba(251, 191, 36, .45); }
+  #boot-error { border-color: rgba(248, 113, 113, .5); }
+
+  /* Tooltips enhance, never gate — every value is also in the table view below. */
+  #tooltip {
+    position: fixed; z-index: 40; pointer-events: none; background: var(--solid); color: var(--text);
+    border: 1px solid var(--line2); border-radius: 8px; padding: 5px 9px; font-size: 11.8px;
+    font-variant-numeric: tabular-nums; box-shadow: var(--card-shadow);
+  }
+  #tooltip[hidden] { display: none; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="hero">
+    <h1>Harvest Siting Console</h1>
+    <p>
+      Two harvest domains on one page. A buried thermoelectric node lives off the phase lag between
+      two depths in soil; a moored node lives off a tidal current. Both are sized the same way — by
+      simulating the longest stretch the environment gives them nothing, never by an average.
+      Every number below is computed in your browser from the model described at the foot of the page.
+    </p>
+    <p>
+      <span class="badge">illustrative parameters — not survey data</span>
+      <span class="badge" id="provenance">local model</span>
+    </p>
+  </header>
+
+  <div class="callout" id="boot-error" hidden>
+    The console engine (<code>harvest-console.js</code>) could not be loaded from any known path, so
+    nothing below will render. It must be served next to this page, or at
+    <code>/api/ocean-lab/harvest/assets/harvest-console.js</code>.
+  </div>
+
+  <!-- One filter band, above everything it scopes. Never a filter inside a chart card. -->
+  <section class="controls glass-panel" aria-label="Design controls">
+    <div class="ctl">
+      <label for="c-site">Site climate</label>
+      <select id="c-site"></select>
+    </div>
+    <div class="ctl">
+      <label for="c-soil">Soil type</label>
+      <select id="c-soil"></select>
+    </div>
+    <div class="ctl">
+      <label for="c-wiring">Wiring</label>
+      <select id="c-wiring"></select>
+    </div>
+    <div class="ctl">
+      <label for="c-area">Collector area</label>
+      <div class="row"><input type="range" id="c-area" min="0.02" max="2" step="0.01" value="0.25" /><output id="c-area-out">0.25 m²</output></div>
+    </div>
+    <div class="ctl">
+      <label for="c-rteg">Module resistance</label>
+      <div class="row">
+        <input type="range" id="c-rteg" min="0.2" max="40" step="0.1" value="9.6" /><output id="c-rteg-out">9.6 K/W</output>
+      </div>
+      <button class="btn" id="c-match" type="button">Match to pair B soil path</button>
+    </div>
+    <div class="ctl">
+      <label for="c-a-hot">Pair A hot junction</label>
+      <div class="row"><input type="range" id="c-a-hot" min="0.02" max="1" step="0.01" value="0.05" /><output id="c-a-hot-out">0.05 m</output></div>
+    </div>
+    <div class="ctl">
+      <label for="c-a-cold">Pair A cold junction</label>
+      <div class="row"><input type="range" id="c-a-cold" min="0.1" max="1.5" step="0.01" value="0.35" /><output id="c-a-cold-out">0.35 m</output></div>
+    </div>
+    <div class="ctl">
+      <label for="c-b-hot">Pair B hot junction</label>
+      <div class="row"><input type="range" id="c-b-hot" min="0.1" max="3" step="0.05" value="0.6" /><output id="c-b-hot-out">0.60 m</output></div>
+    </div>
+    <div class="ctl">
+      <label for="c-b-cold">Pair B cold junction</label>
+      <div class="row"><input type="range" id="c-b-cold" min="0.5" max="6" step="0.05" value="3" /><output id="c-b-cold-out">3.00 m</output></div>
+    </div>
+    <div class="ctl">
+      <label for="c-load">Load</label>
+      <div class="row"><input type="range" id="c-load" min="0.005" max="3" step="0.005" value="0.25" /><output id="c-load-out">0.250 mW</output></div>
+    </div>
+    <div class="ctl">
+      <label for="c-cutin">Converter cut-in</label>
+      <div class="row"><input type="range" id="c-cutin" min="0" max="0.5" step="0.005" value="0.02" /><output id="c-cutin-out">0.020 mW</output></div>
+    </div>
+    <div class="ctl">
+      <label for="c-cap">Store capacity</label>
+      <div class="row"><input type="range" id="c-cap" min="0.01" max="2" step="0.01" value="0.1" /><output id="c-cap-out">0.10 Wh</output></div>
+    </div>
+    <div class="ctl">
+      <label for="c-day">Cursor — day of run</label>
+      <div class="row"><input type="range" id="c-day" min="0" max="730" step="1" value="104" /><output id="c-day-out">104</output></div>
+    </div>
+    <div class="ctl">
+      <label for="c-hour">Cursor — hour</label>
+      <div class="row"><input type="range" id="c-hour" min="0" max="23" step="1" value="6" /><output id="c-hour-out">6:00</output></div>
+    </div>
+  </section>
+
+  <section class="verdict summary-card" id="verdict" aria-live="polite">
+    <div class="lead">
+      <span class="icon" id="verdict-icon">●</span>
+      <span class="word" id="verdict-word">—</span>
+    </div>
+    <p class="note" id="verdict-note">Computing…</p>
+    <div class="kpis">
+      <div class="stat-card"><div class="v" id="kpi-margin">—</div><div class="k">Harvest margin</div></div>
+      <div class="stat-card"><div class="v" id="kpi-minstore">—</div><div class="k">Min store</div></div>
+      <div class="stat-card"><div class="v" id="kpi-minsoc">—</div><div class="k">Deepest charge</div></div>
+      <div class="stat-card"><div class="v" id="kpi-harvest">—</div><div class="k">Mean harvest</div></div>
+      <div class="stat-card"><div class="v" id="kpi-gap">—</div><div class="k">Worst gap</div></div>
+    </div>
+  </section>
+
+  <section class="section-card">
+    <h2>Soil temperature field — two years by depth</h2>
+    <p class="cap">
+      Colour is temperature, diverging about the soil mean, so the neutral midpoint reads as "nothing
+      to harvest here". Two things are visible in one frame. <b>Damping:</b> the annual wave fades
+      toward the midpoint with depth — at the default soil its damping depth is 2.24 m, so 4 m down
+      it retains under a fifth of the surface swing. <b>Phase lag:</b> the pale contour is the
+      soil-mean isotherm, and it tilts steadily right with depth because deeper soil crosses its own
+      mean later — roughly a season behind by 3 m. That lag, not the geothermal gradient, is what
+      gives a buried pair any dT at all. The lower strip re-zooms to 14 days and 0.6 m, where the
+      24-hour wave is resolvable and dies out by about half a metre.
+    </p>
+    <div class="chart"><canvas id="cv-heatmap" role="img"
+      aria-label="Soil temperature as a function of depth and time over two years, with the diurnal detail below"></canvas></div>
+    <div class="legend">
+      <span><i class="line" data-series="0"></i> Pair A junction depths</span>
+      <span><i class="line" data-series="1"></i> Pair B junction depths</span>
+      <span><i class="line" style="background: currentColor; opacity: .55;"></i> soil-mean isotherm (the phase lag)</span>
+    </div>
+  </section>
+
+  <section class="section-card">
+    <h2>dT across each junction pair — and the windows where it yields nothing</h2>
+    <p class="cap">
+      The design story. Pair B is driven by the annual wave alone: its dT sweeps through zero twice a
+      year, and because harvested power goes as dT squared, it sits below the converter's cut-in for
+      <b>weeks</b> each time — the shaded windows. (They fall near the equinoxes, offset by the
+      depth-dependent phase lag rather than landing exactly on them.) Pair A is driven by the diurnal
+      wave, drawn as a min/max envelope because its daily swing is far faster than one pixel column
+      here; it nulls twice a <b>day</b>, for about an hour. The two never null together, which is why
+      wiring both into one converter collapses the worst-case gap from weeks to hours.
+    </p>
+    <div class="chart"><canvas id="cv-delta" role="img"
+      aria-label="Temperature difference across each junction pair over two years, with sub-cut-in windows shaded, and a fourteen-day zoom"></canvas></div>
+    <div class="legend">
+      <span><i class="line" data-series="0"></i> Pair A — shallow, diurnal (daily envelope)</span>
+      <span><i class="line" data-series="1"></i> Pair B — deep, annual</span>
+      <span><i class="wash" data-status="warning"></i> ◆ pair B below cut-in</span>
+    </div>
+  </section>
+
+  <section class="section-card">
+    <h2>State of charge</h2>
+    <p class="cap">
+      The same two years and the same x axis, so the store's decline lines up with the shaded null it
+      is riding through. Two series: the design <b>as wired</b>, and the counterfactual of the annual
+      pair working <b>alone</b>. At the default store the counterfactual flatlines on its
+      depth-of-discharge floor through every equinox null — that region is the brownout the shallow
+      pair exists to prevent. Change <em>Wiring</em> to "deep annual pair only" to make it the live
+      design and watch the verdict flip.
+    </p>
+    <div class="chart"><canvas id="cv-soc" role="img"
+      aria-label="State of charge over two years for the design as wired and for the annual pair alone, with brownout regions marked"></canvas></div>
+    <div class="legend">
+      <span><i class="line" data-series="0"></i> As wired</span>
+      <span><i class="line" data-series="1"></i> Annual pair alone (counterfactual)</span>
+      <span><i class="wash" data-status="warning"></i> pair B below cut-in</span>
+      <span><i class="wash" data-status="critical"></i> ▲ brownout</span>
+    </div>
+  </section>
+
+  <div class="two-up">
+    <section class="section-card">
+      <h2>Buried node, in section</h2>
+      <p class="cap">
+        Nothing here is decorative: the soil column is painted from the same temperature field as the
+        heatmap, evaluated at the instant the two cursor sliders point to, and the plate's width is
+        the square root of the collector area against the slab's own metre scale. Scrub the hour
+        slider to watch the top few centimetres swing while everything below half a metre stays put.
+      </p>
+      <div class="chart"><canvas id="cv-cutaway" role="img"
+        aria-label="Cross-section of the buried node showing the surface plate, both junction pairs, the store, and the live soil temperature gradient"></canvas></div>
+    </section>
+
+    <section class="section-card">
+      <h2>Thermal impedance match</h2>
+      <p class="cap">
+        Heat has to <b>flow</b> to be converted, and only the fraction of dT that falls across the
+        module does any work. Sweeping the module's thermal resistance against power at pair B's peak
+        dT gives a curve that peaks exactly where the module matches the soil path. Raw dT is the
+        environment's to give; the match is yours to choose.
+      </p>
+      <div class="chart"><canvas id="cv-match" role="img"
+        aria-label="Electrical power against module thermal resistance, peaking where module resistance equals the soil path resistance"></canvas></div>
+      <div class="legend">
+        <span><i class="line" data-series="1"></i> Power at peak dT</span>
+        <span><i data-series="2"></i> Matched R_teg = R_soil</span>
+        <span><i data-series="0"></i> Your current setting</span>
+      </div>
+    </section>
+  </div>
+
+  <section class="section-card">
+    <h2>Marine reference domain — a tidal node over one spring/neap beat</h2>
+    <p class="cap">
+      The same grammar on the other environment, so the comparison is between the domains rather than
+      between two chart styles. Flow speed is drawn as a min/max envelope because the 12.42-hour
+      carrier is far faster than a pixel column — and that envelope <em>is</em> the spring/neap beat,
+      which nobody sets: it emerges from the lunar and solar semidiurnal constituents drifting in and
+      out of phase every 14.77 days. Note the contrast worth taking away: this node harvests watts
+      where the buried one harvests microwatts, but it is bound by exactly the same rule — the neap
+      minimum sets the store, not the thirty-day mean. This panel has its own fixed illustrative load
+      and store; it does not move with the controls above.
+    </p>
+    <div class="chart"><canvas id="cv-marine" role="img"
+      aria-label="Tidal flow speed envelope over thirty days with the node's state of charge below"></canvas></div>
+    <div class="legend">
+      <span><i class="line" data-series="2"></i> Flow speed (daily envelope)</span>
+      <span><i class="line" data-series="0"></i> Store</span>
+      <span><i class="wash" data-status="critical"></i> brownout</span>
+    </div>
+  </section>
+
+  <section class="section-card">
+    <h2>Table view</h2>
+    <p class="cap">
+      Every value the charts encode in colour or position, as text. The three gap figures are the
+      finding: annual-only in weeks, diurnal-only in hours, and both pairs together no worse than the
+      shorter of the two.
+    </p>
+    <div class="scroller">
+      <table>
+        <caption class="cap" style="text-align: left; caption-side: bottom; padding-top: 8px;">
+          Computed live from the current controls.
+        </caption>
+        <thead>
+          <tr><th scope="col">Quantity</th><th scope="col" style="text-align: right;">Value</th></tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section-card">
+    <h2>The model</h2>
+    <p class="cap">
+      <b>Soil.</b> The harmonic solution to the one-dimensional heat equation in a semi-infinite
+      solid: T(z,t) = T_mean + A·exp(−z/d)·cos(ωt − z/d), with damping depth d = √(2α/ω). The annual
+      and diurnal waves superpose, each with its own surface amplitude and its own damping depth
+      (2.24 m and 0.117 m at α = 0.5×10⁻⁶ m²/s). The geothermal gradient is included as a linear
+      term at 0.025 K/m and is kept in the table precisely to show how small it is: a three-metre
+      probe sees 0.075 K, against an annual swing of several kelvin. It is a documented finding, not
+      an omission.
+    </p>
+    <p class="cap">
+      <b>Harvester.</b> A thermal resistance network first — R_soil = L/(k·A), Q = |dT|/(R_soil +
+      R_teg), and only dT_module = Q·R_teg falls across the module — then the standard
+      figure-of-merit efficiency at ZT̄ = 0.9 with temperatures in kelvin. Sign-agnostic, because the
+      junction polarity reverses every half-cycle and the converter bridges it.
+      <b>Budget.</b> A closed-loop integration: "perpetual" requires both that the pack never browned
+      out and that the run ended no worse charged than it started, so a design that merely drains
+      slowly is correctly rejected.
+    </p>
+    <p class="cap">
+      <b>Provenance.</b> Site climates, soils and the marine site are plausible illustrative
+      parameters over a real model — not a survey, not harmonic constants for any station. Replace
+      them with measured values before siting anything. When <code>/api/ocean-lab/harvest</code> is reachable
+      its sites are merged into the picker and its verdict appears as a cross-check row in the table;
+      the headline verdict is always the one computed here, so the page cannot contradict itself.
+    </p>
+  </section>
+
+  <div id="tooltip" role="status" hidden></div>
+</div>
+
+<script>
+  /*
+   * Engine loader. This page may be served from a router-owned path, a static mount, or straight out
+   * of src/api, and it does not own its own route — so it tries the known shapes in order rather
+   * than hard-coding one. A 200 that returns HTML (an auth redirect, say) fails to define the global
+   * instead of firing onerror, which is why the onload branch re-checks before giving up.
+   */
+  (function () {
+    var candidates = [
+      'harvest-console.js',
+      'assets/harvest-console.js',
+      '/api/ocean-lab/harvest/assets/harvest-console.js',
+      '/api/ocean-lab/assets/harvest-console.js',
+      '/harvest-console.js'
+    ];
+    var i = 0;
+    function attempt() {
+      if (i >= candidates.length) {
+        var box = document.getElementById('boot-error');
+        if (box) box.hidden = false;
+        console.error({ module: 'api:harvest-console', msg: 'engine script not reachable', ctx: { tried: candidates } });
+        return;
+      }
+      var s = document.createElement('script');
+      s.src = candidates[i];
+      i += 1;
+      s.onerror = attempt;
+      s.onload = function () { if (!window.HarvestConsole) attempt(); };
+      document.head.appendChild(s);
+    }
+    attempt();
+  }());
+</script>
+</body>
+</html>

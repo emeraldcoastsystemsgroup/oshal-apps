@@ -1008,6 +1008,27 @@
       },
       "audit": "pending",
       "status": "ready"
+    },
+    {
+      "name": "ocean-lab",
+      "suite": "ai-engineering",
+      "displayName": "Ocean Lab",
+      "description": "Ambient-energy design lab \u2014 model a machine that moves on tidal and current flow or on the soil thermal gradient, size its rotor with real blade-element momentum theory, and export printable geometry. Two surfaces: a harvest siting console (energy budgets, seasonal gap analysis, storage sizing) and a blade studio (NACA sections, panel-method polars, Cp sweeps, STL/OBJ/SCAD/DXF export). Every model runs in-process and deterministically; every site parameter is illustrative, not surveyed, and no hardware was built.",
+      "version": "1.0.0",
+      "theme": "midnight",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "ocean-lab",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
     }
   ]
 }

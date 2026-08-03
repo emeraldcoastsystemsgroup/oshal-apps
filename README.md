@@ -19,7 +19,7 @@ dependency lifecycle, and the CLI. Start from the example, read the reference ap
 
 <!-- apps-table:begin (generated - run `node scripts/gen-readme-apps-table.mjs`; do not edit by hand) -->
 
-All **45 packages**, shelved by ADR-097 suite. Versions and status come from
+All **46 packages**, shelved by ADR-097 suite. Versions and status come from
 [`marketplace.json`](marketplace.json), which mirrors each package's `oshal-app.yaml`.
 
 ### AI Productivity
@@ -53,7 +53,7 @@ All **45 packages**, shelved by ADR-097 suite. Versions and status come from
 | **Finance** | [`finance/`](finance/) | 1.1.1 | ready | Link your banks and brokerages via Plaid and see everything in one place — net worth, accounts, holdings, spending — with a plain-English brief. |
 | **Intelligent Trades** | [`trading/`](trading/) | 1.1.1 | ready | Signal-justified stock trading (ADR-052). |
 | **Kalshi Prediction Markets** | [`kalshi/`](kalshi/) | 1.1.0 | ready | Find mispriced event contracts on Kalshi (ADR-094). |
-| **Payroll** | [`payroll/`](payroll/) | 2.1.0 | ready | Run payroll for your team, ADP-style, then PAY and FILE from the same place. |
+| **Payroll** | [`payroll/`](payroll/) | 2.2.0 | ready | Run payroll for your team, ADP-style, then pay, file and RECONCILE from the same place. |
 | **Venture Plan** | [`venture-plan/`](venture-plan/) | 1.0.0 | ready | Turn an idea into the venture document set a real decision needs — bill of materials, landed cost, channel margin, profit, cash and working capital, schedule, org, funding ask. |
 
 ### AI Creative
@@ -95,6 +95,7 @@ All **45 packages**, shelved by ADR-097 suite. Versions and status come from
 | **AI Bake-Off** | [`bake-off/`](bake-off/) | 1.0.0 | ready | Race one job across every AI lane you already have, grade every output on the shared quality judge, and get the cheapest lane that still clears your quality bar. |
 | **Cloud** | [`cloud/`](cloud/) | 1.0.0 | ready | Inspect and operate your Google Cloud by chat. |
 | **Hello OSHAL** | [`hello-oshal/`](hello-oshal/) | 1.1.0 | ready | The minimal working example — one route, one ribbon tile. |
+| **Ocean Lab** | [`ocean-lab/`](ocean-lab/) | 1.0.0 | ready | Ambient-energy design lab — model a machine that moves on tidal and current flow or on the soil thermal gradient, size its rotor with real blade-element momentum theory, and export printable geometry. |
 | **Sat Ops** | [`sat-ops/`](sat-ops/) | 1.1.0 | ready | Satellite fleet plane - a 3D orbit console with fleet attitude telemetry (MEKF health, wheel momentum, ADCS mode), SGP4 ground tracks and pass windows, pairwise conjunction screening, and an approval-gated command console (point / detumble / desat / safe). |
 
 <!-- apps-table:end -->

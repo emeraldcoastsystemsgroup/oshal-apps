@@ -1,0 +1,21 @@
+{
+  "// why": "Compile the ocean-lab package routes AND its bundled physics engine to CommonJS in ../routes with @/ aliases LEFT INTACT (the oshal loader resolves @/ at runtime — BUILDING-EXTENSIONS §5). Framework `@/` types come from core-modules.d.ts (ambient, never emitted). express + node types resolve from the core checkout's node_modules (declarations only, never emitted). Run: npx tsc -p c:/Projects/oshal-apps/ocean-lab/src-routes/tsconfig.json (needs the core checkout for the type packages).",
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "ES2022",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "outDir": "../routes",
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "express": ["C:/Projects/oshal/node_modules/@types/express"]
+    },
+    "typeRoots": ["C:/Projects/oshal/node_modules/@types"],
+    "types": ["node"]
+  },
+  "include": ["**/*.ts", "**/*.d.ts"]
+}
