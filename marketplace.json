@@ -971,8 +971,8 @@
       "name": "payroll",
       "suite": "ai-finance",
       "displayName": "Payroll",
-      "description": "Run payroll for your team, ADP-style, then PAY and FILE from the same place. Earnings codes with FLSA overtime computed per workweek; typed deductions with garnishment priority; encrypted SSN/EIN; gross-up; void corrections. Produces the NACHA ACH file your own bank executes, Form 941 and 940 worksheets with real line numbers, and issuable W-2s. Deterministic — no LLM computes a dollar. oshal generates; your bank and EFTPS execute.",
-      "version": "2.1.0",
+      "description": "Run payroll for your team, ADP-style, then pay, file and RECONCILE from the same place. Earnings codes with FLSA overtime computed per workweek; typed deductions with garnishment priority; encrypted SSN/EIN; gross-up; void corrections. Produces the NACHA ACH file your own bank executes, printable checks, Form 941/940 and Florida RT-6 worksheets, issuable W-2s and the SSA EFW2 submission, then reads your bank's returns and notifications of change back in so a failed deposit is visible instead of silent. Deterministic: no LLM computes a dollar, and every tax constant cites the primary IRS/SSA document it was verified against. oshal computes and produces; your bank and the agencies execute. It transmits nothing.",
+      "version": "2.2.0",
       "theme": "ocean",
       "dependencies": {
         "apps": [],

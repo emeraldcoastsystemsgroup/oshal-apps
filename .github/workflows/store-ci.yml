@@ -22,21 +22,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  separation:
-    name: repo separation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      # ADR-115 done-when #3. Core ships check-repo-separation.js asserting no application code
-      # leaked INTO the platform trunk; this is the reverse direction, which until now was
-      # checked only opportunistically from the core repo when a sibling checkout happened to
-      # be on the box. A violation in this direction surfaces in a PUBLISHED artifact.
-      - name: Store-side repo separation
-        run: node scripts/check-store-separation.mjs .
-
   game-show:
     name: game-show package suites
     runs-on: ubuntu-latest
@@ -45,6 +30,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      # ADR-115 done-when #3, riding this job rather than its own. Core ships
+      # check-repo-separation.js asserting no application code leaked INTO the platform trunk;
+      # this is the reverse direction, which until now was checked only opportunistically from
+      # the core repo when a sibling checkout happened to be on the box. It is a sub-second
+      # structural check with no dependencies, so a dedicated runner bought nothing but a
+      # fourteenth billed job on every PR. First step, so it fails before the suites spend time.
+      - name: Store-side repo separation
+        run: node scripts/check-store-separation.mjs .
       # Dependency-free plain-node suites — a red check here means a show or the
       # engine broke. Do NOT quietly skip; fix or quarantine with a BACKLOG entry.
       - name: Run game-show suites
