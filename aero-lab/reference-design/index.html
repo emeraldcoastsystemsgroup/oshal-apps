@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>FINAL_PRODUCT - f=0.80 solar dynastat build package</title>
+<style>
+ body { font-family: Segoe UI, sans-serif; margin: 24px auto; max-width: 1100px;
+        color: #1a1a1a; }
+ h1 { font-size: 22px; } h2 { font-size: 17px; margin-top: 28px;
+      border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+ table { border-collapse: collapse; font-size: 13px; }
+ td, th { border: 1px solid #ccc; padding: 4px 9px; text-align: left; }
+ th { background: #f0f4f8; }
+ .num td:nth-child(2) { text-align: right; font-family: monospace; }
+ .warn { background: #fff8e1; border: 1px solid #e0c060; padding: 10px 14px;
+         border-radius: 6px; }
+ .report { background: #eaf1f8; border: 1px solid #0a58a3; border-left-width: 5px;
+           padding: 10px 14px; border-radius: 6px; margin: 14px 0 18px 0; }
+ .report a { font-size: 16px; font-weight: 600; }
+ svg { max-width: 100%; height: auto; }
+ .k { font-family: monospace; }
+</style></head><body>
+<h1>f=0.80 solar dynastat &mdash; FINAL_PRODUCT build package</h1>
+
+<div class="report">
+<a href="FLOATER_REPORT.pdf">&#9660; The Floater &mdash; engineering report (PDF, 9 pp)</a>
+&nbsp;&middot;&nbsp; <a href="FLOATER_REPORT.html">HTML</a><br>
+<span style="font-size:13px">Summary, the four top designs (as-built / sealed 6-month / 1 lb
+delivery / 10 lb cargo), the E1&ndash;E7 derivation chain with our numbers plugged in, the real
+BOM with costs, and the open items. Headline: the as-built aircraft closes its 24 h loop on a
+98.0 Wh pack at 2272.4 g, ~$538 in parts. Engine real-drive gate is red &mdash; the report says
+which numbers are ideal-chain.</span>
+</div>
+
+<p>The validated hybrid from the HYBRID study: Tier-1 wing (2.5 m &times;
+0.208 m, Tier-1 CST section) + 3:1 prolate-spheroid helium hull
+(2.87 &times; 0.96 m,
+1.37 m&sup3;, 38 &micro;m LLDPE) at buoyancy fraction
+f&nbsp;=&nbsp;0.80. All-up 1.998 kg (pack A) /
+2.182 kg (pack B). Cruise 3.80 m/s at
+7.9 W total load; 24 h limit cycle closes at site A d195 with
+a 79.6 Wh pack. Design point: <span class="k">
+HYBRID_refine.out</span> (f=0.80 ellipsoid), re-derived at full precision in
+<a href="design_snapshot.json">design_snapshot.json</a>.</p>
+
+<h2>The 3D model</h2>
+<p><a href="viewer.html"><b>viewer.html</b></a> &mdash; interactive 3D view of
+the assembled aircraft (self-contained WebGL, works offline double-clicked:
+drag to orbit, wheel to zoom). Meshes (binary STL, mm units):
+<a href="vehicle_full.stl"><span class="k">vehicle_full.stl</span></a>
+(assembled: hull + both wing panels at the max-diameter station + pod
+120&times;60&times;40 hung 150 mm below the hull + straps + boom; 4176
+triangles, bbox 2865.9 &times; 2500.0 &times; 1125.3 mm) and
+<a href="hull.stl"><span class="k">hull.stl</span></a> (3:1 prolate spheroid
+alone; 2976 triangles, manifold, mesh volume 1.362 m&sup3; vs design 1.369 =
+0.53% facet deficit). Verification:
+<a href="verify_vehicle.json"><span class="k">verify_vehicle.json</span></a>,
+<a href="verify_viewer.json"><span class="k">verify_viewer.json</span></a>.</p>
+
+<h2>Real parts</h2>
+<p><a href="BOM_v2.csv"><b>BOM_v2.csv</b></a> &mdash; the buy-list with real,
+web-verified parts (SunnySky X2212 / APC 12x8E / Skywalker 30A / Molicel P28A
+packs / SunPower C60 / Genasun MPPT / Matek F405-WING + BN-220 + MG90S / 38 &micro;m
+poly film / helium in real tanks / 10&times;8 carbon tube), each with an
+indicative price and an honesty note. Build totals: <b>helium build
+$738</b> (party tanks; $1028 via welding cylinder) vs <b>hydrogen build
+$581</b> (budget 1 L/min SPE electrolyzer; $4018 with a lab PEM unit); gas
+alternatives (electrolyzer + metallized-BoPET barrier film) are priced as
+rows. Headline honesty: a real-parts build is ~2212 g vs the certified
+1998 g (DIY pack 197&ndash;200 Wh/kg vs the certified 250; thruster group
+120 g vs 55 g; MPPT +57 g) &mdash; f drops to ~0.72 unless trimmed, and party
+helium must be the 99.9% variant, not the 80/20 He/air blend.</p>
+
+<h2>3-view</h2>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="980" viewBox="0 0 1080 980" font-family="monospace">
+<defs><marker id="arr" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#c00"/></marker></defs>
+<rect width="100%" height="100%" fill="white"/>
+<text x="24" y="30" font-size="16" fill="#000">f=0.80 SOLAR DYNASTAT - 3-VIEW (dimensions mm, from design_snapshot.json)</text>
+<text x="110.0" y="180.0" font-size="13" fill="#333">TOP</text>
+<ellipse cx="332.1" cy="300.0" rx="222.1" ry="74.0" fill="#eef6ff" stroke="#0a58a3" stroke-width="1.5"/>
+<rect x="324.0" y="106.2" width="32.2" height="387.5" fill="#fff3e0" stroke="#b26a00" stroke-width="1.5" fill-opacity="0.85"/>
+<line x1="110.0" y1="300.0" x2="554.2" y2="300.0" stroke="#999" stroke-width="0.6" stroke-dasharray="3 6"/>
+<line x1="110.0" y1="404.0" x2="554.2" y2="404.0" stroke="#c00" stroke-width="1" marker-start="url(#arr)" marker-end="url(#arr)"/><text x="332.1" y="399.0" font-size="12" text-anchor="middle" fill="#c00">2866</text>
+<line x1="382.3" y1="106.2" x2="382.3" y2="493.8" stroke="#c00" stroke-width="1" marker-start="url(#arr)" marker-end="url(#arr)"/><text x="390.3" y="300.0" font-size="12" fill="#c00">2500</text>
+<line x1="324.0" y1="94.2" x2="356.3" y2="94.2" stroke="#c00" stroke-width="1" marker-start="url(#arr)" marker-end="url(#arr)"/><text x="340.2" y="89.2" font-size="12" text-anchor="middle" fill="#c00">208</text>
+<text x="110.0" y="536.0" font-size="13" fill="#333">SIDE</text>
+<ellipse cx="332.1" cy="640.0" rx="222.1" ry="74.0" fill="#eef6ff" stroke="#0a58a3" stroke-width="1.5"/>
+<line x1="324.0" y1="640.0" x2="356.3" y2="640.0" stroke="#b26a00" stroke-width="4"/>
+<line x1="322.8" y1="708.1" x2="325.9" y2="730.3" stroke="#666" stroke-width="1"/>
+<line x1="341.4" y1="708.1" x2="338.3" y2="730.3" stroke="#666" stroke-width="1"/>
+<rect x="312.0" y="730.3" width="40.3" height="13.9" rx="5" fill="#e8f5e9" stroke="#1b5e20" stroke-width="1.5"/>
+<line x1="358.3" y1="714.0" x2="358.3" y2="760.5" stroke="#444" stroke-width="2"/>
+<circle cx="332.1" cy="640.0" r="4" fill="#0a58a3"/>
+<text x="340.1" y="634.0" font-size="11" fill="#0a58a3">CB</text>
+<circle cx="332.1" cy="665.9" r="4" fill="#1b5e20"/>
+<text x="340.1" y="677.9" font-size="11" fill="#1b5e20">CG</text>
+<line x1="292.1" y1="640.0" x2="292.1" y2="665.9" stroke="#c00" stroke-width="1" marker-start="url(#arr)" marker-end="url(#arr)"/><text x="214.1" y="653.0" font-size="12" fill="#c00">arm 167</text>
+<line x1="588.2" y1="566.0" x2="588.2" y2="714.0" stroke="#c00" stroke-width="1" marker-start="url(#arr)" marker-end="url(#arr)"/><text x="596.2" y="640.0" font-size="12" fill="#c00">955</text>
+<line x1="392.3" y1="640.0" x2="392.3" y2="737.3" stroke="#c00" stroke-width="1" marker-start="url(#arr)" marker-end="url(#arr)"/><text x="400.3" y="688.6" font-size="12" fill="#c00">pod 628</text>
+<line x1="110.0" y1="777.2" x2="332.1" y2="777.2" stroke="#c00" stroke-width="1" marker-start="url(#arr)" marker-end="url(#arr)"/><text x="221.1" y="772.2" font-size="12" text-anchor="middle" fill="#c00">sta 1433</text>
+<text x="566.2" y="508.0" font-size="13" fill="#333">FRONT</text>
+<line x1="566.2" y1="640.0" x2="953.8" y2="640.0" stroke="#b26a00" stroke-width="5"/>
+<circle cx="760.0" cy="640.0" r="74.0" fill="#eef6ff" stroke="#0a58a3" stroke-width="1.5" fill-opacity="0.85"/>
+<rect x="753.0" y="730.3" width="13.9" height="13.9" rx="4" fill="#e8f5e9" stroke="#1b5e20" stroke-width="1.5"/>
+<circle cx="760.0" cy="737.3" r="23.2" fill="none" stroke="#444" stroke-width="1" stroke-dasharray="4 4"/>
+<line x1="755.4" y1="710.3" x2="756.9" y2="730.3" stroke="#666" stroke-width="1"/>
+<line x1="764.6" y1="710.3" x2="763.1" y2="730.3" stroke="#666" stroke-width="1"/>
+<line x1="566.2" y1="542.0" x2="953.8" y2="542.0" stroke="#c00" stroke-width="1" marker-start="url(#arr)" marker-end="url(#arr)"/><text x="760.0" y="537.0" font-size="12" text-anchor="middle" fill="#c00">2500</text>
+<line x1="1034.0" y1="566.0" x2="1034.0" y2="714.0" stroke="#c00" stroke-width="1" marker-start="url(#arr)" marker-end="url(#arr)"/><text x="970.0" y="640.0" font-size="12" fill="#c00">dia 955</text>
+<text x="24" y="940" font-size="11" fill="#555">hull 3:1 prolate spheroid 2866 x 955 mm (V 1.369 m3) - wing 2500 x 208 mm Tier-1 CST - pod slung 628 mm below axis at the CB station - prop dia 300 mm</text>
+<text x="24" y="958" font-size="11" fill="#555">CB above CG 167 mm (pack A). Pod drawing size is schematic [choice]; all dimensioned values from design_snapshot.json.</text>
+</svg>
+
+
+<h2>Deliverables</h2>
+<table><tr><th>file</th><th>size</th><th>what it is</th></tr>
+<tr><td><a href="viewer.html">viewer.html</a></td><td>281 KB</td><td>interactive 3D viewer, self-contained (STL embedded), offline</td></tr>
+<tr><td><a href="vehicle_full.stl">vehicle_full.stl</a></td><td>204 KB</td><td>assembled aircraft mesh, mm — 4176 tris, 7 bodies each manifold</td></tr>
+<tr><td><a href="hull.stl">hull.stl</a></td><td>145 KB</td><td>3:1 prolate spheroid hull, mm — 2976 tris, manifold=True</td></tr>
+<tr><td><a href="BOM_v2.csv">BOM_v2.csv</a></td><td>8 KB</td><td>real-parts buy list w/ prices + honesty notes; He vs H2 totals</td></tr>
+<tr><td><a href="verify_vehicle.json">verify_vehicle.json</a></td><td>1.5 KB</td><td>hull + assembly re-parse verification</td></tr>
+<tr><td><a href="verify_viewer.json">verify_viewer.json</a></td><td>0.5 KB</td><td>viewer base64 decode-match verification</td></tr>
+<tr><td><a href="wing.stl">wing.stl</a></td><td>28.2 KB</td><td>full-span wing surface mesh, mm, binary STL — 576 tris, manifold=True</td></tr>
+<tr><td><a href="wing_panel_right.stl">wing_panel_right.stl</a></td><td>28.2 KB</td><td>right panel (0..1250 mm), capped, printable</td></tr>
+<tr><td><a href="wing_panel_left.stl">wing_panel_left.stl</a></td><td>28.2 KB</td><td>left panel, mirrored, capped</td></tr>
+<tr><td><a href="airfoil.dat">airfoil.dat</a></td><td>8.2 KB</td><td>Selig coordinates of the Tier-1 CST section (399 pts)</td></tr>
+<tr><td><a href="airfoil_template.dxf">airfoil_template.dxf</a></td><td>20.7 KB</td><td>section outline at 208 mm chord + spar mark, mm</td></tr>
+<tr><td><a href="ribs.dxf">ribs.dxf</a></td><td>167.6 KB</td><td>8 rib outlines with 10 mm spar hole at 30% chord (cut 2x)</td></tr>
+<tr><td><a href="hull_gore.dxf">hull_gore.dxf</a></td><td>55.2 KB</td><td>flat gore cut pattern, 1 of 10, 15 mm seam allowance</td></tr>
+<tr><td><a href="hull_gore.svg">hull_gore.svg</a></td><td>14.5 KB</td><td>the same gore, viewable + dimensioned</td></tr>
+<tr><td><a href="BOM.csv">BOM.csv</a></td><td>2.0 KB</td><td>parts list, both pack options, masses = the validated ledger</td></tr>
+<tr><td><a href="BUILD_SHEET.md">BUILD_SHEET.md</a></td><td>7.2 KB</td><td>assembly, CG target, fill, preflight, open item</td></tr>
+<tr><td><a href="design_snapshot.json">design_snapshot.json</a></td><td>4.5 KB</td><td>full-precision design point + provenance</td></tr>
+<tr><td><a href="three_view.svg">three_view.svg</a></td><td>4.5 KB</td><td>dimensioned 3-view</td></tr>
+<tr><td><a href="verify_stl.json">verify_stl.json</a></td><td>1.1 KB</td><td>STL verification output</td></tr>
+<tr><td><a href="verify_dxf_airfoil.json">verify_dxf_airfoil.json</a></td><td>0.8 KB</td><td>airfoil/ribs DXF verification output</td></tr>
+<tr><td><a href="verify_gore.json">verify_gore.json</a></td><td>1.5 KB</td><td>gore verification output</td></tr>
+</table>
+
+<h2>Mass ledger (pack A, grams &mdash; sums to 1998.1 g)</h2>
+<table class="num"><tr><th>item</th><th>g</th></tr>
+<tr><td>wing_kg</td><td>738.0</td></tr>
+<tr><td>pv_kg</td><td>234.0</td></tr>
+<tr><td>battery_kg</td><td>318.2</td></tr>
+<tr><td>thruster_kg</td><td>55.2</td></tr>
+<tr><td>payload_kg</td><td>100.0</td></tr>
+<tr><td>fus_pod_kg</td><td>59.3</td></tr>
+<tr><td>film_tapes_kg</td><td>271.4</td></tr>
+<tr><td>helium_kg</td><td>222.0</td></tr>
+</table>
+
+<h2>Hull gore pattern (1 of 10)</h2>
+<svg xmlns="http://www.w3.org/2000/svg" width="985" height="320" viewBox="0 0 985 320" font-family="monospace">
+<rect width="100%" height="100%" fill="white"/>
+<polygon points="58.8,123.9 60.4,124.4 62.0,124.9 63.7,125.4 65.3,125.9 67.0,126.4 68.6,126.9 70.3,127.4 72.0,127.9 73.7,128.5 75.4,129.0 77.1,129.5 78.9,130.0 80.7,130.5 82.5,131.0 84.3,131.5 86.2,132.0 88.1,132.5 90.0,133.0 92.0,133.5 94.0,134.0 96.0,134.5 98.0,135.0 100.1,135.5 102.2,136.0 104.4,136.5 106.6,137.0 108.8,137.4 111.0,137.9 113.3,138.4 115.7,138.9 118.1,139.4 120.5,139.8 122.9,140.3 125.4,140.8 128.0,141.2 130.5,141.7 133.1,142.2 135.8,142.6 138.5,143.1 141.2,143.5 144.0,144.0 146.8,144.4 149.7,144.8 152.5,145.3 155.5,145.7 158.5,146.1 161.5,146.6 164.5,147.0 167.6,147.4 170.8,147.8 173.9,148.2 177.1,148.6 180.4,149.1 183.7,149.5 187.0,149.8 190.4,150.2 193.8,150.6 197.3,151.0 200.7,151.4 204.3,151.8 207.8,152.1 211.4,152.5 215.1,152.9 218.7,153.2 222.4,153.6 226.2,153.9 229.9,154.3 233.7,154.6 237.6,154.9 241.5,155.3 245.4,155.6 249.3,155.9 253.3,156.2 257.3,156.5 261.3,156.8 265.4,157.1 269.5,157.4 273.6,157.7 277.8,158.0 282.0,158.2 286.2,158.5 290.5,158.8 294.7,159.0 299.0,159.3 303.4,159.5 307.7,159.8 312.1,160.0 316.5,160.3 320.9,160.5 325.4,160.7 329.8,160.9 334.3,161.1 338.8,161.3 343.4,161.5 347.9,161.7 352.5,161.9 357.1,162.1 361.7,162.3 366.3,162.4 371.0,162.6 375.6,162.7 380.3,162.9 385.0,163.0 389.7,163.2 394.5,163.3 399.2,163.4 403.9,163.5 408.7,163.6 413.5,163.7 418.3,163.8 423.1,163.9 427.9,164.0 432.7,164.1 437.5,164.2 442.3,164.2 447.2,164.3 452.0,164.4 456.9,164.4 461.7,164.5 466.6,164.5 471.4,164.5 476.3,164.5 481.2,164.6 486.0,164.6 490.9,164.6 495.8,164.6 500.6,164.6 505.5,164.5 510.4,164.5 515.2,164.5 520.1,164.5 524.9,164.4 529.8,164.4 534.6,164.3 539.5,164.2 544.3,164.2 549.1,164.1 553.9,164.0 558.7,163.9 563.5,163.8 568.3,163.7 573.1,163.6 577.8,163.5 582.6,163.4 587.3,163.3 592.1,163.2 596.8,163.0 601.5,162.9 606.2,162.7 610.8,162.6 615.5,162.4 620.1,162.3 624.7,162.1 629.3,161.9 633.9,161.7 638.4,161.5 643.0,161.3 647.5,161.1 652.0,160.9 656.4,160.7 660.9,160.5 665.3,160.3 669.7,160.0 674.1,159.8 678.4,159.5 682.8,159.3 687.1,159.0 691.3,158.8 695.6,158.5 699.8,158.2 704.0,158.0 708.2,157.7 712.3,157.4 716.4,157.1 720.5,156.8 724.5,156.5 728.5,156.2 732.5,155.9 736.4,155.6 740.3,155.3 744.2,154.9 748.0,154.6 751.9,154.3 755.6,153.9 759.4,153.6 763.1,153.2 766.7,152.9 770.4,152.5 774.0,152.1 777.5,151.8 781.1,151.4 784.5,151.0 788.0,150.6 791.4,150.2 794.8,149.8 798.1,149.5 801.4,149.1 804.6,148.6 807.9,148.2 811.0,147.8 814.2,147.4 817.3,147.0 820.3,146.6 823.3,146.1 826.3,145.7 829.2,145.3 832.1,144.8 835.0,144.4 837.8,144.0 840.6,143.5 843.3,143.1 846.0,142.6 848.7,142.2 851.3,141.7 853.8,141.2 856.4,140.8 858.9,140.3 861.3,139.8 863.7,139.4 866.1,138.9 868.5,138.4 870.7,137.9 873.0,137.4 875.2,137.0 877.4,136.5 879.6,136.0 881.7,135.5 883.8,135.0 885.8,134.5 887.8,134.0 889.8,133.5 891.8,133.0 893.7,132.5 895.6,132.0 897.5,131.5 899.3,131.0 901.1,130.5 902.9,130.0 904.7,129.5 906.4,129.0 908.1,128.5 909.8,127.9 911.5,127.4 913.2,126.9 914.8,126.4 916.5,125.9 918.1,125.4 919.8,124.9 921.4,124.4 923.0,123.9 923.0,123.9 923.4,123.7 923.8,123.5 924.2,123.3 924.5,123.0 924.9,122.7 925.1,122.3 925.4,121.9 925.5,121.5 925.7,121.1 925.8,120.7 925.8,120.2 925.8,119.8 925.8,119.3 925.7,118.9 925.5,118.5 925.4,118.1 925.1,117.7 924.9,117.3 924.5,117.0 924.2,116.7 923.8,116.5 923.4,116.3 923.0,116.1 923.0,116.1 921.4,115.6 919.8,115.1 918.1,114.6 916.5,114.1 914.8,113.6 913.2,113.1 911.5,112.6 909.8,112.1 908.1,111.5 906.4,111.0 904.7,110.5 902.9,110.0 901.1,109.5 899.3,109.0 897.5,108.5 895.6,108.0 893.7,107.5 891.8,107.0 889.8,106.5 887.8,106.0 885.8,105.5 883.8,105.0 881.7,104.5 879.6,104.0 877.4,103.5 875.2,103.0 873.0,102.6 870.7,102.1 868.5,101.6 866.1,101.1 863.7,100.6 861.3,100.2 858.9,99.7 856.4,99.2 853.8,98.8 851.3,98.3 848.7,97.8 846.0,97.4 843.3,96.9 840.6,96.5 837.8,96.0 835.0,95.6 832.1,95.2 829.2,94.7 826.3,94.3 823.3,93.9 820.3,93.4 817.3,93.0 814.2,92.6 811.0,92.2 807.9,91.8 804.6,91.4 801.4,90.9 798.1,90.5 794.8,90.2 791.4,89.8 788.0,89.4 784.5,89.0 781.1,88.6 777.5,88.2 774.0,87.9 770.4,87.5 766.7,87.1 763.1,86.8 759.4,86.4 755.6,86.1 751.9,85.7 748.0,85.4 744.2,85.1 740.3,84.7 736.4,84.4 732.5,84.1 728.5,83.8 724.5,83.5 720.5,83.2 716.4,82.9 712.3,82.6 708.2,82.3 704.0,82.0 699.8,81.8 695.6,81.5 691.3,81.2 687.1,81.0 682.8,80.7 678.4,80.5 674.1,80.2 669.7,80.0 665.3,79.7 660.9,79.5 656.4,79.3 652.0,79.1 647.5,78.9 643.0,78.7 638.4,78.5 633.9,78.3 629.3,78.1 624.7,77.9 620.1,77.7 615.5,77.6 610.8,77.4 606.2,77.3 601.5,77.1 596.8,77.0 592.1,76.8 587.3,76.7 582.6,76.6 577.8,76.5 573.1,76.4 568.3,76.3 563.5,76.2 558.7,76.1 553.9,76.0 549.1,75.9 544.3,75.8 539.5,75.8 534.6,75.7 529.8,75.6 524.9,75.6 520.1,75.5 515.2,75.5 510.4,75.5 505.5,75.5 500.6,75.4 495.8,75.4 490.9,75.4 486.0,75.4 481.2,75.4 476.3,75.5 471.4,75.5 466.6,75.5 461.7,75.5 456.9,75.6 452.0,75.6 447.2,75.7 442.3,75.8 437.5,75.8 432.7,75.9 427.9,76.0 423.1,76.1 418.3,76.2 413.5,76.3 408.7,76.4 403.9,76.5 399.2,76.6 394.5,76.7 389.7,76.8 385.0,77.0 380.3,77.1 375.6,77.3 371.0,77.4 366.3,77.6 361.7,77.7 357.1,77.9 352.5,78.1 347.9,78.3 343.4,78.5 338.8,78.7 334.3,78.9 329.8,79.1 325.4,79.3 320.9,79.5 316.5,79.7 312.1,80.0 307.7,80.2 303.4,80.5 299.0,80.7 294.7,81.0 290.5,81.2 286.2,81.5 282.0,81.8 277.8,82.0 273.6,82.3 269.5,82.6 265.4,82.9 261.3,83.2 257.3,83.5 253.3,83.8 249.3,84.1 245.4,84.4 241.5,84.7 237.6,85.1 233.7,85.4 229.9,85.7 226.2,86.1 222.4,86.4 218.7,86.8 215.1,87.1 211.4,87.5 207.8,87.9 204.3,88.2 200.7,88.6 197.3,89.0 193.8,89.4 190.4,89.8 187.0,90.2 183.7,90.5 180.4,90.9 177.1,91.4 173.9,91.8 170.8,92.2 167.6,92.6 164.5,93.0 161.5,93.4 158.5,93.9 155.5,94.3 152.5,94.7 149.7,95.2 146.8,95.6 144.0,96.0 141.2,96.5 138.5,96.9 135.8,97.4 133.1,97.8 130.5,98.3 128.0,98.8 125.4,99.2 122.9,99.7 120.5,100.2 118.1,100.6 115.7,101.1 113.3,101.6 111.0,102.1 108.8,102.6 106.6,103.0 104.4,103.5 102.2,104.0 100.1,104.5 98.0,105.0 96.0,105.5 94.0,106.0 92.0,106.5 90.0,107.0 88.1,107.5 86.2,108.0 84.3,108.5 82.5,109.0 80.7,109.5 78.9,110.0 77.1,110.5 75.4,111.0 73.7,111.5 72.0,112.1 70.3,112.6 68.6,113.1 67.0,113.6 65.3,114.1 63.7,114.6 62.0,115.1 60.4,115.6 58.8,116.1 58.8,116.1 58.4,116.3 58.0,116.5 57.6,116.7 57.3,117.0 56.9,117.3 56.7,117.7 56.4,118.1 56.2,118.5 56.1,118.9 56.0,119.3 56.0,119.8 56.0,120.2 56.0,120.7 56.1,121.1 56.2,121.5 56.4,121.9 56.7,122.3 56.9,122.7 57.3,123.0 57.6,123.3 58.0,123.5 58.4,123.7 58.8,123.9" fill="#eef6ff" stroke="#0a58a3" stroke-width="1.5"/>
+<polygon points="60.0,120.0 61.6,120.5 63.2,121.0 64.9,121.5 66.5,122.0 68.1,122.5 69.8,123.1 71.5,123.6 73.1,124.1 74.8,124.6 76.5,125.1 78.3,125.6 80.0,126.1 81.8,126.6 83.6,127.1 85.4,127.6 87.3,128.1 89.1,128.6 91.0,129.1 93.0,129.6 94.9,130.1 96.9,130.6 99.0,131.1 101.0,131.5 103.1,132.0 105.3,132.5 107.4,133.0 109.6,133.5 111.9,134.0 114.2,134.4 116.5,134.9 118.8,135.4 121.2,135.9 123.7,136.3 126.2,136.8 128.7,137.3 131.2,137.7 133.8,138.2 136.5,138.6 139.1,139.1 141.9,139.5 144.6,140.0 147.4,140.4 150.3,140.8 153.1,141.3 156.1,141.7 159.0,142.1 162.0,142.6 165.1,143.0 168.2,143.4 171.3,143.8 174.5,144.2 177.7,144.6 180.9,145.0 184.2,145.4 187.5,145.8 190.9,146.2 194.3,146.6 197.7,147.0 201.2,147.4 204.7,147.7 208.2,148.1 211.8,148.5 215.4,148.8 219.1,149.2 222.8,149.5 226.5,149.9 230.3,150.2 234.1,150.6 237.9,150.9 241.8,151.2 245.7,151.5 249.6,151.9 253.6,152.2 257.6,152.5 261.6,152.8 265.7,153.1 269.8,153.4 273.9,153.7 278.1,153.9 282.3,154.2 286.5,154.5 290.7,154.7 295.0,155.0 299.3,155.3 303.6,155.5 307.9,155.7 312.3,156.0 316.7,156.2 321.1,156.4 325.5,156.7 330.0,156.9 334.5,157.1 339.0,157.3 343.5,157.5 348.1,157.7 352.7,157.9 357.2,158.0 361.9,158.2 366.5,158.4 371.1,158.5 375.8,158.7 380.5,158.8 385.1,159.0 389.8,159.1 394.6,159.2 399.3,159.4 404.0,159.5 408.8,159.6 413.6,159.7 418.4,159.8 423.1,159.9 427.9,160.0 432.8,160.1 437.6,160.1 442.4,160.2 447.2,160.3 452.1,160.3 456.9,160.4 461.8,160.4 466.6,160.4 471.5,160.5 476.3,160.5 481.2,160.5 486.0,160.5 490.9,160.5 495.8,160.5 500.6,160.5 505.5,160.5 510.3,160.5 515.2,160.4 520.0,160.4 524.9,160.4 529.7,160.3 534.6,160.3 539.4,160.2 544.2,160.1 549.0,160.1 553.9,160.0 558.7,159.9 563.4,159.8 568.2,159.7 573.0,159.6 577.8,159.5 582.5,159.4 587.2,159.2 591.9,159.1 596.7,159.0 601.3,158.8 606.0,158.7 610.7,158.5 615.3,158.4 619.9,158.2 624.6,158.0 629.1,157.9 633.7,157.7 638.3,157.5 642.8,157.3 647.3,157.1 651.8,156.9 656.2,156.7 660.7,156.4 665.1,156.2 669.5,156.0 673.9,155.7 678.2,155.5 682.5,155.3 686.8,155.0 691.1,154.7 695.3,154.5 699.5,154.2 703.7,153.9 707.9,153.7 712.0,153.4 716.1,153.1 720.2,152.8 724.2,152.5 728.2,152.2 732.2,151.9 736.1,151.5 740.0,151.2 743.9,150.9 747.7,150.6 751.5,150.2 755.3,149.9 759.0,149.5 762.7,149.2 766.3,148.8 770.0,148.5 773.6,148.1 777.1,147.7 780.6,147.4 784.1,147.0 787.5,146.6 790.9,146.2 794.3,145.8 797.6,145.4 800.9,145.0 804.1,144.6 807.3,144.2 810.5,143.8 813.6,143.4 816.7,143.0 819.8,142.6 822.8,142.1 825.7,141.7 828.7,141.3 831.5,140.8 834.4,140.4 837.2,140.0 839.9,139.5 842.7,139.1 845.3,138.6 848.0,138.2 850.6,137.7 853.1,137.3 855.6,136.8 858.1,136.3 860.6,135.9 863.0,135.4 865.3,134.9 867.6,134.4 869.9,134.0 872.2,133.5 874.4,133.0 876.5,132.5 878.7,132.0 880.8,131.5 882.8,131.1 884.9,130.6 886.9,130.1 888.8,129.6 890.8,129.1 892.7,128.6 894.5,128.1 896.4,127.6 898.2,127.1 900.0,126.6 901.8,126.1 903.5,125.6 905.3,125.1 907.0,124.6 908.7,124.1 910.3,123.6 912.0,123.1 913.7,122.5 915.3,122.0 916.9,121.5 918.6,121.0 920.2,120.5 921.8,120.0 921.8,120.0 920.2,119.5 918.6,119.0 916.9,118.5 915.3,118.0 913.7,117.5 912.0,116.9 910.3,116.4 908.7,115.9 907.0,115.4 905.3,114.9 903.5,114.4 901.8,113.9 900.0,113.4 898.2,112.9 896.4,112.4 894.5,111.9 892.7,111.4 890.8,110.9 888.8,110.4 886.9,109.9 884.9,109.4 882.8,108.9 880.8,108.5 878.7,108.0 876.5,107.5 874.4,107.0 872.2,106.5 869.9,106.0 867.6,105.6 865.3,105.1 863.0,104.6 860.6,104.1 858.1,103.7 855.6,103.2 853.1,102.7 850.6,102.3 848.0,101.8 845.3,101.4 842.7,100.9 839.9,100.5 837.2,100.0 834.4,99.6 831.5,99.2 828.7,98.7 825.7,98.3 822.8,97.9 819.8,97.4 816.7,97.0 813.6,96.6 810.5,96.2 807.3,95.8 804.1,95.4 800.9,95.0 797.6,94.6 794.3,94.2 790.9,93.8 787.5,93.4 784.1,93.0 780.6,92.6 777.1,92.3 773.6,91.9 770.0,91.5 766.3,91.2 762.7,90.8 759.0,90.5 755.3,90.1 751.5,89.8 747.7,89.4 743.9,89.1 740.0,88.8 736.1,88.5 732.2,88.1 728.2,87.8 724.2,87.5 720.2,87.2 716.1,86.9 712.0,86.6 707.9,86.3 703.7,86.1 699.5,85.8 695.3,85.5 691.1,85.3 686.8,85.0 682.5,84.7 678.2,84.5 673.9,84.3 669.5,84.0 665.1,83.8 660.7,83.6 656.2,83.3 651.8,83.1 647.3,82.9 642.8,82.7 638.3,82.5 633.7,82.3 629.1,82.1 624.6,82.0 619.9,81.8 615.3,81.6 610.7,81.5 606.0,81.3 601.3,81.2 596.7,81.0 591.9,80.9 587.2,80.8 582.5,80.6 577.8,80.5 573.0,80.4 568.2,80.3 563.4,80.2 558.7,80.1 553.9,80.0 549.0,79.9 544.2,79.9 539.4,79.8 534.6,79.7 529.7,79.7 524.9,79.6 520.0,79.6 515.2,79.6 510.3,79.5 505.5,79.5 500.6,79.5 495.8,79.5 490.9,79.5 486.0,79.5 481.2,79.5 476.3,79.5 471.5,79.5 466.6,79.6 461.8,79.6 456.9,79.6 452.1,79.7 447.2,79.7 442.4,79.8 437.6,79.9 432.8,79.9 427.9,80.0 423.1,80.1 418.4,80.2 413.6,80.3 408.8,80.4 404.0,80.5 399.3,80.6 394.6,80.8 389.8,80.9 385.1,81.0 380.5,81.2 375.8,81.3 371.1,81.5 366.5,81.6 361.9,81.8 357.2,82.0 352.7,82.1 348.1,82.3 343.5,82.5 339.0,82.7 334.5,82.9 330.0,83.1 325.5,83.3 321.1,83.6 316.7,83.8 312.3,84.0 307.9,84.3 303.6,84.5 299.3,84.7 295.0,85.0 290.7,85.3 286.5,85.5 282.3,85.8 278.1,86.1 273.9,86.3 269.8,86.6 265.7,86.9 261.6,87.2 257.6,87.5 253.6,87.8 249.6,88.1 245.7,88.5 241.8,88.8 237.9,89.1 234.1,89.4 230.3,89.8 226.5,90.1 222.8,90.5 219.1,90.8 215.4,91.2 211.8,91.5 208.2,91.9 204.7,92.3 201.2,92.6 197.7,93.0 194.3,93.4 190.9,93.8 187.5,94.2 184.2,94.6 180.9,95.0 177.7,95.4 174.5,95.8 171.3,96.2 168.2,96.6 165.1,97.0 162.0,97.4 159.0,97.9 156.1,98.3 153.1,98.7 150.3,99.2 147.4,99.6 144.6,100.0 141.9,100.5 139.1,100.9 136.5,101.4 133.8,101.8 131.2,102.3 128.7,102.7 126.2,103.2 123.7,103.7 121.2,104.1 118.8,104.6 116.5,105.1 114.2,105.6 111.9,106.0 109.6,106.5 107.4,107.0 105.3,107.5 103.1,108.0 101.0,108.5 99.0,108.9 96.9,109.4 94.9,109.9 93.0,110.4 91.0,110.9 89.1,111.4 87.3,111.9 85.4,112.4 83.6,112.9 81.8,113.4 80.0,113.9 78.3,114.4 76.5,114.9 74.8,115.4 73.1,115.9 71.5,116.4 69.8,116.9 68.1,117.5 66.5,118.0 64.9,118.5 63.2,119.0 61.6,119.5 60.0,120.0" fill="none" stroke="#333" stroke-width="1" stroke-dasharray="6 4"/>
+<line x1="60.0" y1="120.0" x2="921.8" y2="120.0" stroke="#999" stroke-width="0.7" stroke-dasharray="2 5"/>
+<line x1="146.2" y1="99.8" x2="146.2" y2="140.2" stroke="#bbb" stroke-width="0.6"/>
+<text x="146.2" y="152.2" font-size="8" text-anchor="middle" fill="#666">150</text>
+<line x1="232.4" y1="89.6" x2="232.4" y2="150.4" stroke="#bbb" stroke-width="0.6"/>
+<text x="232.4" y="162.4" font-size="8" text-anchor="middle" fill="#666">225</text>
+<line x1="318.6" y1="83.7" x2="318.6" y2="156.3" stroke="#bbb" stroke-width="0.6"/>
+<text x="318.6" y="168.3" font-size="8" text-anchor="middle" fill="#666">269</text>
+<line x1="404.7" y1="80.5" x2="404.7" y2="159.5" stroke="#bbb" stroke-width="0.6"/>
+<text x="404.7" y="171.5" font-size="8" text-anchor="middle" fill="#666">293</text>
+<line x1="490.9" y1="79.5" x2="490.9" y2="160.5" stroke="#bbb" stroke-width="0.6"/>
+<text x="490.9" y="172.5" font-size="8" text-anchor="middle" fill="#666">300</text>
+<line x1="577.1" y1="80.5" x2="577.1" y2="159.5" stroke="#bbb" stroke-width="0.6"/>
+<text x="577.1" y="171.5" font-size="8" text-anchor="middle" fill="#666">293</text>
+<line x1="663.3" y1="83.7" x2="663.3" y2="156.3" stroke="#bbb" stroke-width="0.6"/>
+<text x="663.3" y="168.3" font-size="8" text-anchor="middle" fill="#666">269</text>
+<line x1="749.4" y1="89.6" x2="749.4" y2="150.4" stroke="#bbb" stroke-width="0.6"/>
+<text x="749.4" y="162.4" font-size="8" text-anchor="middle" fill="#666">225</text>
+<line x1="835.6" y1="99.8" x2="835.6" y2="140.2" stroke="#bbb" stroke-width="0.6"/>
+<text x="835.6" y="152.2" font-size="8" text-anchor="middle" fill="#666">150</text>
+<line x1="60.0" y1="21.484670806187395" x2="921.8" y2="21.484670806187395" stroke="#c00" stroke-width="1"/>
+<text x="490.9" y="15.484670806187395" font-size="12" text-anchor="middle" fill="#c00">NET LENGTH 3192 mm (cut 3222 mm)</text>
+<text x="60" y="20" font-size="13" fill="#000">HULL GORE - 1 of 10 - 3:1 prolate spheroid 2866 x 955 mm (V = 1.369 m3)</text>
+<text x="60" y="36" font-size="11" fill="#000">max net width 300 mm - seam allowance 15 mm (solid = CUT, dashed = SEW) - station widths in grey - units mm</text>
+<text x="60" y="308" font-size="10" fill="#555">material: 38 um LLDPE, cut 10; flat pattern neglects double curvature - source: HYBRID_common.ellipsoid3_dims sizing in design_snapshot.json</text>
+</svg>
+
+
+<h2>Verification summary</h2>
+<ul>
+<li><b>STL</b>: wing.stl 576 triangles, bbox
+[208.0, 2500.0, 25.31] mm vs expected span 2500 / chord 208 /
+max thickness 24.98 &mdash; watertight (every edge on exactly 2 triangles) for
+all three meshes.</li>
+<li><b>DXF (airfoil/ribs)</b>: re-parsed; template = 1 closed 399-vertex
+polyline spanning exactly 208.0 mm; ribs.dxf = 8 polylines + 8 spar-hole
+circles; web at 30% chord 24.98 mm vs
+10 mm hole.</li>
+<li><b>Gore</b>: re-parsed (2 closed polylines, 1052
+vertices); net length 3192 mm, max net width
+300 mm; 10 &times; net gore area matches the
+spheroid surface to -0.000 %.</li>
+</ul>
+
+<div class="warn"><b>Open item (honest):</b> vent/ballonet is not designed.
+Sealed in day sun the hull would reach ~+9.1 kPa (&asymp;81 MPa hoop in 38
+&micro;m film &mdash; failure); at night superpressure goes to &minus;1.5 kPa
+(slack hull). See BUILD_SHEET.md. Pack option B (125.5 Wh) is a fast-trim
+result sized for a larger hull; in this hull it means f&nbsp;=&nbsp;0.73 and
+the equinox day was not re-certified.</div>
+
+<p style="color:#777;font-size:12px;margin-top:22px">Generated from the
+aerosim HYBRID study result files (HYBRID_refine.out, HYBRID_piecewise.out,
+HYBRID_f90_fasttrim.out, HYBRID_common.py, TIER1_operator_eval.py) via
+FP_01&hellip;FP_06 scripts. Dimensions mm unless stated.</p>
+</body></html>

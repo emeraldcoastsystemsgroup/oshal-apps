@@ -1,0 +1,33 @@
+Proposed marketplace.json entry for aero-lab. The shared marketplace.json was deliberately NOT edited (another team's dirty tree is live in this repo); apply this by hand from the repo root with: git apply --ignore-whitespace aero-lab/marketplace.patch  (--ignore-whitespace tolerates the file's mixed CRLF line endings; alternatively paste the aero-lab object below into the apps array before the closing bracket). Generated 2026-08-03 against the working-tree marketplace.json (45 apps -> 46).
+
+diff --git a/marketplace.json b/marketplace.json
+index 1bd4a30..7b7d72b 100644
+--- a/marketplace.json
++++ b/marketplace.json
+@@ -1008,6 +1008,26 @@
+       },
+       "audit": "pending",
+       "status": "ready"
++    },
++    {
++      "name": "aero-lab",
++      "suite": "ai-engineering",
++      "displayName": "Aero Lab",
++      "description": "Persistent-flight design lab - shape a solar-endurance aircraft (span, area, aspect ratio, battery, cells, buoyancy fraction, site, season), run it through the validated aerosim engine (wing polar, 24 h energy limit cycle, admissibility screen), read the verdict with real plots (SOC trace, polar, drag buildup, margins), and download the build package (STL / DXF / BOM). The Python engine is external and feature-detected; missing modules report honestly as unavailable.",
++      "version": "1.0.0",
++      "dependencies": {
++        "apps": [],
++        "tools": [],
++        "connectors": []
++      },
++      "source": {
++        "type": "git-subdir",
++        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
++        "path": "aero-lab",
++        "ref": "main"
++      },
++      "audit": "pending",
++      "status": "ready"
+     }
+   ]
+ }

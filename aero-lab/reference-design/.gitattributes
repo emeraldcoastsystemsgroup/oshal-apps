@@ -1,0 +1,5 @@
+# These files are ENGINE OUTPUT, not source. They are the exact artifacts the mesh and gore
+# validators signed off on, and a CAD or slicer package should receive the same bytes that were
+# verified. Line-ending normalisation would silently rewrite the DXF, CSV and SVG payloads on
+# checkout, so everything in this directory round-trips byte-exact.
+* -text

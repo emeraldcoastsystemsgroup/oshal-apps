@@ -1,0 +1,17 @@
+{
+ "viewer_html_bytes": 288036,
+ "embedded_b64_chars": 278512,
+ "decoded_bytes": 208884,
+ "stl_bytes_on_disk": 208884,
+ "byte_length_match": true,
+ "sha256_match": true,
+ "stl_triangles": 4176,
+ "overlay": {
+  "length_mm": 2865.9,
+  "span_mm": 2500.0,
+  "mass_kg_packA": 1.998,
+  "mass_kg_packB": 2.182
+ },
+ "external_refs": [],
+ "no_cdn": true
+}

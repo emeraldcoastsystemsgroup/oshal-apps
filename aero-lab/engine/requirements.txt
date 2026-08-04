@@ -1,0 +1,23 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com   | Exact pins for the aerosim venv,
+#   |                                           | captured from the interpreter the
+#   |                                           | validation set was actually run on.
+#
+# Install into a DEDICATED venv (aerosim/.venv), never a shared system interpreter:
+#   py -3.11 -m venv .venv
+#   .venv/Scripts/python.exe -m pip install -r requirements.txt
+#
+# Why a venv is mandatory here: installing aerosandbox bumps pandas to 3.0.5, and
+# the box's shared interpreter also carries torch and the tooling for ~50 running
+# containers. Exact == pins because a surrogate model's numbers are only
+# reproducible against a pinned model version.
+
+AeroSandbox==4.2.10
+NeuralFoil==0.3.3
+casadi==3.7.2
+numpy==2.4.6
+scipy==1.17.1
+pandas==3.0.5

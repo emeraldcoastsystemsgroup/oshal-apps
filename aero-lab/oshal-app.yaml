@@ -1,0 +1,199 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — aero-lab ("Aero Lab")
+# Packages the validated aerosim persistent-flight simulator (5-round adversarial
+# campaign) as a design cockpit: a person shapes a solar-endurance craft
+# (span/area/AR/battery/cells/buoyancy/site/season), runs it through the REAL
+# engine — wing polar, 24 h energy limit-cycle, admissibility screen — and
+# downloads the build package (STL/DXF/BOM).
+#
+# The ENGINE is external and authoritative (NASA-42-adapter philosophy, but
+# subprocess-stdio, not TCP): a Python 3.11 worker under engine/, spawned by the
+# packaged route from AERO_LAB_ENGINE_DIR. Modules still being upgraded by a
+# concurrent workflow are FEATURE-DETECTED and surfaced as capability flags —
+# a missing capability returns an honest 503, never fake data.
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: aero-lab
+suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
+displayName: Aero Lab
+description: >-
+  Persistent-flight design lab — shape a solar-endurance aircraft with real
+  sliders (span, area, aspect ratio, battery, cells, buoyancy fraction, site,
+  season), run it through the validated aerosim engine (wing polar, 24 h energy
+  limit cycle, admissibility screen), read the verdict with real plots (SOC
+  trace, polar, drag buildup, margins), and download the build package
+  (STL / DXF / BOM). A design concierge turns plain language into a design
+  vector; the deterministic engine is the only source of numbers.
+version: 1.0.0
+status: active
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: aero-lab
+  ref: main
+
+# No connectors: the engine is local; nothing leaves the box.
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — the design brain (Form B inline concierge — drafts design vectors only,
+# never runs the engine itself; the deterministic routes run the engine).
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: b0ae0000-0000-0000-0000-000000000001
+    name: aero-designer
+    persona: personas/aero-designer.yaml
+    role: engineering/aero-design-drafting
+    capabilities:
+      - aero-design-drafting
+      - design-vector-translation
+      - energy-margin-briefing
+      - admissibility-awareness
+
+tools:
+  - name: aero-capabilities
+    displayName: Aero Lab Capabilities
+    type: api
+    category: engineering
+    description: Report the aerosim engine's availability and per-module capability flags (polar, evaluate, screen, mission, export, hybrid buoyancy).
+    executor: { executorType: api, apiEndpoint: "GET /api/aero-lab/capabilities" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Read-only. Call FIRST. A capability reported false means that command will return 503 —
+      say so; never estimate numbers the engine cannot produce.
+    routingTags: [aero, engine, capabilities]
+    tags: [aero-lab, route-backed]
+
+  - name: aero-polar
+    displayName: Wing Polar
+    type: api
+    category: engineering
+    description: Compute the real wing polar (CL/CD vs alpha, drag buildup) for a design vector via the aerosim engine.
+    executor: { executorType: api, apiEndpoint: "POST /api/aero-lab/polar" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        design: { type: object }
+      required: [design]
+    usageInstructions: >-
+      Deterministic engine call. Use the returned polar as the only source of aerodynamic numbers.
+    routingTags: [aero, polar, aerodynamics]
+    tags: [aero-lab, route-backed]
+
+  - name: aero-evaluate
+    displayName: Evaluate Design (24 h energy loop)
+    type: api
+    category: engineering
+    description: Build the vehicle from a design vector and fly the 24 h energy limit cycle — SOC trace, min SOC, drag buildup, mass closure, margins.
+    executor: { executorType: api, apiEndpoint: "POST /api/aero-lab/evaluate" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        design: { type: object }
+      required: [design]
+    usageInstructions: >-
+      The authoritative verdict on a design. Slow (up to minutes). Never paraphrase numbers —
+      quote them from the response.
+    routingTags: [aero, energy, evaluate, endurance]
+    tags: [aero-lab, route-backed]
+
+  - name: aero-screen
+    displayName: Admissibility Screen
+    type: api
+    category: engineering
+    description: Run the sweep-contract admissibility screen on a design — returns admissible plus the exact reasons when not.
+    executor: { executorType: api, apiEndpoint: "POST /api/aero-lab/screen" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        design: { type: object }
+      required: [design]
+    usageInstructions: >-
+      Reasons come verbatim from the engine's screen — surface them unedited.
+    routingTags: [aero, screen, admissibility]
+    tags: [aero-lab, route-backed]
+
+  - name: aero-export
+    displayName: Export Build Package
+    type: api
+    category: engineering
+    description: Generate the physical build package for a design — STL wing panels, DXF ribs/gores, airfoil dat, BOM, build sheet.
+    executor: { executorType: api, apiEndpoint: "POST /api/aero-lab/export" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        design: { type: object }
+      required: [design]
+    usageInstructions: >-
+      Returns an export id + file list; files download individually from the export routes.
+    routingTags: [aero, export, stl, bom]
+    tags: [aero-lab, route-backed]
+
+  - name: draft-aero-design
+    displayName: Draft Aero Design
+    type: api
+    category: engineering
+    description: Ask the aero-designer concierge to turn a plain-language craft request into a design vector draft. Drafts are pre-filled into the sliders; the human runs the engine.
+    executor: { executorType: api, apiEndpoint: "POST /api/aero-lab/chat" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        message: { type: string }
+      required: [message]
+    usageInstructions: >-
+      Call with {message}. The reply contains say-text and an optional validated design draft;
+      running the engine on it is a separate explicit step.
+    routingTags: [aero, design, concierge, drafting]
+    tags: [aero-lab, route-backed]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon icon opens the Aero Lab, self-served by this
+# package's route from tools/aero-lab.html (ctx.appPackageDir).
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: aero-lab
+      label: Aero Lab
+      icon: codicon codicon-symbol-structure
+      iframeUrl: /api/aero-lab/app
+      section: top
+
+routes:
+  - module: routes/aero-lab-routes.js
+    factory: createAeroLabRoutes
+    mountPath: /api/aero-lab
+    requiresAuth: true
+    requiresContext: true
+
+# No migrations: evaluations are computed on demand; exports live in a per-run
+# temp dir under the package workdir. This surface owns no tables (sat-ops precedent).
+
+# RIBBON VISIBILITY — focus mode for /cockpit?app=aero-lab
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  hideChatPanel: true
+  defaultView: aero-lab

@@ -1,0 +1,1959 @@
+{
+  "generated_utc": "2026-08-03T05:05:29Z",
+  "all_passed": true,
+  "lift_provenance": {
+    "build_solar_cruise": {
+      "reaches_solver": true,
+      "calls": [
+        "AeroSurface",
+        "BatteryElement",
+        "BodyState",
+        "EnvBundle",
+        "PVArray",
+        "PayloadLoad",
+        "Thruster",
+        "ValidationError",
+        "Vehicle",
+        "_Build",
+        "_naca_geometry",
+        "_sanitize",
+        "_sunset_utc_hour",
+        "atmosphere",
+        "bounds.reference_trim",
+        "day_length_h",
+        "float",
+        "make_uniform_field",
+        "np.array",
+        "str",
+        "surface.best_endurance_alpha_deg",
+        "vehicle.assert_mass_declared",
+        "vehicle.mass_budget",
+        "vehicle.total_mass_kg",
+        "vehicle.undeclared_element_names"
+      ],
+      "hardcoded": []
+    },
+    "build_turbine_free_flier": {
+      "reaches_solver": true,
+      "calls": [
+        "AeroSurface",
+        "BatteryElement",
+        "BodyState",
+        "EnvBundle",
+        "Thruster",
+        "ValidationError",
+        "Vehicle",
+        "WindTurbine",
+        "_Build",
+        "_naca_geometry",
+        "atmosphere",
+        "bounds.assert_below_betz",
+        "float",
+        "make_uniform_field",
+        "np.array",
+        "surface.trim_alpha_for_lift_N",
+        "turbine.axial_induction",
+        "turbine.mass_detail",
+        "turbine.reaction_drag_N",
+        "turbine.shaft_power_W",
+        "vehicle.assert_mass_declared",
+        "vehicle.total_mass_kg"
+      ],
+      "hardcoded": []
+    },
+    "reference_trim": {
+      "reaches_solver": true,
+      "calls": [
+        "ReferenceTrim",
+        "ReferenceTrimError",
+        "abs",
+        "aeropolar.best_endurance_point",
+        "aeropolar.wing_polar",
+        "float",
+        "getattr",
+        "int",
+        "math.sqrt",
+        "max",
+        "np.abs",
+        "np.arange",
+        "np.argmin",
+        "np.asarray",
+        "np.degrees",
+        "np.where",
+        "range",
+        "reynolds"
+      ],
+      "hardcoded": []
+    }
+  },
+  "cases": [
+    {
+      "name": "A_AtlantikSolar",
+      "expect_closure": true,
+      "closed": true,
+      "passed": true,
+      "min_soc": 0.3538287251073681,
+      "margin_ratio_usable": 1.0445952257008349,
+      "cl15_over_cd": 24.292863491823198,
+      "mean_cruise_Re": 176468.03070083226,
+      "detail": {
+        "closed_form_bounds": {
+          "CL": 0.8726021116593502,
+          "CD": 0.03355410658060721,
+          "cl15_over_cd": 24.292863491823198,
+          "reynolds_chord": 176468.03070083226,
+          "aspect_ratio": 18.559593023255815,
+          "CD_induced_floor": 0.013059128576114847,
+          "CD_friction_floor": 0.006322590451257677,
+          "CD_total_floor": 0.025381719027372525,
+          "cl15_over_cd_ceiling": 32.11466212645873,
+          "drag_margin": 1.3219792774642765,
+          "ok": true,
+          "violations": []
+        },
+        "trim_cross_check": {
+          "V_reference_ms": 8.808124987456946,
+          "V_integrator_ms": 8.808125045819441,
+          "V_relative_error": 6.625984005009803e-09,
+          "Re_reference": 176468.03070083226,
+          "Re_integrator": 178299.87995180322,
+          "Re_relative_error": 0.010380629532136112
+        },
+        "published_anchor": {
+          "cl15_over_cd_from_published_power": 23.8208880230078,
+          "band": [
+            19.05671041840624,
+            28.58506562760936
+          ],
+          "tolerance": 0.2,
+          "source": "AtlantikSolar published ~40 W level-flight electrical draw (Oettershagen et al. 2018); NOT aeropolar's own self-test band, which would be circular"
+        },
+        "harvest_bound": {
+          "effective_clearness_index": 0.7630214086332913,
+          "band": [
+            0.55,
+            0.95
+          ],
+          "extraterrestrial_daily_MJ_m2": 40.58146297114995,
+          "catalogue": {
+            "area_m2": 1.72,
+            "packing": 0.802,
+            "efficiency": 0.237,
+            "mppt": 0.95
+          },
+          "source": "Duffie & Beckman eq. 1.10.3 -- pure orbital geometry, no atmosphere and no solar module"
+        },
+        "isa_density_anchor": {
+          "altitude_m": 500.0,
+          "model_rho_kgm3": 1.1672725123243854,
+          "published_rho_kgm3": 1.1673,
+          "relative_error": 2.3548081568197555e-05,
+          "source": "U.S. Standard Atmosphere, 1976 (NOAA/NASA/USAF), table 1"
+        },
+        "wing_mass_anchor": {
+          "span_m": 5.65,
+          "area_m2": 1.72,
+          "billed_kg": 2.292647551867219,
+          "anchor_kg": 2.2926,
+          "relative_error": 2.0741458265263163e-05,
+          "source": "hand-typed AS-2 anchor wing (measured structure minus the documented pod/boom/tail split) -- deliberately NOT derived from vehicle/structure.py, which is the module under test"
+        },
+        "design": {
+          "name": "A_AtlantikSolar",
+          "span_m": 5.65,
+          "area_m2": 1.72,
+          "taper_ratio": 0.7,
+          "twist_root_deg": 2.0,
+          "twist_tip_deg": 0.0,
+          "extra_CD0": 0.006,
+          "mass_all_up_kg": 6.93,
+          "battery_mass_kg": 2.91701244813278,
+          "pack_Wh_per_kg": 241.0,
+          "pv_efficiency": 0.237,
+          "pv_packing": 0.802,
+          "pv_areal_density_kg_m2": 0.72,
+          "payload_W": 5.8,
+          "payload_mass_kg": 0.15,
+          "prop_diameter_m": 0.36,
+          "n_rotors": 1,
+          "prop_max_electrical_W": 150.0,
+          "altitude_m": 500.0,
+          "latitude_deg": 47.6,
+          "longitude_deg": 8.5,
+          "day_of_year": 195
+        },
+        "scales": {
+          "pv_efficiency": 1.0,
+          "pack_specific_energy": 1.0,
+          "extra_CD0": 1.0,
+          "soc_max": 1.0,
+          "eta_charge": 0.95,
+          "thruster_figure_of_merit": null
+        },
+        "pv_packing_effective": 0.802,
+        "extra_CD0_effective": 0.006,
+        "incidence_deg": 6.5,
+        "battery_capacity_Wh": 703.0,
+        "mass_kg": {
+          "as_flown_total": 6.93,
+          "wing_structural": 2.292647551867219,
+          "fuselage_boom_tail_remainder": 0.25,
+          "structure_fraction": 0.3669044086388484,
+          "battery": 2.91701244813278,
+          "pv_array": 1.2384,
+          "propulsion": 0.08194,
+          "payload": 0.15,
+          "declared_elements": 6.68,
+          "battery_fraction": 0.42092531719087733,
+          "derived_total": 6.929999999999999
+        },
+        "mass_budget": "MassBudget(structure_mass_kg=array([0.25]), contributions=[MassContribution(element_name='AeroSurface', body_index=0, mass_kg=2.292647551867219, detail='b=5.65 m, S=1.72 m2, AR=18.6, n=3 (Stender/AS-2-calibrated model)'), MassContribution(element_name='Thruster', body_index=0, mass_kg=0.08194, detail='150 W drive 0.0625 + 1 x 0.360 m rotor 0.0194'), MassContribution(element_name='PVArray', body_index=0, mass_kg=1.2384, detail='1.720 m2 x 0.720 kg/m2'), MassContribution(element_name='PayloadLoad', body_index=0, mass_kg=0.15, detail='avionics+payload, 5.8 W draw, 0.150 kg'), MassContribution(element_name='BatteryElement', body_index=0, mass_kg=2.91701244813278, detail='703.0 Wh / 241.0 Wh/kg (pack)')], undeclared_element_names=[])",
+        "undeclared_mass_elements": [],
+        "atmosphere": {
+          "rho_kgm3": 1.1672725123243854,
+          "T_K": 284.9002556130261,
+          "mu_Pas": 1.773657203776756e-05
+        },
+        "day_length_h": 15.63891325774359,
+        "site": {
+          "lat_deg": 47.6,
+          "lon_deg": 8.5,
+          "day_of_year": 195,
+          "altitude_m": 500.0
+        },
+        "aspect_ratio": 18.559593023255815,
+        "eta_chain_cruise": 0.6863749999999998,
+        "wall_clock_s": 0.6221949000027962,
+        "bands": {
+          "min_soc>=": 0.1,
+          "margin_ratio_usable": [
+            1.02,
+            1.35
+          ],
+          "anchor_tolerance": 0.2
+        },
+        "sweep_screen": {
+          "admissible": true,
+          "reasons": []
+        },
+        "seasonal_robustness": {
+          "equinox_day_of_year": 80,
+          "design_day_of_year": 195,
+          "closes_equinox": true,
+          "equinox_min_soc": 0.14413913865170966
+        },
+        "tree_fingerprint": "281114eaf76f3718db0f13a29f8971a7ff6c949bdbd25e1f043f6e7a505c7899",
+        "shipped_elements": {
+          "elements": [
+            {
+              "class": "AeroSurface",
+              "module": "aerosim.vehicle.aerosurface",
+              "shipped": true
+            },
+            {
+              "class": "Thruster",
+              "module": "aerosim.vehicle.thruster",
+              "shipped": true
+            },
+            {
+              "class": "PVArray",
+              "module": "aerosim.vehicle.energy",
+              "shipped": true
+            },
+            {
+              "class": "PayloadLoad",
+              "module": "aerosim.vehicle.energy",
+              "shipped": true
+            },
+            {
+              "class": "BatteryElement",
+              "module": "aerosim.vehicle.energy",
+              "shipped": true
+            }
+          ],
+          "all_shipped": true,
+          "allowance_granted": [],
+          "allowance_used": [],
+          "shipped_catalogue": [
+            "AeroSurface",
+            "BatteryElement",
+            "BodyState",
+            "Bounds",
+            "BuoyancyVolume",
+            "ElementForce",
+            "ExplicitWingMassWarning",
+            "FixedMassOverrideWarning",
+            "ForceElement",
+            "MassBudget",
+            "MassClosureError",
+            "MassContribution",
+            "NoValidAeroPointError",
+            "PVArray",
+            "PairForceElement",
+            "ParamBoundsError",
+            "PayloadLoad",
+            "TechCatalogueError",
+            "Tether",
+            "Thruster",
+            "UndeclaredMassError",
+            "UndeclaredMassWarning",
+            "Vehicle",
+            "WindTurbine",
+            "WingGeometry"
+          ]
+        },
+        "per_element_Wh_diagnostic": {
+          "AeroSurface[0]": 0.0,
+          "Thruster[1]": -906.2350348882111,
+          "PVArray[2]": 2671.3862640635984,
+          "PayloadLoad[3]": -139.2,
+          "BatteryElement[4]": 0.0
+        },
+        "power_budget_W": {
+          "mean_out": 43.55979312034213,
+          "mean_in_gross": 111.2305175876585,
+          "peak_in_gross": 290.4275864679662,
+          "reference_aero_W": 23.01795811664932
+        },
+        "trim": {
+          "CL": 0.8726021116593502,
+          "CD": 0.03355410658060721,
+          "cl15_over_cd": 24.292863491823198,
+          "alpha_deg": 6.5,
+          "e_oswald": 0.9706923631592855,
+          "V_ms": 8.808124987456946,
+          "Re": 176468.03070083226,
+          "chord_m": 0.30442477876106194,
+          "P_aero_W": 23.01795811664932,
+          "n_iter": 24
+        },
+        "checks": [
+          {
+            "label": "closed is True",
+            "ok": true,
+            "actual": "closed=True, reasons=[]"
+          },
+          {
+            "label": "polar respects the closed-form drag floor",
+            "ok": true,
+            "actual": "CD 0.03355 vs floor 0.02538 (margin 1.322); CL^1.5/CD 24.293 vs ceiling 32.115"
+          },
+          {
+            "label": "reference trim and integrator trim agree within 2 %",
+            "ok": true,
+            "actual": "V_ref 8.8081 m/s vs V_int 8.8081 m/s (0.000%)"
+          },
+          {
+            "label": "reference Reynolds and integrator Reynolds agree within 3 %",
+            "ok": true,
+            "actual": "Re_ref 176468 vs Re_int 178300 (1.038%)"
+          },
+          {
+            "label": "CL^1.5/CD within +/-20% of the PUBLISHED anchor",
+            "ok": true,
+            "actual": "solver 24.293 vs published-derived 23.821 (band [19.06, 28.59], ratio 1.0198)"
+          },
+          {
+            "label": "min_soc >= 0.1",
+            "ok": true,
+            "actual": "min_soc=0.3538 (as seeded 0.3981)"
+          },
+          {
+            "label": "USABLE margin in [1.02, 1.35]",
+            "ok": true,
+            "actual": "usable 1.0446 (gross 2.5553, 59.1% of harvest spilled)"
+          },
+          {
+            "label": "no unmet propulsive demand was discarded",
+            "ok": true,
+            "actual": "max unmet thrust 0 N, billed 0.000 Wh"
+          },
+          {
+            "label": "no uncommanded forward force",
+            "ok": true,
+            "actual": "max excess thrust 0 N"
+          },
+          {
+            "label": "effective daily clearness index in [0.55, 0.95]",
+            "ok": true,
+            "actual": "K_eff = 0.7630 from 2671 Wh gross against 40.58 MJ/m2 extraterrestrial on 1.379 m2 of 0.237-efficiency cells"
+          },
+          {
+            "label": "pack specific energy equals the design's catalogue chemistry",
+            "ok": true,
+            "actual": "element 241.00 Wh/kg vs catalogue 241.00 Wh/kg (703 Wh on 2.92 kg)"
+          },
+          {
+            "label": "site air density matches published USSA-1976 within 1%",
+            "ok": true,
+            "actual": "model 1.167273 kg/m3 vs table 1.167300 kg/m3 at 500 m (0.002%)"
+          },
+          {
+            "label": "billed wing mass matches the hand-typed anchor within 1%",
+            "ok": true,
+            "actual": "billed 2.2926 kg vs anchor 2.2926 kg for b=5.65 m, S=1.72 m2 (0.002%)"
+          },
+          {
+            "label": "screen_design (the sweep contract) admits this design",
+            "ok": true,
+            "actual": "admissible=True, reasons=[]"
+          }
+        ],
+        "energy": {
+          "energy_in_gross_J": 9616990.550628955,
+          "energy_in_usable_J": 3931403.2064085994,
+          "energy_out_J": 3763566.12559756,
+          "unabsorbed_surplus_J": 5685587.344220355,
+          "unabsorbed_shortfall_J": 0.0,
+          "energy_in_gross_Wh": 2671.3862640635984,
+          "energy_in_usable_Wh": 1092.056446224611,
+          "energy_out_Wh": 1045.435034888211,
+          "spilled_Wh": 1579.3298178389875,
+          "unserved_Wh": 0.0,
+          "spilled_fraction_of_gross": 0.5912023428003177,
+          "margin_ratio_gross": 2.5552867226697176,
+          "margin_ratio_usable": 1.0445952257008349
+        },
+        "closure": {
+          "mode": "limit-cycle",
+          "reasons": [],
+          "limit_cycle_soc0": 0.955696760051087,
+          "limit_cycle_sustainable": true,
+          "min_soc_as_seeded": 0.3981319650562849,
+          "max_unmet_thrust_N": 0.0,
+          "max_excess_thrust_N": 0.0,
+          "max_gen_violation_W": 0.0
+        },
+        "mutations": [
+          {
+            "mutation": "pv_cell_efficiency x0.5",
+            "caught": true,
+            "raised": false,
+            "required": true,
+            "detail": "gate FAILED the mutant: closed=True min_soc=0.2987 usable_margin=1.0484"
+          },
+          {
+            "mutation": "pv_cell_efficiency x2.0",
+            "caught": true,
+            "raised": true,
+            "required": true,
+            "detail": "raised TechCatalogueError: technology catalogue: cell_efficiency_stc = 0.474 at 0.72 kg/m2 is beyond the catalogue frontier for its areal-density class: best catalogued technology at or below this density is"
+          },
+          {
+            "mutation": "pack_specific_energy x0.5",
+            "caught": true,
+            "raised": false,
+            "required": true,
+            "detail": "gate FAILED the mutant: closed=False min_soc=0.0500 usable_margin=0.9234"
+          },
+          {
+            "mutation": "polar CD x2.0",
+            "caught": true,
+            "raised": false,
+            "required": true,
+            "detail": "gate FAILED the mutant: closed=False min_soc=0.0500 usable_margin=0.8827"
+          },
+          {
+            "mutation": "polar CD x0.5",
+            "caught": true,
+            "raised": false,
+            "required": true,
+            "detail": "gate FAILED the mutant: closed=True min_soc=0.6641 usable_margin=1.0426"
+          },
+          {
+            "mutation": "polar CL x1.5",
+            "caught": true,
+            "raised": false,
+            "required": true,
+            "detail": "gate FAILED the mutant: closed=True min_soc=0.6090 usable_margin=1.0430"
+          },
+          {
+            "mutation": "pack_specific_energy x2.0",
+            "caught": true,
+            "raised": true,
+            "required": true,
+            "detail": "raised TechCatalogueError: technology catalogue: pack specific energy 482 Wh/kg exceeds the catalogue frontier 445.5 Wh/kg ('Amprius SiMaxx silicon-anode, minimal packaging': Amprius published 450 Wh/kg SiCo"
+          },
+          {
+            "mutation": "battery soc_max = 3.0",
+            "caught": true,
+            "raised": true,
+            "required": true,
+            "detail": "raised ParamBoundsError: BatteryElement.soc_max = 3 is outside the declared range (0, 1] -- mass is billed on nameplate (soc = 1); a rail above 1 is stored energy the pack never paid for (measured: soc_max"
+          },
+          {
+            "mutation": "battery eta_charge = 2.0",
+            "caught": true,
+            "raised": true,
+            "required": true,
+            "detail": "raised ParamBoundsError: BatteryElement.eta_charge = 2 is outside the declared range (0, 0.995] -- above 1 the pack returns more than it stored (measured: 2.0/2.0 gave a 4.0000 round trip); 1.0 exactly is "
+          },
+          {
+            "mutation": "thruster figure_of_merit = 5.0",
+            "caught": true,
+            "raised": true,
+            "required": true,
+            "detail": "raised ParamBoundsError: Thruster.figure_of_merit = 5 is outside the declared range [0.3, 0.9] -- divided by: FM=5.0 bought hover at 1/7.7 of the actuator-disk floor"
+          },
+          {
+            "mutation": "air density x2.0",
+            "caught": true,
+            "raised": false,
+            "required": true,
+            "detail": "gate FAILED the mutant: closed=True min_soc=0.5527 usable_margin=1.0434"
+          }
+        ],
+        "reported_sensitivities": [
+          {
+            "mutation": "extra_CD0 x2.0",
+            "caught": false,
+            "raised": false,
+            "required": false,
+            "detail": "NOT CAUGHT -- mutant still passed: closed=True min_soc=0.2268 usable_margin=1.0453"
+          },
+          {
+            "mutation": "extra_CD0 x0.5",
+            "caught": true,
+            "raised": false,
+            "required": false,
+            "detail": "gate FAILED the mutant: closed=True min_soc=0.4131 usable_margin=1.0443"
+          }
+        ],
+        "published_cross_check": {
+          "level_flight_electrical_W_published": 40.0,
+          "level_flight_electrical_W_modelled": 43.55979312034213,
+          "note": "modelled draw is the 24 h mean of the bus; the published figure is a cruise-point measurement, so the modelled number should sit slightly ABOVE it"
+        },
+        "lift_provenance": {
+          "build_solar_cruise": {
+            "reaches_solver": true,
+            "calls": [
+              "AeroSurface",
+              "BatteryElement",
+              "BodyState",
+              "EnvBundle",
+              "PVArray",
+              "PayloadLoad",
+              "Thruster",
+              "ValidationError",
+              "Vehicle",
+              "_Build",
+              "_naca_geometry",
+              "_sanitize",
+              "_sunset_utc_hour",
+              "atmosphere",
+              "bounds.reference_trim",
+              "day_length_h",
+              "float",
+              "make_uniform_field",
+              "np.array",
+              "str",
+              "surface.best_endurance_alpha_deg",
+              "vehicle.assert_mass_declared",
+              "vehicle.mass_budget",
+              "vehicle.total_mass_kg",
+              "vehicle.undeclared_element_names"
+            ],
+            "hardcoded": []
+          },
+          "build_turbine_free_flier": {
+            "reaches_solver": true,
+            "calls": [
+              "AeroSurface",
+              "BatteryElement",
+              "BodyState",
+              "EnvBundle",
+              "Thruster",
+              "ValidationError",
+              "Vehicle",
+              "WindTurbine",
+              "_Build",
+              "_naca_geometry",
+              "atmosphere",
+              "bounds.assert_below_betz",
+              "float",
+              "make_uniform_field",
+              "np.array",
+              "surface.trim_alpha_for_lift_N",
+              "turbine.axial_induction",
+              "turbine.mass_detail",
+              "turbine.reaction_drag_N",
+              "turbine.shaft_power_W",
+              "vehicle.assert_mass_declared",
+              "vehicle.total_mass_kg"
+            ],
+            "hardcoded": []
+          },
+          "reference_trim": {
+            "reaches_solver": true,
+            "calls": [
+              "ReferenceTrim",
+              "ReferenceTrimError",
+              "abs",
+              "aeropolar.best_endurance_point",
+              "aeropolar.wing_polar",
+              "float",
+              "getattr",
+              "int",
+              "math.sqrt",
+              "max",
+              "np.abs",
+              "np.arange",
+              "np.argmin",
+              "np.asarray",
+              "np.degrees",
+              "np.where",
+              "range",
+              "reynolds"
+            ],
+            "hardcoded": []
+          }
+        }
+      }
+    },
+    {
+      "name": "B_ZephyrS",
+      "expect_closure": true,
+      "closed": true,
+      "passed": true,
+      "min_soc": 0.1690771805667985,
+      "margin_ratio_usable": 1.05475569307502,
+      "cl15_over_cd": 29.785674708039053,
+      "mean_cruise_Re": 153512.6102035186,
+      "detail": {
+        "closed_form_bounds": {
+          "CL": 0.9138912348691296,
+          "CD": 0.029331503555049435,
+          "cl15_over_cd": 29.785674708039053,
+          "reynolds_chord": 153512.6102035186,
+          "aspect_ratio": 30.048076923076923,
+          "CD_induced_floor": 0.00884753865967871,
+          "CD_friction_floor": 0.0067788502891222005,
+          "CD_total_floor": 0.01962638894880091,
+          "cl15_over_cd_ceiling": 44.514486381957205,
+          "drag_margin": 1.4944931353172568,
+          "ok": true,
+          "violations": []
+        },
+        "trim_cross_check": {
+          "V_reference_ms": 29.502033032458755,
+          "V_integrator_ms": 29.502032988349136,
+          "V_relative_error": 1.4951382848731715e-09,
+          "Re_reference": 153512.6102035186,
+          "Re_integrator": 155106.1664789163,
+          "Re_relative_error": 0.010380621326710974
+        },
+        "harvest_bound": {
+          "effective_clearness_index": 1.126959405263981,
+          "band": [
+            0.85,
+            1.45
+          ],
+          "extraterrestrial_daily_MJ_m2": 36.90807792986143,
+          "catalogue": {
+            "area_m2": 20.8,
+            "packing": 0.9,
+            "efficiency": 0.24,
+            "mppt": 0.95
+          },
+          "source": "Duffie & Beckman eq. 1.10.3 -- pure orbital geometry, no atmosphere and no solar module"
+        },
+        "isa_density_anchor": {
+          "altitude_m": 20000.0,
+          "model_rho_kgm3": 0.0889099150888865,
+          "published_rho_kgm3": 0.08891,
+          "relative_error": 9.550232088798426e-07,
+          "source": "U.S. Standard Atmosphere, 1976 (NOAA/NASA/USAF), table 1"
+        },
+        "wing_mass_anchor": {
+          "span_m": 25.0,
+          "area_m2": 20.8,
+          "skipped": "planform not in the wing-mass anchor table -- SKIPPED visibly, never derived from the module under test"
+        },
+        "design": {
+          "name": "B_ZephyrS",
+          "span_m": 25.0,
+          "area_m2": 20.8,
+          "taper_ratio": 0.7,
+          "twist_root_deg": 2.0,
+          "twist_tip_deg": 0.0,
+          "extra_CD0": 0.004,
+          "mass_all_up_kg": 75.0,
+          "battery_mass_kg": 40.0,
+          "pack_Wh_per_kg": 445.5,
+          "pv_efficiency": 0.24,
+          "pv_packing": 0.9,
+          "pv_areal_density_kg_m2": 0.2,
+          "payload_W": 50.0,
+          "payload_mass_kg": 3.0,
+          "prop_diameter_m": 1.0,
+          "n_rotors": 2,
+          "prop_max_electrical_W": 1500.0,
+          "altitude_m": 20000.0,
+          "latitude_deg": 10.0,
+          "longitude_deg": 0.0,
+          "day_of_year": 172
+        },
+        "scales": {
+          "pv_efficiency": 1.0,
+          "pack_specific_energy": 1.0,
+          "extra_CD0": 1.0,
+          "soc_max": 1.0,
+          "eta_charge": 0.95,
+          "thruster_figure_of_merit": null
+        },
+        "pv_packing_effective": 0.9,
+        "extra_CD0_effective": 0.004,
+        "incidence_deg": 6.5,
+        "battery_capacity_Wh": 17820.0,
+        "mass_kg": {
+          "as_flown_total": 75.0,
+          "wing_structural": 19.96495629856004,
+          "fuselage_boom_tail_remainder": 6.9500437014399665,
+          "structure_fraction": 0.3588666666666667,
+          "battery": 40.0,
+          "pv_array": 4.16,
+          "propulsion": 0.925,
+          "payload": 3.0,
+          "declared_elements": 68.04995629856003,
+          "battery_fraction": 0.5333333333333333,
+          "derived_total": 75.0
+        },
+        "mass_budget": "MassBudget(structure_mass_kg=array([6.9500437]), contributions=[MassContribution(element_name='AeroSurface', body_index=0, mass_kg=19.96495629856004, detail='b=25.00 m, S=20.80 m2, AR=30.0, n=3 (Stender/AS-2-calibrated model)'), MassContribution(element_name='Thruster', body_index=0, mass_kg=0.925, detail='1500 W drive 0.6250 + 2 x 1.000 m rotor 0.3000'), MassContribution(element_name='PVArray', body_index=0, mass_kg=4.16, detail='20.800 m2 x 0.200 kg/m2'), MassContribution(element_name='PayloadLoad', body_index=0, mass_kg=3.0, detail='avionics+payload, 50.0 W draw, 3.000 kg'), MassContribution(element_name='BatteryElement', body_index=0, mass_kg=40.0, detail='17820.0 Wh / 445.5 Wh/kg (pack)')], undeclared_element_names=[])",
+        "undeclared_mass_elements": [],
+        "atmosphere": {
+          "rho_kgm3": 0.0889099150888865,
+          "T_K": 216.64999999999998,
+          "mu_Pas": 1.4216130796413357e-05
+        },
+        "day_length_h": 12.707809007905018,
+        "site": {
+          "lat_deg": 10.0,
+          "lon_deg": 0.0,
+          "day_of_year": 172,
+          "altitude_m": 20000.0
+        },
+        "aspect_ratio": 30.048076923076923,
+        "eta_chain_cruise": 0.6863749999999998,
+        "wall_clock_s": 1.2952109000179917,
+        "bands": {
+          "min_soc>=": 0.1,
+          "margin_ratio_usable": [
+            1.02,
+            1.35
+          ],
+          "anchor_tolerance": 0.2
+        },
+        "sweep_screen": {
+          "admissible": true,
+          "reasons": []
+        },
+        "seasonal_robustness": {
+          "equinox_day_of_year": 80,
+          "design_day_of_year": 172,
+          "closes_equinox": true,
+          "equinox_min_soc": 0.1350980777727425
+        },
+        "tree_fingerprint": "281114eaf76f3718db0f13a29f8971a7ff6c949bdbd25e1f043f6e7a505c7899",
+        "shipped_elements": {
+          "elements": [
+            {
+              "class": "AeroSurface",
+              "module": "aerosim.vehicle.aerosurface",
+              "shipped": true
+            },
+            {
+              "class": "Thruster",
+              "module": "aerosim.vehicle.thruster",
+              "shipped": true
+            },
+            {
+              "class": "PVArray",
+              "module": "aerosim.vehicle.energy",
+              "shipped": true
+            },
+            {
+              "class": "PayloadLoad",
+              "module": "aerosim.vehicle.energy",
+              "shipped": true
+            },
+            {
+              "class": "BatteryElement",
+              "module": "aerosim.vehicle.energy",
+              "shipped": true
+            }
+          ],
+          "all_shipped": true,
+          "allowance_granted": [],
+          "allowance_used": [],
+          "shipped_catalogue": [
+            "AeroSurface",
+            "BatteryElement",
+            "BodyState",
+            "Bounds",
+            "BuoyancyVolume",
+            "ElementForce",
+            "ExplicitWingMassWarning",
+            "FixedMassOverrideWarning",
+            "ForceElement",
+            "MassBudget",
+            "MassClosureError",
+            "MassContribution",
+            "NoValidAeroPointError",
+            "PVArray",
+            "PairForceElement",
+            "ParamBoundsError",
+            "PayloadLoad",
+            "TechCatalogueError",
+            "Tether",
+            "Thruster",
+            "UndeclaredMassError",
+            "UndeclaredMassWarning",
+            "Vehicle",
+            "WindTurbine",
+            "WingGeometry"
+          ]
+        },
+        "per_element_Wh_diagnostic": {
+          "AeroSurface[0]": 0.0,
+          "Thruster[1]": -26553.150678223265,
+          "PVArray[2]": 49313.734423960836,
+          "PayloadLoad[3]": -1200.0,
+          "BatteryElement[4]": 0.0
+        },
+        "power_budget_W": {
+          "mean_out": 1156.381278259302,
+          "mean_in_gross": 2053.3130225105137,
+          "peak_in_gross": 5998.369329219311,
+          "reference_aero_W": 696.4239457320608
+        },
+        "trim": {
+          "CL": 0.9138912348691296,
+          "CD": 0.029331503555049435,
+          "cl15_over_cd": 29.785674708039053,
+          "alpha_deg": 6.5,
+          "e_oswald": 0.9404389650258104,
+          "V_ms": 29.502033032458755,
+          "Re": 153512.6102035186,
+          "chord_m": 0.8320000000000001,
+          "P_aero_W": 696.4239457320608,
+          "n_iter": 24
+        },
+        "checks": [
+          {
+            "label": "closed is True",
+            "ok": true,
+            "actual": "closed=True, reasons=[]"
+          },
+          {
+            "label": "polar respects the closed-form drag floor",
+            "ok": true,
+            "actual": "CD 0.02933 vs floor 0.01963 (margin 1.494); CL^1.5/CD 29.786 vs ceiling 44.514"
+          },
+          {
+            "label": "reference trim and integrator trim agree within 2 %",
+            "ok": true,
+            "actual": "V_ref 29.5020 m/s vs V_int 29.5020 m/s (0.000%)"
+          },
+          {
+            "label": "reference Reynolds and integrator Reynolds agree within 3 %",
+            "ok": true,
+            "actual": "Re_ref 153513 vs Re_int 155106 (1.038%)"
+          },
+          {
+            "label": "min_soc >= 0.1",
+            "ok": true,
+            "actual": "min_soc=0.1691 (as seeded 0.1969)"
+          },
+          {
+            "label": "USABLE margin in [1.02, 1.35]",
+            "ok": true,
+            "actual": "usable 1.0548 (gross 1.7769, 40.6% of harvest spilled)"
+          },
+          {
+            "label": "no unmet propulsive demand was discarded",
+            "ok": true,
+            "actual": "max unmet thrust 0 N, billed 0.000 Wh"
+          },
+          {
+            "label": "no uncommanded forward force",
+            "ok": true,
+            "actual": "max excess thrust 0 N"
+          },
+          {
+            "label": "effective daily clearness index in [0.85, 1.45]",
+            "ok": true,
+            "actual": "K_eff = 1.1270 from 49314 Wh gross against 36.91 MJ/m2 extraterrestrial on 18.720 m2 of 0.240-efficiency cells"
+          },
+          {
+            "label": "pack specific energy equals the design's catalogue chemistry",
+            "ok": true,
+            "actual": "element 445.50 Wh/kg vs catalogue 445.50 Wh/kg (17820 Wh on 40.00 kg)"
+          },
+          {
+            "label": "site air density matches published USSA-1976 within 1%",
+            "ok": true,
+            "actual": "model 0.088910 kg/m3 vs table 0.088910 kg/m3 at 20000 m (0.000%)"
+          },
+          {
+            "label": "screen_design (the sweep contract) admits this design",
+            "ok": true,
+            "actual": "admissible=True, reasons=[]"
+          }
+        ],
+        "energy": {
+          "energy_in_gross_J": 177529443.926259,
+          "energy_in_usable_J": 105382057.24304943,
+          "energy_out_J": 99911342.44160375,
+          "unabsorbed_surplus_J": 72147386.68320958,
+          "unabsorbed_shortfall_J": 0.0,
+          "energy_in_gross_Wh": 49313.734423960836,
+          "energy_in_usable_Wh": 29272.793678624843,
+          "energy_out_Wh": 27753.150678223265,
+          "spilled_Wh": 20040.940745335996,
+          "unserved_Wh": 0.0,
+          "spilled_fraction_of_gross": 0.40639673671922094,
+          "margin_ratio_gross": 1.7768697686153256,
+          "margin_ratio_usable": 1.05475569307502
+        },
+        "closure": {
+          "mode": "limit-cycle",
+          "reasons": [],
+          "limit_cycle_soc0": 0.9721746444047664,
+          "limit_cycle_sustainable": true,
+          "min_soc_as_seeded": 0.1969025361620335,
+          "max_unmet_thrust_N": 0.0,
+          "max_excess_thrust_N": 0.0,
+          "max_gen_violation_W": 0.0
+        },
+        "evidence_status": "SOLUTION-EXISTENCE DEMONSTRATION ONLY -- this case shows a design in the Zephyr class can close under documented-but-aggressive pack assumptions. It is NOT closure evidence against a real aircraft; case A is. Do not cite case B as validation.",
+        "mutations": [
+          {
+            "mutation": "pv_cell_efficiency x0.5",
+            "caught": true,
+            "raised": false,
+            "required": true,
+            "detail": "gate FAILED the mutant: closed=False min_soc=0.0500 usable_margin=0.8884"
+          },
+          {
+            "mutation": "pv_cell_efficiency x2.0",
+            "caught": true,
+            "raised": true,
+            "required": true,
+            "detail": "raised TechCatalogueError: technology catalogue: cell_efficiency_stc = 0.48 at 0.2 kg/m2 is beyond the catalogue frontier for its areal-density class: best catalogued technology at or below this density is '"
+          },
+          {
+            "mutation": "pack_specific_energy x0.5",
+            "caught": true,
+            "raised": false,
+            "required": true,
+            "detail": "gate FAILED the mutant: closed=False min_soc=0.0500 usable_margin=0.8142"
+          },
+          {
+            "mutation": "polar CD x2.0",
+            "caught": true,
+            "raised": false,
+            "required": true,
+            "detail": "gate FAILED the mutant: closed=False min_soc=0.0500 usable_margin=0.7672"
+          },
+          {
+            "mutation": "polar CD x0.5",
+            "caught": true,
+            "raised": false,
+            "required": true,
+            "detail": "gate FAILED the mutant: closed=True min_soc=0.5943 usable_margin=1.0532"
+          },
+          {
+            "mutation": "polar CL x1.5",
+            "caught": true,
+            "raised": false,
+            "required": true,
+            "detail": "gate FAILED the mutant: closed=True min_soc=0.5152 usable_margin=1.0535"
+          },
+          {
+            "mutation": "pack_specific_energy x2.0",
+            "caught": true,
+            "raised": true,
+            "required": true,
+            "detail": "raised ParamBoundsError: BatteryElement.specific_energy_Wh_per_kg = 891 Wh/kg is outside the declared range [20, 500] Wh/kg -- mass DIVISOR band, mirrors mass.check_pack_specific_energy_Wh_per_kg"
+          },
+          {
+            "mutation": "battery soc_max = 3.0",
+            "caught": true,
+            "raised": true,
+            "required": true,
+            "detail": "raised ParamBoundsError: BatteryElement.soc_max = 3 is outside the declared range (0, 1] -- mass is billed on nameplate (soc = 1); a rail above 1 is stored energy the pack never paid for (measured: soc_max"
+          },
+          {
+            "mutation": "battery eta_charge = 2.0",
+            "caught": true,
+            "raised": true,
+            "required": true,
+            "detail": "raised ParamBoundsError: BatteryElement.eta_charge = 2 is outside the declared range (0, 0.995] -- above 1 the pack returns more than it stored (measured: 2.0/2.0 gave a 4.0000 round trip); 1.0 exactly is "
+          },
+          {
+            "mutation": "thruster figure_of_merit = 5.0",
+            "caught": true,
+            "raised": true,
+            "required": true,
+            "detail": "raised ParamBoundsError: Thruster.figure_of_merit = 5 is outside the declared range [0.3, 0.9] -- divided by: FM=5.0 bought hover at 1/7.7 of the actuator-disk floor"
+          },
+          {
+            "mutation": "air density x2.0",
+            "caught": true,
+            "raised": false,
+            "required": true,
+            "detail": "gate FAILED the mutant: closed=True min_soc=0.4555 usable_margin=1.0537"
+          }
+        ],
+        "reported_sensitivities": [
+          {
+            "mutation": "extra_CD0 x2.0",
+            "caught": true,
+            "raised": false,
+            "required": false,
+            "detail": "gate FAILED the mutant: closed=False min_soc=0.0500 usable_margin=1.0515"
+          },
+          {
+            "mutation": "extra_CD0 x0.5",
+            "caught": false,
+            "raised": false,
+            "required": false,
+            "detail": "NOT CAUGHT -- mutant still passed: closed=True min_soc=0.2302 usable_margin=1.0545"
+          }
+        ],
+        "design_finding": "ROUND-3 MODEL FINDING: billing the wing honestly (19.96 kg, Stender/AS-2) kills the previous fitted design -- 48 kg of catalogue 337.5 Wh/kg silicon-anode pack no longer fits the 75 kg aircraft, and no pack mass that fits closes (46.5 kg with a 0.45 kg fuselage is still 122 Wh short on the limit cycle). Closure in this class needs ~445 Wh/kg at pack level (Amprius 450 cell x 0.99 packaging): the shipped design carries 40 kg of it (53 % battery fraction, inside the 45-55 % HAPS band) and leaves a 6.95 kg fuselage/boom/tail line. The real Zephyr S flies for months, so the model is conservative for this class; the gap is reported, not fitted away.",
+        "lift_provenance": {
+          "build_solar_cruise": {
+            "reaches_solver": true,
+            "calls": [
+              "AeroSurface",
+              "BatteryElement",
+              "BodyState",
+              "EnvBundle",
+              "PVArray",
+              "PayloadLoad",
+              "Thruster",
+              "ValidationError",
+              "Vehicle",
+              "_Build",
+              "_naca_geometry",
+              "_sanitize",
+              "_sunset_utc_hour",
+              "atmosphere",
+              "bounds.reference_trim",
+              "day_length_h",
+              "float",
+              "make_uniform_field",
+              "np.array",
+              "str",
+              "surface.best_endurance_alpha_deg",
+              "vehicle.assert_mass_declared",
+              "vehicle.mass_budget",
+              "vehicle.total_mass_kg",
+              "vehicle.undeclared_element_names"
+            ],
+            "hardcoded": []
+          },
+          "build_turbine_free_flier": {
+            "reaches_solver": true,
+            "calls": [
+              "AeroSurface",
+              "BatteryElement",
+              "BodyState",
+              "EnvBundle",
+              "Thruster",
+              "ValidationError",
+              "Vehicle",
+              "WindTurbine",
+              "_Build",
+              "_naca_geometry",
+              "atmosphere",
+              "bounds.assert_below_betz",
+              "float",
+              "make_uniform_field",
+              "np.array",
+              "surface.trim_alpha_for_lift_N",
+              "turbine.axial_induction",
+              "turbine.mass_detail",
+              "turbine.reaction_drag_N",
+              "turbine.shaft_power_W",
+              "vehicle.assert_mass_declared",
+              "vehicle.total_mass_kg"
+            ],
+            "hardcoded": []
+          },
+          "reference_trim": {
+            "reaches_solver": true,
+            "calls": [
+              "ReferenceTrim",
+              "ReferenceTrimError",
+              "abs",
+              "aeropolar.best_endurance_point",
+              "aeropolar.wing_polar",
+              "float",
+              "getattr",
+              "int",
+              "math.sqrt",
+              "max",
+              "np.abs",
+              "np.arange",
+              "np.argmin",
+              "np.asarray",
+              "np.degrees",
+              "np.where",
+              "range",
+              "reynolds"
+            ],
+            "hardcoded": []
+          }
+        }
+      }
+    },
+    {
+      "name": "C_QuadcopterHover",
+      "expect_closure": false,
+      "closed": false,
+      "passed": true,
+      "min_soc": 0.05,
+      "margin_ratio_usable": 0.2773473379943118,
+      "cl15_over_cd": null,
+      "mean_cruise_Re": null,
+      "detail": {
+        "site": {
+          "lat_deg": 10.0,
+          "lon_deg": 0.0,
+          "day_of_year": 172,
+          "altitude_m": 0.0
+        },
+        "rotors": {
+          "count": 4,
+          "diameter_m": 0.254,
+          "total_disk_area_m2": 0.2026829916389991,
+          "figure_of_merit": 0.65
+        },
+        "mass_kg": {
+          "as_flown_total": 1.0,
+          "structure_remainder": 0.22683373333333334,
+          "thruster": 0.20537626666666667,
+          "pv_array": 0.16778999999999997,
+          "battery": 0.35,
+          "payload": 0.05,
+          "derived_total": 0.9999999999999999
+        },
+        "mass_budget": "MassBudget(structure_mass_kg=array([0.22683373]), contributions=[MassContribution(element_name='Thruster', body_index=0, mass_kg=0.20537626666666667, detail='400 W drive 0.1667 + 4 x 0.254 m rotor 0.0387'), MassContribution(element_name='PVArray', body_index=0, mass_kg=0.16778999999999997, detail='0.420 m2 x 0.399 kg/m2'), MassContribution(element_name='PayloadLoad', body_index=0, mass_kg=0.05, detail='flight controller, 2.0 W draw, 0.050 kg'), MassContribution(element_name='BatteryElement', body_index=0, mass_kg=0.35, detail='70.0 Wh / 200.0 Wh/kg (pack)')], undeclared_element_names=[])",
+        "undeclared_mass_elements": [],
+        "hover_ideal_power_W": 43.58022497140349,
+        "hover_electrical_power_W": 83.0297213077466,
+        "hover_powerplant_cross_check_W": 83.02972130774658,
+        "pv": {
+          "gross_area_m2": 0.42,
+          "packing": 0.85,
+          "airframe_footprint_m2": 0.285,
+          "note": "canopy deliberately 47 % larger than the airframe footprint"
+        },
+        "battery_capacity_Wh": 70.0,
+        "day_length_h": 12.707809007905018,
+        "wall_clock_s": 1.3274890000466257,
+        "harvest_bound": {
+          "effective_clearness_index": 0.6868262790747289,
+          "band": [
+            0.5,
+            0.9
+          ],
+          "extraterrestrial_daily_MJ_m2": 36.90807792986143,
+          "catalogue": {
+            "area_m2": 0.42,
+            "packing": 0.85,
+            "efficiency": 0.237,
+            "mppt": 0.95
+          },
+          "source": "Duffie & Beckman eq. 1.10.3 -- pure orbital geometry, no atmosphere and no solar module"
+        },
+        "shipped_elements": {
+          "elements": [
+            {
+              "class": "Thruster",
+              "module": "aerosim.vehicle.thruster",
+              "shipped": true
+            },
+            {
+              "class": "PVArray",
+              "module": "aerosim.vehicle.energy",
+              "shipped": true
+            },
+            {
+              "class": "PayloadLoad",
+              "module": "aerosim.vehicle.energy",
+              "shipped": true
+            },
+            {
+              "class": "BatteryElement",
+              "module": "aerosim.vehicle.energy",
+              "shipped": true
+            }
+          ],
+          "all_shipped": true,
+          "allowance_granted": [],
+          "allowance_used": [],
+          "shipped_catalogue": [
+            "AeroSurface",
+            "BatteryElement",
+            "BodyState",
+            "Bounds",
+            "BuoyancyVolume",
+            "ElementForce",
+            "ExplicitWingMassWarning",
+            "FixedMassOverrideWarning",
+            "ForceElement",
+            "MassBudget",
+            "MassClosureError",
+            "MassContribution",
+            "NoValidAeroPointError",
+            "PVArray",
+            "PairForceElement",
+            "ParamBoundsError",
+            "PayloadLoad",
+            "TechCatalogueError",
+            "Tether",
+            "Thruster",
+            "UndeclaredMassError",
+            "UndeclaredMassWarning",
+            "Vehicle",
+            "WindTurbine",
+            "WingGeometry"
+          ]
+        },
+        "per_element_Wh_diagnostic": {
+          "Thruster[0]": -1992.7133113859186,
+          "PVArray[1]": 565.9864045224417,
+          "PayloadLoad[2]": -48.0,
+          "BatteryElement[3]": 0.0
+        },
+        "bands": {
+          "closed": false,
+          "margin_ratio_usable": [
+            0.15,
+            0.45
+          ]
+        },
+        "verdict_note": "a closing quadcopter would mean the simulator lies",
+        "checks": [
+          {
+            "label": "closed is False",
+            "ok": true,
+            "actual": "closed=False, reasons=['state of charge reached its floor (0.0500 vs soc_min 0.0500)', '0.4 Wh of demand went unserved', 'state of charge does not return: 1.0000 -> 0.0500']"
+          },
+          {
+            "label": "USABLE margin in [0.15, 0.45]",
+            "ok": true,
+            "actual": "usable 0.2773 (gross 0.2773); solar mean 23.6 W vs hover 83.0 W"
+          },
+          {
+            "label": "shipped Thruster reproduces powerplant.hover_power_W",
+            "ok": true,
+            "actual": "Thruster 83.029721 W vs powerplant 83.029721 W"
+          },
+          {
+            "label": "hover power respects the closed-form induced-power floor",
+            "ok": true,
+            "actual": "electrical 83.03 W > ideal induced 43.58 W (overall efficiency 0.5249)"
+          },
+          {
+            "label": "the pack cannot carry the night",
+            "ok": true,
+            "actual": "0.36 Wh of demand went unserved; endurance on a full pack 0.84 h"
+          },
+          {
+            "label": "effective daily clearness index in [0.5, 0.9]",
+            "ok": true,
+            "actual": "K_eff = 0.6868 from 566 Wh gross against 36.91 MJ/m2 extraterrestrial on 0.357 m2 of 0.237-efficiency cells"
+          }
+        ],
+        "energy": {
+          "energy_in_gross_J": 2037551.0562807901,
+          "energy_in_usable_J": 2037551.0562807901,
+          "energy_out_J": 7346567.920989307,
+          "unabsorbed_surplus_J": 0.0,
+          "unabsorbed_shortfall_J": 1299.9503178381585,
+          "energy_in_gross_Wh": 565.9864045224417,
+          "energy_in_usable_Wh": 565.9864045224417,
+          "energy_out_Wh": 2040.7133113859186,
+          "spilled_Wh": 0.0,
+          "unserved_Wh": 0.36109731051059957,
+          "spilled_fraction_of_gross": 0.0,
+          "margin_ratio_gross": 0.2773473379943118,
+          "margin_ratio_usable": 0.2773473379943118
+        },
+        "closure": {
+          "mode": "single-window",
+          "reasons": [
+            "state of charge reached its floor (0.0500 vs soc_min 0.0500)",
+            "0.4 Wh of demand went unserved",
+            "state of charge does not return: 1.0000 -> 0.0500"
+          ],
+          "limit_cycle_soc0": null,
+          "limit_cycle_sustainable": null,
+          "min_soc_as_seeded": 0.05,
+          "max_unmet_thrust_N": 0.0,
+          "max_excess_thrust_N": 0.0,
+          "max_gen_violation_W": 0.0
+        },
+        "mutations": [
+          {
+            "mutation": "pv_cell_efficiency x2.0",
+            "caught": true,
+            "raised": true,
+            "required": false,
+            "detail": "raised TechCatalogueError: technology catalogue: cell_efficiency_stc = 0.474 at 0.3995 kg/m2 is beyond the catalogue frontier for its areal-density class: best catalogued technology at or below this density "
+          },
+          {
+            "mutation": "pack_specific_energy x2.0",
+            "caught": false,
+            "raised": false,
+            "required": false,
+            "detail": "NOT CAUGHT -- mutant still passed: closed=False min_soc=0.0500 usable_margin=0.2773"
+          }
+        ],
+        "lift_provenance": {
+          "build_solar_cruise": {
+            "reaches_solver": true,
+            "calls": [
+              "AeroSurface",
+              "BatteryElement",
+              "BodyState",
+              "EnvBundle",
+              "PVArray",
+              "PayloadLoad",
+              "Thruster",
+              "ValidationError",
+              "Vehicle",
+              "_Build",
+              "_naca_geometry",
+              "_sanitize",
+              "_sunset_utc_hour",
+              "atmosphere",
+              "bounds.reference_trim",
+              "day_length_h",
+              "float",
+              "make_uniform_field",
+              "np.array",
+              "str",
+              "surface.best_endurance_alpha_deg",
+              "vehicle.assert_mass_declared",
+              "vehicle.mass_budget",
+              "vehicle.total_mass_kg",
+              "vehicle.undeclared_element_names"
+            ],
+            "hardcoded": []
+          },
+          "build_turbine_free_flier": {
+            "reaches_solver": true,
+            "calls": [
+              "AeroSurface",
+              "BatteryElement",
+              "BodyState",
+              "EnvBundle",
+              "Thruster",
+              "ValidationError",
+              "Vehicle",
+              "WindTurbine",
+              "_Build",
+              "_naca_geometry",
+              "atmosphere",
+              "bounds.assert_below_betz",
+              "float",
+              "make_uniform_field",
+              "np.array",
+              "surface.trim_alpha_for_lift_N",
+              "turbine.axial_induction",
+              "turbine.mass_detail",
+              "turbine.reaction_drag_N",
+              "turbine.shaft_power_W",
+              "vehicle.assert_mass_declared",
+              "vehicle.total_mass_kg"
+            ],
+            "hardcoded": []
+          },
+          "reference_trim": {
+            "reaches_solver": true,
+            "calls": [
+              "ReferenceTrim",
+              "ReferenceTrimError",
+              "abs",
+              "aeropolar.best_endurance_point",
+              "aeropolar.wing_polar",
+              "float",
+              "getattr",
+              "int",
+              "math.sqrt",
+              "max",
+              "np.abs",
+              "np.arange",
+              "np.argmin",
+              "np.asarray",
+              "np.degrees",
+              "np.where",
+              "range",
+              "reynolds"
+            ],
+            "hardcoded": []
+          }
+        }
+      }
+    },
+    {
+      "name": "D_UniformWindTurbine",
+      "expect_closure": false,
+      "closed": false,
+      "passed": true,
+      "min_soc": 0.05,
+      "margin_ratio_usable": 0.3635839554670324,
+      "cl15_over_cd": null,
+      "mean_cruise_Re": null,
+      "detail": {
+        "wind_field": {
+          "type": "uniform",
+          "u_ms": 8.0,
+          "note": "one reference frame only -- extraction is forbidden"
+        },
+        "operating_point": {
+          "relative_airspeed_ms": 15.0,
+          "rho_kgm3": 1.1116589850558276,
+          "swept_area_m2": 0.5,
+          "altitude_m": 1000.0
+        },
+        "turbine": {
+          "cp": 0.4,
+          "eta_gen": 0.9,
+          "axial_induction": 0.13304868240402268,
+          "thrust_coefficient": 0.4613869220583047,
+          "shaft_power_W": 375.1849074563418,
+          "reaction_drag_N": 28.85090160900191,
+          "mass_kg": 0.3454929658551372,
+          "mass_detail": "0.798 m disk 0.0955 + 600 W generator 0.2500"
+        },
+        "mass_kg": {
+          "as_flown_total": 5.0,
+          "wing_structural": 0.9147680537069881,
+          "structure_remainder": 1.0768500915489856,
+          "derived_total": 5.0
+        },
+        "incidence_deg": 4.392475555621786,
+        "extra_CD0": 0.01,
+        "efficiencies": {
+          "cp": 0.4,
+          "eta_gen": 0.9,
+          "eta_charge": 0.95,
+          "eta_discharge": 0.95,
+          "eta_motor": 0.85,
+          "eta_esc": 0.95,
+          "eta_prop_profile": 0.85
+        },
+        "wall_clock_s": 0.5010083999950439,
+        "shipped_elements": {
+          "elements": [
+            {
+              "class": "AeroSurface",
+              "module": "aerosim.vehicle.aerosurface",
+              "shipped": true
+            },
+            {
+              "class": "WindTurbine",
+              "module": "aerosim.vehicle.turbine",
+              "shipped": true
+            },
+            {
+              "class": "Thruster",
+              "module": "aerosim.vehicle.thruster",
+              "shipped": true
+            },
+            {
+              "class": "BatteryElement",
+              "module": "aerosim.vehicle.energy",
+              "shipped": true
+            }
+          ],
+          "all_shipped": true,
+          "allowance_granted": [],
+          "allowance_used": [],
+          "shipped_catalogue": [
+            "AeroSurface",
+            "BatteryElement",
+            "BodyState",
+            "Bounds",
+            "BuoyancyVolume",
+            "ElementForce",
+            "ExplicitWingMassWarning",
+            "FixedMassOverrideWarning",
+            "ForceElement",
+            "MassBudget",
+            "MassClosureError",
+            "MassContribution",
+            "NoValidAeroPointError",
+            "PVArray",
+            "PairForceElement",
+            "ParamBoundsError",
+            "PayloadLoad",
+            "TechCatalogueError",
+            "Tether",
+            "Thruster",
+            "UndeclaredMassError",
+            "UndeclaredMassWarning",
+            "Vehicle",
+            "WindTurbine",
+            "WingGeometry"
+          ]
+        },
+        "per_element_Wh_diagnostic": {
+          "AeroSurface[0]": 0.0,
+          "WindTurbine[1]": 8103.993928642921,
+          "Thruster[2]": -22289.352405555223,
+          "BatteryElement[3]": 0.0
+        },
+        "ratios": {
+          "vehicle_usable": 0.3635839554670324,
+          "vehicle_gross": 0.3635839554670324,
+          "turbine_only_bus_to_bus": 0.3990697790184606,
+          "conversion_chain_only_no_drag_penalty": 0.5868506249999998,
+          "powerplant_round_trip_canonical": 0.22093200000000002,
+          "powerplant_round_trip_this_vehicle_chain": 0.23474024999999998,
+          "note": "the specified 0.2209 bills the FULL kinetic flux (implicit ct = 1.0); the shipped WindTurbine bills the momentum-theory reaction ct = 0.4619, which is why the measured ratios are higher. Every one is far below 1.0."
+        },
+        "free_energy_guard": "pass",
+        "drifting_with_the_air_power_W": 0.0,
+        "bands": {
+          "closed": false,
+          "vehicle_usable<": 1.0,
+          "turbine_only<": 1.0
+        },
+        "checks": [
+          {
+            "label": "closed is False",
+            "ok": true,
+            "actual": "closed=False, reasons=[\"no sustainable periodic state exists: the window's net stored-energy change is negative, so the pack loses ground every cycle whatever it is seeded with\", 'limit-cycle floor 0.0500 does not clear soc_min 0.0500', '14185.2 Wh of demand went unserved on the limit cycle']"
+          },
+          {
+            "label": "vehicle USABLE margin < 1.0 (net loss)",
+            "ok": true,
+            "actual": "vehicle 0.3636"
+          },
+          {
+            "label": "turbine-only round trip < 1.0",
+            "ok": true,
+            "actual": "0.3991 = 337.67 W generated / 846.13 W to cancel its own 28.851 N of reaction drag"
+          },
+          {
+            "label": "the vehicle ratio is strictly below the conversion chain alone",
+            "ok": true,
+            "actual": "0.3636 < 0.5869; the difference is the momentum-theory drag penalty"
+          },
+          {
+            "label": "powerplant.round_trip_efficiency() on its canonical chain is the specified 0.220932",
+            "ok": true,
+            "actual": "canonical 0.220932; this vehicle's own chain (eta_prop 0.85) gives 0.234740"
+          },
+          {
+            "label": "every round-trip basis is below 1.0",
+            "ok": true,
+            "actual": "canonical 0.2209, vehicle chain 0.2347, turbine-only 0.3991, vehicle 0.3636"
+          },
+          {
+            "label": "drifting with the air produces EXACTLY zero",
+            "ok": true,
+            "actual": "0.000e+00 W"
+          },
+          {
+            "label": "assert_no_free_energy over 60 trajectories",
+            "ok": true,
+            "actual": "pass (19.5 s)"
+          },
+          {
+            "label": "cp respects the Betz limit",
+            "ok": true,
+            "actual": "cp 0.4000 <= 16/27 = 0.5926"
+          }
+        ],
+        "energy": {
+          "energy_in_gross_J": 29174378.143114515,
+          "energy_in_usable_J": 29174378.143114515,
+          "energy_out_J": 80241104.43938407,
+          "unabsorbed_surplus_J": 0.0,
+          "unabsorbed_shortfall_J": 51066726.29627041,
+          "energy_in_gross_Wh": 8103.993928642921,
+          "energy_in_usable_Wh": 8103.993928642921,
+          "energy_out_Wh": 22289.195677606687,
+          "spilled_Wh": 0.0,
+          "unserved_Wh": 14185.201748964002,
+          "spilled_fraction_of_gross": 0.0,
+          "margin_ratio_gross": 0.3635839554670324,
+          "margin_ratio_usable": 0.3635839554670324
+        },
+        "closure": {
+          "mode": "limit-cycle",
+          "reasons": [
+            "no sustainable periodic state exists: the window's net stored-energy change is negative, so the pack loses ground every cycle whatever it is seeded with",
+            "limit-cycle floor 0.0500 does not clear soc_min 0.0500",
+            "14185.2 Wh of demand went unserved on the limit cycle"
+          ],
+          "limit_cycle_soc0": 0.05,
+          "limit_cycle_sustainable": false,
+          "min_soc_as_seeded": 0.05,
+          "max_unmet_thrust_N": 0.0,
+          "max_excess_thrust_N": 0.0,
+          "max_gen_violation_W": 0.0
+        },
+        "lift_provenance": {
+          "build_solar_cruise": {
+            "reaches_solver": true,
+            "calls": [
+              "AeroSurface",
+              "BatteryElement",
+              "BodyState",
+              "EnvBundle",
+              "PVArray",
+              "PayloadLoad",
+              "Thruster",
+              "ValidationError",
+              "Vehicle",
+              "_Build",
+              "_naca_geometry",
+              "_sanitize",
+              "_sunset_utc_hour",
+              "atmosphere",
+              "bounds.reference_trim",
+              "day_length_h",
+              "float",
+              "make_uniform_field",
+              "np.array",
+              "str",
+              "surface.best_endurance_alpha_deg",
+              "vehicle.assert_mass_declared",
+              "vehicle.mass_budget",
+              "vehicle.total_mass_kg",
+              "vehicle.undeclared_element_names"
+            ],
+            "hardcoded": []
+          },
+          "build_turbine_free_flier": {
+            "reaches_solver": true,
+            "calls": [
+              "AeroSurface",
+              "BatteryElement",
+              "BodyState",
+              "EnvBundle",
+              "Thruster",
+              "ValidationError",
+              "Vehicle",
+              "WindTurbine",
+              "_Build",
+              "_naca_geometry",
+              "atmosphere",
+              "bounds.assert_below_betz",
+              "float",
+              "make_uniform_field",
+              "np.array",
+              "surface.trim_alpha_for_lift_N",
+              "turbine.axial_induction",
+              "turbine.mass_detail",
+              "turbine.reaction_drag_N",
+              "turbine.shaft_power_W",
+              "vehicle.assert_mass_declared",
+              "vehicle.total_mass_kg"
+            ],
+            "hardcoded": []
+          },
+          "reference_trim": {
+            "reaches_solver": true,
+            "calls": [
+              "ReferenceTrim",
+              "ReferenceTrimError",
+              "abs",
+              "aeropolar.best_endurance_point",
+              "aeropolar.wing_polar",
+              "float",
+              "getattr",
+              "int",
+              "math.sqrt",
+              "max",
+              "np.abs",
+              "np.arange",
+              "np.argmin",
+              "np.asarray",
+              "np.degrees",
+              "np.where",
+              "range",
+              "reynolds"
+            ],
+            "hardcoded": []
+          }
+        }
+      }
+    },
+    {
+      "name": "E_MagicGenerator",
+      "expect_closure": false,
+      "closed": false,
+      "passed": true,
+      "min_soc": "nan",
+      "margin_ratio_usable": "nan",
+      "cl15_over_cd": null,
+      "mean_cruise_Re": null,
+      "detail": {
+        "design": {
+          "name": "A_AtlantikSolar",
+          "span_m": 5.65,
+          "area_m2": 1.72,
+          "taper_ratio": 0.7,
+          "twist_root_deg": 2.0,
+          "twist_tip_deg": 0.0,
+          "extra_CD0": 0.006,
+          "mass_all_up_kg": 6.93,
+          "battery_mass_kg": 2.91701244813278,
+          "pack_Wh_per_kg": 241.0,
+          "pv_efficiency": 0.237,
+          "pv_packing": 0.802,
+          "pv_areal_density_kg_m2": 0.72,
+          "payload_W": 5.8,
+          "payload_mass_kg": 0.15,
+          "prop_diameter_m": 0.36,
+          "n_rotors": 1,
+          "prop_max_electrical_W": 150.0,
+          "altitude_m": 500.0,
+          "latitude_deg": 47.6,
+          "longitude_deg": 8.5,
+          "day_of_year": 195
+        },
+        "scales": {
+          "pv_efficiency": 1.0,
+          "pack_specific_energy": 1.0,
+          "extra_CD0": 1.0,
+          "soc_max": 1.0,
+          "eta_charge": 0.95,
+          "thruster_figure_of_merit": null
+        },
+        "pv_packing_effective": 0.802,
+        "extra_CD0_effective": 0.006,
+        "incidence_deg": 6.5,
+        "battery_capacity_Wh": 703.0,
+        "mass_kg": {
+          "as_flown_total": 6.93,
+          "wing_structural": 2.292647551867219,
+          "fuselage_boom_tail_remainder": 0.25,
+          "structure_fraction": 0.3669044086388484,
+          "battery": 2.91701244813278,
+          "pv_array": 1.2384,
+          "propulsion": 0.08194,
+          "payload": 0.15,
+          "declared_elements": 6.68,
+          "battery_fraction": 0.42092531719087733,
+          "derived_total": 6.929999999999999
+        },
+        "mass_budget": "MassBudget(structure_mass_kg=array([0.25]), contributions=[MassContribution(element_name='AeroSurface', body_index=0, mass_kg=2.292647551867219, detail='b=5.65 m, S=1.72 m2, AR=18.6, n=3 (Stender/AS-2-calibrated model)'), MassContribution(element_name='Thruster', body_index=0, mass_kg=0.08194, detail='150 W drive 0.0625 + 1 x 0.360 m rotor 0.0194'), MassContribution(element_name='PVArray', body_index=0, mass_kg=1.2384, detail='1.720 m2 x 0.720 kg/m2'), MassContribution(element_name='PayloadLoad', body_index=0, mass_kg=0.15, detail='avionics+payload, 5.8 W draw, 0.150 kg'), MassContribution(element_name='BatteryElement', body_index=0, mass_kg=2.91701244813278, detail='703.0 Wh / 241.0 Wh/kg (pack)')], undeclared_element_names=[])",
+        "undeclared_mass_elements": [],
+        "atmosphere": {
+          "rho_kgm3": 1.1672725123243854,
+          "T_K": 284.9002556130261,
+          "mu_Pas": 1.773657203776756e-05
+        },
+        "day_length_h": 15.63891325774359,
+        "site": {
+          "lat_deg": 47.6,
+          "lon_deg": 8.5,
+          "day_of_year": 195,
+          "altitude_m": 500.0
+        },
+        "aspect_ratio": 18.559593023255815,
+        "eta_chain_cruise": 0.6863749999999998,
+        "adversary": {
+          "class": "_MagicGenerator",
+          "power_W": 1000.0,
+          "force_N": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "why_private": "it is the attack, not a stand-in: a SHIPPED magic generator would itself be the bug"
+        },
+        "wall_clock_s": 0.18513210001401603,
+        "shipped_elements": {
+          "elements": [
+            {
+              "class": "AeroSurface",
+              "module": "aerosim.vehicle.aerosurface",
+              "shipped": true
+            },
+            {
+              "class": "Thruster",
+              "module": "aerosim.vehicle.thruster",
+              "shipped": true
+            },
+            {
+              "class": "PVArray",
+              "module": "aerosim.vehicle.energy",
+              "shipped": true
+            },
+            {
+              "class": "PayloadLoad",
+              "module": "aerosim.vehicle.energy",
+              "shipped": true
+            },
+            {
+              "class": "BatteryElement",
+              "module": "aerosim.vehicle.energy",
+              "shipped": true
+            },
+            {
+              "class": "_MagicGenerator",
+              "module": "aerosim.validate_designs",
+              "shipped": false
+            }
+          ],
+          "all_shipped": false,
+          "allowance_granted": [
+            "_MagicGenerator"
+          ],
+          "allowance_used": [
+            "_MagicGenerator"
+          ],
+          "shipped_catalogue": [
+            "AeroSurface",
+            "BatteryElement",
+            "BodyState",
+            "Bounds",
+            "BuoyancyVolume",
+            "ElementForce",
+            "ExplicitWingMassWarning",
+            "FixedMassOverrideWarning",
+            "ForceElement",
+            "MassBudget",
+            "MassClosureError",
+            "MassContribution",
+            "NoValidAeroPointError",
+            "PVArray",
+            "PairForceElement",
+            "ParamBoundsError",
+            "PayloadLoad",
+            "TechCatalogueError",
+            "Tether",
+            "Thruster",
+            "UndeclaredMassError",
+            "UndeclaredMassWarning",
+            "Vehicle",
+            "WindTurbine",
+            "WingGeometry"
+          ]
+        },
+        "environment": {
+          "wind": "uniform (0,0,0) -- STILL AIR",
+          "utc_hour_at_t0_h": -0.5666666666666667,
+          "note": "local midnight, so no solar power can mask the manufactured watts"
+        },
+        "outcome": "raised",
+        "exception": "FreeEnergyError: FREE ENERGY DETECTED in integrate_energy at t = 0.0 s: an element reported 1000 W MORE electrical generation than the mechanical power its own reaction force removed from the flow (tolerance 6.93e-06 W). See _GENERATION_REACTION_RULE. The usual cause is a turbine or generator element whose momentum-theory reaction drag is missing, zero, or reversed.",
+        "checks": [
+          {
+            "label": "integrate_energy rejects the magic generator",
+            "ok": true,
+            "actual": "FreeEnergyError raised: FREE ENERGY DETECTED in integrate_energy at t = 0.0 s: an element reported 1000 W MORE electrical generation than the mechanical power its own reactio"
+          },
+          {
+            "label": "it is a FreeEnergyError, not an incidental failure",
+            "ok": true,
+            "actual": "FreeEnergyError"
+          },
+          {
+            "label": "rejection fires at the FIRST evaluation (t_s = 0), not on a clock",
+            "ok": true,
+            "actual": "FreeEnergyError.t_s = 0.0 s from 'integrate_energy' (wall 185.1 ms, informational)"
+          }
+        ],
+        "lift_provenance": {
+          "build_solar_cruise": {
+            "reaches_solver": true,
+            "calls": [
+              "AeroSurface",
+              "BatteryElement",
+              "BodyState",
+              "EnvBundle",
+              "PVArray",
+              "PayloadLoad",
+              "Thruster",
+              "ValidationError",
+              "Vehicle",
+              "_Build",
+              "_naca_geometry",
+              "_sanitize",
+              "_sunset_utc_hour",
+              "atmosphere",
+              "bounds.reference_trim",
+              "day_length_h",
+              "float",
+              "make_uniform_field",
+              "np.array",
+              "str",
+              "surface.best_endurance_alpha_deg",
+              "vehicle.assert_mass_declared",
+              "vehicle.mass_budget",
+              "vehicle.total_mass_kg",
+              "vehicle.undeclared_element_names"
+            ],
+            "hardcoded": []
+          },
+          "build_turbine_free_flier": {
+            "reaches_solver": true,
+            "calls": [
+              "AeroSurface",
+              "BatteryElement",
+              "BodyState",
+              "EnvBundle",
+              "Thruster",
+              "ValidationError",
+              "Vehicle",
+              "WindTurbine",
+              "_Build",
+              "_naca_geometry",
+              "atmosphere",
+              "bounds.assert_below_betz",
+              "float",
+              "make_uniform_field",
+              "np.array",
+              "surface.trim_alpha_for_lift_N",
+              "turbine.axial_induction",
+              "turbine.mass_detail",
+              "turbine.reaction_drag_N",
+              "turbine.shaft_power_W",
+              "vehicle.assert_mass_declared",
+              "vehicle.total_mass_kg"
+            ],
+            "hardcoded": []
+          },
+          "reference_trim": {
+            "reaches_solver": true,
+            "calls": [
+              "ReferenceTrim",
+              "ReferenceTrimError",
+              "abs",
+              "aeropolar.best_endurance_point",
+              "aeropolar.wing_polar",
+              "float",
+              "getattr",
+              "int",
+              "math.sqrt",
+              "max",
+              "np.abs",
+              "np.arange",
+              "np.argmin",
+              "np.asarray",
+              "np.degrees",
+              "np.where",
+              "range",
+              "reynolds"
+            ],
+            "hardcoded": []
+          }
+        }
+      }
+    }
+  ]
+}

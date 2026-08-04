@@ -1,0 +1,91 @@
+{
+ "hull.stl": {
+  "triangles": 2976,
+  "degenerate_faces": 0,
+  "edges_on_1_tri": 0,
+  "edges_on_2_tris": 4464,
+  "edges_on_3plus": 0,
+  "manifold": true,
+  "bbox_mm": [
+   [
+    0.0,
+    -477.65,
+    -477.65
+   ],
+   [
+    2865.87,
+    477.65,
+    477.65
+   ]
+  ],
+  "size_mm": [
+   2865.87,
+   955.29,
+   955.29
+  ],
+  "mesh_volume_m3": 1.3622,
+  "design_volume_m3": 1.3694,
+  "volume_deficit_pct": 0.53,
+  "expected_len_dia_mm": [
+   2865.9,
+   955.3
+  ]
+ },
+ "vehicle_full.stl": {
+  "triangles": 4176,
+  "bbox_mm": [
+   [
+    0.0,
+    -1250.0,
+    -647.65
+   ],
+   [
+    2865.87,
+    1250.0,
+    477.65
+   ]
+  ],
+  "size_mm": [
+   2865.87,
+   2500.0,
+   1125.29
+  ],
+  "bodies": {
+   "hull": {
+    "triangles": 2976,
+    "manifold": true
+   },
+   "wing_right": {
+    "triangles": 576,
+    "manifold": true
+   },
+   "wing_left": {
+    "triangles": 576,
+    "manifold": true
+   },
+   "pod": {
+    "triangles": 12,
+    "manifold": true
+   },
+   "strap_fwd": {
+    "triangles": 12,
+    "manifold": true
+   },
+   "strap_aft": {
+    "triangles": 12,
+    "manifold": true
+   },
+   "boom": {
+    "triangles": 12,
+    "manifold": true
+   }
+  },
+  "note": "multi-body STL: each body is closed/manifold on its own; bodies interpenetrate at the saddle (no boolean union) -- 'watertight-ish' as specified",
+  "expected_mm": {
+   "length": 2865.9,
+   "span": 2500.0,
+   "wing_LE_x": 1370.54,
+   "pod_z": -627.65
+  }
+ }
+}

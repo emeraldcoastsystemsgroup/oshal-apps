@@ -1029,6 +1029,26 @@
       },
       "audit": "pending",
       "status": "ready"
+    },
+    {
+      "name": "aero-lab",
+      "suite": "ai-engineering",
+      "displayName": "Aero Lab",
+      "description": "Persistent-flight design lab - shape a solar-endurance aircraft (span, area, aspect ratio, battery, cells, buoyancy fraction, site, season), run it through the validated aerosim engine (wing polar, 24 h energy limit cycle, admissibility screen), read the verdict with real plots (SOC trace, polar, drag buildup, margins), and download the build package (STL / DXF / BOM). The Python engine is bundled and feature-detected; a box without the engine venv reports honestly as unavailable rather than returning numbers.",
+      "version": "1.0.0",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "aero-lab",
+        "ref": "main"
+      },
+      "audit": "pending",
+      "status": "ready"
     }
   ]
 }

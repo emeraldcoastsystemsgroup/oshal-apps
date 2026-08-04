@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>The Floater &mdash; engineering report</title>
+<style>
+ @page { size: letter; margin: 14mm 13mm 13mm 13mm; }
+ html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+ body { font-family: "Segoe UI", Arial, Helvetica, sans-serif; color:#141414;
+        font-size: 9.6pt; line-height: 1.30; margin: 0 auto; max-width: 190mm; }
+ h1 { font-size: 16pt; margin: 0 0 2px 0; letter-spacing:-0.2px; }
+ h2 { font-size: 12pt; margin: 14px 0 5px 0; padding-bottom: 3px;
+      border-bottom: 1.6px solid #0a58a3; color:#0a3d6e; }
+ h3 { font-size: 10.1pt; margin: 10px 0 3px 0; color:#0a3d6e; }
+ p  { margin: 4px 0; }
+ .sub { color:#555; font-size: 8.8pt; margin: 0 0 8px 0; }
+ table { border-collapse: collapse; width: 100%; font-size: 8.2pt; margin: 5px 0 7px 0; }
+ th, td { border: 0.7px solid #bbb; padding: 3px 5px; text-align: left; vertical-align: top; }
+ th { background: #eaf1f8; font-weight: 600; }
+ td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+ tr.tot td { background:#f4f7fa; font-weight:600; }
+ tr.grp td { background:#e8edf2; font-weight:600; font-size:8.4pt; letter-spacing:.4px; }
+ .k { font-family: Consolas, "Courier New", monospace; font-size: 9.2pt; }
+ .box { border:1px solid #c9c9c9; border-left:4px solid #0a58a3; background:#f7f9fb;
+        padding: 7px 11px; margin: 8px 0; }
+ .red { border-left-color:#b00020; background:#fdf5f6; }
+ .amber { border-left-color:#c08000; background:#fffaf0; }
+ .eq { font-family: Consolas, "Courier New", monospace; font-size: 9.1pt;
+       background:#f4f6f8; border:0.7px solid #d8dde2; padding: 5px 8px; margin: 4px 0;
+       white-space: pre-wrap; }
+ ul, ol { margin: 4px 0 6px 0; padding-left: 20px; }
+ li { margin: 2px 0; }
+ .pb { page-break-before: always; }
+ .nb { page-break-inside: avoid; }
+ svg { max-width: 100%; max-height: 175mm; height: auto; display:block; }
+ .eq { line-height: 1.25; }
+ figcaption { font-size: 8.6pt; color:#555; margin-top: 4px; }
+ .hd { display:flex; justify-content:space-between; align-items:baseline;
+       border-bottom:2.5px solid #0a58a3; padding-bottom:6px; margin-bottom:10px; }
+ .flag { color:#b00020; font-weight:600; }
+ .ok { color:#1b5e20; font-weight:600; }
+ footer { margin-top:14px; border-top:1px solid #ccc; padding-top:6px;
+          font-size:8.4pt; color:#666; }
+</style></head><body>
+
+<div class="hd">
+  <div>
+    <h1>The Floater &mdash; engineering report</h1>
+    <div class="sub">f = 0.80 solar dynastat. As-built configuration, sealed and cargo variants,
+    derivation chain, bill of materials, open items.</div>
+  </div>
+  <div class="sub" style="text-align:right;white-space:nowrap">
+    2026-08-03<br>site A: 47.6&deg;N, 500 m<br>d195 solstice / d80 equinox
+  </div>
+</div>
+
+<!-- ================================================================= 1 -->
+<h2>1. Summary</h2>
+
+<p><b>What it is.</b> A helium-filled centre hull carrying 80% of the aircraft's weight, flanked by
+twin solar wings that fly the remaining 20% and a battery that carries the night. One 100 W-class
+electric thruster. There is no fuel and no engine noise beyond a 12-inch prop turning at cruise
+power; on a clear day the aircraft harvests more than it spends and the pack ends the day where it
+started. That is the whole design intent: <b>perpetual on sunlight, near-silent, and buildable from
+parts you can order today.</b></p>
+
+<div class="box">
+<p style="margin:0"><b>Headline.</b> The as-built aircraft &mdash; the one <span class="k">BOM_v2.csv</span>
+actually buys &mdash; <b>closes its 24 h energy loop at day 195 on a 98.0 Wh pack</b>, at
+<b>2272.4 g</b> all-up, on a <b>2991.4 &times; 997.1 mm (117.8 &times; 39.3 in) LLDPE hull of
+1.557 m&sup3;</b>. The parts cost <b>$518.11</b> plus gas (<b>$738.11</b> all-in on party-tank
+helium, <b>$581.10</b> on hydrogen with a budget electrolyzer). The pack actually on the BOM
+(pack A, 80.6 Wh) <b>misses by 11.6 Wh</b>; two more Molicel P28A cells, <b>$19.90</b>, clear it.</p>
+</div>
+
+<p><b>What is certified and what is not.</b> Every number in this report is an <i>ideal-chain</i>
+or <i>piecewise-path</i> result: the flight-physics engine's real-drive chain (BEMT propulsion +
+buoyant trim at real tolerances) <b>is red</b>. Five defects are open (STATUS &sect;5): the BEMT
+certification envelope refuses the lightly-loaded prop at the top of the trim bracket; buoyant trim
+cannot converge because the solver's tolerance is set against <i>gross</i> weight while the wing
+only controls the (1&minus;f) residual; the aero polar refuses at the 4.4&ndash;4.5 m/s buoyant trim
+speed; pack thermal is never stepped; and four verification anchors were never evaluated. <b>None of
+those defects is an energy, chemistry, materials or mission finding</b> &mdash; flipping one line
+back to the ideal drive reproduces the pre-upgrade gate bit-identically, which isolates the whole
+regression to the drive and its certification envelopes. So: <b>the mass ledger, the hull sizing,
+the harvest and the 24 h closure are the numbers to trust; the propulsion and trim results await a
+re-certification on the real chain.</b> Engine work is ongoing.</p>
+
+<p><b>What to build.</b> Config 2, the as-built LLDPE aircraft, with a 10-cell (100.8 Wh) pack.
+It is the only configuration in the study that is both fully sourced <i>and</i> closes. Everything
+else &mdash; sealing for six months, tilt-thrust, cargo &mdash; is an upgrade to this same airframe,
+and each one has a live blocker: the 6-month barrier film has no small-lot vendor, the 6-month seal
+margin is &minus;1.8 Pa at day 180, and a 10 lb loiterer is a different aircraft (f &asymp; 0.95,
+8.2 m&sup3;), not a stretch of this one.</p>
+
+<p><b>The one part nobody has designed</b> is the vent / ballonet. It gates any sealed build and it
+is not in any result file. Until it exists, fly the hull unsealed, on short supervised
+line-of-sight windows, and never leave it sealed on the ground in daylight.</p>
+
+<!-- ================================================================= 2 -->
+<h2>2. Top designs</h2>
+
+<p class="sub">Numbers are the corrected as-built run
+(<span class="k">V2_10_asbuilt.out</span> / <span class="k">_result.json</span>) and STATUS &sect;2.
+<b>The earlier <span class="k">V2_02_asbuilt</span> run is contaminated and its output is retracted</b>
+&mdash; it silently inherited sealed-laminate film defaults (0.797 kg of film on a 1.99 m&sup3; hull,
+~45 g/m&sup2;) while <span class="k">BOM_v2.csv</span> actually buys 38 &micro;m LLDPE at
+~35 g/m&sup2;. Its headline &mdash; 4.016 kg all-up, 3.62 &times; 1.21 m hull, 234.6 Wh minimum pack
+&mdash; is wrong by construction. Do not use it.</p>
+
+<table class="nb">
+<tr>
+  <th style="width:15%"></th>
+  <th style="width:23%">A &mdash; AS-BUILT<br><span style="font-weight:400">build this first</span></th>
+  <th style="width:22%">B &mdash; SEALED 6-MONTH</th>
+  <th style="width:19%">C &mdash; 1 LB DELIVERY</th>
+  <th style="width:21%">D &mdash; 10 LB CARGO</th>
+</tr>
+<tr><td><b>Hull</b></td>
+  <td>2991.4 &times; 997.1 mm<br>(117.8 &times; 39.3 in), 1.557 m&sup3;</td>
+  <td>3568.2 &times; 1189.4 mm<br>(140.5 &times; 46.8 in), 2.643 m&sup3;</td>
+  <td>unchanged as-built hull</td>
+  <td>5214.6 &times; 1738.2 mm, 8.249 m&sup3; (loiter, f&nbsp;=&nbsp;0.95)</td></tr>
+<tr><td><b>Film</b></td><td>38 &micro;m LLDPE</td><td>45 g/m&sup2; PET12/PE30 laminate</td>
+  <td>38 &micro;m LLDPE</td><td>45 g/m&sup2; laminate</td></tr>
+<tr><td><b>Wing</b></td><td>2.5 m / 0.52 m&sup2; / AR 12 / 21 cells</td>
+  <td>3.5 m / 1.019 m&sup2; / 41 cells</td><td>2.5 m / 21 cells</td><td>3.5 m / 41 cells</td></tr>
+<tr><td><b>All-up</b></td><td class="ok">2272.4 g</td><td>3857 g</td>
+  <td>2272 g + 454 g package</td><td>10.575 kg incl. 4.536 kg package</td></tr>
+<tr><td><b>Pack, d195</b></td><td>98.0 Wh min<br>(pack A 80.6 Wh misses by 11.6 Wh)</td>
+  <td>122.4 Wh</td><td>&mdash; daylight only</td><td>165.2 Wh at f = 0.95</td></tr>
+<tr><td><b>Pack, d80</b></td><td>180.3 Wh</td><td>203.5 Wh</td><td>&mdash;</td><td>not run</td></tr>
+<tr><td><b>24 h loop</b></td><td class="ok">closes at 98 Wh</td>
+  <td class="ok">closes BOTH days</td>
+  <td class="flag">does not close with the package aboard</td>
+  <td class="flag">no pack closes at f = 0.80</td></tr>
+<tr><td><b>Buildable<br>today</b></td><td class="ok">yes &mdash; every part sourced</td>
+  <td class="flag">no &mdash; film is a spec, not a part</td><td class="ok">yes</td>
+  <td class="flag">no &mdash; different airframe</td></tr>
+<tr><td><b>Cost</b></td><td>$518.11 core + gas<br>(+$19.90 for the closing pack)</td>
+  <td>+$91 solar, film quote-only</td><td>as A</td><td>not costed</td></tr>
+</table>
+
+<h3>A &mdash; AS-BUILT FLOATER (build this first)</h3>
+<p>The aircraft <span class="k">BOM_v2.csv</span> buys, at real measured part masses, with the hull
+re-sized to hold f = 0.80. Hull <b>2991.4 &times; 997.1 mm = 117.8 &times; 39.3 in</b> (9 ft 9.8 in
+long), <b>1.557 m&sup3;</b>, 7.68 m&sup2; of skin, 38 &micro;m LLDPE. Wings 2.5 m span / 0.52 m&sup2;
+/ AR 12, twin, flanking the hull. All-up <b>2272.4 g</b>, trim 4.00 m/s, total load 9.18 W
+(prop 6.43 + payload 2.76); harvest 615.9 Wh/day at d195, 391.6 Wh/day at d80.</p>
+<p><b>Where the +274 g came from &mdash; the honest core of this report.</b> Against the v1 certified
+ledger: the real DIY pack lands at <b>197 Wh/kg, not the certified 250</b> (<b>+92 g</b>); the real
+thruster group &mdash; motor + ESC + prop &mdash; is <b>120 g, not the certified 55.2 g</b>
+(<b>+65 g</b>); and the certified ledger carried <b>no MPPT at all</b>, where the Genasun GV-5 is
+<b>+57 g</b>. That is +214 g of parts. The remaining <b>~60 g is the hull growing to lift them</b>
+&mdash; a bigger envelope needs more film and more gas, which needs more envelope, and the fixed
+point converges at 2272.4 g. It is also 5 inches longer and 1.6 inches fatter than the design
+already drawn (+125.6 mm length, +41.9 mm diameter, +0.188 m&sup3;, +0.20 m/s trim, +1.32 W load).</p>
+<p><b>Closure.</b> Real <b>pack A (80.6 Wh, 8 &times; P28A, 410 g) does not close</b> &mdash; it goes
+through the 0.05 SOC floor with <b>11.6 Wh unserved</b> at d195 and is 42.1 Wh short at d80. The
+<b>minimum closing pack is 98.0 Wh</b> (0.497 kg, all-up 2385 g, hull grows to
+3040.0 &times; 1013.3 mm = 119.7 &times; 39.9 in, 1.634 m&sup3;). <b>Pack B (121.0 Wh, 605 g) closes
+d195 outright, zero unserved, SOC floor 0.164</b> &mdash; all-up 2523.8 g, hull
+3097.9 &times; 1032.6 mm = 122.0 &times; 40.7 in, 1.730 m&sup3;, trim 4.12 m/s, load 10.40 W &mdash;
+but it is still 21.3 Wh short at equinox, which needs <b>180.3 Wh</b> (2919 g, 3251.9 &times;
+1084.0 mm). <b>The fix is two more P28A cells</b> &mdash; 2S5P, 10 cells, 100.8 Wh, ~512 g,
+<b>+$19.90</b> &mdash; which clears the 98.0 Wh minimum with <b>2.8 Wh to spare</b>. It is the
+cheapest gap in the entire study.</p>
+<p><b>One caution.</b> Pack B dropped into the pack-A hull does <i>not</i> work: f falls to 0.735,
+trim rises to 4.70 m/s and the loop opens. <b>Size the hull for the pack you will actually fly.</b></p>
+
+<h3>B &mdash; SEALED 6-MONTH</h3>
+<p>Six months without a refill costs <b>+70% all-up mass and a metre more wingspan</b>: 3857 g,
+3.5 m / 41 cells, hull 3568.2 &times; 1189.4 mm (2.643 m&sup3;), 471 g of helium. It closes
+<b>both</b> days &mdash; 122.4 Wh at d195, 203.5 Wh at d80 &mdash; and it is the only configuration in
+the study that does. Three conditions attach to that result.</p>
+<ul>
+<li><b>It needs the 45 g/m&sup2; film, and the wing cannot substitute.</b> A span sweep 2.5 &rarr;
+5.0 m bottoms the pack-B shortfall at b = 3.5 m (18.6 Wh) and then it <i>rises</i> again &mdash; past
+3.5 m the added night load outruns the added daylight. Changing the film spec from the assumed
+70 g/m&sup2; to the sourced 45 g/m&sup2; is worth <b>110 Wh of pack and 1.17 kg of aircraft</b> by
+itself. The film was the constraint, not the wing.</li>
+<li><b>That film has no small-lot vendor</b> (flag H2). IMPAK, Sorbent Systems, Caltex and Goodfellow
+all quote-only; Alibaba mills want 500&ndash;2000 m&sup2;. The one purchasable substitute, CS Hyde
+25.4 &micro;m metallized PET at $7.83/m&sup2;, <b>has no sealant layer</b> &mdash; seams must be taped,
+not heat-sealed. This configuration's headline rests on a film you cannot currently buy in the right
+form.</li>
+<li><b>The seal margin is zero</b> (flag H3). At 100 cm&sup3;/m&sup2;/day/atm the hull loses 7.67% of
+its gas in 180 days and reaches <b>&minus;1.8 Pa</b> superpressure on a cold night at day 180 &mdash;
+slack exactly at the six-month mark. <b>Carry +15% gas, not +10%.</b></li>
+</ul>
+
+<h3>C &mdash; 1 LB DELIVERY</h3>
+<p>The unchanged as-built hull with a 0.454 kg package added; the hull is <i>not</i> re-sized, so f
+falls to 0.642 on the 98 Wh pack. <b>Lift is never the problem</b> &mdash; it trims and flies at
+<b>cruise 5.94 m/s</b> drawing 16&ndash;21 W of propulsive power against a 100 W drive, roughly 20% of
+installed thrust. <b>Dash is 12 m/s</b>, the fastest point inside the 100 W rating. A
+<b>16.1 km (10 mi) leg</b> takes 0.75 h at cruise on 16.2 Wh, or 0.37 h at dash on 38.0 Wh; a round
+trip at cruise is 32.4 Wh against 88.4 Wh of usable pack, so both legs fly on one charge with no sun.
+Daylight at d195 is 15.07 h and harvest is 615.9 Wh/day, giving 19.0 energy-limited trips against
+10.0 time-limited ones &mdash; <b>the binding answer is 10 round trips per day, 322 km of delivery
+flying</b>.</p>
+<p><b>The night loop does not close with the package aboard</b> &mdash; 119.6 Wh short at d195 on the
+98 Wh pack. Carrying a pound overnight costs about 12 W of extra cruise power, more than this
+airframe's night budget. <b>This is a daytime shuttle, not a persistent loiterer</b>: it must drop or
+land before sunset. Below 6 m/s the polar has no valid row at the required CL and the model refuses
+rather than extrapolating &mdash; those rows are printed as refusals.</p>
+<p><b>No drop problem at 1 lb.</b> Gross lift is 1.818 kg against 2.378 kg of remaining weight, so
+releasing the package leaves the aircraft 0.560 kg heavier than air. It does not rise; it simply
+flies more easily as the wing reverts to the 1.014 kg residual it was already carrying.</p>
+
+<h3>D &mdash; 10 LB CARGO</h3>
+<p><b>It does not loiter at f = 0.80.</b> With the package aboard the hull re-sizes to
+4949.1 &times; 1649.7 mm (7.052 m&sup3;, 21.02 m&sup2; of skin, 1312 g of helium), all-up 10.736 kg,
+cruise 8.46 m/s, load 122.58 W. The 24 h budget is <b>2942 Wh required against 600 Wh harvested</b>
+&mdash; a factor of five, not a marginal miss, and there is <b>no closing pack at any size</b>.
+Growing the wing to 3.5 m helps the trim a lot (8.46 &rarr; 6.44 m/s, 122.58 &rarr; 71.68 W) and
+still does not close. f is the wrong knob: it leaves the wing flying 2.32 kg of residual on
+1.02 m&sup2;, a wing loading the planform can only meet by flying fast, and drag goes as V&sup2;.</p>
+<p><b>It loiters perpetually at f &asymp; 0.95</b> &mdash; 165.2 Wh pack, 10.575 kg all-up,
+8.249 m&sup3; hull, cruise 2.95 m/s, load 16.26 W. Going 0.80 &rarr; 0.95 costs 0.6 m&sup3; of hull
+and <i>saves</i> 1.05 kg and 55 W. For cargo the aircraft wants to be an airship with a wing, not a
+wing with a balloon.</p>
+<p><b>Delivery works either way</b>: 16.1 km in 0.53 h on 64.8 Wh, round trip 129.6 Wh against
+361.0 Wh usable &mdash; both legs with zero sun.</p>
+<div class="box red"><p style="margin:0"><b>The drop problem, at 10 lb.</b> Gross lift 8.588 kg
+against 6.200 kg remaining leaves <b>+2.389 kg (23.43 N) of net upward force the instant the package
+leaves</b>. A constant-volume hull must then climb until &rho;<sub>air</sub> = 0.879 kg/m&sup3;, with
+superpressure rising the whole way &mdash; <b>the envelope bursts long before equilibrium; release
+without mitigation is hull loss</b>. Ballast exchange (take on &ge; 2.389 L of water at the drop
+point) is the only economically sane answer and the only one that scales to repeated drops.
+Thrust-down holding needs the 400 W drive and burns 398.1 W &mdash; 54 minutes on a full 400 Wh pack,
+a delaying action. Venting sheds 2.278 m&sup3;, <b>32.3% of the hull</b>, at $97&ndash;161 per drop,
+after which any sealed claim is over. <b>Every drop point needs water.</b></p></div>
+
+<!-- ================================================================= 3-view -->
+<div class="pb"></div>
+<h2>3-view</h2>
+<figure style="margin:0">
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="980" viewBox="0 0 1080 980" font-family="monospace">
+<defs><marker id="arr" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#c00"/></marker></defs>
+<rect width="100%" height="100%" fill="white"/>
+<text x="24" y="30" font-size="16" fill="#000">f=0.80 SOLAR DYNASTAT - 3-VIEW (dimensions mm, from design_snapshot.json)</text>
+<text x="110.0" y="180.0" font-size="13" fill="#333">TOP</text>
+<ellipse cx="332.1" cy="300.0" rx="222.1" ry="74.0" fill="#eef6ff" stroke="#0a58a3" stroke-width="1.5"/>
+<rect x="324.0" y="106.2" width="32.2" height="387.5" fill="#fff3e0" stroke="#b26a00" stroke-width="1.5" fill-opacity="0.85"/>
+<line x1="110.0" y1="300.0" x2="554.2" y2="300.0" stroke="#999" stroke-width="0.6" stroke-dasharray="3 6"/>
+<line x1="110.0" y1="404.0" x2="554.2" y2="404.0" stroke="#c00" stroke-width="1" marker-start="url(#arr)" marker-end="url(#arr)"/><text x="332.1" y="399.0" font-size="12" text-anchor="middle" fill="#c00">2866</text>
+<line x1="382.3" y1="106.2" x2="382.3" y2="493.8" stroke="#c00" stroke-width="1" marker-start="url(#arr)" marker-end="url(#arr)"/><text x="390.3" y="300.0" font-size="12" fill="#c00">2500</text>
+<line x1="324.0" y1="94.2" x2="356.3" y2="94.2" stroke="#c00" stroke-width="1" marker-start="url(#arr)" marker-end="url(#arr)"/><text x="340.2" y="89.2" font-size="12" text-anchor="middle" fill="#c00">208</text>
+<text x="110.0" y="536.0" font-size="13" fill="#333">SIDE</text>
+<ellipse cx="332.1" cy="640.0" rx="222.1" ry="74.0" fill="#eef6ff" stroke="#0a58a3" stroke-width="1.5"/>
+<line x1="324.0" y1="640.0" x2="356.3" y2="640.0" stroke="#b26a00" stroke-width="4"/>
+<line x1="322.8" y1="708.1" x2="325.9" y2="730.3" stroke="#666" stroke-width="1"/>
+<line x1="341.4" y1="708.1" x2="338.3" y2="730.3" stroke="#666" stroke-width="1"/>
+<rect x="312.0" y="730.3" width="40.3" height="13.9" rx="5" fill="#e8f5e9" stroke="#1b5e20" stroke-width="1.5"/>
+<line x1="358.3" y1="714.0" x2="358.3" y2="760.5" stroke="#444" stroke-width="2"/>
+<circle cx="332.1" cy="640.0" r="4" fill="#0a58a3"/>
+<text x="340.1" y="634.0" font-size="11" fill="#0a58a3">CB</text>
+<circle cx="332.1" cy="665.9" r="4" fill="#1b5e20"/>
+<text x="340.1" y="677.9" font-size="11" fill="#1b5e20">CG</text>
+<line x1="292.1" y1="640.0" x2="292.1" y2="665.9" stroke="#c00" stroke-width="1" marker-start="url(#arr)" marker-end="url(#arr)"/><text x="214.1" y="653.0" font-size="12" fill="#c00">arm 167</text>
+<line x1="588.2" y1="566.0" x2="588.2" y2="714.0" stroke="#c00" stroke-width="1" marker-start="url(#arr)" marker-end="url(#arr)"/><text x="596.2" y="640.0" font-size="12" fill="#c00">955</text>
+<line x1="392.3" y1="640.0" x2="392.3" y2="737.3" stroke="#c00" stroke-width="1" marker-start="url(#arr)" marker-end="url(#arr)"/><text x="400.3" y="688.6" font-size="12" fill="#c00">pod 628</text>
+<line x1="110.0" y1="777.2" x2="332.1" y2="777.2" stroke="#c00" stroke-width="1" marker-start="url(#arr)" marker-end="url(#arr)"/><text x="221.1" y="772.2" font-size="12" text-anchor="middle" fill="#c00">sta 1433</text>
+<text x="566.2" y="508.0" font-size="13" fill="#333">FRONT</text>
+<line x1="566.2" y1="640.0" x2="953.8" y2="640.0" stroke="#b26a00" stroke-width="5"/>
+<circle cx="760.0" cy="640.0" r="74.0" fill="#eef6ff" stroke="#0a58a3" stroke-width="1.5" fill-opacity="0.85"/>
+<rect x="753.0" y="730.3" width="13.9" height="13.9" rx="4" fill="#e8f5e9" stroke="#1b5e20" stroke-width="1.5"/>
+<circle cx="760.0" cy="737.3" r="23.2" fill="none" stroke="#444" stroke-width="1" stroke-dasharray="4 4"/>
+<line x1="755.4" y1="710.3" x2="756.9" y2="730.3" stroke="#666" stroke-width="1"/>
+<line x1="764.6" y1="710.3" x2="763.1" y2="730.3" stroke="#666" stroke-width="1"/>
+<line x1="566.2" y1="542.0" x2="953.8" y2="542.0" stroke="#c00" stroke-width="1" marker-start="url(#arr)" marker-end="url(#arr)"/><text x="760.0" y="537.0" font-size="12" text-anchor="middle" fill="#c00">2500</text>
+<line x1="1034.0" y1="566.0" x2="1034.0" y2="714.0" stroke="#c00" stroke-width="1" marker-start="url(#arr)" marker-end="url(#arr)"/><text x="970.0" y="640.0" font-size="12" fill="#c00">dia 955</text>
+<text x="24" y="940" font-size="11" fill="#555">hull 3:1 prolate spheroid 2866 x 955 mm (V 1.369 m3) - wing 2500 x 208 mm Tier-1 CST - pod slung 628 mm below axis at the CB station - prop dia 300 mm</text>
+<text x="24" y="958" font-size="11" fill="#555">CB above CG 167 mm (pack A). Pod drawing size is schematic [choice]; all dimensioned values from design_snapshot.json.</text>
+</svg>
+<figcaption><b>Note on scale.</b> This drawing is the <b>v1 catalogue geometry</b> from
+<span class="k">design_snapshot.json</span> &mdash; hull 2866 &times; 955 mm, 1.369 m&sup3;, 1998 g.
+The as-built aircraft in &sect;2A is the same shape and the same wing at a larger hull scale:
+<b>2991.4 &times; 997.1 mm, 1.557 m&sup3;, 2272.4 g</b> (+125.6 mm length, +41.9 mm diameter,
++0.188 m&sup3;). Wing, section, prop diameter, pod station and the CB-over-CG arrangement are
+unchanged; the STLs, gores and ribs already cut are still the right shape. Only hull scale and pack
+size move.</figcaption>
+</figure>
+
+<!-- ================================================================= 3 -->
+<h2>3. The math</h2>
+<p class="sub">The derivation chain, with our numbers substituted. Values marked <i>[run]</i> are
+read from a result file; <i>[derived here]</i> means the relation was evaluated in this report from
+run inputs.</p>
+
+<h3 class="nb">E1 &mdash; Atmosphere (ISA troposphere + Sutherland viscosity)</h3>
+<div class="eq">T = T0 - L*h        p = p0 * (T/T0)^(g/(R*L))        rho = p / (R*T)
+mu = mu0 * (T/273.15)^1.5 * (273.15 + 110.4) / (T + 110.4)</div>
+<p>Every aerodynamic and buoyancy number below is anchored to one atmospheric state. At the design
+altitude of <b>500 m</b>: T = 288.15 &minus; 0.0065(500) = <b>284.900 K</b>,
+p = <b>95 461.3 Pa</b>, <b>&rho; = 1.16727 kg/m&sup3;</b> <i>[run]</i>, and Sutherland gives
+<b>&mu; = 1.7737e&minus;5 Pa&middot;s</b>. That &mu; is not an assumption: back-solving it from the
+engine's own reported Re anchor (51 963.9 at 3.7961 m/s, chord 0.208 m) returns 1.77365e&minus;5
+&mdash; agreement to five digits, so the report and the engine are on the same atmosphere.</p>
+
+<h3 class="nb">E2 &mdash; Reynolds number</h3>
+<div class="eq">Re = rho * V * c / mu</div>
+<p>Sets which polar rows are valid. The wing chord is <b>0.208 m</b> (2.5 m span, 0.52 m&sup2;,
+AR 12.02, constant chord). At the as-built trim of <b>4.00 m/s</b>:
+Re = 1.16727 &times; 4.00 &times; 0.208 / 1.77365e&minus;5 = <b>5.48e4</b> <i>[derived here]</i>;
+the v1 anchor is <b>Re = 51 964</b> at 3.796 m/s <i>[run]</i>. Both sit well above the polar's
+30 000 floor, which matters: the trim refusals reported in &sect;5 at 4.4&ndash;4.5 m/s correspond to
+Re &asymp; 59 000, so <b>those refusals are an angle-of-attack / model-confidence limit, not a
+Reynolds floor</b>. This is squarely low-Reynolds flight &mdash; sailplane-model territory, where
+profile drag is high and section data is scarce.</p>
+
+<h3 class="nb">E3 &mdash; Buoyancy and the fraction f</h3>
+<div class="eq">L_gross = V_gas * (rho_air - rho_He) * g,   rho_He = 0.13819 * rho_air
+f = rho_air * V_gas / M_allup          residual the wing must fly = (1 - f) * M_allup * g</div>
+<p>f is <b>gross Archimedes lift over all-up weight</b> &mdash; it counts the displaced air, and the
+gas mass sits inside M_allup. For the as-built hull:
+<b>1.16727 &times; 1.5574 = 1.8179 kg</b> of air displaced, against an all-up of <b>2.2724 kg</b>,
+giving <b>f = 0.800</b> <i>[run, and reproduced here]</i>. The gas at the sizing state
+(&rho;<sub>gas</sub> = 0.16215 kg/m&sup3;, ambient +500 Pa superpressure) masses
+0.16215 &times; 1.5574 = <b>252.5 g</b>, exactly the ledger line. Net static lift is therefore
+1.5574 &times; (1.16727 &minus; 0.16215) = <b>1.5654 kg</b> against 2.0199 kg of non-gas aircraft
+&mdash; the ship rests <b>0.4545 kg = 4.457 N heavy</b>, which is precisely
+(1&nbsp;&minus;&nbsp;0.80) &times; 2.2724 &times; 9.80665. <b>That 4.46 N is the entire load the wing
+flies.</b> The v1 aircraft is the same arithmetic one size down: 1.16727 &times; 1.3694 = 1.5983 kg
+over 1.9981 kg = f 0.800, residual 3.92 N (about 400 gf, the weigh-off target on the build sheet).</p>
+
+<h3 class="nb">E4 &mdash; Level-flight power, and why buoyancy collapses it</h3>
+<div class="eq">P = sqrt( 2*W^3 / (rho*S) ) * Cd / Cl^1.5 / eta        (P scales as W^1.5)
+engine's chain:  P_prop = (D_wing + D_env) * V / eta_drive</div>
+<p>The wing does not fly the aircraft's weight; it flies the <b>(1&minus;f) residual</b>. Because
+power goes as W<sup>1.5</sup>, taking the wing's load from the gross 22.29 N down to 4.457 N cuts its
+required power by <b>5<sup>1.5</sup> = 11.2&times;</b>. That single factor is why a 2.3 kg aircraft
+cruises on single-digit watts, and it is the whole reason the design is buoyant at all.</p>
+<p>The price is the envelope. At the as-built d195 point <i>[run]</i>: <b>D_wing 0.33 N, D_env
+0.55 N</b> &mdash; the hull is now <b>63% of total drag</b>. Mechanical power is
+(0.33 + 0.55) &times; 4.00 = <b>3.52 W</b>; the run reports <b>6.43 W</b> of electrical propulsive
+power, so the implied prop &times; motor &times; ESC efficiency is <b>0.55</b> <i>[derived here]</i>.
+Total load is <b>9.18 W = 6.43 prop + 2.76 payload</b>. Party helium is the same equation run
+backwards: residual 4.46 &rarr; 7.55 N raises prop power 6.43 &rarr; 12.51 W, a 69% penalty for no
+extra useful load.</p>
+
+<h3 class="nb">E5 &mdash; Solar harvest</h3>
+<div class="eq">P_peak = G * A_wing * packing * eta_cell        A_active = 0.52 * 0.6923 = 0.36 m2</div>
+<p>21 SunPower C60 cells on the 0.52 m&sup2; wing at the v1 packing fraction of 0.6923 give
+<b>0.36 m&sup2; active</b> at <b>&eta; = 0.227</b>, so at 1000 W/m&sup2; STC the array peaks at
+<b>81.7 W</b> <i>[derived here]</i>. Integrated over the d195 solar day at 47.6&deg;N / 500 m the run
+returns <b>615.9 Wh/day</b> <i>[run]</i> &mdash; a 40.9 W daylight average across 15.07 h of sun,
+half of peak. At equinox (d80) the same array returns <b>391.6 Wh/day</b>, and that 224 Wh/day
+collapse is why every configuration needs a substantially bigger pack for d80 than for d195.
+<b>The array was never the v1 constraint:</b> that aircraft <b>spilled 423.7 Wh</b> of
+the 615.9 it harvested (68.8%), because the pack was full and there was nowhere to put it. It becomes
+a constraint only once the sealed film and the real part masses push the ship into a harvest-limited
+regime &mdash; which is exactly why the sealed configuration needs 41 cells and the as-built one does
+not.</p>
+
+<h3 class="nb">E6 &mdash; Limit-cycle closure</h3>
+<div class="eq">closes  iff  SOC(t_end) >= SOC(t_start)   AND   min SOC over the window > SOC_MIN
+SOC_MIN = 0.05,  eta_charge = 0.95,  eta_discharge = 0.95,  scored on the SECOND 24 h window</div>
+<p><b>Why the first window lies.</b> The first 24 h begins on a pack the initial condition handed
+over full. That stored energy was never earned inside the window, so an aircraft running a genuine
+daily deficit can still serve its night out of the gift and finish looking healthy. The second window
+has to buy its own night out of the day it just flew &mdash; it is the first window that carries no
+subsidy, and it is the one scored.</p>
+<p>Our numbers <i>[run]</i>: as-built pack A at d195 ends with <b>11.6 Wh unserved</b> and
+<b>min_soc reading exactly 0.050</b>. That is not a margin &mdash; the solver clamps at the floor, so
+&quot;0.050 with unserved &gt; 0&quot; means the aircraft went <i>through</i> it. The smallest pack
+that satisfies both tests is <b>98.0 Wh</b>; pack B at <b>121.0 Wh</b> satisfies them with
+<b>min_soc 0.164</b>, the only as-built point in the study with real daylight above the floor.
+Equinox (d80) needs <b>180.3 Wh</b>.</p>
+
+<h3 class="nb">E7 &mdash; Party-helium check (negative result)</h3>
+<div class="eq">rho_mix/rho_air = 0.8*(0.13819) + 0.2*(1.0) = 0.31055
+net lift ratio = (1 - 0.31055) / (1 - 0.13819) = 0.68945 / 0.86181 = 0.8000  (exactly x0.80)</div>
+<p>Balloon Time's own wording is &quot;not less than 80 percent helium&quot;; the balance is air.
+Run in the <i>same physical hull</i> sized for 99.9% <i>[run]</i>: gas mass
+<b>253 &rarr; 568 g</b>, all-up <b>2.272 &rarr; 2.587 kg</b>, and therefore
+<b>f = 1.8179 / 2.587 = 0.703</b> &mdash; not the 0.64 the brief predicted. The lift per cubic metre
+<i>does</i> fall by exactly &times;0.8000, but <b>f does not scale with lift</b>, because
+f = &rho;<sub>air</sub>V / M<sub>allup</sub> and the blend makes M<sub>allup</sub> larger. The
+consequence is worse than the mechanism sounds: the residual the wing must fly rises
+<b>4.46 &rarr; 7.55 N (+69%)</b>, trim <b>4.00 &rarr; 5.17 m/s</b>, total load
+<b>9.18 &rarr; 15.52 W</b>. <b>It does not fly, and no pack in this airframe closes it. Welding-grade
+99.9% only.</b></p>
+
+<!-- ================================================================= 4 -->
+<h2>4. Bill of materials</h2>
+<p class="sub">From <span class="k">BOM_v2.csv</span> (as-built, pack A). Prices are indicative
+vendor-verified estimates in USD. Masses are real measured or vendor-stated part masses, not ledger
+allowances.</p>
+
+<table>
+<tr><th style="width:15%">item</th><th style="width:29%">part</th><th class="n" style="width:5%">qty</th>
+<th class="n" style="width:7%">mass g</th><th class="n" style="width:8%">$</th><th>honesty</th></tr>
+
+<tr class="grp"><td colspan="6">PROPULSION &mdash; 120 g as a group</td></tr>
+<tr><td>motor</td><td>SunnySky X2212 KV980 (V3)</td><td class="n">1</td><td class="n">56</td><td class="n">15.30</td>
+<td>certified thruster ledger is 55.2 g for motor+ESC+prop <i>total</i>; this motor alone is 56 g</td></tr>
+<tr><td>propeller</td><td>APC 12&times;8E Thin Electric (LP12080E)</td><td class="n">1</td><td class="n">26</td><td class="n">4.89</td>
+<td>12 in = the certified 0.30 m dia; fixed, not folding &mdash; stopped-prop drag is not in the drag ledger</td></tr>
+<tr><td>ESC</td><td>Hobbywing Skywalker 30A (2-3S)</td><td class="n">1</td><td class="n">38</td><td class="n">17.32</td>
+<td>2&ndash;3S variant only (the V2 is 3&ndash;4S); ~2&times; current margin at 100 W on 2S</td></tr>
+
+<tr class="grp"><td colspan="6">ENERGY</td></tr>
+<tr><td>battery pack A</td><td>Molicel INR18650-P28A &times;8, 2S4P</td><td class="n">8</td><td class="n">410</td><td class="n">79.60</td>
+<td>80.6 Wh. DIY pack lands <b>197 Wh/kg</b>, not the certified 250 &mdash; +92 g</td></tr>
+<tr><td>&nbsp;&nbsp;<i>pack B (alt)</i></td><td><i>P28A &times;12, 2S6P</i></td><td class="n">12</td><td class="n">605</td><td class="n">119.40</td>
+<td>121.0 Wh &mdash; 3.6% under the 125.5 Wh v1 certified figure, carried honestly (H10)</td></tr>
+<tr><td>solar cells</td><td>SunPower C60/E60 5&times;5 flexible mono</td><td class="n">21</td><td class="n">234</td><td class="n">94.50</td>
+<td>234 g includes the 0.45 kg/m&sup2; laminate on full wing area; bare cells are 147 g. Buy 2&ndash;3 spares &mdash; C60s crack</td></tr>
+<tr><td>MPPT</td><td>Genasun GV-5-Li (2S li-ion variant)</td><td class="n">1</td><td class="n">57</td><td class="n">100.00</td>
+<td><b>0 g in the certified ledger</b>. Buck topology needs Vpanel &gt; Vbatt &rarr; works only with the 2S pack; confirm the 2S variant before ordering</td></tr>
+
+<tr class="grp"><td colspan="6">AVIONICS &mdash; 82 g, inside the 100 g budget</td></tr>
+<tr><td>flight controller</td><td>Matek F405-WING</td><td class="n">1</td><td class="n">25</td><td class="n">60.00</td>
+<td>iNav / ArduPilot, 6&ndash;30 V input so 2S is fine</td></tr>
+<tr><td>GPS</td><td>Beitian BN-220 (GPS+GLONASS)</td><td class="n">1</td><td class="n">5</td><td class="n">18.00</td><td>&mdash;</td></tr>
+<tr><td>servos</td><td>TowerPro MG90S metal-gear</td><td class="n">2</td><td class="n">27</td><td class="n">12.00</td>
+<td>the &quot;9 g&quot; class actually weighs 13 g each with lead</td></tr>
+
+<tr class="grp"><td colspan="6">STRUCTURE + ENVELOPE</td></tr>
+<tr><td>spar + boom</td><td>3K carbon tube 10&times;8&times;1000 mm</td><td class="n">3</td><td class="n">120</td><td class="n">25.50</td>
+<td>2 tubes + joiner = the 2.5 m spar at 30% chord; 3rd is pod-boom stock. Inside the 738 g wing budget</td></tr>
+<tr><td>hull film</td><td>1.5 mil (38 &micro;m) LLDPE sheeting, 12 ft &times; 100 ft</td><td class="n">1</td><td class="n">271</td><td class="n">66.00</td>
+<td>need ~10 m&sup2; of a ~111 m&sup2; roll. Commodity &quot;painter's&quot; rolls are LDPE, not LLDPE &mdash; buy packaging-grade tubing if provenance matters</td></tr>
+<tr><td>seam tape + valve</td><td>3M 8898 / Tesa PSA + 10 mm barb</td><td class="n">1</td><td class="n">0</td><td class="n">25.00</td>
+<td>mass already inside the &times;1.10 film factor</td></tr>
+
+<tr class="tot"><td colspan="4">CORE PARTS (pack A, before gas)</td><td class="n">518.11</td><td></td></tr>
+
+<tr class="grp"><td colspan="6">LIFT GAS &mdash; choose one</td></tr>
+<tr><td>helium, party tanks</td><td>Balloon Time Jumbo 14.9 cu ft</td><td class="n">4</td><td class="n">222</td><td class="n">220.00</td>
+<td><b>99.9% variant ONLY</b> &mdash; the &quot;not less than 80%&quot; blend does not fly (E7). ~0.38 m&sup3; usable per tank</td></tr>
+<tr><td>helium, cylinder</td><td>125 cu ft owned cylinder + Grade 4.5+ fill</td><td class="n">1</td><td class="n">222</td><td class="n">510.00</td>
+<td>99.995% pure; 3.54 m&sup3; = 2.6 hull fills. Cheaper per fill after the first</td></tr>
+<tr><td>hydrogen, budget</td><td>generic 1 L/min SPE electrolyzer</td><td class="n">1</td><td class="n">114</td><td class="n">62.99</td>
+<td>gas mass 114 g vs He 222 g <i>and</i> +8% lift/m&sup3;. Flammable 4&ndash;75% in air; fill outdoors, bond and ground. A lift-gas swap needs its own weigh-off</td></tr>
+<tr><td>hydrogen, lab</td><td>MSE PRO 1 L/min PEM</td><td class="n">1</td><td class="n">114</td><td class="n">3500.00</td>
+<td>price on quote; same gas as the $62.99 unit, laboratory build quality</td></tr>
+</table>
+
+<h3>Cost summary &mdash; exactly as certified</h3>
+<table style="width:82%">
+<tr><th>build</th><th class="n">total</th><th>= core + gas</th></tr>
+<tr><td>core parts (pack A, no gas)</td><td class="n"><b>$518.11</b></td><td>&mdash;</td></tr>
+<tr><td>hydrogen + budget electrolyzer</td><td class="n"><b>$581.10</b></td><td>518.11 + 62.99</td></tr>
+<tr><td>helium, party tanks</td><td class="n"><b>$738.11</b></td><td>518.11 + 4 &times; 55.00</td></tr>
+<tr><td>helium, welding cylinder</td><td class="n"><b>$1,028.11</b></td><td>518.11 + 510.00 (cylinder + first fill)</td></tr>
+<tr><td>hydrogen + lab PEM electrolyzer</td><td class="n"><b>$4,018.11</b></td><td>518.11 + 3,500.00</td></tr>
+<tr class="tot"><td>REQUIRED UPGRADE: +2 Molicel P28A &rarr; 2S5P, 100.8 Wh, ~512 g</td><td class="n">+$19.90</td>
+<td>the only change that turns a non-closing aircraft into a closing one</td></tr>
+<tr><td>pack B instead of pack A (121.0 Wh, 605 g)</td><td class="n">+$39.80</td><td>4 extra cells</td></tr>
+</table>
+
+<h3>Running cost per fill</h3>
+<p><b>Hydrogen:</b> a 1.4 m&sup3; fill at 1 L/min takes <b>~23 hours</b> and about <b>7 kWh</b>
+&mdash; roughly <b>$1 of electricity</b>, and the gas is essentially free thereafter. That is the
+argument for the electrolyzer: it converts a recurring gas bill into a one-time $63 (or $3 500)
+capital line. <b>Helium:</b> about <b>$150&ndash;250 per welding-cylinder refill</b> (~$150 used in
+the totals), or a fresh set of party tanks. The comparison matters because <b>the LLDPE hull is not
+sealed &mdash; it refills every few weeks</b>, so gas is the dominant operating cost of the as-built
+aircraft and the entire economic case for the sealed configuration.</p>
+
+<!-- ================================================================= 5 -->
+<div class="pb"></div>
+<h2>5. Honesty and open items</h2>
+
+<div class="box red">
+<p style="margin:0 0 4px 0"><b>The vent / ballonet is not designed. This is the single component
+gating a sealed build.</b></p>
+<p style="margin:0">The thermal ledger prices the need &mdash; sealed peak-day superheat +25.6 K
+drives <b>+9.1 kPa</b> of superpressure on this hull class, about <b>81 MPa of hoop stress in
+38 &micro;m film, far beyond LLDPE</b>; at night the same ledger goes to <b>&minus;1.5 kPa</b> and the
+hull goes slack and loses shape. No vent sizing, ballonet volume, or slack-hull flight behaviour
+exists in any result file. Until that work lands: <b>fly unsealed, short supervised line-of-sight
+windows in mild sun, and never leave the envelope sealed on the ground in daylight.</b> Modelling
+the sealed config's +10% gas reserve as extra moles in a fixed volume also makes it a genuine
+superpressure balloon (10.1 kPa at fill, 19.6 kPa on a hot afternoon &mdash; 20&ndash;40&times; the
+500 Pa v1 hull), and the 0.011 kg/m&sup2; tendon line is an <i>allowance, not a structural design</i>.</p>
+</div>
+
+<h3>Engine defects &mdash; the real-drive gate is RED</h3>
+<p>All five are open and being worked. Note what they are <i>not</i>: flipping one line
+(<span class="k">build_solar_cruise</span>'s chain default back to <span class="k">"ideal"</span>)
+reproduces the pre-upgrade gate bit-identically, which isolates the entire regression to the real
+drive and its certification envelopes. <b>Chemistry, electrical, materials and mission are clean.</b></p>
+<ul>
+<li><b>B1 &mdash; BEMT certification envelope too tight.</b> At V = 12.00 m/s the lightly-loaded prop
+hits high advance ratio and <b>98% of the thrust integrand falls outside the polar's gates</b>; the
+swirl tolerance is 1e&minus;8 against a 2.17e&minus;3 residual, five orders tighter than the physics
+warrants. Refuses every real-drive flight.</li>
+<li><b>B2 &mdash; buoyant trim cannot converge, and it blocks the flagship.</b> Vertical residual
+5.50e&minus;4 N against a 1.476e&minus;7 N tolerance &mdash; <b>3.7e&minus;5 relative, physically
+meaningless and numerically fatal</b>. An independent sweep of f = 0.2/0.4/0.6/0.8 on a design that
+is fine at f = 0 refuses all four, with the residual scaling with f. Root cause: the tolerance is
+~1e&minus;8 relative to <i>gross</i> weight while the wing only controls the (1&minus;f) residual.
+<b>The certified Floater cannot currently be evaluated by the main engine.</b></li>
+<li><b>B2b &mdash; uncertified aero at buoyant trim speed</b> (~4.4&ndash;4.5 m/s) on both chains.
+Re &asymp; 59 000 is above the 30 000 floor, so the refusal is alpha-span or model confidence, not
+Reynolds. Needs precise diagnosis before anything is changed.</li>
+<li><b>B3 &mdash; pack thermal is dead.</b> Over 72 h <span class="k">pack_T_min == pack_T_max ==
+288.15 K</span> exactly and <span class="k">heater_Wh == 0.0</span> exactly &mdash; 288.15 K is the
+initialiser, and ambient at 500 m is 284.9 K. The thermal ODE is never stepped from the mission,
+which silently deletes the cold-night physics the upgrade existed for.</li>
+<li><b>B4 &mdash; four verification anchors never evaluated</b> (harness import-name errors, not code
+defects): cold usable/R_int ratios, C60 STC worst-bin MPP, He permeation through 38 &micro;m LLDPE,
+and mission ledger reconciliation. Verification is incomplete.</li>
+</ul>
+<p><b>What did survive realism:</b> the Tier-1 wing flew a full 72 h on the real chain with an ideal
+drive &mdash; min SOC 0.0500, end SOC 0.4765 &mdash; and realism cost only 2.4 points of usable
+capacity versus the ideal chain. Hidden losses the flat model omitted, over 72 h: MPPT tracking
+42.02 Wh, MPPT converter 29.57 Wh, harness I&sup2;R 6.60 Wh, night parasitic 0.19 Wh; prop/motor/ESC
+rose 7.6%. Battery aging to 80% capacity on this duty cycle is <b>2865 days (7.8 years)</b> &mdash;
+the pack is not the life-limiter.</p>
+
+<h3>Mass and sourcing gaps carried openly</h3>
+<ul>
+<li><b>DIY pack density is 197&ndash;200 Wh/kg, not the catalogue 250.</b> Costs +92 g on pack A and
++103 g on pack B. Samsung INR21700-50E would give 232 Wh/kg at pack level &mdash; the cheapest mass
+lever in the BOM &mdash; but the as-built certification is on P28A.</li>
+<li><b>The real thruster group is 120 g, not the 55.2 g in the certified ledger</b> (+64.8 g). The
+56 g motor alone exceeds the ledger's whole allowance for motor + ESC + prop.</li>
+<li><b>MPPT was 0 g in the ledger.</b> The Genasun GV-5 is <b>+57 g</b> &mdash; an entire component
+class that the certified mass budget did not contain.</li>
+<li><b>The 45 g/m&sup2; heat-sealable laminate has no small-lot vendor</b> (H2). Quote-only at IMPAK,
+Sorbent Systems, Caltex and Goodfellow; 500&ndash;2000 m&sup2; MOQ from Alibaba mills. The one
+purchasable film (CS Hyde met-PET, $7.83/m&sup2;) has no sealant layer. <b>The sealed configuration's
+headline rests on a film that is a specification, not a part.</b></li>
+<li><b>The 6-month seal has zero margin</b> (H3): &minus;1.8 Pa superpressure on a cold night at day
+180. Carry <b>+15%</b> gas, not +10%.</li>
+<li><b>Welding-grade helium only.</b> The 80%-purity party blend costs 69% more power and does not
+fly (E7). Confirm the label before buying, or use the cylinder route.</li>
+<li><b>Airspeed sensing is unsolved on this airframe</b> (H6). The aircraft cruises at 3.7&ndash;6.3
+m/s where dynamic pressure is 10&ndash;24 Pa; the budget MS4525DO is &plusmn;6895 Pa full scale and
+even the recommended DLVR-L10D at &plusmn;2500 Pa is marginal. This is not a $50 line item.</li>
+<li><b>The regen ESC is billed at +0 g and that is wrong</b> (H5). The sourced VESC-class controller
+is 80 g and replaces the 38 g Skywalker &mdash; a real +42 g and +$38.68, not in the sealed ledger.</li>
+<li><b>The prop is held at 0.30 m in every configuration</b> (H11), including the 10 lb cargo case.
+A real 11 kg cargo aircraft wants a bigger disc, so <b>the cargo numbers here are conservative on
+that axis</b>. Wing structural mass (H13) is a single-anchor regression calibrated to AtlantikSolar
+AS-2, range-checked but not a structural analysis. Superheat (H9) comes from a sphere thermal model
+applied to an ellipsoid hull.</li>
+<li><b>Iridium is a subscription, not a part</b> (H4): $17/mo rental plus $72&ndash;144/mo for hourly
+position reports, or ~$305/mo at 15-minute cadence.</li>
+</ul>
+
+<h3>Discrepancies between the source documents &mdash; reported, not reconciled</h3>
+<ol>
+<li><b>Sealed 70 g/m&sup2; headline.</b> STATUS &sect;2.2 states the spec-film sealed config
+&quot;closes d195 at 134.4 Wh (all-up 2.916 kg, hull 3.25 &times; 1.08 m)&quot;. V2_CONFIG &sect;3
+gives that same configuration (b = 2.5 m, 70 g/m&sup2;) as <b>250.4 Wh / 4.165 kg / 3.66 &times;
+1.22 m</b>. The 2.919 kg / 3251.9 &times; 1084.0 mm figures in STATUS match the <i>as-built d80
+minimum-pack</i> run instead. STATUS's sealed line appears to have crossed two runs; V2_CONFIG's
+values are used in this report.</li>
+<li><b>Equinox load for the same sealed point:</b> STATUS &sect;2.2 says 15.98 W &times; 24 h =
+383 Wh; V2_CONFIG &sect;2/&sect;3 say 16.05 W and 385 Wh.</li>
+<li><b>Spill fraction:</b> V2_CONFIG &sect;2 says v1 &quot;spilled ~60%&quot; of its harvest;
+<span class="k">design_snapshot.json</span> gives 423.7 of 615.9 Wh = <b>68.8%</b>.</li>
+<li><b>Solar active area:</b> 21 C60 cells at 125&ndash;127 mm square total 0.328&ndash;0.339
+m&sup2;, but the ledger's 0.36 m&sup2; &quot;active&quot; comes from packing (0.6923) &times; wing
+area &mdash; about 6% apart.</li>
+<li><b>Pack A mass:</b> 409.1 g in the V2_CONFIG ledger, 410 g in BOM_v2.csv (hence +90.9 g vs the
++92 g quoted in STATUS &sect;7).</li>
+<li><b>BOM_v2.csv row 15 still carries the retracted party-helium figure</b> &mdash; it says
+f &quot;becomes ~0.64&quot;. The certified answer is <b>0.703</b> (H1 / E7).</li>
+<li><b>Two different helium-cylinder routes are priced.</b> BOM_v2.csv uses a 125 cu ft cylinder at
+$510 (the number inside the $1,028.11 total); BOM_v2_deltas.csv found a 219 cu ft cylinder + regulator
+at <b>$207</b>. The cheaper route is not reflected in any total. Party tanks are likewise $55 each in
+BOM_v2.csv and $75.99 each in the deltas file.</li>
+<li><b>Two different &quot;shortfall&quot; numbers for pack A</b> are both correct and easily
+confused: <b>11.6 Wh</b> is unserved energy at d195; <b>17.4 Wh</b> is the gap between the 80.6 Wh
+pack and the 98.0 Wh minimum.</li>
+</ol>
+
+<footer>
+Sources, all on disk: <span class="k">STATUS.md</span> (state of record, 2026-08-03),
+<span class="k">V2_CONFIG.md</span> (three configurations certified, 41 KB),
+<span class="k">BOM_v2.csv</span>, <span class="k">BOM_v2_deltas.csv</span>,
+<span class="k">design_snapshot.json</span>, <span class="k">BUILD_SHEET.md</span>,
+<span class="k">three_view.svg</span>. Nothing in this report was re-simulated; the only computed
+values are those marked <i>[derived here]</i> in &sect;3, each of which reproduces a run-reported
+anchor. Site A = 47.6&deg;N, 500 m, day 195 (solstice side) and day 80 (equinox).
+</footer>
+
+</body></html>

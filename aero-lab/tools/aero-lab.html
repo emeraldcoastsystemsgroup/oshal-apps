@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aero Lab — Persistent-Flight Design</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  /* Self-contained surface theme (embedded-surface rule: own your CSS). */
+  :root {
+    --bg:     var(--bg-primary, #06080f);
+    --panel:  var(--bg-card, #0c1120);
+    --panel2: var(--bg-tertiary, #101730);
+    --line:   var(--border-color, #1c2745);
+    --text:   var(--text-primary, #d7e0f4);
+    --dim:    var(--text-secondary, #7c89a8);
+    --accent: var(--accent-primary, #5aa7ff);
+    --ok:     var(--status-success, #38d39f);
+    --warn:   var(--status-warning, #ffc857);
+    --bad:    var(--status-error, #ff6b6b);
+    font-size: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--dim) 45%, transparent) transparent;
+  }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--dim) 45%, transparent); border-radius: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    display: grid; grid-template-rows: 44px 1fr; overflow: hidden;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px; padding: 0 14px;
+    background: var(--panel); border-bottom: 1px solid var(--line); min-width: 0;
+  }
+  header h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.4px; white-space: nowrap; }
+  header .spacer { flex: 1; }
+  #engineBadge {
+    font-size: 11px; border: 1px solid var(--dim); color: var(--dim);
+    border-radius: 10px; padding: 2px 8px; white-space: nowrap;
+  }
+  #engineBadge.on  { color: var(--ok);  border-color: var(--ok); }
+  #engineBadge.off { color: var(--bad); border-color: var(--bad); }
+  #capChips { display: flex; gap: 5px; flex-wrap: wrap; overflow: hidden; }
+  .cap-chip {
+    font-size: 10px; padding: 1px 7px; border-radius: 8px;
+    border: 1px solid var(--line); color: var(--dim); white-space: nowrap; cursor: default;
+  }
+  .cap-chip.on  { color: var(--text); }
+  .cap-chip.off { color: var(--warn); border-color: var(--warn); }
+
+  main { display: grid; grid-template-columns: 320px 1fr 330px; min-height: 0; }
+  #left, #right { background: var(--panel); overflow-y: auto; min-height: 0; }
+  #left  { border-right: 1px solid var(--line); }
+  #right { border-left: 1px solid var(--line); }
+  #center { overflow-y: auto; min-width: 0; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
+
+  section { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  section h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); margin-bottom: 8px; }
+
+  button {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: color-mix(in srgb, var(--accent) 22%, var(--panel2)); border-color: var(--accent); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  input, select, textarea {
+    background: var(--bg); color: var(--text); border: 1px solid var(--line);
+    border-radius: 5px; padding: 5px 7px; font-size: 12px; width: 100%;
+  }
+  label { font-size: 11px; color: var(--dim); display: block; }
+
+  /* presets */
+  .preset-btn { display: block; width: 100%; text-align: left; margin: 4px 0; padding: 7px 9px; }
+  .preset-btn .p-name { font-size: 12.5px; font-weight: 600; }
+  .preset-btn .p-sub { font-size: 10.5px; color: var(--dim); margin-top: 2px; }
+  #presetNote { font-size: 11px; color: var(--dim); margin-top: 6px; white-space: pre-wrap; }
+
+  /* design form */
+  .grp { margin-bottom: 4px; }
+  .grp > .grp-head {
+    font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.8px;
+    margin: 8px 0 4px; display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .fld { display: grid; grid-template-columns: 1fr 86px; gap: 6px; align-items: center; margin: 3px 0; }
+  .fld .f-lab { grid-column: 1 / -1; display: flex; justify-content: space-between; }
+  .fld .f-lab .unit { color: var(--dim); opacity: 0.8; }
+  .fld input[type=range] { width: 100%; padding: 0; accent-color: var(--accent); }
+  .fld input[type=number] { padding: 2px 5px; font-size: 11.5px; text-align: right; }
+  .fld.oob input[type=number] { border-color: var(--warn); }
+  .fld.disabled { opacity: 0.5; }
+  #derived { font-size: 11.5px; color: var(--dim); margin-top: 6px; line-height: 1.5; }
+  #derived b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  #hullNote { font-size: 11px; color: var(--dim); margin-top: 4px; white-space: pre-wrap; }
+  .site-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .site-chips button { font-size: 11px; padding: 3px 8px; }
+
+  /* chat */
+  #chatLog { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+  .msg { font-size: 12px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); white-space: pre-wrap; }
+  .msg.user { background: var(--panel2); align-self: flex-end; max-width: 92%; }
+  .msg.bot  { background: var(--bg); align-self: flex-start; max-width: 92%; }
+  #draftBox { border: 1px solid var(--accent); border-radius: 8px; padding: 7px 8px; margin: 6px 0; font-size: 11.5px; }
+  #draftBox table { width: 100%; border-collapse: collapse; margin: 4px 0; }
+  #draftBox td { padding: 1px 4px; font-variant-numeric: tabular-nums; }
+  #draftBox td:last-child { text-align: right; }
+  .chat-row { display: flex; gap: 6px; }
+  .chat-row button { flex: none; }
+
+  /* run bar */
+  #runBar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  #runBar .days { display: flex; align-items: center; gap: 4px; }
+  #runBar .days input { width: 52px; padding: 3px 5px; }
+  #runStatus { font-size: 12px; color: var(--dim); }
+  #runStatus.busy { color: var(--accent); }
+  #errBanner {
+    display: none; border: 1px solid var(--bad); border-radius: 8px;
+    padding: 8px 10px; font-size: 12.5px; color: var(--bad); white-space: pre-wrap;
+  }
+  #engineDownBanner {
+    display: none; border: 1px solid var(--warn); border-radius: 8px;
+    padding: 8px 10px; font-size: 12.5px; color: var(--warn); white-space: pre-wrap;
+  }
+
+  /* plot cards */
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .card h3 { font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+  .card .empty { font-size: 12px; color: var(--dim); padding: 8px 0; }
+  .plot-wrap { overflow-x: auto; }             /* wide plots scroll inside their card */
+  .plot svg { display: block; }
+  .plot text { fill: var(--text); font-size: 10px; font-family: inherit; }
+  .plot text.dim { fill: var(--dim); }
+  .plot line.grid { stroke: var(--line); stroke-width: 1; }
+  .plot line.axis { stroke: var(--dim); stroke-width: 1; }
+  .plot-legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11px; margin-top: 4px; }
+  .plot-legend .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+  .plot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+  #tooltip {
+    position: fixed; display: none; z-index: 60; pointer-events: none;
+    background: var(--bg) linear-gradient(var(--panel), var(--panel)); /* opaque over translucent card */
+    border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px;
+    font-size: 11px; white-space: pre; font-variant-numeric: tabular-nums;
+  }
+
+  /* verdict / right rail */
+  .v-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .v-chip { font-size: 11px; padding: 2px 9px; border-radius: 10px; border: 1px solid var(--line); }
+  .v-chip.good { color: var(--ok); border-color: var(--ok); }
+  .v-chip.fail { color: var(--bad); border-color: var(--bad); }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 12px; }
+  .kv .k { color: var(--dim); }
+  .kv .v { text-align: right; font-variant-numeric: tabular-nums; }
+  #reasons { margin: 8px 0 0 16px; font-size: 11.5px; color: var(--bad); }
+  #reasons li { margin: 3px 0; white-space: pre-wrap; }
+  #fingerprint { font-size: 10.5px; color: var(--dim); margin-top: 8px; border-top: 1px solid var(--line); padding-top: 6px; white-space: pre-wrap; word-break: break-all; }
+  #exportList { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+  #exportList a { color: var(--accent); font-size: 12px; text-decoration: none; word-break: break-all; }
+  #exportList a:hover { text-decoration: underline; }
+  .note { font-size: 11px; color: var(--dim); white-space: pre-wrap; }
+
+  /* Stack the three-column lab when the surface is narrow (single media block — append here). */
+  @media (max-width: 1080px) {
+    html, body { height: auto; min-height: 100%; }
+    body { overflow: auto; }
+    main { grid-template-columns: 1fr; }
+    #left, #right { border: none; border-bottom: 1px solid var(--line); max-height: none; }
+    #capChips { display: none; }
+  }
+  @media (max-width: 760px) {
+    main { grid-template-columns: 1fr; }
+    .plot-grid { grid-template-columns: 1fr; }
+    header { flex-wrap: wrap; height: auto; padding: 6px 10px; }
+    body { grid-template-rows: auto 1fr; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Aero Lab</h1>
+  <span id="engineBadge">engine: checking…</span>
+  <div class="spacer"></div>
+  <div id="capChips"></div>
+</header>
+
+<main>
+  <div id="left">
+    <section>
+      <h2>Proven starting points</h2>
+      <div id="presetBtns"></div>
+      <div id="presetNote"></div>
+    </section>
+    <section>
+      <h2>Design vector</h2>
+      <div id="designForm"></div>
+      <div id="derived"></div>
+      <div id="hullNote"></div>
+    </section>
+    <section>
+      <h2>Site &amp; season</h2>
+      <div class="site-chips" id="siteChips"></div>
+    </section>
+    <section>
+      <h2>Draft with AI</h2>
+      <div id="chatLog"></div>
+      <div id="draftBox" style="display:none"></div>
+      <div class="chat-row">
+        <input id="chatInput" type="text" placeholder="e.g. a hand-launch craft that survives a Seattle winter night" />
+        <button id="chatSend">Send</button>
+      </div>
+      <div class="note" style="margin-top:4px">Drafts pre-fill the sliders. Nothing runs until you press Run.</div>
+    </section>
+  </div>
+
+  <div id="center">
+    <div class="card">
+      <div id="runBar">
+        <button id="btnPolar" class="primary">Run Polar</button>
+        <button id="btnEval" class="primary">Run 24 h Energy Loop</button>
+        <button id="btnScreen">Run Screen</button>
+        <span class="days"><button id="btnMission">Mission</button><label for="missionDays">days</label><input id="missionDays" type="number" min="1" max="14" step="1" value="3" /></span>
+        <button id="btnExport">Export Build Files</button>
+        <span class="spacer" style="flex:1"></span>
+        <span id="runStatus"></span>
+      </div>
+    </div>
+    <div id="engineDownBanner"></div>
+    <div id="errBanner"></div>
+
+    <div class="card" id="socCard">
+      <h3>24 h state of charge</h3>
+      <div class="empty">Run the 24 h energy loop to draw the SOC limit cycle — night shading and the min-SOC point come from the engine's own trace.</div>
+      <div class="plot-wrap"><div class="plot" id="socPlot"></div></div>
+      <div class="plot-legend" id="socLegend"></div>
+    </div>
+    <div class="card" id="powerCard" style="display:none">
+      <h3>Generation vs load</h3>
+      <div class="plot-wrap"><div class="plot" id="powerPlot"></div></div>
+      <div class="plot-legend" id="powerLegend"></div>
+    </div>
+    <div class="card" id="polarCard">
+      <h3>Wing polar</h3>
+      <div class="empty">Run Polar to compute CL, CD and endurance efficiency vs angle of attack with the real engine.</div>
+      <div class="plot-grid" id="polarPanels"></div>
+    </div>
+    <div class="card" id="dragCard" style="display:none">
+      <h3>Drag buildup</h3>
+      <div class="plot-wrap"><div class="plot" id="dragPlot"></div></div>
+    </div>
+    <div class="card" id="massCard" style="display:none">
+      <h3>Mass ledger</h3>
+      <div class="plot-grid">
+        <div class="plot" id="massPlot"></div>
+        <div class="plot-legend" id="massLegend" style="align-content:start"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="right">
+    <section>
+      <h2>Verdict</h2>
+      <div id="verdictCard"><div class="note">No run yet. The verdict — closed / admissible, with the engine's named reasons — appears after Run 24 h Energy Loop or Run Screen.</div></div>
+      <div id="fingerprint"></div>
+    </section>
+    <section>
+      <h2>Engine</h2>
+      <div id="engineCard" class="kv"><span class="k">status</span><span class="v">checking…</span></div>
+      <div id="engineNote" class="note" style="margin-top:6px"></div>
+    </section>
+    <section>
+      <h2>Build package</h2>
+      <div id="exportCard"><div class="note">Export Build Files generates the physical package — STL wing panels, DXF ribs and gores, airfoil dat, BOM, build sheet — then lists each file for download.</div></div>
+      <div id="exportList"></div>
+    </section>
+  </div>
+</main>
+
+<div id="tooltip"></div>
+
+<script>
+/* ── Static surface data: field catalog, presets, series palette. ─────────────
+   Bounds below are FALLBACKS for first paint only — GET /api/aero-lab/capabilities
+   returns the engine's own declared bounds and overrides these.
+   Preset numbers are REAL recorded values from the aerosim tree (provenance on
+   each preset). Recorded results are history, clearly labeled — the live engine
+   is the only source of new numbers. */
+window.AERO_LAB_DATA = {
+  groups: [
+    { id: 'geometry',   label: 'Geometry' },
+    { id: 'energy',     label: 'Energy' },
+    { id: 'propulsion', label: 'Propulsion' },
+    { id: 'payload',    label: 'Payload' },
+    { id: 'buoyancy',   label: 'Buoyancy' },
+    { id: 'site',       label: 'Site / season' }
+  ],
+  fields: [
+    { k: 'area_m2',           g: 'geometry',   label: 'Wing area',        unit: 'm²',    min: 0.2,   max: 25,   step: 0.01,   dp: 3 },
+    { k: 'aspect_ratio',      g: 'geometry',   label: 'Aspect ratio',     unit: '—',     min: 5,     max: 32,   step: 0.01,   dp: 2 },
+    { k: 'taper_ratio',       g: 'geometry',   label: 'Taper ratio',      unit: '—',     min: 0.2,   max: 1,    step: 0.01,   dp: 2 },
+    { k: 'twist_root_deg',    g: 'geometry',   label: 'Twist, root',      unit: '°',     min: -4,    max: 4,    step: 0.01,   dp: 2 },
+    { k: 'twist_tip_deg',     g: 'geometry',   label: 'Twist, tip',       unit: '°',     min: -4,    max: 4,    step: 0.01,   dp: 2 },
+    { k: 'extra_CD0',         g: 'geometry',   label: 'Extra CD₀',        unit: '—',     min: 0.002, max: 0.03, step: 0.0001, dp: 5 },
+    { k: 'fus_over_floor',    g: 'geometry',   label: 'Fuselage / floor', unit: '×',     min: 1,     max: 3,    step: 0.01,   dp: 2 },
+    { k: 'battery_mass_kg',   g: 'energy',     label: 'Battery mass',     unit: 'kg',    min: 0.05,  max: 45,   step: 0.001,  dp: 3 },
+    { k: 'pack_Wh_per_kg',    g: 'energy',     label: 'Pack energy',      unit: 'Wh/kg', min: 150,   max: 500,  step: 0.1,    dp: 1 },
+    { k: 'cell_eff',          g: 'energy',     label: 'Cell efficiency',  unit: '—',     min: 0.15,  max: 0.32, step: 0.001,  dp: 3 },
+    { k: 'pv_density',        g: 'energy',     label: 'PV areal density', unit: 'kg/m²', min: 0.2,   max: 1.2,  step: 0.001,  dp: 3 },
+    { k: 'pv_packing',        g: 'energy',     label: 'PV packing',       unit: '—',     min: 0.2,   max: 0.92, step: 0.001,  dp: 3 },
+    { k: 'prop_max_W',        g: 'propulsion', label: 'Prop max power',   unit: 'W',     min: 20,    max: 2500, step: 0.1,    dp: 1 },
+    { k: 'prop_diameter_m',   g: 'propulsion', label: 'Prop diameter',    unit: 'm',     min: 0.1,   max: 1,    step: 0.001,  dp: 3 },
+    { k: 'payload_W',         g: 'payload',    label: 'Payload draw',     unit: 'W',     min: 0,     max: 50,   step: 0.01,   dp: 2 },
+    { k: 'payload_mass_kg',   g: 'payload',    label: 'Payload mass',     unit: 'kg',    min: 0,     max: 2,    step: 0.001,  dp: 3 },
+    { k: 'buoyancy_fraction', g: 'buoyancy',   label: 'Buoyancy fraction',unit: '—',     min: 0,     max: 1,    step: 0.01,   dp: 2 },
+    { k: 'latitude_deg',      g: 'site',       label: 'Latitude',         unit: '°',     min: -70,   max: 70,   step: 0.1,    dp: 1 },
+    { k: 'day_of_year',       g: 'site',       label: 'Day of year',      unit: 'd',     min: 1,     max: 365,  step: 1,      dp: 0 },
+    { k: 'altitude_m',        g: 'site',       label: 'Altitude',         unit: 'm',     min: 0,     max: 5000, step: 1,      dp: 0 }
+  ],
+  sitePresets: [
+    { label: '47.6°N midsummer (d195)', latitude_deg: 47.6,  day_of_year: 195 },
+    { label: '47.6°N equinox (d80)',    latitude_deg: 47.6,  day_of_year: 80  },
+    { label: '47.6°N winter (d355)',    latitude_deg: 47.6,  day_of_year: 355 },
+    { label: 'Tropics 10.4°S (d90)',    latitude_deg: -10.4, day_of_year: 90  }
+  ],
+  presets: [
+    {
+      key: 'tier1', name: 'Tier-1 sketch',
+      sub: '2.5 m hand sketch · 100 Wh · 47.6°N midsummer',
+      note: 'The operator’s hand-sketched solar wing (TIER1_operator_eval.py): span 2.5 m / S 0.52 m², 0.40 kg pack at 250 Wh/kg, 21× SunPower C60. Recorded verdict at 47.6°N d195: does NOT close — min SOC 0.050, usable 0.927, inadmissible (TIER1_operator_eval.out). Recorded boundary: ~0.694 kg battery is the smallest single change that closes. Press Run to reproduce live.',
+      v: { area_m2: 0.52, aspect_ratio: 12.019230769230768, taper_ratio: 1.0, twist_root_deg: 0.0, twist_tip_deg: 0.0,
+           extra_CD0: 0.006136666480766675, fus_over_floor: 1.0, battery_mass_kg: 0.4, pack_Wh_per_kg: 250.0,
+           cell_eff: 0.227, pv_density: 0.45, pv_packing: 0.6923076923076923, prop_max_W: 100.0, prop_diameter_m: 0.3,
+           payload_W: 2.1728368444666417, payload_mass_kg: 0.1, buoyancy_fraction: 0.0,
+           latitude_deg: 47.6, day_of_year: 195, altitude_m: 500.0 }
+    },
+    {
+      key: 'fixedwing', name: 'Fixed wing (AtlantikSolar class)',
+      sub: '5.65 m span · 703 Wh · closed, min SOC 0.354',
+      note: 'The engine’s reference case A (validate_designs.DESIGN_A, AtlantikSolar class): 5.65 m span, 1.72 m², 703 Wh at 241 Wh/kg. Recorded (FINAL_readme_numbers.out): closed, min SOC 0.3538, usable margin 1.0446. Caveat: case A pins all-up mass at 6.93 kg; these sliders express fuselage-over-floor instead, so the live billed fuselage can differ slightly from the recorded case.',
+      v: { area_m2: 1.72, aspect_ratio: 18.559593023255814, taper_ratio: 0.7, twist_root_deg: 2.0, twist_tip_deg: 0.0,
+           extra_CD0: 0.006, fus_over_floor: 1.0, battery_mass_kg: 2.9170124481327802, pack_Wh_per_kg: 241.0,
+           cell_eff: 0.237, pv_density: 0.72, pv_packing: 0.802, prop_max_W: 150.0, prop_diameter_m: 0.36,
+           payload_W: 5.8, payload_mass_kg: 0.15, buoyancy_fraction: 0.0,
+           latitude_deg: 47.6, day_of_year: 195, altitude_m: 500.0 }
+    },
+    {
+      key: 'hybrid80', name: 'Hybrid f = 0.80',
+      sub: '2.87 m hull + 2.5 m wing · 79.6 Wh · recorded on an earlier engine',
+      needs: 'hybrid',
+      note: 'The FINAL_PRODUCT hybrid (design_snapshot.json): Tier-1 planform under a 3:1 prolate-spheroid hull (2.87 × 0.96 m, 1.369 m³) carrying 80 % of the 1.998 kg all-up weight. Pack 79.6 Wh (0.318 kg). RECORDED on an earlier engine revision: closes at 47.6°N d195 with min SOC 0.050. HONEST WARNING (verified 2026-08-03 against both the vendored snapshot and the live checkout): the engine’s quasi-steady trim no longer converges once a buoyancy element is attached — every buoyant design, including this one and the study’s own HYBRID_common path, now returns a hard TrimConvergenceError. The hybrid capability flag reports that the machinery IMPORTS, not that a buoyant design closes. Press Run to see the engine’s own refusal; the recorded numbers above are history, not a prediction this build can reproduce.',
+      v: { area_m2: 0.52, aspect_ratio: 12.019230769230768, taper_ratio: 1.0, twist_root_deg: 0.0, twist_tip_deg: 0.0,
+           extra_CD0: 0.00744, fus_over_floor: 1.0, battery_mass_kg: 0.3182307005178919, pack_Wh_per_kg: 250.0,
+           cell_eff: 0.227, pv_density: 0.45, pv_packing: 0.6923076923076923, prop_max_W: 100.0, prop_diameter_m: 0.3,
+           payload_W: 2.5308494022630583, payload_mass_kg: 0.1, buoyancy_fraction: 0.8,
+           latitude_deg: 47.6, day_of_year: 195, altitude_m: 500.0 },
+      hull: 'Recorded hull (FINAL_PRODUCT snapshot): 3:1 prolate spheroid, 2.866 m × 0.955 m, 1.369 m³, 38 µm LLDPE film ×1.10 tapes+valve, 10 gores.'
+    },
+    {
+      key: 'r7winner', name: 'Search winner (R7)',
+      sub: '3.29 m span · 902 Wh Si-anode · certified, min SOC 0.437',
+      note: 'The R7 optimizer winner (R7_winner_vector.json): 3.29 m span, 0.9 m², 2.04 kg pack at 441.8 Wh/kg, tropics d90. Recorded: closed, admissible AND certified — min SOC 0.4366, usable 1.0586, all-up 4.759 kg. Vector fingerprint 02fff512…afef29a. Press Run to reproduce live.',
+      v: { area_m2: 0.9, aspect_ratio: 12.019034280644231, taper_ratio: 0.5696602084249895,
+           twist_root_deg: 2.016585559960721, twist_tip_deg: -0.9304424167105616,
+           extra_CD0: 0.00593255229613831, fus_over_floor: 1.0111216067442907,
+           battery_mass_kg: 2.042409251864678, pack_Wh_per_kg: 441.83662268579803,
+           cell_eff: 0.2917705887042008, pv_density: 0.2959381212322341, pv_packing: 0.8993617418925418,
+           prop_max_W: 2102.663198038077, prop_diameter_m: 0.498378639833007,
+           payload_W: 4.572881277474006, payload_mass_kg: 0.24391240534152336, buoyancy_fraction: 0.0,
+           latitude_deg: -10.433485948285286, day_of_year: 90, altitude_m: 163.73303275489067 }
+    }
+  ],
+  /* Categorical series palette (dataviz-validated 2026-08-03 on both effective
+     surfaces: dark #131322 all-pass; light #f9fafc all-pass, contrast WARN on
+     slots 3/4/5 relieved by visible legend value labels). Fixed order, never cycled. */
+  seriesDark:  ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767'],
+  seriesLight: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948']
+};
+</script>
+<script src="/api/aero-lab/app.js"></script>
+</body>
+</html>

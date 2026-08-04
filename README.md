@@ -19,7 +19,7 @@ dependency lifecycle, and the CLI. Start from the example, read the reference ap
 
 <!-- apps-table:begin (generated - run `node scripts/gen-readme-apps-table.mjs`; do not edit by hand) -->
 
-All **46 packages**, shelved by ADR-097 suite. Versions and status come from
+All **47 packages**, shelved by ADR-097 suite. Versions and status come from
 [`marketplace.json`](marketplace.json), which mirrors each package's `oshal-app.yaml`.
 
 ### AI Productivity
@@ -92,6 +92,7 @@ All **46 packages**, shelved by ADR-097 suite. Versions and status come from
 
 | App | Folder | Version | Status | What it is |
 |---|---|---|---|---|
+| **Aero Lab** | [`aero-lab/`](aero-lab/) | 1.0.0 | ready | Persistent-flight design lab - shape a solar-endurance aircraft (span, area, aspect ratio, battery, cells, buoyancy fraction, site, season), run it through the validated aerosim engine (wing polar, 24 h energy limit cycle, admissibility screen), read the verdict with real plots (SOC trace, polar, drag buildup, margins), and download the build package (STL / DXF / BOM). |
 | **AI Bake-Off** | [`bake-off/`](bake-off/) | 1.0.0 | ready | Race one job across every AI lane you already have, grade every output on the shared quality judge, and get the cheapest lane that still clears your quality bar. |
 | **Cloud** | [`cloud/`](cloud/) | 1.0.0 | ready | Inspect and operate your Google Cloud by chat. |
 | **Hello OSHAL** | [`hello-oshal/`](hello-oshal/) | 1.1.0 | ready | The minimal working example — one route, one ribbon tile. |

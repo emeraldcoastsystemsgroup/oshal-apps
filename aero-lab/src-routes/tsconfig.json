@@ -1,0 +1,20 @@
+{
+  "// why": "Compile the aero-lab package routes to CommonJS in ../routes with @/ aliases LEFT INTACT (the oshal loader resolves @/ at runtime — BUILDING-EXTENSIONS §5). Framework `@/` types come from core-modules.d.ts (ambient, never emitted — mapping paths into core SOURCE made tsc emit the core tree into routes/). express + node types resolve from the core checkout's node_modules (declarations only, never emitted). Run from anywhere: npx tsc -p c:/Projects/oshal-apps/aero-lab/src-routes/tsconfig.json (needs the core checkout for the type packages).",
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "ES2022",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "outDir": "../routes",
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "express": ["C:/Projects/oshal/node_modules/@types/express"]
+    },
+    "typeRoots": ["C:/Projects/oshal/node_modules/@types"],
+    "types": ["node"]
+  },
+  "include": ["*.ts", "*.d.ts"]
+}

@@ -1,0 +1,96 @@
+{
+ "gore": {
+  "meridian_len_mm": 3191.8,
+  "max_net_width_mm": 300.1,
+  "cut_len_mm": 3221.8,
+  "cut_max_width_mm": 330.1,
+  "n_gores": 10,
+  "seam_allowance_mm": 15.0,
+  "unroll_area_error_pct": -0.0,
+  "stations": [
+   {
+    "s_mm": 0.0,
+    "r_mm": 0.0,
+    "half_width_mm": 0.0
+   },
+   {
+    "s_mm": 319.2,
+    "r_mm": 238.3,
+    "half_width_mm": 74.85
+   },
+   {
+    "s_mm": 638.4,
+    "r_mm": 358.5,
+    "half_width_mm": 112.61
+   },
+   {
+    "s_mm": 957.6,
+    "r_mm": 428.1,
+    "half_width_mm": 134.48
+   },
+   {
+    "s_mm": 1276.7,
+    "r_mm": 465.7,
+    "half_width_mm": 146.29
+   },
+   {
+    "s_mm": 1595.9,
+    "r_mm": 477.6,
+    "half_width_mm": 150.06
+   },
+   {
+    "s_mm": 1915.1,
+    "r_mm": 465.7,
+    "half_width_mm": 146.29
+   },
+   {
+    "s_mm": 2234.3,
+    "r_mm": 428.1,
+    "half_width_mm": 134.48
+   },
+   {
+    "s_mm": 2553.5,
+    "r_mm": 358.5,
+    "half_width_mm": 112.61
+   },
+   {
+    "s_mm": 2872.7,
+    "r_mm": 238.3,
+    "half_width_mm": 74.85
+   },
+   {
+    "s_mm": 3191.8,
+    "r_mm": 0.0,
+    "half_width_mm": 0.0
+   }
+  ]
+ },
+ "hull_gore.dxf": {
+  "entities": {
+   "SECTION": 1,
+   "POLYLINE": 2,
+   "VERTEX": 1052,
+   "SEQEND": 2,
+   "LINE": 10,
+   "TEXT": 3,
+   "ENDSEC": 1,
+   "EOF": 1
+  },
+  "vertex_extent_mm": [
+   -165.1,
+   -15.0,
+   165.1,
+   3206.8
+  ]
+ },
+ "hull_gore.svg": {
+  "elements": {
+   "line": 11,
+   "rect": 1,
+   "svg": 1,
+   "polygon": 2,
+   "text": 13
+  },
+  "parses": true
+ }
+}

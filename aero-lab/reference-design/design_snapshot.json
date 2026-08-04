@@ -1,0 +1,140 @@
+{
+ "provenance": {
+  "design_point": "HYBRID_refine.out line 'ellipsoid f=0.80' at site A d195; re-derived here via HYBRID_piecewise.evaluate_f (same code path, full precision)",
+  "airfoil": "NACA 2412 carried as CST/Kulfan weights -- aerosim/validate_designs.py SECTION_CODE='2412' via aeropolar.naca_kulfan (AeroSandbox to_kulfan_airfoil)",
+  "planform": "TIER1_operator_eval.py: span 2.5 m, area 0.52 m2, AR 12.02, taper 1.0, twist 0/0",
+  "hull_shape": "HYBRID_common.ellipsoid3_dims: 3:1 prolate spheroid (a = 3b), the exact shape the ellipsoid drag model used",
+  "pack_A": "HYBRID_refine.out f=0.80 A d195 (summer solstice-side)",
+  "pack_B": "HYBRID_f90_fasttrim.out 'B d80 f=0.80 FAST-TRIM: pack 125.5 Wh (0.502 kg)' (equinox capable)",
+  "superheat": "HYBRID_piecewise.out superheat ledger (sphere thermal model): peak +25.6 K / +9.1 kPa, min -1.49 kPa at f=0.75 size; float case +35.2 K / +12.3 kPa / -2.8 kPa"
+ },
+ "site": "A d195 (47.6 N, day 195)",
+ "f_buoyancy": 0.8,
+ "f_actual": 0.7999999999999508,
+ "planform": {
+  "span_m": 2.5,
+  "area_m2": 0.52,
+  "chord_m": 0.20800000000000002,
+  "aspect_ratio": 12.019230769230768,
+  "taper": 1.0,
+  "twist_deg": 0.0,
+  "sweep_deg": 0.0
+ },
+ "airfoil_cst": {
+  "code": "naca2412",
+  "kulfan_upper": [
+   0.1769325839471484,
+   0.18318778277164058,
+   0.2262605855078353,
+   0.1895973375315483,
+   0.20129803017531675,
+   0.2003080728540366,
+   0.20133782828197427,
+   0.20852970661174805
+  ],
+  "kulfan_lower": [
+   -0.1700731667455678,
+   -0.12075837090664715,
+   -0.12044670281769175,
+   -0.0658518963442269,
+   -0.1284965169173624,
+   -0.05225166901731224,
+   -0.0908674717620702,
+   -0.07038212630208401
+  ],
+  "leading_edge_weight": 0.0489441486279617,
+  "TE_thickness": 0.0025539054999674377
+ },
+ "hull": {
+  "shape": "3:1 prolate spheroid",
+  "length_m": 2.865873294306956,
+  "max_diameter_m": 0.9552910981023186,
+  "semi_major_a_m": 1.432936647153478,
+  "semi_minor_b_m": 0.4776455490511593,
+  "volume_m3": 1.3693897391805758,
+  "surface_m2": 7.048257013925816,
+  "film": "38 um LLDPE, 0.035 kg/m2, x1.10 tapes+valve",
+  "n_gores": 10,
+  "seam_allowance_mm": 15.0
+ },
+ "ledger_kg": {
+  "wing_kg": 0.7379513075590383,
+  "pv_kg": 0.234,
+  "battery_kg": 0.3182307005178919,
+  "thruster_kg": 0.05516666666666666,
+  "payload_kg": 0.1,
+  "fus_pod_kg": 0.05930974647745239,
+  "film_tapes_kg": 0.27135789503614394,
+  "helium_kg": 0.22204743524861184
+ },
+ "ledger_sum_kg": 1.998063751505805,
+ "m_allup_kg": 1.998063751505805,
+ "performance": {
+  "trim_V_ms": 3.7960815503629517,
+  "load_W": 7.867989178242857,
+  "P_prop_W": 5.337139775979798,
+  "payload_W": 2.5308494022630583,
+  "D_wing_N": 0.30474936063194846,
+  "D_env_N": 0.4630347288691649,
+  "cd_vol": 0.04465409411804843,
+  "Re_wing": 51963.86431830102,
+  "CL": 0.8958281262090246,
+  "CD": 0.06968288599285083,
+  "cap_Wh": 79.55767512947297,
+  "min_soc": 0.05000000006108399,
+  "harvest_Wh": 615.902393755126,
+  "spill_Wh": 423.7002010288361,
+  "prop_max_W": 100.0
+ },
+ "pack_options": {
+  "A_80Wh": {
+   "batt_kg": 0.3182307005178919,
+   "cap_Wh": 79.55767512947297,
+   "closes": "A d195 (summer): yes, min_soc 0.05"
+  },
+  "B_126Wh": {
+   "batt_kg": 0.502,
+   "cap_Wh": 125.5,
+   "closes": "B d80 equinox per fast-trim; in the SAME hull f drops to 0.733",
+   "f_same_hull": 0.732618382731338,
+   "m_allup_kg": 2.181833050987913
+  }
+ },
+ "balance": {
+  "pod_drop_m": 0.15,
+  "pack_A": {
+   "m_allup_kg": 1.998063751505805,
+   "cg_x_m": 1.432936647153478,
+   "cg_z_m": -0.16733762803407717,
+   "cb_x_m": 1.432936647153478,
+   "cb_z_m": 0.0,
+   "pendulum_arm_m": 0.16733762803407717,
+   "pod_mass_kg": 0.532707113662011,
+   "pod_z_m": -0.6276455490511593
+  },
+  "pack_B": {
+   "m_allup_kg": 2.181833050987913,
+   "cg_x_m": 1.432936647153478,
+   "cg_z_m": -0.20610799323368445,
+   "cb_x_m": 1.432936647153478,
+   "cb_z_m": 0.0,
+   "pendulum_arm_m": 0.20610799323368445,
+   "pod_mass_kg": 0.716476413144119,
+   "pod_z_m": -0.6276455490511593
+  }
+ },
+ "helium_fill": {
+  "helium_mass_kg": 0.22204743524861184,
+  "charge_conditions": "sized at 500 m: p=95461 Pa T=284.9 K +500 Pa superpressure (HYBRID_common.size_envelope)",
+  "rho_gas_sizing_kg_m3": 0.16215026177349254,
+  "gas_volume_at_sizing_m3": 1.369393011272406,
+  "rho_he_ground_20C_kg_m3": 0.16722727561361636,
+  "fill_volume_ground_20C_m3": 1.327818290609835,
+  "hull_volume_m3": 1.3693897391805758
+ },
+ "atmosphere_500m": {
+  "rho_kgm3": 1.1672725123243854,
+  "p_Pa": 95461.28949694506,
+  "T_K": 284.9002556130261
+ }
+}

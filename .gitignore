@@ -9,6 +9,10 @@
 
 # Compiled Python bytecode — build artifacts, regenerated on every run.
 __pycache__/
+# Python virtualenvs for bundled engines (aero-lab). Platform-specific and hundreds of MB;
+# rebuild with the package own engine/setup-venv.sh|ps1 against requirements-lock.txt.
+.venv/
+venv/
 *.pyc
 *.pyo
 

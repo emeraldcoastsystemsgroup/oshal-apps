@@ -1,0 +1,82 @@
+{
+ "wing.stl": {
+  "triangles": 576,
+  "bbox_mm": [
+   [
+    0.0,
+    -1250.0,
+    -9.04
+   ],
+   [
+    208.0,
+    1250.0,
+    16.27
+   ]
+  ],
+  "size_mm": [
+   208.0,
+   2500.0,
+   25.31
+  ],
+  "degenerate_faces": 0,
+  "edges_on_1_tri": 0,
+  "edges_on_2_tris": 864,
+  "edges_on_3plus": 0,
+  "manifold": true
+ },
+ "wing_panel_right.stl": {
+  "triangles": 576,
+  "bbox_mm": [
+   [
+    0.0,
+    0.0,
+    -9.04
+   ],
+   [
+    208.0,
+    1250.0,
+    16.27
+   ]
+  ],
+  "size_mm": [
+   208.0,
+   1250.0,
+   25.31
+  ],
+  "degenerate_faces": 0,
+  "edges_on_1_tri": 0,
+  "edges_on_2_tris": 864,
+  "edges_on_3plus": 0,
+  "manifold": true
+ },
+ "wing_panel_left.stl": {
+  "triangles": 576,
+  "bbox_mm": [
+   [
+    0.0,
+    -1250.0,
+    -9.04
+   ],
+   [
+    208.0,
+    -0.0,
+    16.27
+   ]
+  ],
+  "size_mm": [
+   208.0,
+   1250.0,
+   25.31
+  ],
+  "degenerate_faces": 0,
+  "edges_on_1_tri": 0,
+  "edges_on_2_tris": 864,
+  "edges_on_3plus": 0,
+  "manifold": true
+ },
+ "expected_dims_mm": {
+  "span_mm": 2500.0,
+  "chord_mm": 208.00000000000003,
+  "max_thickness_mm": 24.98129216893791
+ }
+}

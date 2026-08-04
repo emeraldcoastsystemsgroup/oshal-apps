@@ -1,0 +1,53 @@
+{
+ "airfoil.dat": {
+  "points": 399,
+  "x_range": [
+   0.0,
+   1.0
+  ],
+  "order": "Selig: TE -> upper -> LE -> lower -> TE"
+ },
+ "spar_hole": {
+  "x_mm": 62.400000000000006,
+  "y_mm": 3.69,
+  "thickness_at_30pc_mm": 24.98,
+  "hole_d_mm": 10.0
+ },
+ "airfoil_template.dxf": {
+  "entities": {
+   "SECTION": 1,
+   "POLYLINE": 1,
+   "VERTEX": 399,
+   "SEQEND": 1,
+   "LINE": 1,
+   "CIRCLE": 1,
+   "TEXT": 2,
+   "ENDSEC": 1,
+   "EOF": 1
+  },
+  "vertex_extent_mm": [
+   0.0,
+   -9.0,
+   208.0,
+   16.3
+  ]
+ },
+ "ribs.dxf": {
+  "entities": {
+   "SECTION": 1,
+   "POLYLINE": 8,
+   "VERTEX": 3192,
+   "SEQEND": 8,
+   "CIRCLE": 8,
+   "TEXT": 10,
+   "ENDSEC": 1,
+   "EOF": 1
+  },
+  "vertex_extent_mm": [
+   0.0,
+   -79.0,
+   988.0,
+   16.3
+  ]
+ }
+}

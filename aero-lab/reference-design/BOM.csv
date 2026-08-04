@@ -1,0 +1,12 @@
+item,spec,qty,unit_mass_g,total_mass_g,source_hint
+wing structure (pair of panels),"span 2.5 m, const chord 208 mm, AR 12, Tier-1 CST section (NACA2412 Kulfan); build-to-weight per aerosim wing_mass_kg model",1,738.0,738.0,balsa/foam ribs (ribs.dxf) + carbon tube spar 10 mm + film covering
+"solar array, SunPower C60 cell","0.36 m2 active (packing 0.692 on 0.52 m2), eff 0.227, laminate 0.45 kg/m2 billed on full wing area",21,11.1,234.0,SunPower C60 - solar cell suppliers (encapsulate in EVA/ETFE)
+"battery pack - OPTION A (summer, site A d195)","79.6 Wh at 250 Wh/kg pack level, 2S or 3S Li-ion",1,318.2,318.2,21700 cells (e.g. 2x ~50E-class) + BMS; HYBRID_refine.out f=0.80
+"battery pack - OPTION B (equinox-capable, site B d80)",125.5 Wh at 250 Wh/kg pack level; in the same hull f drops to 0.73,1,502.0,502.0,21700 cells (3x) + BMS; HYBRID_f90_fasttrim.out B d80 f=0.80
+thruster: motor + ESC + folding prop,"100 W max electrical, prop dia 0.30 m, FM 0.85, eta_mot 0.85, eta_esc 0.95, 1 rotor",1,55.2,55.2,APC 12x8 or 12x6 folding + micro BLDC (AXI/T-motor class) + 3A ESC
+payload / avionics,"FC + GPS + telemetry, floor draw ~2.5 W (min_avionics_draw_W of the mass class)",1,100.0,100.0,"hobby FC (e.g. Matek), GPS, LoRa/ELRS telemetry"
+pod + boom/tail structure,carries battery+payload+thruster under hull; min_fuselage_boom_tail floor at carried mass,1,59.3,59.3,carbon boom + printed pod shells (print from wing/pod files)
+"hull envelope film, 38 um LLDPE","3:1 prolate spheroid 2.87 x 0.96 m, surface 7.05 m2, 0.035 kg/m2 x1.10 tapes+valve; cut 10 gores per hull_gore.dxf",1,271.4,271.4,38 um LLDPE layflat tubing / greenhouse film + PSA load tape + fill valve
+helium fill,222 g He = 1.33 m3 at ground 20 C (hull volume 1.37 m3),1,222.0,222.0,balloon-grade helium cylinder (~2 m3 rental covers fill + top-off)
+"TOTAL all-up, OPTION A pack",buoyancy fraction f = 0.80 at 500 m,,,1998.1,design_snapshot.json ledger (sums exactly)
+"TOTAL all-up, OPTION B pack","same hull, f = 0.73 at 500 m",,,2181.8,design_snapshot.json ledger + fast-trim pack
