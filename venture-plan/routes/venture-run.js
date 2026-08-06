@@ -11,9 +11,10 @@
  * A route that quietly narrated the result would destroy that property, so nothing
  * in this function may ever reach an LLM.
  *
- * `startRun` is the LLM path and it NEVER runs on the request path. A full run is
- * four bot calls across four bots and takes minutes; a synchronous route would
- * time out and the user would retry, doubling the spend. So it opens a run row,
+ * `startRun` is the LLM path and it NEVER runs on the request path. A full run has
+ * three analyst calls plus one narration call per requested prose-bearing
+ * document; it can take minutes, so a synchronous route would time out and the
+ * user would retry, doubling the spend. So it opens a run row,
  * returns the id immediately, and drives the phases detached. The surface polls.
  *
  * PER-PHASE FAILURE ISOLATION IS DELIBERATE. If the market analyst's harness is
@@ -32,12 +33,15 @@
  * -----------------------------------------------------------------------------
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial implementation — the free, LLM-free recompute path; the detached authoring run with single-flight, per-phase failure isolation and a persisted phase log; and the narration phase that renders every document from the frozen snapshot.
  *
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Add default-off scheduled rebaseline execution, per-call measured-cost gating, database slot idempotency, and owner-bound progress writes.
+ *
  * @module venture-run
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.inFlightRun = inFlightRun;
 exports.recomputeVenture = recomputeVenture;
 exports.startRun = startRun;
+exports.startScheduledRebaseline = startScheduledRebaseline;
 const agent_management_1 = require("@/features/agent-management");
 const logger_1 = require("@/shared/logger");
 const venture_model_1 = require("./venture-model");
@@ -49,6 +53,8 @@ const venture_doc_catalog_1 = require("./venture-doc-catalog");
 const venture_store_1 = require("./venture-store");
 const venture_store_supply_1 = require("./venture-store-supply");
 const venture_store_outputs_1 = require("./venture-store-outputs");
+const venture_rebaseline_1 = require("./venture-rebaseline");
+const venture_store_rebaseline_1 = require("./venture-store-rebaseline");
 const venture_types_1 = require("./venture-types");
 const log = (0, logger_1.createChildLogger)({ module: 'venture-run' });
 /** The framework way to reach a bot; falls through to inline for concierge bots. */
@@ -126,24 +132,48 @@ function phasesFor(kind) {
         return [ops, compute];
     if (kind === 'narrate')
         return [compute, narrateP];
+    if (kind === 'rebaseline')
+        return [bom, market, ops, compute];
     return [bom, market, ops, compute, narrateP];
 }
 /** Mark one phase and persist the run's progress. */
-async function mark(pool, runId, phases, name, status, startedAt, error) {
+async function mark(pool, ownerSub, ventureId, runId, phases, name, status, startedAt, error) {
     const p = phases.find((x) => x.name === name);
     if (p) {
         p.status = status;
         p.durationMs = Date.now() - startedAt;
         p.error = error ?? null;
     }
-    const done = phases.filter((x) => x.agentId && (x.status === 'done' || x.status === 'failed')).length;
-    await (0, venture_store_1.advanceRun)(pool, runId, name, phases, done);
+    const done = phases.filter((x) => x.agentId
+        && (x.status === 'done' || x.status === 'failed' || x.status === 'skipped')).length;
+    await (0, venture_store_1.advanceRun)(pool, ownerSub, ventureId, runId, name, phases, done);
+}
+/** Run and persist one bot boundary through the scheduled cap when present. */
+async function paidBotCall(p, call) {
+    if (!p.budget)
+        return call();
+    try {
+        return await (0, venture_rebaseline_1.costCappedBotCall)(p.budget, call);
+    }
+    finally {
+        try {
+            const saved = await (0, venture_store_rebaseline_1.updateScheduledRunCost)(p.pool, p.ownerSub, p.ventureId, p.runId, p.budget.status());
+            if (!saved)
+                throw new Error('scheduled run cost evidence target is unavailable');
+        }
+        catch (err) {
+            // Without durable cost evidence, later calls stop even when the provider
+            // response itself was valid or the persistence adapter threw.
+            p.budget.noteUnsettled();
+            throw err;
+        }
+    }
 }
 /** Run the BOM phase: draft lines and vendor candidates, store what parses. */
 async function phaseBom(p, spec) {
     const model = await recomputeVenture(p.pool, p.ownerSub, p.ventureId, { onDate: p.onDate, runId: p.runId });
     const runQty = model?.model.bom.runQtyUnits ?? 5000;
-    const reply = await (0, venture_bots_1.authorBom)(p.ctx, botClient, p.ownerSub, spec, runQty);
+    const reply = await paidBotCall(p, () => (0, venture_bots_1.authorBom)(p.ctx, botClient, p.ownerSub, spec, runQty));
     const parsed = (0, venture_bot_contracts_1.parseBomOutput)(reply.text);
     if (!parsed.ok)
         throw new Error(`BOM analyst reply unusable: ${parsed.error}`);
@@ -180,7 +210,7 @@ async function phaseBom(p, spec) {
 }
 /** Run the market phase: demand, price ladder and channel terms. */
 async function phaseMarket(p, spec) {
-    const reply = await (0, venture_bots_1.authorMarket)(p.ctx, botClient, p.ownerSub, spec);
+    const reply = await paidBotCall(p, () => (0, venture_bots_1.authorMarket)(p.ctx, botClient, p.ownerSub, spec));
     const parsed = (0, venture_bot_contracts_1.parseAssumptionOutput)(reply.text);
     if (!parsed.ok)
         throw new Error(`market analyst reply unusable: ${parsed.error}`);
@@ -196,7 +226,7 @@ async function phaseOps(p, spec) {
             name: l.name, purchaseQty: l.purchaseQty, extendedMicros: l.extendedMicros,
         })),
     } : { note: 'no BOM computed yet' };
-    const reply = await (0, venture_bots_1.authorOps)(p.ctx, botClient, p.ownerSub, spec, summary);
+    const reply = await paidBotCall(p, () => (0, venture_bots_1.authorOps)(p.ctx, botClient, p.ownerSub, spec, summary));
     const parsed = (0, venture_bot_contracts_1.parseOpsOutput)(reply.text);
     if (!parsed.ok)
         throw new Error(`ops analyst reply unusable: ${parsed.error}`);
@@ -223,7 +253,7 @@ async function phaseNarrate(p, snapshot, docKeys) {
         const wanted = (0, venture_doc_catalog_1.proseKeysFor)(spec);
         if (wanted.length) {
             try {
-                const reply = await (0, venture_bots_1.narrate)(p.ctx, botClient, p.ownerSub, spec.title, wanted, figureTable);
+                const reply = await paidBotCall(p, () => (0, venture_bots_1.narrate)(p.ctx, botClient, p.ownerSub, spec.title, wanted, figureTable));
                 prose = (0, venture_bot_contracts_1.parseProseOutput)(reply.text);
             }
             catch (err) {
@@ -280,11 +310,49 @@ async function startRun(ctx, ownerSub, ventureId, kind, docKeys, onDate) {
         .finally(() => { inFlight.delete(ventureId); });
     return { runId, alreadyRunning: false, phases: phases.map((p) => p.name) };
 }
+/**
+ * Start the already-authorized scheduled path after a service tick evaluates an
+ * owner policy. The database slot is reserved before any paid call, making a
+ * retry or concurrent tick observationally idempotent.
+ */
+async function startScheduledRebaseline(ctx, ownerSub, ventureId, slot, onDate, capMicros) {
+    const phases = phasesFor('rebaseline');
+    const active = inFlightRun(ventureId);
+    if (active) {
+        return {
+            runId: active, alreadyRunning: true, alreadyScheduled: false,
+            phases: phases.map((phase) => phase.name),
+        };
+    }
+    const pool = ctx.pool;
+    const reserved = await (0, venture_store_rebaseline_1.openScheduledRun)(pool, ownerSub, ventureId, slot, capMicros, phases);
+    if (!reserved)
+        throw new venture_rebaseline_1.RebaselineError('rebaseline_venture_not_found', 'scheduled venture is unavailable');
+    if (!reserved.inserted) {
+        return {
+            runId: reserved.runId, alreadyRunning: false, alreadyScheduled: true,
+            phases: phases.map((phase) => phase.name),
+        };
+    }
+    const budget = new venture_rebaseline_1.ScheduledRunBudget(capMicros);
+    inFlight.set(ventureId, reserved.runId);
+    void drive({
+        ctx, pool, ownerSub, ventureId, runId: reserved.runId, onDate, budget,
+    }, 'rebaseline', phases, undefined)
+        .catch((err) => log.error({
+        err, stack: err?.stack, ventureId, runId: reserved.runId,
+    }, 'scheduled venture rebaseline crashed'))
+        .finally(() => { inFlight.delete(ventureId); });
+    return {
+        runId: reserved.runId, alreadyRunning: false, alreadyScheduled: false,
+        phases: phases.map((phase) => phase.name),
+    };
+}
 /** Walk the phases, isolating each failure, then close the run. */
 async function drive(p, kind, phases, docKeys) {
     const venture = await (0, venture_store_1.getVenture)(p.pool, p.ownerSub, p.ventureId);
     if (!venture) {
-        await (0, venture_store_1.closeRun)(p.pool, p.runId, 'failed', phases, 'venture not found');
+        await (0, venture_store_1.closeRun)(p.pool, p.ownerSub, p.ventureId, p.runId, 'failed', phases, 'venture not found');
         return;
     }
     const spec = {
@@ -296,7 +364,7 @@ async function drive(p, kind, phases, docKeys) {
         if (phase.name === 'compute' || phase.name === 'narrate')
             continue;
         const started = Date.now();
-        await mark(p.pool, p.runId, phases, phase.name, 'running', started);
+        await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, phase.name, 'running', started);
         try {
             if (phase.name === 'bom')
                 await phaseBom(p, spec);
@@ -304,35 +372,37 @@ async function drive(p, kind, phases, docKeys) {
                 await phaseMarket(p, spec);
             else if (phase.name === 'ops')
                 await phaseOps(p, spec);
-            await mark(p.pool, p.runId, phases, phase.name, 'done', started);
+            await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, phase.name, 'done', started);
         }
         catch (err) {
             log.error({ err, stack: err?.stack, phase: phase.name, runId: p.runId }, 'venture phase failed');
             failures.push(`${phase.name}: ${err?.message || String(err)}`);
-            await mark(p.pool, p.runId, phases, phase.name, 'failed', started, err?.message || String(err));
+            const skipped = err instanceof venture_rebaseline_1.RebaselineError
+                && err.code === 'rebaseline_cost_cap_blocked';
+            await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, phase.name, skipped ? 'skipped' : 'failed', started, err?.message || String(err));
         }
     }
     const computeStarted = Date.now();
-    await mark(p.pool, p.runId, phases, 'compute', 'running', computeStarted);
+    await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, 'compute', 'running', computeStarted);
     const computed = await recomputeVenture(p.pool, p.ownerSub, p.ventureId, {
         onDate: p.onDate, runId: p.runId,
     });
-    await mark(p.pool, p.runId, phases, 'compute', computed ? 'done' : 'failed', computeStarted);
+    await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, 'compute', computed ? 'done' : 'failed', computeStarted);
     if (computed && phases.some((x) => x.name === 'narrate')) {
         const started = Date.now();
-        await mark(p.pool, p.runId, phases, 'narrate', 'running', started);
+        await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, 'narrate', 'running', started);
         try {
             await phaseNarrate(p, computed.snapshot, docKeys?.length ? docKeys : venture_doc_catalog_1.DOC_CATALOG.map((d) => d.key));
-            await mark(p.pool, p.runId, phases, 'narrate', 'done', started);
+            await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, 'narrate', 'done', started);
         }
         catch (err) {
             failures.push(`narrate: ${err?.message || String(err)}`);
-            await mark(p.pool, p.runId, phases, 'narrate', 'failed', started, err?.message || String(err));
+            await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, 'narrate', 'failed', started, err?.message || String(err));
         }
     }
     // A run with a failed phase is still `done` when it produced a model: the user
     // has a plan plus a named gap, which is more useful than a wholesale failure.
-    await (0, venture_store_1.closeRun)(p.pool, p.runId, computed ? 'done' : 'failed', phases, failures.length ? failures.join(' | ') : null);
+    await (0, venture_store_1.closeRun)(p.pool, p.ownerSub, p.ventureId, p.runId, computed ? 'done' : 'failed', phases, failures.length ? failures.join(' | ') : null);
     log.info({ ventureId: p.ventureId, runId: p.runId, kind, failures: failures.length }, 'venture run closed');
 }
 //# sourceMappingURL=venture-run.js.map

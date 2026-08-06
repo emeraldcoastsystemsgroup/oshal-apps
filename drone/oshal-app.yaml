@@ -48,6 +48,19 @@ source:
   path: drone
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/drone/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # No connector allow-list: drones are SWARM NODES that join by authenticated
 # heartbeat (swarm service secret), not per-user OAuth connectors.
 dependencies:
@@ -162,6 +175,13 @@ ui:
 # secret itself: a node identity, never an operator browser.)
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/drone/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/drone-routes.js
     factory: createDroneRoutes
     mountPath: /api/drone

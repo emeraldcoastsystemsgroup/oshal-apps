@@ -2,9 +2,9 @@
  * Rides Routes — Uber Rides Concierge surface API
  *
  * Backs the Rides surface at /cockpit?app=rides. The framework way:
- *  - Ride OPTIONS/ESTIMATES + the request DEEP LINK come from the connector CLI
- *    (scripts/oshal-uber-rides.js), which resolves the operator's OPTIONAL Uber Rides
- *    config from the connector store via the token broker — NO keys in env/compose.
+ *  - Ride OPTIONS/ESTIMATES + the request DEEP LINK come from the core Uber Rides helper.
+ *    The controller resolves the operator's OPTIONAL config for one fixed server operation and
+ *    passes it directly as a request-scoped argument; no child environment or model sees it.
  *  - The BRAIN runs on the rides-concierge bot via ctx.orchestrator (caller's provider).
  *  - Profile / request history / chat persist per-rider in the DB.
  *
@@ -41,19 +41,22 @@
  *            | the CLI already computes, so the map draws its pins without a second round-trip.
  *            | Guard: tests/rides-map-surface.test.js.
  * ---------------------------------------------------------------------------
+ * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove Uber Rides credentials from generic bot dispatch. Estimate/deep-link access resolves a fixed-server-operation credential only inside the deterministic CLI helper; the model receives rider context and never a credential map.
+ * 2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: replace the final credential-bearing subprocess with the import-safe Uber Rides provider helper. Estimate, geocode, and handoff calls receive only the current request's explicit credential value.
+ *
  * @module rides-routes
  */
 
 import { Router, static as expressStatic, type Request, type Response, type RequestHandler } from 'express';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
-import { execFile } from 'child_process';
 import { createChildLogger } from '@/shared/logger';
 import { buildOwnerRlsPolicyStatements, runRuntimeSchemaBootstrap } from '@/shared/services/database';
 import type { AppContext } from '@/app/composition/app-context';
 import type { Pool } from 'pg';
 import { getTrustedServiceUserSub } from '@/shared/middleware/authz';
-import { resolveBotCreds } from '@/app/routes/connector-token-broker';
+import { resolveServerOperationCreds } from '@/app/routes/connector-token-broker';
+import { runUberRidesProviderOperation } from '@/app/routes/provider-operation-clients';
 import { ConciergeStore } from '@/app/routes/concierge-store';
 import { cleanConciergeReply } from '@/app/routes/concierge-reply';
 import { BotNodeClient, createRegistryEndpointResolver } from '@/features/agent-management';
@@ -62,10 +65,8 @@ import { executeBotOrInline } from '@/app/routes/inline-bot-execution';
 const logger = createChildLogger({ module: 'rides-routes' });
 
 const CONCIERGE_AGENT_ID = 'b0090000-0000-0000-0000-000000000001';
-const RIDES_CLI = 'scripts/oshal-uber-rides.js';
-// rides-concierge is now a REAL bot-node (its own rides-bot container, codex, shells out to the CLI).
-// Reach it the framework way — BotNodeClient → http://rides-bot:5000/api/swarm-execute — exactly as the
-// build queue does, so the surface and Jarvis's tickets hit the same isolated, traceable bot.
+// rides-concierge is a real accountable bot-node. This route uses it for tool-disabled reasoning;
+// deterministic provider work stays in ridesProviderOperation after the envelope is validated.
 const botClient = new BotNodeClient(createRegistryEndpointResolver());
 
 /** Serve a static surface file from the package's tools dir (ctx.appPackageDir — D10). */
@@ -91,19 +92,15 @@ function resolveRiderSub(req: Request): string {
   throw Object.assign(new Error('Not authenticated'), { status: 401 });
 }
 
-/** Run the Uber Rides connector CLI with the caller's brokered credential (OSHAL_CRED_UBER_RIDES). */
-async function ridesCli(pool: Pool, sub: string, args: string[]): Promise<any> {
-  const creds = await resolveBotCreds(pool as unknown as never, sub, ['uber-rides']);
-  return new Promise((resolve) => {
-    const env: NodeJS.ProcessEnv = { ...process.env, OSHAL_USER_SUB: sub };
-    if (creds.OSHAL_CRED_UBER_RIDES) env.OSHAL_CRED_UBER_RIDES = creds.OSHAL_CRED_UBER_RIDES;
-    execFile('node', [path.resolve(process.cwd(), RIDES_CLI), ...args],
-      { env, timeout: 30000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
-        const text = (stdout || '').trim();
-        try { resolve(JSON.parse(text || '{}')); }
-        catch { resolve({ error: (err && err.message) || 'uber-rides CLI error', raw: text.slice(0, 300) }); }
-      });
-  });
+/** Run one Uber Rides provider operation with the caller's explicit request-scoped credential. */
+async function ridesProviderOperation(pool: Pool, sub: string, args: string[]): Promise<any> {
+  const creds = await resolveServerOperationCreds(
+    pool as unknown as never,
+    sub,
+    ['uber-rides'],
+    'fixed-server-operation',
+  );
+  return runUberRidesProviderOperation(creds.OSHAL_CRED_UBER_RIDES, args);
 }
 
 export async function ensureRidesSchema(pool: Pool): Promise<void> {
@@ -273,14 +270,14 @@ export function createRidesRoutes(ctx: AppContext): Router {
 
   // ── Geocoding proxy ────────────────────────────────────────────────────────
   // The map drops and drags pins, and every one of those has to become an address (and back).
-  // It goes through the framework CLI rather than the browser so Nominatim sees ONE caller
+  // It goes through the core provider helper rather than the browser so Nominatim sees ONE caller
   // honouring its terms — a real User-Agent, ~1 req/s serialized, per-process cached — instead
   // of one uncontrolled caller per rider. Auth-gated like every other route here.
   router.get('/geocode', rider(async (req, res, sub) => {
     const q = String(req.query.q || '').trim();
     if (!q) { res.status(400).json({ error: 'q is required' }); return; }
     if (q.length > 300) { res.status(400).json({ error: 'q is too long' }); return; }
-    const r = await ridesCli(pool, sub, ['geocode', q]);
+    const r = await ridesProviderOperation(pool, sub, ['geocode', q]);
     if (!r || r.error || typeof r.lat !== 'number') { res.status(404).json({ error: r?.error || 'address did not resolve' }); return; }
     res.json({ lat: r.lat, lon: r.lon, label: r.label });
   }));
@@ -290,20 +287,20 @@ export function createRidesRoutes(ctx: AppContext): Router {
     const lon = Number(req.query.lon);
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) { res.status(400).json({ error: 'lat and lon are required' }); return; }
     if (Math.abs(lat) > 90 || Math.abs(lon) > 180) { res.status(400).json({ error: 'lat/lon out of range' }); return; }
-    const r = await ridesCli(pool, sub, ['reverse', String(lat), String(lon)]);
+    const r = await ridesProviderOperation(pool, sub, ['reverse', String(lat), String(lon)]);
     if (!r || r.error || !r.label) { res.status(404).json({ error: r?.error || 'no address at that point' }); return; }
     res.json({ lat, lon, label: r.label });
   }));
 
-  // ── Estimate + request (via the connector CLI) ──────────────────────────────
+  // ── Estimate + request (via the request-scoped provider helper) ─────────────
   router.get('/estimate', rider(async (req, res, sub) => {
     const pickup = String(req.query.pickup || 'my location');
     const dropoff = String(req.query.dropoff || '');
     if (!dropoff) { res.status(400).json({ error: 'dropoff is required' }); return; }
-    const r = await ridesCli(pool, sub, ['estimate', pickup, dropoff]);
+    const r = await ridesProviderOperation(pool, sub, ['estimate', pickup, dropoff]);
     res.json({
       pickup, dropoff, options: r.options || [], source: r.source || 'estimate', error: r.error,
-      // The CLI geocoded both ends to measure the trip; hand the pins and the measurement to the
+      // The provider helper geocoded both ends; hand its pins and measurement to the
       // map so it draws the route without asking Nominatim the same two questions again.
       coords: r.coords || null,
       distanceKm: r.distanceKm ?? null,
@@ -319,7 +316,7 @@ export function createRidesRoutes(ctx: AppContext): Router {
     const dropoff = String(b.dropoff || '');
     const rideType = String(b.rideType || '');
     if (!dropoff) { res.status(400).json({ error: 'dropoff is required' }); return; }
-    const r = await ridesCli(pool, sub, ['ride', pickup, dropoff, rideType]);
+    const r = await ridesProviderOperation(pool, sub, ['ride', pickup, dropoff, rideType]);
     if (!r.rideUrl) { res.status(400).json({ error: r.error || 'could not build ride link' }); return; }
     await recordRequest(pool, sub, { pickup, dropoff, rideType, deepLink: r.rideUrl, fareLow: b.fareLow, fareHigh: b.fareHigh });
     res.json({ rideUrl: r.rideUrl, pickup, dropoff, rideType,
@@ -370,10 +367,9 @@ export function createRidesRoutes(ctx: AppContext): Router {
       message,
     ].filter(Boolean).join('\n');
     const prompt = buildConciergePrompt({ message: messageWithHints, history, profile });
-    const creds = await resolveBotCreds(pool as unknown as never, sub, ['uber-rides']);
-    // Dispatch to the REAL rides-bot (codex container). It shells out to oshal-uber-rides.js itself —
-    // estimate + the device-aware booking link — and returns a rich markdown answer (options table +
-    // links). Cost/audit land under this agent_id; the build queue uses this exact path for tickets.
+    // Dispatch credential-free reasoning to the accountable rides-bot. The controller validates its
+    // envelope, then performs any estimate/deep-link lookup through ridesProviderOperation at the bounded provider
+    // boundary below. Cost/audit still land under this agent_id; no model tool receives a token.
     let raw = '';
     try {
       const result = await executeBotOrInline(ctx, botClient, CONCIERGE_AGENT_ID, {
@@ -381,10 +377,9 @@ export function createRidesRoutes(ctx: AppContext): Router {
         taskId: `rides-${sub}-${randomUUID()}`,
         workspaceFolderId: `rides-${sub}`,
         agentId: CONCIERGE_AGENT_ID,
-        agenticMode: true,
+        agenticMode: false,
         direct: true,
         userSub: sub,
-        creds,
       });
       raw = String(result?.response || '').trim();
     } catch (e) { logger.error({ e }, 'rides concierge dispatch failed'); }
@@ -395,12 +390,12 @@ export function createRidesRoutes(ctx: AppContext): Router {
     const rideType = env.rideType || '';
     let options: any[] = [];
     if ((env.showOptions || (!env.book && dropoff)) && dropoff) {
-      const estimate = await ridesCli(pool, sub, ['estimate', pickup, dropoff]);
+      const estimate = await ridesProviderOperation(pool, sub, ['estimate', pickup, dropoff]);
       options = estimate.options || [];
     }
     let ride: any = null;
     if (env.book && dropoff) {
-      const handoff = await ridesCli(pool, sub, ['ride', pickup, dropoff, rideType]);
+      const handoff = await ridesProviderOperation(pool, sub, ['ride', pickup, dropoff, rideType]);
       if (handoff.rideUrl) {
         await recordRequest(pool, sub, { pickup, dropoff, rideType, deepLink: handoff.rideUrl });
         ride = { rideUrl: handoff.rideUrl, webUrl: handoff.webUrl, appUrl: handoff.appUrl, pickup, dropoff, rideType };

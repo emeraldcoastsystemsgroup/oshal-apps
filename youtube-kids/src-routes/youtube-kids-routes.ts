@@ -30,18 +30,21 @@
  * 2026-07-05 19:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | Tier-1 RLS at the lazy-DDL chokepoint (A1.2 follow-up): ensureYoutubeKidsSchema now appends buildOwnerRlsPolicyStatements for oshal_youtube_activity so a fresh database is never left policy-less between table creation and a migration-060 re-run.
  * 2026-07-17 18:00:00 | roger.murphy@emeraldcoastsystemsgroup.com | ADR-085 carve-out: moved into the youtube-kids store package. Factory is the standard (ctx) shape — the surface HTML now serves from the package's own tools/ dir (ctx.appPackageDir, portrait-studio pattern) instead of a passed-in apiDir; executeBotOrInline import rewritten to the @/app/routes alias (core helper, resolved by the loader at runtime). Logic unchanged.
  *
+ * 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: replace the public SESSION_SECRET fallback with package-local fail-closed encryption while retaining the existing envelope for stored Takeout exports.
+ * 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | Register the package's owner-scoped watch-history ingest function with the generic manifest Takeout spine.
+ *
  * @module youtube-kids-routes
  */
 
 import { Router, raw, type Request, type Response, type RequestHandler } from 'express';
 import * as path from 'path';
-import * as crypto from 'crypto';
 import { createChildLogger } from '@/shared/logger';
 import { buildOwnerRlsPolicyStatements, runRuntimeSchemaBootstrap } from '@/shared/services/database';
 import type { AppContext } from '@/app/composition/app-context';
 import { BotNodeClient, createRegistryEndpointResolver } from '@/features/agent-management';
 import { executeBotOrInline } from '@/app/routes/inline-bot-execution';
 import { parseTakeoutWatchHistory, type WatchAggregate } from './youtube-takeout';
+import { encryptSessionValue } from './session-crypto';
 
 const logger = createChildLogger({ module: 'youtube-kids-routes' });
 
@@ -67,18 +70,6 @@ function servePage(surfaceDir: string, file: string): RequestHandler {
       if (err) { logger.error({ err, file }, 'serve failed'); res.status(404).send('Not found'); }
     });
   };
-}
-
-/** AES-256-GCM key = SHA256(SESSION_SECRET) — same scheme the connector tokens use. */
-function aesKey(): Buffer {
-  return crypto.createHash('sha256').update(process.env.SESSION_SECRET || 'oshal-dev-secret').digest();
-}
-/** Encrypt a UTF-8 string to the connectors' `iv:tag:enc` base64 envelope. */
-function encrypt(plain: string): string {
-  const iv = crypto.randomBytes(12);
-  const c = crypto.createCipheriv('aes-256-gcm', aesKey(), iv);
-  const enc = Buffer.concat([c.update(plain, 'utf8'), c.final()]);
-  return [iv.toString('base64'), c.getAuthTag().toString('base64'), enc.toString('base64')].join(':');
 }
 
 /** Create the per-user store if absent. Raw export kept encrypted; aggregate is JSONB. */
@@ -144,9 +135,36 @@ export async function ingestWatchHistory(pool: AppContext['pool'], sub: string, 
      ON CONFLICT (user_sub) DO UPDATE SET
        aggregate = EXCLUDED.aggregate, raw_blob = EXCLUDED.raw_blob,
        total_watched = EXCLUDED.total_watched, brief = NULL, uploaded_at = now(), brief_at = NULL`,
-    [sub, JSON.stringify(agg), encrypt(rawJson), agg.totalWatched]);
+    [sub, JSON.stringify(agg), encryptSessionValue(rawJson), agg.totalWatched]);
   logger.info({ sub, totalWatched: agg.totalWatched, channels: agg.distinctChannels }, 'kid-lens watch history ingested');
   return { totalWatched: agg.totalWatched, distinctChannels: agg.distinctChannels, dateRange: agg.dateRange, topChannels: agg.topChannels.slice(0, 8) };
+}
+
+/** Input contract supplied by the kernel after authenticated, bounded archive extraction. */
+export interface TakeoutWatchHistoryInput {
+  userSub: string;
+  content: string;
+  fileName: string;
+}
+
+/**
+ * @description Package contribution invoked by the generic `/api/takeout` spine. It delegates
+ * to the exact direct-upload store path, preserving encryption, RLS bootstrap, stale-brief
+ * invalidation, and authenticated-owner isolation across both entry points.
+ */
+export async function ingestTakeoutWatchHistory(
+  ctx: AppContext,
+  input: TakeoutWatchHistoryInput,
+): Promise<{ summary: string }> {
+  if (!input.userSub.trim()) {
+    const error = new Error('Authenticated Takeout owner is required') as Error & { code?: string };
+    error.code = 'not_authenticated';
+    throw error;
+  }
+  const result = await ingestWatchHistory(ctx.pool, input.userSub, input.content);
+  return {
+    summary: `Stored ${result.totalWatched} watch entries across ${result.distinctChannels} channels.`,
+  };
 }
 
 /**

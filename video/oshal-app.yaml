@@ -43,6 +43,19 @@ source:
   path: video
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/video/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # Kernel skills this package IMPORTS (ADR-085 §2). Declared because an undeclared import is
 # invisible to the prune guard: the first carve that drops the skill would break this app at
 # MOUNT time, not at compile time. See docs/apps/kernel-skills.md.
@@ -116,6 +129,13 @@ migrations:
 # this package, auth: oidc — ADR-085 D2.)
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/video/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/video-routes.js
     factory: createBotVideoRoutes
     mountPath: /api/video

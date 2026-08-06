@@ -48,7 +48,8 @@ exports.registerCareerTitleScoreRoutes = registerCareerTitleScoreRoutes;
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 const logger_1 = require("@/shared/logger");
-const career_hunter_routes_1 = require("./career-hunter-routes");
+const career_user_store_1 = require("./career-user-store");
+const career_engine_dispatch_1 = require("./career-engine-dispatch");
 const logger = (0, logger_1.createChildLogger)({ module: 'career-title-score' });
 /** Persistent once/~day guard width (hours) — tolerant of cron-window drift, like the digest. */
 const GUARD_HOURS = 20;
@@ -93,6 +94,11 @@ function stripControlChars(s) {
     }
     return out;
 }
+/**
+ * @description Normalizes untrusted title input into bounded, unique, printable search terms.
+ * @param input comma/newline text or an array supplied by the settings surface
+ * @returns at most the configured number of canonical title terms
+ */
 function normalizeTitleTerms(input) {
     const raw = Array.isArray(input)
         ? input.map((t) => String(t))
@@ -154,7 +160,7 @@ function deriveTitleTermsFromRoles(roles) {
  */
 function deriveTitleTermsFromResume(userSub) {
     try {
-        const careerDb = path.join((0, career_hunter_routes_1.userPaths)(userSub).userDir, 'career_db.json');
+        const careerDb = path.join((0, career_user_store_1.userPaths)(userSub).userDir, 'career_db.json');
         if (!fs.existsSync(careerDb))
             return [];
         const d = JSON.parse(fs.readFileSync(careerDb, 'utf8'));
@@ -243,6 +249,7 @@ async function getOrSeedTitleProfile(pool, userSub) {
  * @param pool Postgres pool
  * @param userSub the user
  * @param terms already-normalized terms
+ * @returns nothing after the user-owned profile is persisted
  */
 async function saveTitleProfile(pool, userSub, terms) {
     await pool.query(`INSERT INTO career_score_settings (user_sub, title_terms, title_terms_source)
@@ -255,6 +262,7 @@ async function saveTitleProfile(pool, userSub, terms) {
  * lastRun map dies with the process, this cursor does not.
  * @param pool Postgres pool
  * @param userSub the user
+ * @returns nothing after the persistent cursor is advanced
  * @returns true when a cron score is allowed
  */
 async function dueForCronScore(pool, userSub) {
@@ -266,6 +274,7 @@ async function dueForCronScore(pool, userSub) {
  * (window AND catch-up), so a recreate later the same day skips the user entirely.
  * @param pool Postgres pool
  * @param userSub the user
+ * @returns nothing after the durable score cursor advances
  */
 async function markCronScore(pool, userSub) {
     await pool.query(`INSERT INTO career_score_settings (user_sub, last_cron_score_at) VALUES ($1, NOW())
@@ -301,14 +310,13 @@ async function runTitlePassForUser(ctx, userSub, opts = {}) {
         return { ran: false, reason: 'no-title-profile' };
     if (!opts.force && !dueSince(profile.lastTitlePassAt))
         return { ran: false, reason: 'already-ran-today' };
-    const acquired = (0, career_hunter_routes_1.tryAcquireRun)(userSub, 'score');
-    if (acquired !== 'ok') {
-        logger.info({ userSub, acquired }, 'title pass: skipped — score run in flight or box busy');
-        return { ran: false, reason: acquired === 'inflight' ? 'score-in-flight' : 'busy' };
-    }
     try {
         const inv = buildTitlePassInvocation(profile.titleTerms, TITLE_PASS_LIMIT);
-        const r = await (0, career_hunter_routes_1.runCliAwait)(userSub, inv.args, inv.env);
+        const r = await (0, career_engine_dispatch_1.runCareerCliAwait)(ctx.pool, userSub, inv.args, inv.env, { slot: 'score' });
+        if (r.limitReason) {
+            logger.info({ userSub, limit: r.limitReason }, 'title pass: skipped - score run in flight or box busy');
+            return { ran: false, reason: r.limitReason === 'inflight' ? 'score-in-flight' : 'busy' };
+        }
         if (!r.ok) {
             logger.error({ userSub, err: r.err.slice(-400) }, 'title pass: engine run failed');
             return { ran: false, reason: 'engine-failed' };
@@ -323,9 +331,6 @@ async function runTitlePassForUser(ctx, userSub, opts = {}) {
         logger.error({ err, userSub }, 'title pass: failed');
         return { ran: false, reason: 'error' };
     }
-    finally {
-        (0, career_hunter_routes_1.releaseRun)(userSub, 'score');
-    }
 }
 /**
  * @description Settings-surface routes on the career-hunter router (parent-mounted behind
@@ -333,11 +338,12 @@ async function runTitlePassForUser(ctx, userSub, opts = {}) {
  * save edited terms, and an explicit bounded run-now.
  * @param router the career-hunter router
  * @param ctx app context
+ * @returns nothing after title-profile routes are mounted
  */
 function registerCareerTitleScoreRoutes(router, ctx) {
     const pool = ctx.pool;
     router.get('/title-profile/state', async (req, res) => {
-        const userSub = (0, career_hunter_routes_1.callerSub)(req);
+        const userSub = (0, career_user_store_1.callerSub)(req);
         if (!userSub) {
             res.status(401).json({ error: 'unauthorized' });
             return;
@@ -352,7 +358,7 @@ function registerCareerTitleScoreRoutes(router, ctx) {
         }
     });
     router.post('/settings/title-profile', async (req, res) => {
-        const userSub = (0, career_hunter_routes_1.callerSub)(req);
+        const userSub = (0, career_user_store_1.callerSub)(req);
         if (!userSub) {
             res.status(401).json({ error: 'unauthorized' });
             return;
@@ -369,7 +375,7 @@ function registerCareerTitleScoreRoutes(router, ctx) {
         }
     });
     router.post('/title-pass/run-now', async (req, res) => {
-        const userSub = (0, career_hunter_routes_1.callerSub)(req);
+        const userSub = (0, career_user_store_1.callerSub)(req);
         if (!userSub) {
             res.status(401).json({ error: 'unauthorized' });
             return;

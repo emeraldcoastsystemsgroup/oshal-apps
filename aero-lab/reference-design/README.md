@@ -38,8 +38,8 @@ equinox** — that needs 180.3 Wh and a 128 × 42.7 in hull.
 ### Read these
 | File | What |
 |---|---|
-| [FLOATER_REPORT.pdf](FLOATER_REPORT.pdf) | 9-page report — four designs compared, the governing math with our numbers substituted, BOM, cost ladder, and an honesty page |
-| [FLOATER_REPORT.html](FLOATER_REPORT.html) | The same report, browsable |
+| [FLOATER_REPORT.pdf](FLOATER_REPORT.pdf) | Dated 2026-08-03, 9-page run report — historical engine-status prose is superseded by this README and `../BACKLOG.md` |
+| [FLOATER_REPORT.html](FLOATER_REPORT.html) | The same dated run report, browsable |
 | [V2_CONFIG.md](V2_CONFIG.md) | The deep technical record — every configuration run, with its numbers |
 | [BUILD_SHEET.md](BUILD_SHEET.md) | How to actually build it |
 | [viewer.html](viewer.html) | Self-contained 3D viewer — the assembled craft, no network needed |
@@ -67,10 +67,14 @@ the STLs it embeds. `BOM_v2.csv` carries real manufacturers, part numbers and pr
 **Not true, and important:**
 
 - **Nothing was built.** No hardware, no wind tunnel, no flight. Every number is simulation output.
-- **The numbers here come from the *ideal* propulsion chain.** The real-drive gate is currently
-  **red** — see [../BACKLOG.md](../BACKLOG.md) §A. Most consequentially (§A2), the buoyant trim
-  solver refuses at every buoyancy fraction, so **this craft cannot presently be re-evaluated by
-  the main engine.** These numbers stand on the run that produced them, not on a green gate.
+- **The numbers here come from the *ideal* propulsion chain.** The buoyant trim defect is repaired:
+  the current engine converges the f = 0.2/0.4/0.6/0.8 boundary at its unchanged `1e-8` force
+  tolerance, and f = 0.8 consumes certified aero. That does **not** re-certify these energy numbers
+  on real hardware physics. BEMT plus motor/ESC/harness and `PackEcm.step_power` are now available
+  as the explicit integrated real authorities, but this reference output has not been regenerated
+  from them. The first certified 72 h DESIGN_A real-chain probe failed persistence (`SOC 1.0000 ->
+  0.9307`), so the promotion gate remains red; see [../BACKLOG.md](../BACKLOG.md) §A. These numbers
+  stand on the named ideal run that produced them, not on a green real-drive gate.
 - **Real parts are 274 g heavier than the certified ledger** — DIY pack 197 Wh/kg against 250
   (+92 g), motor/ESC/prop 120 g against 55.2 (+65 g), and an MPPT the ledger carried as 0 g
   (+57 g). That mass is why the as-built craft needs a bigger hull and a bigger pack.

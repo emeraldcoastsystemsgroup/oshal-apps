@@ -15,20 +15,44 @@ SEQ                 | AUTHOR                      | DESCRIPTION
   |                                           | SPILLED, never free charge), gust
   |                                           | placard enforcement, ledger assembly
   |                                           | via mission/report.py.
+2 | maintainer@emeraldcoastsystemsgroup.com   | Accepted-state integration alignment:
+  |                                           | integrate_energy now advances pack thermal
+  |                                           | and envelope chemistry once per accepted
+  |                                           | step. Mission chunks remain the altitude,
+  |                                           | boundary-sampling, hard-end and storage-
+  |                                           | replay authority; they no longer compensate
+  |                                           | for a dead integrator state path. Clarified
+  |                                           | that real-ECM electrical authority remains
+  |                                           | open rather than claiming it here.
+3 | maintainer@emeraldcoastsystemsgroup.com   | SINGLE STORAGE AUTHORITY: real-chemistry
+  |                                           | missions consume integrate_energy's accepted
+  |                                           | BatteryElement.step -> PackEcm.step_power
+  |                                           | trajectory directly. Mission replay is retained
+  |                                           | only for explicit ideal storage, so real SOC,
+  |                                           | I2R loss, rate refusal, throughput and aging are
+  |                                           | never recomputed through flat efficiencies or
+  |                                           | stepped a second time.
+4 | maintainer@emeraldcoastsystemsgroup.com   | Make persistence diagnostics name their
+  |                                           | actual authority: real packs report the
+  |                                           | observed final-day ECM trajectory, while only
+  |                                           | the ideal bucket describes a re-seeded replay.
 -------------------------------------------------------------------------------
 
 aerosim.mission.runner -- fly the wind-tunnel-perfected wing through real air.
 
 DESIGN NOTES (why chunks)
-    integrate.py is frozen and its slow loop neither samples pack temperature
-    nor varies altitude. fly_mission therefore integrates the mission as a
-    sequence of short windows (default 900 s) through the PUBLIC
-    integrate_energy API, sampling the pack/envelope state between windows and
-    chaining the battery's declared initial_soc. Bus power in level trim is
+    integrate.py advances pack thermal and envelope chemistry exactly once per
+    accepted step, while its numerical trim/RK probes remain state-pure. It
+    still does not command a varying altitude, so fly_mission integrates the
+    order as short windows (default 900 s) through the PUBLIC integrate_energy
+    API, samples those slow states at boundaries, applies hard-end checks and
+    chains the battery's declared initial_soc. Bus power in level trim is
     independent of state of charge, so the chunked bus tape equals the
-    monolithic one; the storage ODE is replayed ONCE at mission level (with
-    the same bus-side spill conversion integrate.py change log #6 uses), and
-    that replay is the mission's accounting authority.
+    monolithic one. Explicitly ideal storage is replayed once at mission level
+    with its declared flat efficiencies. A real pack is different: every accepted
+    interval has already passed exactly once through BatteryElement.step and
+    PackEcm.step_power inside integrate_energy, so the mission concatenates that
+    physical trajectory and MUST NOT replay or re-step it.
 
 HONESTY LEDGER (module-level)
     H-R1  Climb billing chain efficiency: climbs commanded by an altitude
@@ -310,9 +334,8 @@ def fly_mission(
 ) -> MissionResult:
     """Fly a vehicle through the FULL realistic mission. FROZEN signature.
 
-    @description Wind shear + Dryden turbulence + day-night solar + the cold-
-        soaked pack + the real electrical chain + BEMT propulsion + envelope
-        decay, integrated through the frozen integrate_energy in chunks (see
+    @description Wind shear + Dryden turbulence + day-night solar + accepted
+        cold-pack/envelope state, integrated through integrate_energy in chunks (see
         the module docstring), with:
           * gust placard enforcement (SPEC_materials section 3) BEFORE flight;
           * the GV-5 15 Hz eta_track dynamic penalty computed from the Dryden
@@ -361,6 +384,7 @@ def fly_mission(
     soc_max_original = float(getattr(pack, "soc_max", 1.0))
     pack_real = _pack_is_real(pack)
     throughput0_Ah = float(getattr(pack, "throughput_Ah", 0.0))
+    cold_spill0_J = float(getattr(pack, "cold_charge_spill_J", 0.0))
     soc_mission_start = float(pack.initial_soc)   # BEFORE chunk chaining
     # mutates it -- the replay must be seeded with what the mission started at
 
@@ -377,6 +401,9 @@ def fly_mission(
     heater_samples_W: list[float] = [float(getattr(pack, "last_heater_W", 0.0))]
     chunk_records: list[dict] = []
     charge_ok_hist: list[np.ndarray] = []
+    real_soc_hist: list[np.ndarray] = []
+    real_surplus_J = 0.0
+    real_shortfall_J = 0.0
     reasons: list[str] = []
     certified = True
     worst_resid_N = 0.0
@@ -401,21 +428,27 @@ def fly_mission(
             mass_kg = sum(float(b.mass_kg) for b in vehicle.bodies)
             e_bus_J = mass_kg * 9.80665 * dz / max(eta_chain_meas, 0.5)
             climb_bus_J += e_bus_J
-            eta_d = float(getattr(pack, "eta_discharge", 0.95))
-            d_soc = e_bus_J / eta_d / float(pack.capacity_J)
-            pack.initial_soc = max(float(pack.initial_soc) - d_soc,
-                                   float(getattr(pack, "soc_min", 0.05)))
+            if pack_real:
+                # The climb is one accepted electrical event. Route it through the same
+                # PackEcm authority as cruise instead of subtracting a flat-eta SOC delta.
+                climb_dt_s = max(float(dt_s), 1.0)
+                unserved_W = float(pack.step(-e_bus_J / climb_dt_s, climb_dt_s))
+                if unserved_W < 0.0:
+                    real_shortfall_J += -unserved_W * climb_dt_s
+                pack.initial_soc = float(pack.soc)
+            else:
+                eta_d = float(getattr(pack, "eta_discharge", 0.95))
+                d_soc = e_bus_J / eta_d / float(pack.capacity_J)
+                pack.initial_soc = max(float(pack.initial_soc) - d_soc,
+                                       float(getattr(pack, "soc_min", 0.05)))
         body0.pos_m[2] = z_cmd
 
-        # -- cold-charge clamp so the frozen integrator cannot book charge ---
+        # -- cold-charge clamp so the storage replay cannot book charge ------
         temp_K = float(getattr(pack, "pack_temp_K", atmosphere(z_cmd).T_K))
         chunk_charge_ok = (not pack_real) or (temp_K >= CHARGE_FLOOR_K)
-        if pack_real:
-            if not chunk_charge_ok:
-                pack.soc_max = max(float(pack.initial_soc),
-                                   float(getattr(pack, "soc_min", 0.05)) + 1e-6)
-            else:
-                pack.soc_max = soc_max_original
+        # A real PackEcm owns the below-0-C plating wall. Mutating the wrapper's
+        # soc_max here would create a second, flat clamp that disagrees with ecm.soc_max.
+        # `charge_ok` remains a recorded diagnostic and the ideal replay input only.
 
         res = integrate_energy(vehicle, env, t0, t1, dt_s)
 
@@ -442,6 +475,16 @@ def fly_mission(
         pout_hist.append(res.power_out_W[s:])
         charge_ok_hist.append(
             np.full(res.t_s.size - s, chunk_charge_ok, dtype=bool))
+        if pack_real:
+            real_soc_hist.append(
+                np.asarray(res.detail["soc_as_seeded"], dtype=float)[s:]
+            )
+            real_surplus_J += float(
+                res.detail.get("unabsorbed_surplus_J", 0.0)
+            )
+            real_shortfall_J += float(
+                res.detail.get("unabsorbed_shortfall_J", 0.0)
+            )
 
         # -- chain the pack + sample the slow states -------------------------
         soc_seeded = np.asarray(res.detail["soc_as_seeded"], dtype=float)
@@ -451,7 +494,7 @@ def fly_mission(
                                    float(getattr(pack, "soc_min", 0.05))),
                                float(getattr(pack, "soc_max", 1.0)))
         state = getattr(pack, "state", None)
-        if state is not None and hasattr(state, "soc") \
+        if not pack_real and state is not None and hasattr(state, "soc") \
                 and hasattr(state, "energy_J"):
             # BatteryState is an immutable NamedTuple: rebuild, don't mutate.
             pack.state = type(state)(
@@ -505,33 +548,69 @@ def fly_mission(
     pout_all = np.concatenate(pout_hist)
     charge_ok_all = np.concatenate(charge_ok_hist)
 
-    # As-seeded replay: what THIS flight's pack actually did.
-    replay = _replay_mission_storage(t_all, pin_all, pout_all, pack,
-                                     charge_ok_all, soc_mission_start)
-    # Fixed-point replay: re-seed with the as-seeded end state, same tape.
-    # This is the mission-level form of integrate.py's limit-cycle rule: a
-    # full-seeded pack legitimately settles to a spill-limited fixed point
-    # below 1.0, and sustainability is judged THERE, not on the seeding
-    # transient.
-    replay_lc = _replay_mission_storage(t_all, pin_all, pout_all, pack,
-                                        charge_ok_all, replay["soc_end"])
+    if pack_real:
+        # The accepted ECM trajectory IS the answer. Replaying it would advance aging
+        # twice and replace nonlinear voltage/current loss with a flat eta. Persistence is
+        # observed over the final full day when the mission is multi-day; a 72 h flight
+        # therefore compares day three's phase-aligned endpoints without fabricating a
+        # fixed point from a mutable electrochemical state machine.
+        soc_actual = np.concatenate(real_soc_hist)
+        cold_spill_J = max(
+            0.0, float(getattr(pack, "cold_charge_spill_J", 0.0)) - cold_spill0_J
+        )
+        replay = {
+            "soc": soc_actual,
+            "surplus_J": real_surplus_J,
+            "shortfall_J": real_shortfall_J,
+            "cold_spill_bus_J": cold_spill_J,
+            "min_soc": float(np.min(soc_actual)),
+            "soc_start": float(soc_actual[0]),
+            "soc_end": float(soc_actual[-1]),
+        }
+        period_start_s = max(float(t_all[0]), float(t_all[-1]) - DAY_S_LOCAL)
+        period_i = int(np.searchsorted(t_all, period_start_s, side="left"))
+        period_soc = soc_actual[period_i:]
+        replay_lc = {
+            "soc": period_soc,
+            "surplus_J": real_surplus_J,
+            "shortfall_J": real_shortfall_J,
+            "cold_spill_bus_J": cold_spill_J,
+            "min_soc": float(np.min(period_soc)),
+            "soc_start": float(period_soc[0]),
+            "soc_end": float(period_soc[-1]),
+        }
+    else:
+        # Explicit ideal storage has no element-owned nonlinear state, so the mission's
+        # flat-efficiency replay remains its one accounting authority.
+        replay = _replay_mission_storage(t_all, pin_all, pout_all, pack,
+                                         charge_ok_all, soc_mission_start)
+        replay_lc = _replay_mission_storage(t_all, pin_all, pout_all, pack,
+                                            charge_ok_all, replay["soc_end"])
 
     trapz = getattr(np, "trapezoid", None) or np.trapz  # numpy-2 safe
     energy_in_J = float(trapz(pin_all, t_all)) if t_all.size > 1 else 0.0
     energy_out_J = float(trapz(pout_all, t_all)) if t_all.size > 1 else 0.0
 
-    # mission-level closure: served everything, kept off the floor, the
-    # re-seeded cycle returns its charge, and every chunk was certified aero.
+    # Mission-level closure: serve every demand, keep off the floor, preserve charge
+    # over the relevant persistence window, and consume only certified aerodynamics.
+    # The persistence window is the observed final day for a real ECM and a re-seeded
+    # replay only for the explicitly ideal bucket.
     if replay["shortfall_J"] > 1e-6 or replay_lc["shortfall_J"] > 1e-6:
         reasons.append(
             f"{max(replay['shortfall_J'], replay_lc['shortfall_J']) / _J_PER_WH:.1f} "
             "Wh of demand went unserved over the mission")
     if replay_lc["soc_end"] < replay_lc["soc_start"] - 1e-6 \
             and profile.duration_s >= DAY_S_LOCAL:
-        reasons.append(
-            f"no sustainable periodic state: re-seeded at its own end state "
-            f"({replay_lc['soc_start']:.4f}) the pack still loses ground "
-            f"({replay_lc['soc_end']:.4f})")
+        if pack_real:
+            reasons.append(
+                f"no sustainable real-ECM trajectory: over the observed final day "
+                f"the pack loses ground ({replay_lc['soc_start']:.4f} -> "
+                f"{replay_lc['soc_end']:.4f})")
+        else:
+            reasons.append(
+                f"no sustainable periodic state: re-seeded at its own end state "
+                f"({replay_lc['soc_start']:.4f}) the pack still loses ground "
+                f"({replay_lc['soc_end']:.4f})")
     if not certified:
         reasons.append("one or more chunks consumed uncertified aerodynamics")
     closed = not reasons
@@ -568,6 +647,10 @@ def fly_mission(
             "limit_cycle_soc0": replay_lc["soc_start"],
             "limit_cycle_soc_end": replay_lc["soc_end"],
             "limit_cycle_min_soc": replay_lc["min_soc"],
+            "storage_authority": (
+                "BatteryElement.step->PackEcm.step_power"
+                if pack_real else "mission-flat-efficiency-replay"
+            ),
             "uv_hard_end": uv_hard_end,
             "eta_track_note": eta_track_note,
             "wall_clock_s": time.perf_counter() - t_wall0,

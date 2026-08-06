@@ -51,6 +51,19 @@ source:
   path: payroll
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/payroll/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # Kernel skills this package IMPORTS (ADR-085 s2). Declared because an undeclared
 # import is invisible to the prune guard: the first carve that drops the skill
 # would break this app at MOUNT time, not at compile time.
@@ -69,6 +82,13 @@ guestTier: blocked
 # every handler also self-checks callerSub; POST /runs/:id/approve additionally
 # requires the explicit write confirmation (428 without it).
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/payroll/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/payroll-routes.js
     factory: createPayrollRoutes
     mountPath: /api/payroll

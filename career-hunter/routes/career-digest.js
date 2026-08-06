@@ -1,37 +1,4 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.dueForDigest = void 0;
 exports.formatDigestEmail = formatDigestEmail;
@@ -40,12 +7,11 @@ exports.findNewHits = findNewHits;
 exports.sendDigestForUser = sendDigestForUser;
 exports.sendDigestsForAllUsers = sendDigestsForAllUsers;
 exports.registerCareerDigestRoutes = registerCareerDigestRoutes;
-const path = __importStar(require("path"));
-const child_process_1 = require("child_process");
 const logger_1 = require("@/shared/logger");
 const connectors_routes_1 = require("@/app/routes/connectors-routes");
 const email_routes_1 = require("@/app/routes/email-routes");
-const career_hunter_routes_1 = require("./career-hunter-routes");
+const twilio_sms_operation_1 = require("@/app/routes/twilio-sms-operation");
+const career_user_store_1 = require("./career-user-store");
 const notifications_1 = require("@/features/notifications");
 const logger = (0, logger_1.createChildLogger)({ module: 'career-digest' });
 const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me';
@@ -143,7 +109,7 @@ async function channelReadiness(pool, userSub) {
  * @returns up to MAX_HITS hits, best first
  */
 function findNewHits(userSub, sinceIso) {
-    const db = (0, career_hunter_routes_1.openUserDb)(userSub);
+    const db = (0, career_user_store_1.openUserDb)(userSub);
     if (!db)
         return [];
     try {
@@ -194,29 +160,15 @@ async function sendViaEmail(pool, userSub, hits) {
         return false;
     }
 }
-/** Send via the user's own Twilio (scripts/oshal-twilio.js resolves their per-user secret). */
-function sendViaText(userSub, phone, hits) {
-    const cli = path.resolve(process.cwd(), 'scripts', 'oshal-twilio.js');
+/** Send through the user's own Twilio connection without moving its credential into a child. */
+async function sendViaText(pool, userSub, phone, hits) {
     const body = formatDigestSms(hits, boardUrl());
-    return new Promise((resolve) => {
-        const proc = (0, child_process_1.spawn)('node', [cli, 'sms', phone, body, '--confirm'], {
-            env: { ...process.env, OSHAL_USER_SUB: userSub, OSHAL_MESSAGE_SEND_CONFIRM: 'true' },
-            stdio: ['ignore', 'pipe', 'pipe'],
-        });
-        let err = '';
-        proc.stderr?.on('data', (d) => { err += String(d); });
-        proc.on('exit', (code) => {
-            if (code === 0) {
-                logger.info({ userSub, hits: hits.length }, 'digest: texted');
-                resolve(true);
-            }
-            else {
-                logger.warn({ userSub, code, err: err.slice(-300) }, 'digest: sms send failed');
-                resolve(false);
-            }
-        });
-        proc.on('error', (e) => { logger.error({ userSub, err: e.message }, 'digest: sms spawn failed'); resolve(false); });
-    });
+    const result = await (0, twilio_sms_operation_1.sendUserTwilioSms)(pool, userSub, phone, body);
+    if (result.delivered)
+        logger.info({ userSub, hits: hits.length, id: result.id }, 'digest: texted');
+    else
+        logger.warn({ userSub, reason: result.error }, 'digest: sms send failed');
+    return result.delivered;
 }
 /**
  * @description Run one user's digest end-to-end: settings gate → once/day guard → new-hits
@@ -259,7 +211,7 @@ async function sendDigestForUser(pool, userSub, opts = {}) {
         channel = ok ? 'email' : null;
     }
     if (!ok && wantChannel !== 'email' && ready.textReady && phone) {
-        ok = await sendViaText(userSub, phone, hits);
+        ok = await sendViaText(pool, userSub, phone, hits);
         channel = ok ? 'text' : null;
     }
     if (!ok) {
@@ -274,9 +226,10 @@ async function sendDigestForUser(pool, userSub, opts = {}) {
  * @description The cron batch: run the digest for every per-user store. Per-user failures
  * are logged and never abort the batch.
  * @param ctx app context (pool)
+ * @returns nothing after every current user store has been attempted
  */
 async function sendDigestsForAllUsers(ctx) {
-    for (const userSub of (0, career_hunter_routes_1.listStoreUsers)()) {
+    for (const userSub of (0, career_user_store_1.listStoreUsers)()) {
         try {
             const r = await sendDigestForUser(ctx.pool, userSub);
             logger.info({ userSub, ...r }, 'career digest: user done');
@@ -292,11 +245,12 @@ async function sendDigestsForAllUsers(ctx) {
  * digest would contain, and an explicit send-now (confirm-gated; outward-facing send).
  * @param router the career-hunter router
  * @param ctx app context
+ * @returns nothing after routes are mounted
  */
 function registerCareerDigestRoutes(router, ctx) {
     const pool = ctx.pool;
     router.get('/digest/state', async (req, res) => {
-        const userSub = (0, career_hunter_routes_1.callerSub)(req);
+        const userSub = (0, career_user_store_1.callerSub)(req);
         if (!userSub) {
             res.status(401).json({ error: 'unauthorized' });
             return;
@@ -305,7 +259,7 @@ function registerCareerDigestRoutes(router, ctx) {
         res.json({ ...s, ...ready });
     });
     router.post('/settings/digest', async (req, res) => {
-        const userSub = (0, career_hunter_routes_1.callerSub)(req);
+        const userSub = (0, career_user_store_1.callerSub)(req);
         if (!userSub) {
             res.status(401).json({ error: 'unauthorized' });
             return;
@@ -325,7 +279,7 @@ function registerCareerDigestRoutes(router, ctx) {
         res.json({ ok: true });
     });
     router.get('/digest/preview', async (req, res) => {
-        const userSub = (0, career_hunter_routes_1.callerSub)(req);
+        const userSub = (0, career_user_store_1.callerSub)(req);
         if (!userSub) {
             res.status(401).json({ error: 'unauthorized' });
             return;
@@ -335,7 +289,7 @@ function registerCareerDigestRoutes(router, ctx) {
         res.json({ hits, since: s.lastDigestAt, wouldSend: s.enabled && hits.length > 0 });
     });
     router.post('/digest/send-now', async (req, res) => {
-        const userSub = (0, career_hunter_routes_1.callerSub)(req);
+        const userSub = (0, career_user_store_1.callerSub)(req);
         if (!userSub) {
             res.status(401).json({ error: 'unauthorized' });
             return;

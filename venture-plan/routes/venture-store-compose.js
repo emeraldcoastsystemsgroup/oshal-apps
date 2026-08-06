@@ -33,6 +33,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial implementation — the row-to-engine translation, the source-kind/confidence ladder, deterministic assumption bindings for every numeric field the sweep must be able to move, the bounded structure overlay from the venture spec, and scenario override application through the engine's own withAssumption.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Consume scenario retail prices directly as integer micros instead of expanding a cents field at model time.
  *
  * @module venture-store-compose
  */
@@ -317,9 +318,8 @@ function composeModelInput(s) {
     const horizonStart = String(structure.horizonStart ?? `${s.onDate.slice(0, 4)}-01`);
     const horizonMonths = Math.round(num(structure, 'horizonMonths', s.venture.horizonMonths || DEFAULTS.horizonMonths, 6, 120));
     const runQty = Math.round(s.scenario?.volumeUnits ?? num(structure, 'runQtyUnits', DEFAULTS.runQtyUnits, 1, 10_000_000));
-    const shelfMicros = s.scenario?.retailPriceCents
-        ? s.scenario.retailPriceCents * 10_000
-        : Math.round(num(structure, 'shelfPriceMicros', DEFAULTS.shelfPriceMicros, 1, 1e12));
+    const shelfMicros = s.scenario?.retailPriceMicros
+        ?? Math.round(num(structure, 'shelfPriceMicros', DEFAULTS.shelfPriceMicros, 1, 1e12));
     const input = {
         ledger: built.ledger,
         bindings: [...bindings, ...STRUCTURAL_BINDINGS, ...(s.venture.spec?.bindings ?? [])],

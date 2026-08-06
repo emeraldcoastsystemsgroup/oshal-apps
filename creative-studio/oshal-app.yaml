@@ -40,6 +40,27 @@ source:
   path: creative-studio
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/creative-studio/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/creative-studio/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # The tile + the creative_* tools ride the 'vids' app's /api/vids surface and
 # vids_jobs ledger (resolves from core swarm-apps until the vids carve lands,
 # then from this store — npm-style, fail-closed).

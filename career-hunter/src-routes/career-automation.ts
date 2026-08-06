@@ -1,9 +1,11 @@
 /**
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                      | DESCRIPTION
+ * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-07-24 02:35:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Explicit opt-in automation settings (operator directive 2026-07-24: the nightly auto-draft chain generated + queued applications the operator never asked for). Per-user career_automation_settings row (migration 091), DEFAULT OFF — absent row = automation disabled. auto_generate gates the cron's per-user score/title/enqueue; auto_submit is the flag the bulk submit rail must consult. Decision logic lives in lib/automation-gate.js (pure, node:test-guarded); this module adds the DB read (system-identity variant for the cron, which runs outside any request — FORCE-RLS would otherwise starve the read to "absent", which is safe but would also make opt-in impossible from the cron) and the settings routes for the Career Settings card.
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Add explicit, default-deny per-user automation settings and trusted cron reads.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Use the dependency-leaf caller identity helper so route modules do not import the main registrar.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Document the exported automation-settings contract used by routes and scheduled work.
  *
  * @module career-automation
  */
@@ -11,7 +13,7 @@ import { type Router, type Request, type Response } from 'express';
 import type { AppContext } from '@/app/composition/app-context';
 import { createChildLogger } from '@/shared/logger';
 import { runWithSystemIdentity } from '@/shared/services/database/request-identity';
-import { callerSub } from '@/app/routes/caller-sub';
+import { callerSub } from './career-user-store';
 
 // Pure default-deny gate, shared with the node:test guard (compiled file lives in
 // routes/, so lib/ is a sibling directory — same resolution the apply-prompt bridge uses).
@@ -23,7 +25,7 @@ const gate = require('../lib/automation-gate') as {
 
 const logger = createChildLogger({ module: 'career-automation' });
 
-/** A user's automation opt-in state. Both default FALSE — absent row = everything off. */
+/** @description A user's automation opt-in state; absent rows default both capabilities off. */
 export interface AutomationSettings {
   autoGenerate: boolean;
   autoSubmit: boolean;

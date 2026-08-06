@@ -15,6 +15,9 @@
  *                     |                             | adapter double; export downloads allow-listed (a
  *                     |                             | ../ name 404s); /app serves the bundled surface;
  *                     |                             | the concierge degrades bad drafts to say-only.
+ * 2026-08-06 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Exercise the geometry-helper asset
+ *                     |                             | through the authenticated HTTP mount, not
+ *                     |                             | only by static source inspection.
  */
 
 import * as fs from 'fs';
@@ -81,6 +84,7 @@ describe('aero-lab routes — auth, honesty, and the frozen §2a contract', () =
     workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aero-lab-work-'));
     fs.mkdirSync(path.join(pkgDir, 'tools'), { recursive: true });
     fs.writeFileSync(path.join(pkgDir, 'tools', 'aero-lab.html'), '<!doctype html><title>Aero Lab</title>AERO-LAB-SURFACE-MARKER');
+    fs.writeFileSync(path.join(pkgDir, 'tools', 'aero-lab-geometry.js'), 'AERO-LAB-GEOMETRY-MARKER');
     fs.mkdirSync(path.join(workDir, 'exports', 'exp-test-1'), { recursive: true });
     fs.writeFileSync(path.join(workDir, 'exports', 'exp-test-1', 'wing.stl'), 'solid-wing-bytes');
     fs.writeFileSync(path.join(workDir, 'exports', 'exp-test-1', 'BOM.csv'), 'part,qty');
@@ -124,7 +128,7 @@ describe('aero-lab routes — auth, honesty, and the frozen §2a contract', () =
   };
 
   it('refuses every route unauthenticated when wired with the auth param', async () => {
-    for (const url of ['/api/aero-lab/capabilities', '/api/aero-lab/app']) {
+    for (const url of ['/api/aero-lab/capabilities', '/api/aero-lab/app', '/api/aero-lab/geometry.js']) {
       const res = await fetch(`${API}${url}`);
       expect(res.status).toBe(401);
     }
@@ -193,10 +197,13 @@ describe('aero-lab routes — auth, honesty, and the frozen §2a contract', () =
     expect(badId.status).toBe(404);
   });
 
-  it('serves the bundled surface from ctx.appPackageDir', async () => {
+  it('serves the bundled surface assets from ctx.appPackageDir', async () => {
     const res = await fetch(`${API}/api/aero-lab/app`, { headers: AUTH });
     expect(res.status).toBe(200);
     expect(await res.text()).toContain('AERO-LAB-SURFACE-MARKER');
+    const geometry = await fetch(`${API}/api/aero-lab/geometry.js`, { headers: AUTH });
+    expect(geometry.status).toBe(200);
+    expect(await geometry.text()).toContain('AERO-LAB-GEOMETRY-MARKER');
   });
 
   it('concierge: validated draft passes through; out-of-bounds and hybrid drafts degrade to say-only', async () => {

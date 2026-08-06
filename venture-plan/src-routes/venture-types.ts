@@ -22,6 +22,8 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial implementation — the closed SourceKind/Confidence/Domain enums, the row DTOs for every stored entity, the provenance literal discriminants, and the run/stage vocabularies the routes and the orchestrator share.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Add immutable FX evidence, preserve original and reporting-currency quote amounts, and replace the last scenario cents field with integer micros.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Add scheduled rebaseline run kind, trigger provenance, UTC idempotency slot, and exact micro-USD cost evidence.
  *
  * @module venture-types
  */
@@ -63,7 +65,7 @@ export type Domain =
  * hash, which is the point: a document rendered under the old arithmetic must read
  * as stale rather than as agreeing with a model it no longer matches.
  */
-export const ENGINE_VERSION = '1.0.0';
+export const ENGINE_VERSION = '1.1.0';
 
 /** Every domain, in the order the surface groups them. */
 export const DOMAINS: readonly Domain[] = Object.freeze([
@@ -75,7 +77,7 @@ export const DOMAINS: readonly Domain[] = Object.freeze([
 export type VentureStage = 'scoped' | 'assumed' | 'modelled' | 'documented';
 
 /** What a run was asked to do. `full` runs every authoring phase. */
-export type RunKind = 'full' | 'bom' | 'market' | 'ops' | 'narrate';
+export type RunKind = 'full' | 'bom' | 'market' | 'ops' | 'narrate' | 'rebaseline';
 
 /** The phases a `full` run walks, in order. Two of them are independent. */
 export const RUN_PHASES: readonly string[] = Object.freeze(['bom', 'market', 'ops', 'compute', 'narrate']);
@@ -182,9 +184,16 @@ export interface Quote {
   vendorId: string;
   bomLineId: string | null;
   qtyBreak: number;
+  /** Original supplier-currency micros, exactly as quoted. */
   unitCostMicros: number;
   currency: string;
+  /** Converted venture-reporting-currency micros used by the model. */
+  reportingUnitCostMicros: number | null;
+  reportingCurrency: string | null;
   toolingCostMicros: number;
+  reportingToolingCostMicros: number | null;
+  /** Required whenever `currency` differs from `reportingCurrency`. */
+  fxAssumptionId: string | null;
   incoterm: string | null;
   leadTimeDays: number | null;
   validUntil: string | null;
@@ -192,6 +201,22 @@ export interface Quote {
   notes: string | null;
   assumptionId: string | null;
   receivedAt: string;
+}
+
+/** An append-only rate snapshot used to convert one or more foreign quotes. */
+export interface FxAssumption {
+  id: string;
+  ventureId: string;
+  sourceCurrency: string;
+  reportingCurrency: string;
+  /** Target currency units per source currency unit, scaled by 1e9. */
+  rateNanos: number;
+  sourceKind: 'user-entered' | 'published-source' | 'vendor-quote';
+  sourceRef: string;
+  observedAt: string;
+  idempotencyKey: string;
+  authoredBy: string;
+  createdAt: string;
 }
 
 /** A planned task on the launch schedule. */
@@ -234,7 +259,7 @@ export interface Scenario {
   name: string;
   overrides: Record<string, number>;
   volumeUnits: number | null;
-  retailPriceCents: number | null;
+  retailPriceMicros: number | null;
   channelMix: Record<string, number>;
   isBase: boolean;
   createdAt: string;
@@ -295,6 +320,11 @@ export interface RunSummary {
   phases: RunPhase[];
   botsRequested: number;
   botsCompleted: number;
+  triggerKind: 'manual' | 'scheduled';
+  scheduleSlot: string | null;
+  costCapMicros: number | null;
+  costSpentMicros: number;
+  costStatus: 'not-capped' | 'within-cap' | 'exhausted' | 'overshot' | 'capture-failed';
   error: string | null;
   startedAt: string;
   finishedAt: string | null;

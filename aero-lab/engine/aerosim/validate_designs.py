@@ -38,6 +38,12 @@ SEQ                 | AUTHOR                      | DESCRIPTION
   |                                           | overrides so the round-3 constructor
   |                                           | guards can be mutation-tested through
   |                                           | the REAL builder path.
+3 | maintainer@emeraldcoastsystemsgroup.com   | REAL CHAIN ASSEMBLY: build_solar_cruise now
+  |                                           | exposes chain='ideal'|'real'. The real choice
+  |                                           | composes the catalogued PackEcm battery,
+  |                                           | heater, C60 diode PV/MPPT/harness and BEMT
+  |                                           | motor/ESC/harness path from aerosim.real_chain;
+  |                                           | the legacy ideal model is named explicitly.
 
 aerosim.validate_designs -- the vehicles the validation gate flies.
 
@@ -79,6 +85,7 @@ from . import aeropolar, powerplant
 from . import validate_bounds as bounds
 from .env import atmosphere, day_length_h, make_uniform_field
 from .integrate import EnvBundle
+from .real_chain import build_real_solar_chain
 from .vehicle import (
     CELL_SI_ANODE_AMPRIUS_WH_PER_KG,
     PACK_ATLANTIKSOLAR_WH_PER_KG,
@@ -344,11 +351,18 @@ def build_solar_cruise(
     soc_max: float = 1.0,
     eta_charge: float = 0.95,
     thruster_figure_of_merit: float | None = None,
+    chain: str = "ideal",
+    pack_chemistry: str | None = None,
+    pack_cells_series: int | None = None,
+    pack_cells_parallel: int | None = None,
 ) -> _Build:
     """Assemble a solar endurance aircraft from SHIPPED elements only.
 
-    @description The vehicle is AeroSurface + Thruster + PVArray + PayloadLoad +
-        BatteryElement -- five public classes, no stand-ins. The wing's incidence
+    @description `chain='ideal'` assembles the legacy actuator-disk / flat-PV /
+        flat-efficiency storage path. `chain='real'` assembles BEMT + catalogued
+        motor/ESC/harness, C60 diode PV + MPPT/harness, and a catalogued-cell
+        PackEcm battery with its heater. Both are public-element configurations,
+        never private stand-ins. The wing's incidence
         is set to the solver's own best-endurance angle of attack, so the
         cruise CL, speed and Reynolds number are consequences of the polar rather
         than inputs to it.
@@ -379,9 +393,19 @@ def build_solar_cruise(
     @param thruster_figure_of_merit Propeller profile-efficiency slot override,
         dimensionless, or None for ETA_PROP_CRUISE (the mutation harness sets
         5.0 to prove Thruster raises at construction).
+    @param chain Explicit electrical/propulsion model: 'ideal' (legacy regression
+        path) or 'real' (non-duplicated cited component chain).
+    @param pack_chemistry Optional real CELL_SPECS key; the closest certified
+        chemistry to the design claim is selected when omitted.
+    @param pack_cells_series / pack_cells_parallel Optional explicit real-pack
+        topology. Capacity and mass both derive from the same catalogued cells.
     @raises ValidationError When the declared element masses -- wing included --
         exceed the as-flown mass, which would need a negative airframe.
     """
+    if chain not in ("ideal", "real"):
+        raise ValidationError(
+            f"build_solar_cruise chain must be 'ideal' or 'real', got {chain!r}"
+        )
     extra_CD0 = design.extra_CD0 * float(extra_CD0_scale)
     geometry = _naca_geometry(
         design.span_m, design.area_m2, design.taper_ratio, 0.0,
@@ -399,27 +423,61 @@ def build_solar_cruise(
     )
 
     pack_Wh_per_kg = design.pack_Wh_per_kg * float(pack_specific_energy_scale)
-    battery = BatteryElement(
-        capacity_J=design.battery_mass_kg * pack_Wh_per_kg * J_PER_WH,
-        initial_soc=1.0, specific_energy_Wh_per_kg=pack_Wh_per_kg,
-        soc_max=soc_max, eta_charge=eta_charge,
-    )
     pv_packing = (design.pv_packing if pv_packing_override is None
                   else float(pv_packing_override))
-    array = PVArray(
-        area_m2=design.area_m2,
-        cell_efficiency_stc=design.pv_efficiency * float(pv_efficiency_scale),
-        packing_factor=pv_packing, tilt_deg=0.0, azimuth_deg=180.0,
-        areal_density_kg_m2=design.pv_areal_density_kg_m2,
-    )
-    thruster = Thruster(
-        diameter_m=design.prop_diameter_m,
-        max_electrical_power_W=design.prop_max_electrical_W,
-        n_rotors=design.n_rotors,
-        figure_of_merit=(ETA_PROP_CRUISE if thruster_figure_of_merit is None
-                         else float(thruster_figure_of_merit)),
-        eta_motor=ETA_MOTOR, eta_esc=ETA_ESC, axis=np.array([1.0, 0.0, 0.0]),
-    )
+    pv_efficiency = design.pv_efficiency * float(pv_efficiency_scale)
+    extra_loads: tuple[Any, ...] = ()
+    real_chain_meta: dict[str, Any] | None = None
+    if chain == "real":
+        try:
+            assembly = build_real_solar_chain(
+                design,
+                pv_efficiency=pv_efficiency,
+                pv_packing=pv_packing,
+                pack_claim_Wh_per_kg=pack_Wh_per_kg,
+                soc_max=soc_max,
+                eta_charge_override=(None if eta_charge == 0.95 else eta_charge),
+                thruster_figure_of_merit=thruster_figure_of_merit,
+                pack_chemistry=pack_chemistry,
+                pack_cells_series=pack_cells_series,
+                pack_cells_parallel=pack_cells_parallel,
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValidationError(f"{design.name}: real-chain assembly failed: {exc}") from exc
+        battery = assembly.battery
+        array = assembly.array
+        thruster = assembly.thruster
+        extra_loads = assembly.extra_loads
+        real_chain_meta = assembly.metadata
+    else:
+        battery = BatteryElement(
+            capacity_J=design.battery_mass_kg * pack_Wh_per_kg * J_PER_WH,
+            initial_soc=1.0,
+            specific_energy_Wh_per_kg=pack_Wh_per_kg,
+            soc_max=soc_max,
+            eta_charge=eta_charge,
+            chemistry="ideal",
+        )
+        array = PVArray(
+            area_m2=design.area_m2,
+            cell_efficiency_stc=pv_efficiency,
+            packing_factor=pv_packing,
+            tilt_deg=0.0,
+            azimuth_deg=180.0,
+            areal_density_kg_m2=design.pv_areal_density_kg_m2,
+        )
+        thruster = Thruster(
+            diameter_m=design.prop_diameter_m,
+            max_electrical_power_W=design.prop_max_electrical_W,
+            n_rotors=design.n_rotors,
+            figure_of_merit=(
+                ETA_PROP_CRUISE if thruster_figure_of_merit is None
+                else float(thruster_figure_of_merit)
+            ),
+            eta_motor=ETA_MOTOR,
+            eta_esc=ETA_ESC,
+            axis=np.array([1.0, 0.0, 0.0]),
+        )
     payload = PayloadLoad(
         design.payload_W, mass_kg=design.payload_mass_kg, label="avionics+payload",
     )
@@ -429,8 +487,11 @@ def build_solar_cruise(
     surface = AeroSurface(geometry, incidence_deg=0.0, extra_CD0=extra_CD0,
                           n_crit=N_CRIT_DEFAULT)
     wing_mass_kg = surface.mass_kg
-    element_mass_kg = (battery.mass_kg + array.mass_kg + thruster.mass_kg
-                       + payload.mass_kg + wing_mass_kg)
+    element_mass_kg = (
+        battery.mass_kg + array.mass_kg + thruster.mass_kg
+        + payload.mass_kg + wing_mass_kg
+        + sum(float(el.mass_kg) for el in extra_loads)
+    )
     structure_mass_kg = design.mass_all_up_kg - element_mass_kg
     if structure_mass_kg <= 0.0:
         raise ValidationError(
@@ -452,8 +513,10 @@ def build_solar_cruise(
     )
     # No warning suppression: every element declares its mass, and the assert
     # below is the round-3 guarantee that stays true.
-    vehicle = Vehicle(bodies=[body],
-                      elements=[surface, thruster, array, payload, battery])
+    vehicle = Vehicle(
+        bodies=[body],
+        elements=[surface, thruster, array, payload, battery, *extra_loads],
+    )
     vehicle.assert_mass_declared()
 
     env = EnvBundle(
@@ -495,7 +558,10 @@ def build_solar_cruise(
                  "day_of_year": design.day_of_year, "altitude_m": design.altitude_m},
         "aspect_ratio": design.span_m ** 2 / design.area_m2,
         "eta_chain_cruise": ETA_CHAIN_CRUISE,
+        "chain": chain,
     }
+    if real_chain_meta is not None:
+        meta["real_chain"] = real_chain_meta
     return _Build(vehicle=vehicle, env=env, reference=reference, meta=meta)
 
 

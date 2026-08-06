@@ -9,9 +9,20 @@ exports.startCareerHunterCron = startCareerHunterCron;
 /**
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                      | DESCRIPTION
+ * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-07-05 14:33:49 | roger.murphy@emeraldcoastsystemsgroup.com   | Add Change Log header; capture + unref the cron interval handle (2026-07-05 leak audit)
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Add the gated Career cron and retain an unreferenced interval handle for clean process shutdown.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Make pull and score non-blocking and add stale-gated boot catch-up.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Add caller-channel daily digests with a persistent once-per-day guard.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Bound catch-up scoring with persistent cursors and add the per-user title pass.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Schedule the scrape/index chain in Chicago time and match every user before bounded scoring.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Anchor catch-up to the latest window without consuming a future daily slot.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Persist a completion marker so interrupted recovery chains retry after API restarts.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Mirror freshly indexed jobs into each owning person graph through a fail-open hook.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Require explicit per-user automation opt-in while preserving manual refresh.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Use decomposed engine and user-store boundaries and advance state only after successful child completion.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Extract the default-deny automation scan so the evening-chain coordinator remains within the function-size contract.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | Complete exported cron status and startup documentation for route consumers.
  */
 /**
  * Career Hunter cron — a small, gated app-owned timer (Phase 1).
@@ -31,24 +42,14 @@ exports.startCareerHunterCron = startCareerHunterCron;
  *      shared corpus is stale (>20h), so a post-window restart recovers without re-scraping
  *      on every bounce.
  *
- * CHANGE LOG
- * -----------------------------------------------------------------------------
- * 2026-06-16 18:40:00 | roger.murphy@agenticfederal.us | Initial gated cron for the career-hunter app.
- * 2026-06-30          | Claude (Opus 4.8)              | Non-blocking pull/score + stale-gated boot catch-up.
- * 2026-07-15 07:25:00 | roger.murphy@emeraldcoastsystemsgroup.com | Third daily job: per-user digest (13:00 window, after the midday score) — notifies each user of NEW high-fit matches over their own connected channel. Boot catch-up is safe: the persistent once/day guard lives in Postgres (career_digest_settings.last_digest_at), not this process's lastRun map.
- * 2026-07-15 17:28:14 | roger.murphy@emeraldcoastsystemsgroup.com | Bound the boot catch-up + add the title pass. Catch-up score now honors a PERSISTENT >20h per-user cursor (career_score_settings.last_cron_score_at — the in-memory lastRun map dies on recreate, which is exactly how every api recreate re-ran `score --min-keyword 40` unbounded for hours, killed manually 3x) and caps each catch-up run with --limit (CAREER_SCORE_CATCHUP_LIMIT, default 300; `--days` is a documented no-op on null posted_date so it is NOT used). After each user's keyword pass, a BOUNDED title pass scores roles matching their stored title_terms (career-title-score) — the productized version of the manual score_batch(title_any=[...]) run.
- * 2026-07-16 00:20:00 | roger.murphy@emeraldcoastsystemsgroup.com | Jobs-2026 cutover reschedule (operator: "scrape 6pm, index right after, every morning you get yesterday's jobs"). (1) Windows are now CHICAGO-LOCAL via Intl (NOT a global container TZ env — that would shift trading market-hours / the 5pm-CT recap). (2) Replaced the split 04:00 pull + 12:30 score with ONE evening scrape+index chain at 18:00 CT: shared scrape → keyword-match EVERY user (was users[0] only — a real multi-user bug) → AI score (now --first-seen-days bounded: ONE index per candidate against NEW jobs, not the whole backlog) → title pass → enqueue. (3) Digest moved to 07:00 CT so the morning delivery reflects the prior evening's drop. Boot catch-up + persistent cursors (score >20h, digest last_digest_at >20h) unchanged, so recreates never double-spend.
- * 2026-07-17 02:05:00 | roger.murphy@emeraldcoastsystemsgroup.com | Killed-scrape recovery + day-slot fixes (2026-07-16 night: two api recreates killed the 18:00 scrape mid-run; 0 rows landed and NOTHING recovered it). (1) Catch-up staleness is now WINDOW-ANCHORED — "was the corpus refreshed since the most recent 18:00-CT window?" — instead of a flat >20h age test, which a killed evening run always passes (the corpus still looks fresh from the previous refresh). (2) A pre-window catch-up firing no longer consumes TODAY's slot: the recovery scrape belongs to yesterday, so tonight's 18:00 window still runs; same fix for the digest — a pre-07:00 boot used to stamp lastRun.digest while the >20h guard refused the send, silently skipping the day's 07:00 digest. (3) Catch-up score is skipped when the recovery chain just fired (it ends in scoreAllUsers itself; two concurrent scorers would fight over the single-writer per-user SQLite). runEveningScrapeIndex is now exported + single-flighted so the admin refresh route/tool can trigger the same chain.
- * 2026-07-17 02:35:00 | roger.murphy@emeraldcoastsystemsgroup.com | Recovery signal → COMPLETION MARKER (.last-evening-run in the tenant dir, on the volume). Ten minutes after the first recovery fired, ANOTHER agent's deploy recreated the api and killed it — and because the scrape writes rows progressively, the partially-scraped corpus looked "refreshed since the window" and the corpus-timestamp test refused to re-fire. Only a chain that finishes with a successful scrape writes the marker; catch-up fires whenever the marker predates the most recent 18:00 window (or is missing). Survives any number of mid-run recreates.
- * 2026-07-19 17:55:00 | roger.murphy@emeraldcoastsystemsgroup.com | Evening chain now mirrors each user's freshly-indexed jobs into their person graph (ADR-045 — the package-side call for kernel 85931d2a's ingestJobsForPerson). Fired fire-and-forget (void) right after each user's index step (pull for users[0], match for the rest); ingestJobsGraphForUser is fail-open by contract (engine-absent no-op, errors logged + swallowed), so the scrape/index rhythm is never blocked or failed by graph availability.
- * 2026-07-24 02:45:00 | roger.murphy@emeraldcoastsystemsgroup.com | AUTOMATION IS EXPLICIT OPT-IN (operator directive 2026-07-24: the chain generated + queued application drafts for jobs the operator never picked). Per-user gate on career_automation_settings.auto_generate (migration 091, absent row = OFF): scoreAllUsers now SKIPS the AI score + title pass + draft enqueue for any user who has not opted in, and a CRON-triggered evening chain skips the shared scrape entirely when NO user has opted in. The operator's explicit admin refresh (POST /run/refresh / the career_refresh tool) passes manualRefresh:true — it still refreshes the shared corpus + keyword index (data, no LLM, no tickets), while score/enqueue stay per-user gated.
- *
  * @module career-hunter-cron
  */
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const logger_1 = require("@/shared/logger");
 const career_hunter_routes_1 = require("./career-hunter-routes");
+const career_user_store_1 = require("./career-user-store");
+const career_engine_dispatch_1 = require("./career-engine-dispatch");
 const career_digest_1 = require("./career-digest");
 const career_title_score_1 = require("./career-title-score");
 const career_automation_1 = require("./career-automation");
@@ -85,7 +86,7 @@ function msSinceLastEveningWindow(hh, mm) {
  *  window" (exactly how the 07:14Z recreate defeated the first version of this recovery).
  *  Only a chain that finished with a SUCCESSFUL scrape writes the marker. */
 function eveningMarkerPath(anyUserSub) {
-    return path_1.default.join(path_1.default.dirname((0, career_hunter_routes_1.userPaths)(anyUserSub).corpusDb), '.last-evening-run');
+    return path_1.default.join(path_1.default.dirname((0, career_user_store_1.userPaths)(anyUserSub).corpusDb), '.last-evening-run');
 }
 function readEveningMarkerMs(anyUserSub) {
     try {
@@ -120,7 +121,7 @@ const SCORE_FIRST_SEEN_DAYS = Math.max(1, Number(process.env.CAREER_SCORE_FIRST_
  *  recreates, unlike the in-memory lastRun map), and capped with --limit when it does run.
  *  The title pass carries its own persistent >20h guard + limit inside runTitlePassForUser. */
 async function scoreAllUsers(ctx, opts = {}) {
-    for (const userSub of (0, career_hunter_routes_1.listStoreUsers)()) {
+    for (const userSub of (0, career_user_store_1.listStoreUsers)()) {
         try {
             // EXPLICIT OPT-IN (2026-07-24): no auto_generate opt-in → no AI score, no title pass,
             // no draft enqueue for this user. Absent settings row = OFF (default-deny).
@@ -134,10 +135,15 @@ async function scoreAllUsers(ctx, opts = {}) {
             }
             else {
                 // Both paths bound to NEW jobs (--first-seen-days); the catch-up also caps with --limit.
-                await (0, career_hunter_routes_1.runUserScore)(userSub, opts.catchup
+                const scoreResult = await (0, career_engine_dispatch_1.runUserScore)(ctx.pool, userSub, opts.catchup
                     ? { firstSeenDays: SCORE_FIRST_SEEN_DAYS, limit: CATCHUP_SCORE_LIMIT }
                     : { firstSeenDays: SCORE_FIRST_SEEN_DAYS });
-                await (0, career_title_score_1.markCronScore)(ctx.pool, userSub);
+                if (scoreResult.ok)
+                    await (0, career_title_score_1.markCronScore)(ctx.pool, userSub);
+                else {
+                    keywordPass = 'failed';
+                    logger.error({ userSub }, 'career-hunter cron: keyword score failed; cursor not advanced');
+                }
             }
             const titlePass = await (0, career_title_score_1.runTitlePassForUser)(ctx, userSub);
             const n = await (0, career_hunter_routes_1.enqueueForUser)(ctx, userSub, 10);
@@ -149,6 +155,19 @@ async function scoreAllUsers(ctx, opts = {}) {
     }
 }
 let eveningChainRunning = false;
+/** Return true only when at least one readable user setting explicitly enables generation. */
+async function anyAutomationOptIn(ctx, users) {
+    for (const userSub of users) {
+        try {
+            if ((await (0, career_automation_1.readAutomationSettingsSystem)(ctx, userSub)).autoGenerate)
+                return true;
+        }
+        catch (err) {
+            logger.error({ err, userSub }, 'career-hunter cron: automation opt-in read failed — treating as OFF');
+        }
+    }
+    return false;
+}
 /**
  * @description The evening chain (operator's "scrape 6pm, index right after"): scrape the SHARED
  * corpus once, keyword-index EVERY user against the new rows (runSharedPull already matched
@@ -158,7 +177,11 @@ let eveningChainRunning = false;
  * funnel here, and two concurrent chains would double-scrape + fight over the SQLite writers.
  * @param ctx app context
  * @param users the per-user store subs to index (from listStoreUsers)
- * @returns true when the chain ran; false when one was already in flight
+ * @param opts manualRefresh: true when an operator explicitly asked for a data refresh
+ * (POST /run/refresh / the career_refresh tool) — the scrape+index runs even with zero
+ * automation opt-ins because it is a data refresh, not application automation; the
+ * score/enqueue steps stay per-user gated inside scoreAllUsers either way
+ * @returns true when the chain ran; false when one was already in flight or it was skipped
  */
 async function runEveningScrapeIndex(ctx, users, opts = {}) {
     if (eveningChainRunning) {
@@ -168,28 +191,14 @@ async function runEveningScrapeIndex(ctx, users, opts = {}) {
     // EXPLICIT OPT-IN (2026-07-24): a CRON-triggered chain with no opted-in users does nothing
     // at all — no scrape, no score, no drafts. Only the operator's explicit refresh bypasses
     // the scrape gate (and only the scrape/index: drafts stay gated per user).
-    if (!opts.manualRefresh) {
-        let anyOptedIn = false;
-        for (const u of users) {
-            try {
-                if ((await (0, career_automation_1.readAutomationSettingsSystem)(ctx, u)).autoGenerate) {
-                    anyOptedIn = true;
-                    break;
-                }
-            }
-            catch (err) {
-                logger.error({ err, userSub: u }, 'career-hunter cron: automation opt-in read failed — treating as OFF');
-            }
-        }
-        if (!anyOptedIn) {
-            logger.info({ users: users.length }, 'career-hunter cron: evening chain skipped — no user has opted in to automation');
-            return false;
-        }
+    if (!opts.manualRefresh && !await anyAutomationOptIn(ctx, users)) {
+        logger.info({ users: users.length }, 'career-hunter cron: evening chain skipped — no user has opted in to automation');
+        return false;
     }
     eveningChainRunning = true;
     logger.info({ users: users.length }, 'career-hunter cron: evening scrape + index starting');
     try {
-        const r = await (0, career_hunter_routes_1.runSharedPull)(users[0]); // shared scrape + keyword-match users[0]
+        const r = await (0, career_engine_dispatch_1.runSharedPull)(ctx.pool, users[0]); // shared scrape + keyword-match users[0]
         logger.info({ ok: r.ok }, 'career-hunter cron: scrape finished — indexing all users');
         // Jobs-write seam → person graph (ADR-045): mirror each user's fresh index fire-and-forget.
         // ingestJobsGraphForUser NEVER rejects (engine-absent no-op; errors logged + swallowed).
@@ -197,8 +206,11 @@ async function runEveningScrapeIndex(ctx, users, opts = {}) {
             void (0, career_graph_routes_1.ingestJobsGraphForUser)(users[0]);
         for (let i = 1; i < users.length; i++) {
             try {
-                await (0, career_hunter_routes_1.runUserMatch)(users[i]); // keyword-match the rest against the fresh corpus
-                void (0, career_graph_routes_1.ingestJobsGraphForUser)(users[i]);
+                const match = await (0, career_engine_dispatch_1.runUserMatch)(ctx.pool, users[i]); // keyword-match the rest against the fresh corpus
+                if (match.ok)
+                    void (0, career_graph_routes_1.ingestJobsGraphForUser)(users[i]);
+                else
+                    logger.error({ userSub: users[i] }, 'career-hunter cron: per-user match failed');
             }
             catch (err) {
                 logger.error({ err, userSub: users[i] }, 'career-hunter cron: per-user match failed');
@@ -219,13 +231,16 @@ async function runEveningScrapeIndex(ctx, users, opts = {}) {
     }
     return true;
 }
-/** Whether the evening scrape+index chain is currently in flight (for the admin status route). */
+/**
+ * @description Reports whether the shared evening scrape and index coordinator owns its flight.
+ * @returns true while one scheduled, recovery, or manual chain is active
+ */
 function isEveningChainRunning() {
     return eveningChainRunning;
 }
 async function tick(ctx, opts = {}) {
     const { hh, mm, day } = clock();
-    const users = (0, career_hunter_routes_1.listStoreUsers)();
+    const users = (0, career_user_store_1.listStoreUsers)();
     if (!users.length)
         return;
     // Evening scrape + index — 18:00–18:14 CT, once/day. On a catch-up boot, also fire when the
@@ -268,7 +283,11 @@ async function tick(ctx, opts = {}) {
         }
     }
 }
-/** Start the gated daily timer once. No-op unless CAREER_HUNTER_CRON is truthy. */
+/**
+ * @description Starts the gated daily timer once and remains inert unless the cron flag is true.
+ * @param ctx kernel services used by scheduled Career operations
+ * @returns nothing after startup is enabled, disabled, or already complete
+ */
 function startCareerHunterCron(ctx) {
     if (started)
         return;

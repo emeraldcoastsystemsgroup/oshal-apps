@@ -1,7 +1,9 @@
 """Loads the user's career_db.json and renders a compact profile for prompts."""
 from __future__ import annotations
 import json
+import logging
 import os
+import stat
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
@@ -9,11 +11,47 @@ from pathlib import Path
 from . import config
 
 
+logger = logging.getLogger(__name__)
+
+_PROFILE_MAX_BYTES = 4 * 1024 * 1024
+_PROFILE_BACKUP_LIMIT = 20
+_ENRICHMENT_LOG_MAX_BYTES = 1024 * 1024
+_AUGMENT_FACT_MAX_CHARS = 16_000
+_AUGMENT_FACT_MAX_BYTES = 16 * 1024
+_AUGMENT_PROMPT_MAX_BYTES = 64 * 1024
+_AUGMENT_PROFILE_TRUNCATION = "\n[CURRENT PROFILE OUTLINE TRUNCATED TO INPUT BUDGET]\n"
+
+
+def _read_profile_text() -> str:
+    """Read one regular profile only after enforcing the same byte ceiling as writes."""
+    metadata = config.CAREER_DB.lstat()
+    if not stat.S_ISREG(metadata.st_mode):
+        raise ValueError("career profile must be a regular file")
+    if metadata.st_size > _PROFILE_MAX_BYTES:
+        raise ValueError("career profile exceeds the storage limit")
+    return config.CAREER_DB.read_text(encoding="utf-8")
+
+
+def _render_profile(raw: dict) -> str:
+    """Serialize one profile and reject model output beyond the durable store budget."""
+    rendered = json.dumps(raw, indent=2, ensure_ascii=False)
+    if len(rendered.encode("utf-8")) > _PROFILE_MAX_BYTES:
+        raise ValueError("career profile exceeds the storage limit")
+    return rendered
+
+
+def _replace_profile(rendered: str) -> None:
+    """Atomically publish already-bounded profile bytes in the caller-owned directory."""
+    temporary = config.CAREER_DB.with_suffix(".json.tmp")
+    temporary.write_text(rendered, encoding="utf-8")
+    os.replace(temporary, config.CAREER_DB)
+
+
 @lru_cache(maxsize=1)
 def load() -> dict:
     if not config.CAREER_DB.exists():
         return {}
-    return json.loads(config.CAREER_DB.read_text(encoding="utf-8"))
+    return json.loads(_read_profile_text())
 
 
 def summary(max_chars: int = 3500, include_oshal: bool = False) -> str:
@@ -72,27 +110,18 @@ def _low(xs):
     return {str(x).strip().lower() for x in xs}
 
 
-def augment(facts: str) -> dict:
-    """Merge candidate-provided TRUE facts into career_db.json so future tailoring can
-    *pull* them. Backs up first, applies an AI-proposed ADD-ONLY patch deterministically
-    in Python (so nothing existing is lost), writes atomically, and clears the cache.
-    Returns {"changelog": [...]}. No-ops (and writes nothing) if there's nothing to add.
-    """
-    from . import enrich
-    facts = (facts or "").strip()
-    if not facts:
-        return {"changelog": []}
-    text = config.CAREER_DB.read_text(encoding="utf-8")
-    raw = json.loads(text)
-
+def _augmentation_sections(raw: dict, facts: str) -> tuple[str, str]:
+    """Build separate profile and trusted-fact sections so profile text cannot spoof a delimiter."""
     groups = {g: (raw.get("skills", {}).get(g, {}) or {}).get("items", []) for g in raw.get("skills", {})}
     roles = raw.get("roles", [])
-    ctx = (
+    outline = (
         "CURRENT SKILL GROUPS (name: sample items):\n"
         + "\n".join(f"- {g}: {', '.join(items[:8])}" for g, items in groups.items())
         + "\n\nROLES (index | title @ org):\n"
         + "\n".join(f"{i} | {r.get('title','')} @ {r.get('org','')}" for i, r in enumerate(roles))
-        + "\n\nNEW CANDIDATE-CONFIRMED FACTS TO MERGE:\n" + facts
+    )
+    tail = (
+        "\n\nNEW CANDIDATE-CONFIRMED FACTS TO MERGE:\n" + facts
         + "\n\nReturn STRICT JSON only:\n{\n"
         '  "skills_add": {"<existing group name, or a concise new group>": ["skill phrase", ...]},\n'
         '  "role_bullets_add": [{"role_index": <int from the list above — the BEST-matching role>, '
@@ -101,53 +130,161 @@ def augment(facts: str) -> dict:
         '  "changelog": ["short human-readable line per addition"]\n}\n'
         "Only include additions clearly supported by the facts; do not duplicate existing content."
     )
-    patch = enrich.parse_json(enrich.complete(_ENH_SYS, ctx, max_tokens=1500)) or {}
+    return outline, tail
 
-    changed, changelog = False, list(patch.get("changelog") or [])
+
+def _utf8_prefix(value: str, limit: int) -> tuple[str, bool, int]:
+    """Return a deterministic valid UTF-8 prefix plus truncation and original-byte diagnostics."""
+    encoded = value.encode("utf-8", errors="replace")
+    if len(encoded) <= limit:
+        return value, False, len(encoded)
+    return encoded[:limit].decode("utf-8", errors="ignore"), True, len(encoded)
+
+
+def _bounded_augmentation_context(raw: dict, supplied_facts: str) -> tuple[str, str, dict]:
+    """Bound combined model text to 64 KiB and report deterministic UTF-8 byte diagnostics."""
+    char_bounded = supplied_facts[:_AUGMENT_FACT_MAX_CHARS]
+    facts, byte_cut, _ = _utf8_prefix(char_bounded, _AUGMENT_FACT_MAX_BYTES)
+    outline, tail = _augmentation_sections(raw, facts)
+    system_bytes = len(_ENH_SYS.encode("utf-8"))
+    context_budget = _AUGMENT_PROMPT_MAX_BYTES - system_bytes
+    tail_bytes = len(tail.encode("utf-8"))
+    if tail_bytes > context_budget:
+        raise ValueError("augmentation facts and instructions exceed the model input limit")
+    available = context_budget - tail_bytes
+    bounded_outline, outline_cut, outline_input_bytes = _utf8_prefix(outline, available)
+    if outline_cut:
+        marker_bytes = len(_AUGMENT_PROFILE_TRUNCATION.encode("utf-8"))
+        marker = _AUGMENT_PROFILE_TRUNCATION if marker_bytes <= available else ""
+        bounded_outline, _, _ = _utf8_prefix(outline, available - len(marker.encode("utf-8")))
+        bounded_outline += marker
+    context = bounded_outline + tail
+    model_input_bytes = system_bytes + len(context.encode("utf-8"))
+    if model_input_bytes > _AUGMENT_PROMPT_MAX_BYTES:
+        raise ValueError("augmentation model input exceeds the byte limit")
+    supplied_bytes = len(supplied_facts.encode("utf-8", errors="replace"))
+    diagnostics = {
+        "prompt_limit_bytes": _AUGMENT_PROMPT_MAX_BYTES,
+        "model_input_bytes": model_input_bytes,
+        "profile_input_bytes": outline_input_bytes,
+        "profile_bytes": len(bounded_outline.encode("utf-8")),
+        "profile_truncated": outline_cut,
+        "facts_input_bytes": supplied_bytes,
+        "facts_bytes": len(facts.encode("utf-8")),
+        "facts_truncated": len(supplied_facts) > _AUGMENT_FACT_MAX_CHARS or byte_cut,
+    }
+    return context, facts, diagnostics
+
+
+def _augmentation_result(changed: bool, changelog: list, diagnostics: dict | None = None) -> dict:
+    """Expose successful execution separately from whether additive persistence changed bytes."""
+    result = {"ok": True, "changed": changed, "changelog": changelog}
+    if diagnostics is not None:
+        result["diagnostics"] = diagnostics
+    return result
+
+
+def _append_unique(target: list, additions) -> bool:
+    """Append distinct non-empty strings without changing existing order or content."""
+    have = _low(target)
+    changed = False
+    for item in additions or []:
+        value = item.strip() if isinstance(item, str) else ""
+        if value and value.lower() not in have:
+            target.append(value)
+            have.add(value.lower())
+            changed = True
+    return changed
+
+
+def _apply_augmentation(raw: dict, patch: dict) -> bool:
+    """Apply only additive skills, role bullets, and metrics from a validated patch shape."""
+    changed = False
     skills = raw.setdefault("skills", {})
-    for g, items in (patch.get("skills_add") or {}).items():
+    for group, items in (patch.get("skills_add") or {}).items():
         if not items:
             continue
-        grp = skills.setdefault(g, {"items": []})
+        grp = skills.setdefault(group, {"items": []})
         grp.setdefault("items", [])
-        have = _low(grp["items"])
-        for it in items:
-            if it and it.strip().lower() not in have:
-                grp["items"].append(it.strip()); have.add(it.strip().lower()); changed = True
-    for rb in (patch.get("role_bullets_add") or []):
-        idx, bullets = rb.get("role_index"), (rb.get("bullets") or [])
+        changed = _append_unique(grp["items"], items) or changed
+    roles = raw.get("roles", [])
+    for role_patch in (patch.get("role_bullets_add") or []):
+        idx, bullets = role_patch.get("role_index"), (role_patch.get("bullets") or [])
         if isinstance(idx, int) and 0 <= idx < len(roles) and bullets:
-            dl = roles[idx].setdefault("deliverables", [])
-            have = _low(dl)
-            for b in bullets:
-                if b and b.strip().lower() not in have:
-                    dl.append(b.strip()); have.add(b.strip().lower()); changed = True
-    mb = raw.setdefault("metrics_bank", [])
-    have = _low(mb)
-    for m in (patch.get("metrics_add") or []):
-        if m and m.strip().lower() not in have:
-            mb.append(m.strip()); have.add(m.strip().lower()); changed = True
+            changed = _append_unique(roles[idx].setdefault("deliverables", []), bullets) or changed
+    return _append_unique(raw.setdefault("metrics_bank", []), patch.get("metrics_add")) or changed
 
-    if not changed:
-        return {"changelog": changelog}
 
-    # backup original, then atomic write
+def _rotate_profile_backups(directory: Path) -> None:
+    """Retain only the newest bounded set of full-profile recovery snapshots."""
+    backups = sorted(
+        directory.glob("career_db.*.json"),
+        key=lambda item: item.stat().st_mtime_ns,
+        reverse=True,
+    )
+    for backup in backups[_PROFILE_BACKUP_LIMIT:]:
+        backup.unlink(missing_ok=True)
+
+
+def _bounded_audit_record(stamp: str, facts: str, changelog: list) -> bytes:
+    """Serialize one bounded enrichment record without retaining unbounded model output."""
+    safe_log = [str(item)[:500] for item in changelog[:50]]
+    record = {"at": stamp, "facts": facts[:_AUGMENT_FACT_MAX_CHARS], "changelog": safe_log}
+    return (json.dumps(record, ensure_ascii=False) + "\n").encode("utf-8")
+
+
+def _write_bounded_audit(stamp: str, facts: str, changelog: list) -> None:
+    """Atomically retain only a complete-line tail within the enrichment audit byte budget."""
+    audit = config.CAREER_DB.parent / "enrichment_log.jsonl"
+    record = _bounded_audit_record(stamp, facts, changelog)
+    keep = max(0, _ENRICHMENT_LOG_MAX_BYTES - len(record))
+    prior = b""
+    if keep and audit.exists():
+        with audit.open("rb") as source:
+            offset = max(0, audit.stat().st_size - keep)
+            source.seek(offset)
+            prior = source.read(keep)
+        if offset:
+            prior = prior.partition(b"\n")[2]
+    temporary = audit.with_suffix(".jsonl.tmp")
+    temporary.write_bytes(prior + record[-_ENRICHMENT_LOG_MAX_BYTES:])
+    os.replace(temporary, audit)
+
+
+def _persist_augmentation(text: str, raw: dict, facts: str, changelog: list) -> None:
+    """Bound backups/audit, atomically replace the profile, and invalidate its cache."""
+    rendered = _render_profile(raw)
     bdir = config.CAREER_DB.parent / "backups"
     bdir.mkdir(exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     (bdir / f"career_db.{stamp}.json").write_text(text, encoding="utf-8")
-    tmp = config.CAREER_DB.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(raw, indent=2, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, config.CAREER_DB)
+    _rotate_profile_backups(bdir)
+    _replace_profile(rendered)
 
     # audit log + drop the cache so the next load()/generate sees the new data
     try:
-        with (config.CAREER_DB.parent / "enrichment_log.jsonl").open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps({"at": stamp, "facts": facts, "changelog": changelog}) + "\n")
+        _write_bounded_audit(stamp, facts, changelog)
     except Exception:
-        pass
+        logger.exception("career profile enrichment audit write failed")
     load.cache_clear()
-    return {"changelog": changelog}
+
+
+def augment(facts: str) -> dict:
+    """Merge candidate-confirmed facts additively, with backup, audit, and atomic replacement."""
+    from . import enrich
+    supplied_facts = str(facts or "").strip()
+    if not supplied_facts:
+        return _augmentation_result(False, [])
+    text = _read_profile_text()
+    raw = json.loads(text)
+    context, accepted_facts, diagnostics = _bounded_augmentation_context(raw, supplied_facts)
+    patch = enrich.parse_json(enrich.complete(_ENH_SYS, context, max_tokens=1500)) or {}
+    reported = patch.get("changelog") or []
+    changelog = list(reported) if isinstance(reported, list) else []
+    if not _apply_augmentation(raw, patch):
+        return _augmentation_result(False, [], diagnostics)
+    _persist_augmentation(text, raw, accepted_facts, changelog)
+    return _augmentation_result(True, changelog, diagnostics)
 
 
 # ── Resume ingest — build a NEW user's career_db.json from their uploaded resume ──
@@ -161,26 +298,121 @@ _INGEST_SYS = (
 def has_profile() -> bool:
     """True once the user has an indexed resume (a non-trivial career_db.json)."""
     try:
-        if not config.CAREER_DB.exists():
-            return False
-        d = json.loads(config.CAREER_DB.read_text(encoding="utf-8"))
+        d = load()
         return bool(d.get("roles") or (d.get("profile", {}) or {}).get("experience_summary"))
     except Exception:
         return False
 
 
+_EXTRACT_MAX_CHARS = 32_000
+_ARCHIVE_MAX_FILE_BYTES = 64 * 1024 * 1024
+_PDF_MAX_PAGES = 100
+_PDF_MAX_FILE_BYTES = 32 * 1024 * 1024
+_PDF_MAX_STREAM_BYTES = 8 * 1024 * 1024
+_PDF_MAX_TOTAL_DECODED_BYTES = 16 * 1024 * 1024
+_DOCX_MAX_MEMBERS = 1_000
+_DOCX_MAX_PARAGRAPHS = 5_000
+_DOCX_MAX_ENTRY_BYTES = 12 * 1024 * 1024
+_DOCX_MAX_TOTAL_BYTES = 32 * 1024 * 1024
+_DOCX_MAX_COMPRESSION_RATIO = 200
+
+
+def _validate_file_size(file_path: str, limit: int, label: str) -> None:
+    """Bound compressed/raw input before a parser materializes its index or object graph."""
+    size = Path(file_path).stat().st_size
+    if size > limit:
+        raise ValueError(f"{label} exceeds the input-byte limit")
+
+
+def _bounded_text(parts) -> str:
+    """Join an iterator without retaining more text than the downstream prompt can consume."""
+    output = []
+    remaining = _EXTRACT_MAX_CHARS
+    for value in parts:
+        separator = 1 if output else 0
+        if remaining <= separator:
+            break
+        text = str(value or "")
+        piece = text[:remaining - separator]
+        output.append(piece)
+        remaining -= separator + len(piece)
+    return "\n".join(output)
+
+
+def _validate_docx_archive(file_path: str) -> None:
+    """Reject DOCX zip expansion shapes before python-docx materializes its XML/package parts."""
+    import zipfile
+    _validate_file_size(file_path, _ARCHIVE_MAX_FILE_BYTES, "DOCX")
+    with zipfile.ZipFile(file_path) as archive:
+        members = [member for member in archive.infolist() if not member.is_dir()]
+        if len(members) > _DOCX_MAX_MEMBERS:
+            raise ValueError("DOCX contains too many package members")
+        if sum(member.file_size for member in members) > _DOCX_MAX_TOTAL_BYTES:
+            raise ValueError("DOCX exceeds the uncompressed-byte limit")
+        for member in members:
+            if member.flag_bits & 0x1:
+                raise ValueError("encrypted DOCX members are not supported")
+            if member.file_size > _DOCX_MAX_ENTRY_BYTES:
+                raise ValueError("DOCX member exceeds the uncompressed-byte limit")
+            if member.file_size / max(1, member.compress_size) > _DOCX_MAX_COMPRESSION_RATIO:
+                raise ValueError("DOCX member has a suspicious compression ratio")
+
+
+def _install_pdf_decode_budget(decoded_stream_type):
+    """Count each decoded pypdf stream once and reject aggregate expansion across the document."""
+    original = decoded_stream_type.get_data
+    seen = set()
+    total = 0
+
+    def bounded_get_data(stream):
+        nonlocal total
+        data = original(stream)
+        marker = id(stream)
+        if marker not in seen:
+            seen.add(marker)
+            total += len(data)
+            if total > _PDF_MAX_TOTAL_DECODED_BYTES:
+                raise ValueError("PDF exceeds the aggregate decoded-stream limit")
+        return data
+
+    decoded_stream_type.get_data = bounded_get_data
+    return original
+
+
+def _extract_pdf_text(file_path: str) -> str:
+    """Extract bounded text under per-stream, aggregate-decoded, input-byte, and page limits."""
+    _validate_file_size(file_path, _PDF_MAX_FILE_BYTES, "PDF")
+    from pypdf import PdfReader, filters
+    from pypdf.generic import DecodedStreamObject
+    for name in ("ZLIB_MAX_OUTPUT_LENGTH", "LZW_MAX_OUTPUT_LENGTH", "RUN_LENGTH_MAX_OUTPUT_LENGTH",
+                 "JBIG2_MAX_OUTPUT_LENGTH", "MAX_ARRAY_BASED_STREAM_OUTPUT_LENGTH",
+                 "MAX_DECLARED_STREAM_LENGTH", "FLATE_MAX_BUFFER_SIZE"):
+        if hasattr(filters, name):
+            setattr(filters, name, _PDF_MAX_STREAM_BYTES)
+    original_get_data = _install_pdf_decode_budget(DecodedStreamObject)
+    try:
+        reader = PdfReader(file_path)
+        if len(reader.pages) > _PDF_MAX_PAGES:
+            raise ValueError("PDF exceeds the page limit")
+        return _bounded_text((page.extract_text() or "") for page in reader.pages)
+    finally:
+        DecodedStreamObject.get_data = original_get_data
+
+
 def _extract_resume_text(file_path: str) -> str:
-    """Pull plain text from a PDF/DOCX/txt resume."""
+    """Pull bounded plain text from a PDF/DOCX/text resume without archive expansion hazards."""
     p = file_path.lower()
     if p.endswith(".pdf"):
-        from pypdf import PdfReader  # pure-python, in the image deps (Dockerfile.oshal)
-        reader = PdfReader(file_path)
-        return "\n".join((page.extract_text() or "") for page in reader.pages)
+        return _extract_pdf_text(file_path)
     if p.endswith(".docx"):
         import docx  # python-docx (pure-python, uses lxml already installed)
-        d = docx.Document(file_path)
-        return "\n".join(par.text for par in d.paragraphs)
-    return Path(file_path).read_text(encoding="utf-8", errors="ignore")
+        _validate_docx_archive(file_path)
+        document = docx.Document(file_path)
+        if len(document.paragraphs) > _DOCX_MAX_PARAGRAPHS:
+            raise ValueError("DOCX exceeds the paragraph limit")
+        return _bounded_text(paragraph.text for paragraph in document.paragraphs)
+    with Path(file_path).open("r", encoding="utf-8", errors="ignore") as stream:
+        return stream.read(_EXTRACT_MAX_CHARS)
 
 
 def build_from_resume(file_path: str) -> dict:
@@ -220,9 +452,10 @@ def build_from_resume(file_path: str) -> dict:
     data.setdefault("certifications", [])
 
     config.CAREER_DB.parent.mkdir(parents=True, exist_ok=True)
-    tmp = config.CAREER_DB.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, config.CAREER_DB)
+    try:
+        _replace_profile(_render_profile(data))
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc)}
     load.cache_clear()
     return {
         "ok": True,
@@ -243,6 +476,50 @@ _ABSORB_SYS = (
     "has nothing about the candidate's own career, return an empty list. Output a plain bullet list.")
 
 _ARTIFACT_KINDS = {"resume-extra", "linkedin-export", "email", "status-report", "work-sample", "other"}
+_ZIP_RELEVANT = ("position", "profile", "skill", "education", "project", "certification", "experience")
+_ZIP_MAX_MEMBERS = 1_000
+_ZIP_MAX_RELEVANT_MEMBERS = 50
+_ZIP_MAX_ENTRY_BYTES = 2 * 1024 * 1024
+_ZIP_MAX_TOTAL_BYTES = 5 * 1024 * 1024
+_ZIP_MAX_COMPRESSION_RATIO = 100
+
+
+def _safe_zip_members(archive) -> list:
+    """Validate central-directory sizes before decompressing any relevant LinkedIn export member."""
+    members = archive.infolist()
+    if len(members) > _ZIP_MAX_MEMBERS:
+        raise ValueError("zip contains too many members")
+    selected = [m for m in members if not m.is_dir()
+                and m.filename.lower().endswith((".csv", ".txt"))
+                and any(key in m.filename.lower() for key in _ZIP_RELEVANT)]
+    if len(selected) > _ZIP_MAX_RELEVANT_MEMBERS:
+        raise ValueError("zip contains too many career-data members")
+    if sum(m.file_size for m in selected) > _ZIP_MAX_TOTAL_BYTES:
+        raise ValueError("zip career data exceeds the uncompressed-byte limit")
+    for member in selected:
+        if member.flag_bits & 0x1:
+            raise ValueError("encrypted zip members are not supported")
+        if member.file_size > _ZIP_MAX_ENTRY_BYTES:
+            raise ValueError("zip member exceeds the uncompressed-byte limit")
+        if member.file_size / max(1, member.compress_size) > _ZIP_MAX_COMPRESSION_RATIO:
+            raise ValueError("zip member has a suspicious compression ratio")
+    return selected
+
+
+def _read_bounded_zip_member(archive, member) -> str:
+    """Stream one already-validated member and enforce its declared size while decompressing."""
+    chunks = []
+    total = 0
+    with archive.open(member) as stream:
+        while True:
+            chunk = stream.read(min(64 * 1024, _ZIP_MAX_ENTRY_BYTES - total + 1))
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > _ZIP_MAX_ENTRY_BYTES or total > member.file_size:
+                raise ValueError("zip member expanded beyond its declared safe size")
+            chunks.append(chunk)
+    return b"".join(chunks).decode("utf-8", "ignore")
 
 
 def _extract_artifact_text(file_path: str) -> str:
@@ -253,19 +530,15 @@ def _extract_artifact_text(file_path: str) -> str:
         return _extract_resume_text(file_path)
     if p.endswith(".zip"):
         import zipfile
-        keep = ("position", "profile", "skill", "education", "project", "certification", "experience")
         out = []
-        with zipfile.ZipFile(file_path) as z:
-            for n in z.namelist():
-                low = n.lower()
-                if low.endswith((".csv", ".txt")) and any(k in low for k in keep):
-                    try:
-                        out.append(f"### {n}\n" + z.read(n).decode("utf-8", "ignore"))
-                    except Exception:
-                        pass
+        _validate_file_size(file_path, _ARCHIVE_MAX_FILE_BYTES, "zip")
+        with zipfile.ZipFile(file_path) as archive:
+            for member in _safe_zip_members(archive):
+                out.append(f"### {member.filename}\n" + _read_bounded_zip_member(archive, member))
         return "\n\n".join(out)
     # csv / tsv / html / eml / json / log and anything else — read as text
-    return Path(file_path).read_text(encoding="utf-8", errors="ignore")
+    with Path(file_path).open("r", encoding="utf-8", errors="ignore") as stream:
+        return stream.read(_EXTRACT_MAX_CHARS)
 
 
 def absorb(file_path: str, kind: str = "other") -> dict:
@@ -286,6 +559,8 @@ def absorb(file_path: str, kind: str = "other") -> dict:
               "List the candidate's TRUE career facts from this document (one per line).")
     facts = (enrich.complete(_ABSORB_SYS, prompt, max_tokens=1200) or "").strip()
     if len(facts) < 10:
-        return {"ok": True, "kind": kind, "changelog": [], "note": "no new career facts found"}
+        return {"ok": True, "changed": False, "kind": kind, "changelog": [],
+                "note": "no new career facts found"}
     res = augment(facts)
-    return {"ok": True, "kind": kind, "changelog": res.get("changelog", [])}
+    return {"ok": res.get("ok") is True, "changed": res.get("changed") is True,
+            "kind": kind, "changelog": res.get("changelog", [])}

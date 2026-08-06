@@ -1,10 +1,17 @@
-requests>=2.31
-tenacity>=8.0
-beautifulsoup4>=4.12
-lxml>=5.0
-Flask>=3.0          # dashboard
-Jinja2>=3.1         # resume/cover/dashboard templates
-playwright>=1.40    # HTML -> PDF  (run once: playwright install chromium)
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR                                    | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Pin the complete engine surface and ship the PostgreSQL driver used by JOBHUNTER_STORE=postgres.
+
+requests==2.34.2
+tenacity==9.1.4
+beautifulsoup4==4.15.0
+lxml==6.1.1
+Flask==3.1.3        # dashboard
+Jinja2==3.1.6       # resume/cover/dashboard templates
+playwright==1.62.0  # HTML -> PDF  (run once: playwright install chromium)
+psycopg2-binary==2.9.12  # PostgreSQL engine backend; imported lazily in SQLite mode
 # optional — only needed for AI steps (enrich / score / apply):
 # anthropic>=0.40   (if using ANTHROPIC_API_KEY)
 # openai>=1.40      (if using OPENAI_API_KEY)

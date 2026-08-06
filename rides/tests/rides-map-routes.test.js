@@ -5,6 +5,8 @@
  * -----------------------------------------------------------------------------
  * 2026-08-01 21:10:00 | maintainer@emeraldcoastsystemsgroup.com   | Guards for the map's server half, run against the COMPILED route module (the same bytes the framework requires). The bug being pinned: this surface shipped a whole Google Maps integration gated on GOOGLE_MAPS_BROWSER_KEY, that key was set in no file in either repo, and /config therefore answered provider:'fallback' forever — the rider got a CSS drawing and nobody noticed, because nothing asserted what the keyless answer was. So: (1) with NO key configured the provider must be 'osm' and must carry a usable tile URL — a keyless install gets a REAL map, not a placeholder; (2) with a key it upgrades to google-maps and hands the key over; (3) /geocode and /reverse exist, validate their input, and 401 before any CLI work when the caller is anonymous — they proxy a public endpoint on the rider's behalf, so an open one is an abuse relay; (4) /estimate passes the CLI's coords and measured distance through, because the map draws its pins from them.
  *
+ * 2026-08-06 03:05:00 | maintainer@emeraldcoastsystemsgroup.com   | Exercise the compiled request-scoped in-process Rides provider bridge instead of the retired CLI subprocess seam.
+ *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
 'use strict';
@@ -18,8 +20,8 @@ const ROUTE_FILE = path.join(PKG, 'routes', 'rides-routes.js');
 
 /**
  * Load the compiled route module with every framework import stubbed, and record what it
- * registers. `cliResponses` maps a CLI subcommand to the JSON that shelling it would return, so
- * the tests exercise the real handler bodies without a child process, a DB, or a bot node.
+ * registers. `cliResponses` maps a provider subcommand to its bounded JSON result, so the tests
+ * exercise the real handler bodies without a network call, a DB, or a bot node.
  */
 function loadRoutes(opts = {}) {
   const handlers = { get: new Map(), post: new Map() };
@@ -37,22 +39,22 @@ function loadRoutes(opts = {}) {
     },
     path,
     crypto: { randomUUID: () => 'test-uuid' },
-    child_process: {
-      execFile: (_bin, args, _o, cb) => {
-        // args = [<cli path>, <subcommand>, ...rest]
-        const sub = args[1];
-        cliCalls.push(args.slice(1));
-        const payload = (opts.cliResponses || {})[sub];
-        cb(null, JSON.stringify(payload === undefined ? {} : payload), '');
-      },
-    },
     '@/shared/logger': { createChildLogger: () => ({ info() {}, warn() {}, error() {}, debug() {} }) },
     '@/shared/services/database': {
       buildOwnerRlsPolicyStatements: () => [],
       runRuntimeSchemaBootstrap: async () => {},
     },
     '@/shared/middleware/authz': { getTrustedServiceUserSub: () => undefined },
-    '@/app/routes/connector-token-broker': { resolveBotCreds: async () => ({}) },
+    '@/app/routes/connector-token-broker': {
+      resolveServerOperationCreds: async () => ({ OSHAL_CRED_UBER_RIDES: 'test-request-credential' }),
+    },
+    '@/app/routes/provider-operation-clients': {
+      runUberRidesProviderOperation: async (_credential, args) => {
+        cliCalls.push([...args]);
+        const payload = (opts.cliResponses || {})[args[0]];
+        return payload === undefined ? {} : payload;
+      },
+    },
     '@/app/routes/concierge-store': { ConciergeStore: class { async ensureConversation() { return 'c1'; } } },
     '@/app/routes/concierge-reply': { cleanConciergeReply: (t) => t },
     '@/features/agent-management': {

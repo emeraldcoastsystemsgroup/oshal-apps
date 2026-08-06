@@ -35,6 +35,19 @@ source:
   path: movies
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/movies/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # TMDB is the one connector this app reads (operator/tenant key or env fallback);
 # declaring it scopes the app profile's connector surface to exactly that.
 dependencies:
@@ -51,6 +64,13 @@ guestTier: blocked
 # every route resolves the viewer sub itself; the surface serves from this
 # package's tools/ via ctx.appPackageDir.
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/movies/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/movies-routes.js
     factory: createMoviesRoutes
     mountPath: /api/movies

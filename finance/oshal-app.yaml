@@ -52,6 +52,19 @@ source:
   path: finance
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/finance/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # Plaid links on the app's own surface (not the connector hub) → empty connector
 # allow-list is correct; no app/tool deps.
 dependencies:
@@ -77,6 +90,13 @@ workflow:
 # every route self-checks the caller, POST /pay additionally requires the explicit
 # write confirmation (428 no-charge) and is idempotency-keyed.
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/finance/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/finance-routes.js
     factory: createFinanceRoutes
     mountPath: /api/finance

@@ -27,6 +27,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial implementation — owner-scoped BOM/vendor/quote/schedule/headcount CRUD, the transactional applyQuote that supersedes an estimate with a real quote and re-points the BOM line at it, and the bot-authored bulk replacements that never touch operator-entered rows.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Bind every foreign quote to immutable FX evidence, keep original and reporting-currency micros distinct, and refuse cross-owner vendor or BOM references.
  *
  * @module venture-store-supply
  */
@@ -37,6 +38,7 @@ exports.updateBomLine = updateBomLine;
 exports.deleteBomSubtree = deleteBomSubtree;
 exports.replaceBomFromBot = replaceBomFromBot;
 exports.listVendors = listVendors;
+exports.getVendor = getVendor;
 exports.insertVendor = insertVendor;
 exports.updateVendor = updateVendor;
 exports.listQuotes = listQuotes;
@@ -48,6 +50,8 @@ exports.listHeadcount = listHeadcount;
 exports.replaceHeadcount = replaceHeadcount;
 const logger_1 = require("@/shared/logger");
 const venture_store_1 = require("./venture-store");
+const venture_store_fx_1 = require("./venture-store-fx");
+const venture_currency_1 = require("./venture-currency");
 const log = (0, logger_1.createChildLogger)({ module: 'venture-store-supply' });
 /** Cap on rows any list read returns. A 500-line BOM is already a design smell. */
 const LIST_LIMIT = 500;
@@ -212,6 +216,11 @@ async function listVendors(pool, ownerSub, ventureId) {
      ORDER BY name LIMIT $3`, [ventureId, ownerSub, LIST_LIMIT]);
     return rows.map(toVendor);
 }
+/** Read one vendor without exposing a foreign owner's matching id. */
+async function getVendor(pool, ownerSub, ventureId, vendorId) {
+    const { rows } = await pool.query('SELECT * FROM venture_vendors WHERE id = $1 AND venture_id = $2 AND owner_sub = $3', [vendorId, ventureId, ownerSub]);
+    return rows.length ? toVendor(rows[0]) : null;
+}
 /** Every column a vendor write may set. Frozen. */
 const VENDOR_COLUMNS = Object.freeze({
     name: 'name', kind: 'kind', country: 'country', url: 'url', contact: 'contact',
@@ -266,11 +275,16 @@ async function updateVendor(pool, ownerSub, ventureId, vendorId, patch) {
 }
 /** Map a quotes row to the API shape. */
 function toQuote(r) {
+    const num = (value) => (value === null || value === undefined ? null : Number(value));
     return {
         id: String(r.id), ventureId: String(r.venture_id), vendorId: String(r.vendor_id),
         bomLineId: r.bom_line_id ? String(r.bom_line_id) : null,
         qtyBreak: Number(r.qty_break), unitCostMicros: Number(r.unit_cost_micros),
         currency: String(r.currency), toolingCostMicros: Number(r.tooling_cost_micros),
+        reportingUnitCostMicros: num(r.reporting_unit_cost_micros),
+        reportingCurrency: r.reporting_currency ? String(r.reporting_currency) : null,
+        reportingToolingCostMicros: num(r.reporting_tooling_cost_micros),
+        fxAssumptionId: r.fx_assumption_id ? String(r.fx_assumption_id) : null,
         incoterm: r.incoterm ?? null,
         leadTimeDays: r.lead_time_days === null ? null : Number(r.lead_time_days),
         validUntil: r.valid_until ? new Date(r.valid_until).toISOString().slice(0, 10) : null,
@@ -291,6 +305,80 @@ async function listQuotes(pool, ownerSub, ventureId) {
      ORDER BY received_at DESC LIMIT $3`, [ventureId, ownerSub, LIST_LIMIT]);
     return rows.map(toQuote);
 }
+/** Resolve and validate the immutable conversion before quote provenance changes. */
+async function bindQuoteCurrency(pool, ownerSub, ventureId, q) {
+    const venture = await (0, venture_store_1.getVenture)(pool, ownerSub, ventureId);
+    if (!venture)
+        throw new venture_currency_1.VentureFxError('fx_venture_not_found', 'venture is missing or not owned by the caller');
+    const sourceCurrency = (0, venture_currency_1.normalizeCurrencyCode)(q.currency ?? venture.currency, 'currency');
+    const reportingCurrency = (0, venture_currency_1.normalizeCurrencyCode)(venture.currency, 'venture currency');
+    const sourceUnitMicros = (0, venture_currency_1.assertCurrencyMicros)(q.unitCostMicros, 'unitCostMicros');
+    const sourceToolingMicros = (0, venture_currency_1.assertCurrencyMicros)(q.toolingCostMicros ?? 0, 'toolingCostMicros');
+    if (sourceUnitMicros < 0 || sourceToolingMicros < 0) {
+        throw new venture_currency_1.VentureFxError('invalid_currency_amount', 'quote amounts cannot be negative');
+    }
+    if (sourceCurrency === reportingCurrency) {
+        if (q.fxAssumptionId) {
+            throw new venture_currency_1.VentureFxError('redundant_fx_assumption', 'same-currency quotes must not bind an FX assumption');
+        }
+        return {
+            sourceCurrency, reportingCurrency, sourceUnitMicros, sourceToolingMicros,
+            reportingUnitMicros: sourceUnitMicros, reportingToolingMicros: sourceToolingMicros,
+            fxAssumptionId: null, fxSourceDetail: null,
+        };
+    }
+    if (!q.fxAssumptionId) {
+        throw new venture_currency_1.VentureFxError('fx_assumption_required', 'foreign quotes require an immutable fxAssumptionId');
+    }
+    const fx = await (0, venture_store_fx_1.getFxAssumption)(pool, ownerSub, ventureId, q.fxAssumptionId);
+    if (!fx)
+        throw new venture_currency_1.VentureFxError('fx_assumption_not_found', 'FX assumption is missing or not owned by the caller');
+    if (fx.sourceCurrency !== sourceCurrency || fx.reportingCurrency !== reportingCurrency) {
+        throw new venture_currency_1.VentureFxError('fx_assumption_mismatch', 'FX assumption currencies do not match the quote and venture');
+    }
+    return {
+        sourceCurrency, reportingCurrency, sourceUnitMicros, sourceToolingMicros,
+        reportingUnitMicros: (0, venture_currency_1.convertCurrencyMicros)(sourceUnitMicros, fx),
+        reportingToolingMicros: (0, venture_currency_1.convertCurrencyMicros)(sourceToolingMicros, fx),
+        fxAssumptionId: fx.id,
+        fxSourceDetail: `FX ${fx.id} ${fx.sourceCurrency}->${fx.reportingCurrency} @ ${fx.rateNanos} nanos`,
+    };
+}
+/** Build the reporting-currency assumption that a human-received quote proves. */
+function quotedAssumptionInput(q, line, key, money) {
+    return {
+        key,
+        domain: 'manufacturing',
+        label: q.label || (line ? `${line.partName} unit cost (quoted)` : `Quoted unit cost for ${key}`),
+        unit: 'micros',
+        valueNum: money.reportingUnitMicros,
+        lowNum: money.reportingUnitMicros,
+        highNum: money.reportingUnitMicros,
+        sourceKind: 'vendor-quote',
+        sourceDetail: [q.documentRef || `vendor ${q.vendorId} @ qty ${q.qtyBreak ?? 1}`,
+            money.fxSourceDetail].filter(Boolean).join('; '),
+        confidence: 'high',
+    };
+}
+/** Insert the quote with original and reporting amounts kept in separate columns. */
+async function insertQuoteRow(client, ownerSub, ventureId, q, money, assumptionId) {
+    const { rows } = await client.query(`INSERT INTO venture_quotes (venture_id, owner_sub, vendor_id, bom_line_id, qty_break,
+       unit_cost_micros, currency, tooling_cost_micros, reporting_unit_cost_micros,
+       reporting_currency, reporting_tooling_cost_micros, fx_assumption_id, incoterm,
+       lead_time_days, valid_until, document_ref, notes, assumption_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`, [ventureId, ownerSub, q.vendorId, q.bomLineId ?? null, q.qtyBreak ?? 1,
+        money.sourceUnitMicros, money.sourceCurrency, money.sourceToolingMicros,
+        money.reportingUnitMicros, money.reportingCurrency, money.reportingToolingMicros,
+        money.fxAssumptionId, q.incoterm ?? null, q.leadTimeDays ?? null,
+        q.validUntil ?? null, q.documentRef ?? null, q.notes ?? null, assumptionId]);
+    return toQuote(rows[0]);
+}
+/** Point a quoted BOM line at the reporting-currency amount inside the transaction. */
+async function markLineQuoted(client, ownerSub, ventureId, line, key, reportingUnitMicros) {
+    await client.query(`UPDATE venture_bom_lines SET unit_cost_micros = $4, low_micros = $4, high_micros = $4,
+       assumption_key = $5, source_kind = 'vendor-quote', confidence = 'high', updated_at = NOW()
+     WHERE id = $1 AND venture_id = $2 AND owner_sub = $3`, [line.id, ventureId, ownerSub, reportingUnitMicros, key]);
+}
 /**
  * @description Record a supplier quote and let it supersede the estimate it replaces.
  *
@@ -307,43 +395,50 @@ async function listQuotes(pool, ownerSub, ventureId) {
  * @returns The stored quote and the assumption revision it wrote.
  */
 async function applyQuote(pool, ownerSub, ventureId, q) {
-    const line = q.bomLineId ? await getBomLine(pool, ownerSub, ventureId, q.bomLineId) : null;
+    // Resolve every owned reference and currency input before changing
+    // provenance. UUID knowledge alone must never bind a quote to another
+    // tenant's vendor or BOM line.
+    const [money, vendor, line] = await Promise.all([
+        bindQuoteCurrency(pool, ownerSub, ventureId, q),
+        getVendor(pool, ownerSub, ventureId, q.vendorId),
+        q.bomLineId ? getBomLine(pool, ownerSub, ventureId, q.bomLineId) : Promise.resolve(null),
+    ]);
+    if (!vendor) {
+        throw new venture_currency_1.VentureFxError('quote_vendor_not_found', 'vendor is missing or not owned by the caller');
+    }
+    if (q.bomLineId && !line) {
+        throw new venture_currency_1.VentureFxError('quote_bom_line_not_found', 'BOM line is missing or not owned by the caller');
+    }
     const key = q.assumptionKey || line?.assumptionKey || (line ? `bom.${line.ref}.unit-cost` : null);
-    let assumption = null;
-    let supersededId = null;
-    if (key) {
-        const written = await (0, venture_store_1.upsertAssumption)(pool, ownerSub, ventureId, {
-            key,
-            domain: 'manufacturing',
-            label: q.label || (line ? `${line.partName} unit cost (quoted)` : `Quoted unit cost for ${key}`),
-            unit: 'micros',
-            valueNum: q.unitCostMicros,
-            lowNum: q.unitCostMicros,
-            highNum: q.unitCostMicros,
-            // A received quote is the one place `vendor-quote` is asserted by a human
-            // action rather than claimed by a model, which is why this is the only
-            // caller allowed to write it.
-            sourceKind: 'vendor-quote',
-            sourceDetail: q.documentRef || `vendor ${q.vendorId} @ qty ${q.qtyBreak ?? 1}`,
-            confidence: 'high',
-        }, `user:${ownerSub}`, null);
-        assumption = written.assumption;
-        supersededId = written.supersededId;
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const written = key
+            ? await (0, venture_store_1.upsertAssumptionOnClient)(client, ownerSub, ventureId, quotedAssumptionInput(q, line, key, money), `user:${ownerSub}`, null) : null;
+        const quote = await insertQuoteRow(client, ownerSub, ventureId, q, money, written?.assumption.id ?? null);
+        if (line && key)
+            await markLineQuoted(client, ownerSub, ventureId, line, key, money.reportingUnitMicros);
+        await client.query('COMMIT');
+        log.info({
+            ownerSub, ventureId, vendorId: q.vendorId, key,
+            supersededId: written?.supersededId ?? null,
+            sourceCurrency: money.sourceCurrency, reportingCurrency: money.reportingCurrency,
+            fxAssumptionId: money.fxAssumptionId,
+        }, 'quote applied');
+        return {
+            quote,
+            assumption: written?.assumption ?? null,
+            supersededId: written?.supersededId ?? null,
+        };
     }
-    const { rows } = await pool.query(`INSERT INTO venture_quotes (venture_id, owner_sub, vendor_id, bom_line_id, qty_break,
-       unit_cost_micros, currency, tooling_cost_micros, incoterm, lead_time_days, valid_until,
-       document_ref, notes, assumption_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`, [ventureId, ownerSub, q.vendorId, q.bomLineId ?? null, q.qtyBreak ?? 1,
-        q.unitCostMicros, q.currency ?? 'USD', q.toolingCostMicros ?? 0, q.incoterm ?? null,
-        q.leadTimeDays ?? null, q.validUntil ?? null, q.documentRef ?? null, q.notes ?? null,
-        assumption ? assumption.id : null]);
-    if (line && key) {
-        await pool.query(`UPDATE venture_bom_lines SET unit_cost_micros = $4, low_micros = $4, high_micros = $4,
-         assumption_key = $5, source_kind = 'vendor-quote', confidence = 'high', updated_at = NOW()
-       WHERE id = $1 AND venture_id = $2 AND owner_sub = $3`, [line.id, ventureId, ownerSub, q.unitCostMicros, key]);
+    catch (err) {
+        await client.query('ROLLBACK').catch(() => undefined);
+        log.error({ err, stack: err?.stack, ownerSub, ventureId }, 'quote application failed');
+        throw err;
     }
-    log.info({ ownerSub, ventureId, vendorId: q.vendorId, key, supersededId }, 'quote applied');
-    return { quote: toQuote(rows[0]), assumption, supersededId };
+    finally {
+        client.release();
+    }
 }
 /**
  * @description Read one BOM line, scoped to its owner.

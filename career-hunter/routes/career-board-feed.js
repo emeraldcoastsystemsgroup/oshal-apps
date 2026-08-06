@@ -4,49 +4,16 @@ exports.SORT_MAP = exports.HIGH_WIN = exports.LAND_PROB = void 0;
 exports.splitBoardFilters = splitBoardFilters;
 exports.buildJobFilters = buildJobFilters;
 exports.fetchBoardPage = fetchBoardPage;
-/**
- * Career Hunter — board feed query planner
- *
- * The board's list query used to be a single "join everything, then sort" statement: it walked
- * ~157K corpus postings that matched `active=1 AND target_role=1`, LEFT JOINed the per-user
- * signals row for each, then built a TEMP B-TREE over the whole set just to return the first 150.
- * On the live store (1.45M postings / 2.0GB corpus.db, of which 1.1GB is `description` text) that
- * measured **50 seconds**, because every posting row SQLite touched dragged its ~2.6KB description
- * through the page cache — for columns the board never renders.
- *
- * This module inverts the drive order. Almost every board view is ranked by a **signal-side** key
- * (AI fit), and only ~87K of the user's 1.3M signal rows are AI-scored at all, so the feed is
- * planned as:
- *
- *   1. a **candidate CTE** over `user_signals` alone, walked in sort-key order through
- *      `idx_user_scored` and bounded by LIMIT — every signal-side predicate is pushed INTO it so
- *      the index walk is range-bounded rather than filtered afterwards;
- *   2. the corpus join applied to that bounded candidate set only (a few thousand rowid lookups);
- *   3. an **unscored tail-fill** that preserves the old semantics when a filter is narrow enough
- *      to exhaust the scored candidates (the previous query surfaced unscored postings at the
- *      bottom of the feed; dropping them silently would hide real matches).
- *
- * Measured on the live store, same box, same data — first page, default feed: **50,004ms -> 16ms**.
- * Worst observed path (narrow filter forcing a full escalation) is ~2.6s, inside the 3s budget.
- *
- * CHANGE LOG
- * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                                      | DESCRIPTION
- * -----------------------------------------------------------------------------
- * 2026-08-01 00:00:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Extracted the board feed out of career-hunter-routes and replanned it: signal-driven candidate CTE with signal-side filter push-down, adaptive pool escalation, unscored tail-fill, and the sargable `p.target_role = 1` rewrite (the old `COALESCE(p.target_role,0) = 1` could not use idx_corpus_lane). Fixes the operator-reported 50s board load.
- *
- * @module career-board-feed
- */
-/** P(land): fit decayed by posting age (28-day half-life), lifted by a referral path. */
+/** @description SQL expression for fit decayed by posting age and lifted by a referral path. */
 exports.LAND_PROB = "CAST(MIN(100.0, COALESCE(s.ai_fit_score,s.fit_score,0) "
     + "* MAX(0.25, POW(0.5,(JULIANDAY('now')-JULIANDAY(COALESCE(p.posted_date,p.first_seen_at)))/28.0)) "
     + "* (1.0+0.35*COALESCE(c.referral,0))) AS INT)";
-/** High-Win: fit plus clearance / platform-role / mission-industry bonuses. */
+/** @description SQL expression combining fit with clearance, platform-role, and mission bonuses. */
 exports.HIGH_WIN = "CAST(MIN(100, COALESCE(s.ai_fit_score,s.fit_score,0) "
     + "+ CASE WHEN LOWER(p.title) LIKE '%clear%' OR LOWER(p.title) LIKE '%secret%' OR LOWER(p.title) LIKE '%ts/sci%' OR LOWER(p.title) LIKE '%polygraph%' THEN 12 ELSE 0 END "
     + "+ CASE WHEN LOWER(p.title) LIKE '%ai%' OR LOWER(p.title) LIKE '%devops%' OR LOWER(p.title) LIKE '%sre%' OR LOWER(p.title) LIKE '%site reliab%' OR LOWER(p.title) LIKE '%platform%' OR LOWER(p.title) LIKE '%automation%' OR LOWER(p.title) LIKE '%machine learning%' THEN 8 ELSE 0 END "
     + "+ CASE WHEN LOWER(COALESCE(c.industry,'')) LIKE '%gov%' OR LOWER(COALESCE(c.industry,'')) LIKE '%defense%' OR LOWER(COALESCE(c.industry,'')) LIKE '%national security%' OR LOWER(COALESCE(c.industry,'')) LIKE '%aerospace%' OR LOWER(COALESCE(c.industry,'')) LIKE '%autonomy%' OR LOWER(COALESCE(c.industry,'')) LIKE '%intelligence%' THEN 12 ELSE 0 END) AS INT)";
-/** Final ORDER BY per `sort=` value. Applied to the joined candidate set. */
+/** @description Final ORDER BY expressions keyed by supported board sort values. */
 exports.SORT_MAP = {
     ai: 'COALESCE(s.ai_fit_score,-1) DESC, COALESCE(s.fit_score,0) DESC',
     prob: `${exports.LAND_PROB} DESC, COALESCE(s.ai_fit_score,0) DESC`,
@@ -82,12 +49,14 @@ const ALIGNED_SORTS = new Set(Object.keys(POOL_ORDER));
 const POOL_STEPS = [4000, 25000];
 /** Signal columns the CTE must carry so the outer SELECT and the scoring expressions still work. */
 const CAND_COLS = 'posting_id, fit_score, ai_fit_score, ai_fit_rationale, status, applied_at, '
-    + 'promoted_at, generated_at, notes, resume_path, cover_path';
+    + 'promoted_at, generated_at, notes, resume_path, cover_path, confirmation_path, '
+    + 'application_source, application_task_id';
 /** The board card's column list. Deliberately excludes `p.description` (1.1GB of the corpus). */
 const SELECT_COLS = `p.id, p.title, c.name AS company, p.location, p.url, p.posted_date, p.first_seen_at,
         p.job_type, p.remote, p.state, p.salary_min, p.salary_max, p.salary_currency, p.salary_period, p.salary_source, p.target_role,
         COALESCE(c.referral,0) AS referral, c.industry,
         s.fit_score, s.ai_fit_score, s.ai_fit_rationale, s.status, s.applied_at, s.promoted_at, s.generated_at, s.notes,
+        s.confirmation_path, s.application_source, s.application_task_id,
         ${exports.LAND_PROB} AS land_prob, ${exports.HIGH_WIN} AS high_win,
         CASE WHEN s.resume_path IS NOT NULL AND s.resume_path<>'' THEN 1 ELSE 0 END AS has_resume,
         CASE WHEN s.cover_path  IS NOT NULL AND s.cover_path<>''  THEN 1 ELSE 0 END AS has_cover`;
@@ -273,7 +242,7 @@ function poolSaturated(db, parts, poolN) {
         SELECT 1 FROM user_signals s
          WHERE s.ai_fit_score IS NOT NULL AND ${parts.scoredWhere} LIMIT ${poolN})`;
     const row = db.prepare(sql).get(...parts.scoredArgs);
-    return ((row && row.n) || 0) >= poolN;
+    return (row?.n ?? 0) >= poolN;
 }
 /**
  * @description Counts the scored postings matching the current filters. Only called on the rare
@@ -293,7 +262,7 @@ function countScored(db, parts) {
         JOIN corpus.companies c ON c.id = p.company_id
        WHERE ${parts.corpWhere}`;
     const row = db.prepare(sql).get(...parts.scoredArgs, ...parts.corpArgs);
-    return (row && row.n) || 0;
+    return row?.n ?? 0;
 }
 /**
  * @description Plans and runs the board feed for one request. Walks the pool ladder until the page
@@ -349,3 +318,4 @@ function fetchBoardPage(db, query) {
         scoredOnly: param(query, 'include_unscored') !== '1',
     };
 }
+//# sourceMappingURL=career-board-feed.js.map

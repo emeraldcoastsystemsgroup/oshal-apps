@@ -1,5 +1,5 @@
 {
-  "$schema": "https://github.com/emeraldcoastsystemsgroup/open-shal/blob/main/docs/adr/085-remote-app-packages-and-registries.md",
+  "$schema": "https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/adr/085-remote-app-packages-and-registries.md",
   "version": 1,
   "name": "oshal-apps",
   "description": "The OSHAL app store — installable app packages (ADR-085 git-subdir sources).",
@@ -22,20 +22,21 @@
         "path": "hello-oshal",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/hello-oshal.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
       "name": "little-monsters",
       "suite": "ai-home",
       "displayName": "Little Monsters",
-      "description": "Voice-first ADHD study companion for K-12: lecture capture, flashcards, Socratic RAG tutor.",
-      "version": "1.0.7",
+      "description": "Voice-first ADHD study companion for K-12: lecture capture, flashcards, authoritative quizzes, and a Socratic tutor grounded in caller-owned or teacher/admin-approved class material.",
+      "version": "1.0.9",
       "theme": "little-monsters",
       "dependencies": {
-        "apps": [
-          "presentations"
-        ],
+        "apps": [],
         "tools": [],
         "connectors": []
       },
@@ -45,8 +46,11 @@
         "path": "little-monsters",
         "ref": "main"
       },
-      "audit": "pending",
-      "status": "packaging"
+      "audit": {
+        "record": "audits/little-monsters.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
+      "status": "ready"
     },
     {
       "name": "brand-graphics",
@@ -68,7 +72,10 @@
         "path": "brand-graphics",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/brand-graphics.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -76,7 +83,7 @@
       "suite": "ai-creative",
       "displayName": "LoRA Studio",
       "description": "Train a reusable character (a \"sprite\") from images and captions, validate it on a fixed held-out matrix, and improve it by targeting its weak spots — every version scored so \"better\" is a number. Runs free on your GPU box.",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "theme": "indigo",
       "dependencies": {
         "apps": [],
@@ -89,7 +96,10 @@
         "path": "lora",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/lora.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -110,7 +120,10 @@
         "path": "youtube-kids",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/youtube-kids.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -134,7 +147,10 @@
         "path": "payments",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/payments.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -155,7 +171,10 @@
         "path": "finance",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/finance.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -177,7 +196,10 @@
         "path": "movies",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/movies.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -199,7 +221,10 @@
         "path": "spotify",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/spotify.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -221,7 +246,10 @@
         "path": "rides",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/rides.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -243,7 +271,10 @@
         "path": "eats",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/eats.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -265,7 +296,10 @@
         "path": "purchasing",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/purchasing.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -273,7 +307,7 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "Reads openings from employers' own public ATS job feeds into a shared corpus, scores every posting against your private career profile, and turns the best fits into a human-in-the-loop application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume + cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.",
-      "version": "1.6.0",
+      "version": "1.6.4",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -285,7 +319,10 @@
         "path": "career-hunter",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/career-hunter.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -293,7 +330,7 @@
       "suite": "ai-productivity",
       "displayName": "AI Office",
       "description": "One outline, three artifacts — a themed PowerPoint deck, Word document, or live Excel workbook. Ten shared looks, twenty layouts, fully editable in Microsoft Office, Google Workspace or LibreOffice; saves to Dropbox, Google Drive, OneDrive, or OSHAL local. A guided visual start walks you from artifact to look to outline — or talk to the Guide, open a file, or type one line and AI drafts it all. Phone-friendly: dictate instead of typing, resume recent files in one tap, drive edits with tap chips. My files is a real file browser - click a file for download, open-in-provider, or edit-and-regenerate. The deck-generation engine stays framework-resident (kernel skill); this package is the studio surface.",
-      "version": "2.4.0",
+      "version": "2.5.0",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -312,7 +349,10 @@
         "path": "presentations",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/presentations.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -337,7 +377,10 @@
         "path": "storage",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/storage.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -358,7 +401,10 @@
         "path": "portrait-studio",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/portrait-studio.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -382,7 +428,10 @@
         "path": "home",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/home.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -409,7 +458,10 @@
         "path": "social",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/social.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -431,7 +483,10 @@
         "path": "job-apply",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/job-apply.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -454,7 +509,10 @@
         "path": "feeds",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/feeds.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -476,7 +534,10 @@
         "path": "cloud",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/cloud.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -497,7 +558,10 @@
         "path": "identity",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/identity.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -519,7 +583,10 @@
         "path": "travel",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/travel.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -539,7 +606,10 @@
         "path": "camera",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/camera.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -559,7 +629,10 @@
         "path": "drone",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/drone.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -567,7 +640,7 @@
       "suite": "ai-home",
       "displayName": "Spaces",
       "description": "Turn a real space into an explorable 3D scene: film a walkthrough (or import an iPhone/LiDAR/drone capture) into a Gaussian-splat scene you walk in a WebGL viewer, get live walk/pan guidance while you film, mint a phone-pairing token for LiDAR ingest, paint Wi-Fi coverage onto the map, and fly a sim-drone scan orbit. The video->3D reconstruction engine + owner-scoped scan store stay framework-resident as the pinned 'spatial-mapping' kernel skill (declared in the package uses:), and the spaces-operator inline concierge stays core; this package is the surface over them (ADR-111, ADR-093).",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -579,7 +652,10 @@
         "path": "spaces",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/spaces.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -599,7 +675,10 @@
         "path": "sat-ops",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/sat-ops.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -619,7 +698,10 @@
         "path": "pumpkin",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/pumpkin.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -642,7 +724,10 @@
         "path": "creative-studio",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/creative-studio.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -662,7 +747,10 @@
         "path": "daily-trade-recap",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/daily-trade-recap.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -683,7 +771,10 @@
         "path": "video",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/video.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -691,7 +782,7 @@
       "suite": "ai-creative",
       "displayName": "Vids Studio",
       "description": "Turn an idea into generated video - the Veo specialist drives Google Vids by clicking, in a remote operator's logged-in Chrome: describe the shot, it generates the clip and places it on the timeline. Job + multi-scene Extend-story dispatch to the registered desktop worker, with the job-queue surface behind the cockpit tile. The shared vids-operator desktop worker (the ADR-080 story engine lives in its content.* tools), its registry entries, the remote-client mesh, and the oshal-vids CLI stay framework-resident; this package is the surface over them.",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -704,7 +795,10 @@
         "path": "vids",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/vids.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -730,7 +824,10 @@
         "path": "email-summarizer",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/email-summarizer.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -753,7 +850,10 @@
         "path": "kalshi",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/kalshi.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -774,15 +874,18 @@
         "path": "trading",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/intelligent-trades.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
       "name": "world",
       "suite": "ai-knowledge",
       "displayName": "World Intelligence",
-      "description": "Shared world intelligence (ADR-061 Layer B) - multi-source news feeds classified into a bias-aware sentiment graph (political + economic + outlet-kind axes), entity co-mention graph, and historical series. Ask the analyst what the press is saying about X and get a structured, bias-contextualized read, not a misleading average. The Layer-B engine (src/features/world-data), the deterministic world-schedule dispatcher, scripts/oshal-world.js, the world-analyst registry entry, and the default tile stay framework-resident; this package is the /api/world surface (fail-closed token-guarded writes, open reads), the world-analyst manifest, the seven world_* tools, and the refresh/pulse schedules.",
-      "version": "1.0.2",
+      "description": "Shared world intelligence (ADR-061 Layer B) - multi-source news feeds classified into a bias-aware sentiment graph (political + economic + outlet-kind axes), entity co-mention graph, and historical series. Ask the analyst what the press is saying about X and get a structured, bias-contextualized read, not a misleading average. The Layer-B engine (src/features/world-data), the deterministic world-schedule dispatcher, scripts/oshal-world.js, the world-analyst registry entry, and the default tile stay framework-resident; this package is the /api/world surface (fail-closed header-authenticated writes, open reads), the world-analyst manifest, the seven world_* tools, and the refresh/pulse schedules.",
+      "version": "1.0.3",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -795,7 +898,10 @@
         "path": "world",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/world.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -803,7 +909,7 @@
       "suite": "ai-creative",
       "displayName": "Dungeon Master",
       "description": "Play D&D with an AI Dungeon Master on a cinematic shared board: claimed heroes and visible AI companions follow an explicit move, action, target, dice, result, and advance loop with natural narration, saved characters, multiplayer join codes, playback, and rewind. Open SRD 5.1 (CC-BY).",
-      "version": "0.19.0",
+      "version": "0.19.1",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -815,7 +921,10 @@
         "path": "dnd",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/dnd.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -835,7 +944,10 @@
         "path": "game-show",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/game-show.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -858,7 +970,10 @@
         "path": "games",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/games.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -879,7 +994,10 @@
         "path": "bake-off",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/bake-off.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -909,7 +1027,10 @@
         "path": "life",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/life.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -939,7 +1060,10 @@
         "path": "switchboard",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/switchboard.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -964,7 +1088,10 @@
         "path": "system",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/system.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -985,7 +1112,10 @@
         "path": "payroll",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/payroll.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -1006,7 +1136,10 @@
         "path": "venture-plan",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/venture-plan.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -1027,7 +1160,10 @@
         "path": "ocean-lab",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/ocean-lab.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     },
     {
@@ -1047,7 +1183,10 @@
         "path": "aero-lab",
         "ref": "main"
       },
-      "audit": "pending",
+      "audit": {
+        "record": "audits/aero-lab.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
       "status": "ready"
     }
   ]

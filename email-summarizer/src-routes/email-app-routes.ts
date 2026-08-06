@@ -27,23 +27,26 @@
  * 2026-07-17 16:50:00 | roger.murphy@emeraldcoastsystemsgroup.com | ADR-090 addendum (skill profiles): runOnBot composes email-summarizer's declared `email-digest` summarize profile into the SUMMARY prompt (kind==='summary'). email-summarizer ships no schedules, so this interactive chokepoint — not the ticket path — is where its profile takes effect. Pure text composition; the bot still reasons + cost lands via executeBotOrInline (ADR-036). No-op for drafts / when unregistered.
  * 2026-07-19 22:45:00 | roger.murphy@emeraldcoastsystemsgroup.com | Carved out of OSHAL core into the email-summarizer app package (ADR-085 Wave 3, "skill with a surface"). Standard (ctx) factory; the surfaces (inbox/my-day/social) serve from ctx.appPackageDir/tools (load-time env fallback, D10). The kernel KEEPS the shared email-send machinery at @/app/routes/email-routes — sendGmail (with the 158fa008 header-injection fence: every header-bound value CRLF-flattened at the ONE MIME builder) + sendOutlookMail + summarizeGmailMetadata — because notify-routes, jarvis-brief-cron, and other store packages (career-hunter, presentations) send through it; this surface IMPORTS those instead of forking the builder, so the fence still covers every packaged send. ensureEmailSchema moved here with the app's own oshal_email_digests store and now appends buildOwnerRlsPolicyStatements (owner-RLS chokepoint). The communications-bot node (email-bot container + BOTH registry blocks + core persona), the gmail/outlook/twilio connectors + scripts/oshal-*.js CLIs, and the inbox-ingest Signals engine stay framework-resident per ADR-093.
  *
+ * 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove the public SESSION_SECRET fallback from digest encryption. Package-local crypto now fails closed on missing key material, and cached reads rethrow that configuration failure instead of disguising it as a cache miss.
+ *
+ * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: retire the generic connector-credential carrier from email-bot dispatch. Gmail/Calendar reads remain controller-side and only bounded message metadata/body excerpts enter summary or draft prompts; send and social reads resolve their exact token at the deterministic API boundary.
+ *
  * @module email-app-routes
  */
 
 import { Router, type Request, type Response, type RequestHandler } from 'express';
 import * as path from 'path';
-import * as crypto from 'crypto';
 import { createChildLogger } from '@/shared/logger';
 import { resolveSkillProfileByApp, composeSkillProfilePrompt } from '@/shared/skill-profiles';
 import { runRuntimeSchemaBootstrap, buildOwnerRlsPolicyStatements } from '@/shared/services/database';
 import type { AppContext } from '@/app/composition/app-context';
 import { BotNodeClient, createRegistryEndpointResolver } from '@/features/agent-management';
 import { getValidAccessToken } from '@/app/routes/connectors-routes';
-import { resolveBotCreds } from '@/app/routes/connector-token-broker';
 import { resolveUserLlmConnection } from '@/app/routes/free-tier-rotation';
 import { executeBotOrInline } from '@/app/routes/inline-bot-execution';
 import { sendGmail, summarizeGmailMetadata } from '@/app/routes/email-routes';
 import { confirmationRequiredPayload, hasExplicitWriteConfirmation } from '@/shared/security/explicit-write-confirmation';
+import { decryptSessionValue, encryptSessionValue, isSessionSecretRequiredError } from './session-crypto';
 
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -197,11 +200,8 @@ function digestText(msgs: MailSummary[], events: Array<{ summary: string; start:
  * keyed by user_sub so each user's bot task/workspace is isolated.
  */
 async function runOnBot(ctx: AppContext, kind: string, sub: string, prompt: string): Promise<string> {
-  // Token broker: resolve THIS user's short-lived access token(s) here (controller holds
-  // SESSION_SECRET) and hand them to the bot so it doesn't need the key to read Gmail.
-  // outlook: the comms bot's M365 mail leg (scripts/oshal-outlook.js) — ADR-037 parity.
-  // twilio: the comms bot's phone/text leg (scripts/oshal-twilio.js) — BYO account.
-  const creds = await resolveBotCreds(ctx.pool, sub, ['google', 'outlook', 'twilio']);
+  // Credential-free reasoning boundary: callers below fetch mail/calendar data first and pass
+  // only the bounded digest metadata or selected message excerpt required by the model task.
   // Bring-Your-Own-LLM: if the caller configured their own OpenAI-compatible endpoint,
   // the email bot's reasoning runs on THEIR endpoint+key+model (cost tracked as
   // provider 'byo-llm'). email-bot is a dedicated node, so this reaches the any-bot
@@ -221,32 +221,17 @@ async function runOnBot(ctx: AppContext, kind: string, sub: string, prompt: stri
     taskId: `email-${kind}-${sub}`,
     workspaceFolderId: `email-${sub}`,
     agentId: EMAIL_BOT_AGENT_ID,
-    agenticMode: true,
+    agenticMode: false,
     direct: true,
-    userSub: sub, // scope the bot's Gmail reads to THIS user's own connection
-    creds,        // provided-token path (.oshal-cred-google) — bot skips DB decryption
+    userSub: sub, // scope task accounting and memory to this authenticated owner
     byoLlmConnection,
   });
   return result.response;
 }
 
 // ── Per-user digest store (the bot's owned, isolated email state) ─────────────
-// AES-256-GCM at rest, keyed by user_sub — same discipline as oshal_connections.
-function storeKey(): Buffer {
-  return crypto.createHash('sha256').update(process.env.SESSION_SECRET || 'oshal-dev-secret').digest();
-}
-function enc(plain: string): string {
-  const iv = crypto.randomBytes(12);
-  const c = crypto.createCipheriv('aes-256-gcm', storeKey(), iv);
-  const out = Buffer.concat([c.update(plain, 'utf8'), c.final()]);
-  return `${iv.toString('base64')}:${c.getAuthTag().toString('base64')}:${out.toString('base64')}`;
-}
-function dec(blob: string): string {
-  const [iv, tag, data] = String(blob).split(':');
-  const d = crypto.createDecipheriv('aes-256-gcm', storeKey(), Buffer.from(iv, 'base64'));
-  d.setAuthTag(Buffer.from(tag, 'base64'));
-  return Buffer.concat([d.update(Buffer.from(data, 'base64')), d.final()]).toString('utf8');
-}
+// The row stays user_sub-owned and AES-256-GCM encrypted. The package-local helper preserves the
+// legacy envelope while making a missing SESSION_SECRET a typed, fail-closed configuration error.
 
 /**
  * @description Create the per-user digest table if missing. Owner-RLS is appended at this
@@ -277,7 +262,7 @@ async function storeDigest(pool: AppContext['pool'], sub: string, summary: strin
   await pool.query(
     `INSERT INTO oshal_email_digests (user_sub, summary, updated_at) VALUES ($1, $2, now())
      ON CONFLICT (user_sub) DO UPDATE SET summary = $2, updated_at = now()`,
-    [sub, enc(summary)],
+    [sub, encryptSessionValue(summary)],
   );
 }
 
@@ -286,8 +271,10 @@ async function readDigest(pool: AppContext['pool'], sub: string): Promise<{ summ
   const row = (await pool.query('SELECT summary, updated_at FROM oshal_email_digests WHERE user_sub = $1', [sub])).rows[0];
   if (!row?.summary) return null;
   try {
-    return { summary: dec(row.summary), updatedAt: row.updated_at };
-  } catch {
+    return { summary: decryptSessionValue(row.summary), updatedAt: row.updated_at };
+  } catch (err) {
+    if (isSessionSecretRequiredError(err)) throw err;
+    logger.error({ err }, 'Stored email digest could not be decrypted');
     return null;
   }
 }

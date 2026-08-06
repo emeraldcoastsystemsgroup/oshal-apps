@@ -102,6 +102,10 @@ The corpus covers the decision (`00`), the two documents that make the rest hone
 
 **Editing an assumption costs nothing.** Replace a guess with a real quote and the whole model recomputes in code, synchronously, with **no model call**. That is the load-bearing interaction of the whole product: watching the answer move as you buy evidence must never spend money.
 
+**Foreign supplier quotes bind to immutable FX evidence.** Record the source-to-reporting rate first with `POST /ventures/:id/fx-assumptions`, using integer nano-rate units (`1 EUR = 1.085 USD` is `1085000000`). A quote whose currency differs from the venture currency is refused unless it names that exact `fxAssumptionId`. The quote keeps both the supplier-currency micros and the converted reporting-currency micros; the assumption ledger and BOM receive only the latter, with the FX id in their provenance. Rate rows are append-only and idempotent retries must match every business field. There is no live FX feed: the operator supplies the observed rate and its source.
+
+**Scheduled rebaseline has a first-class kernel activation path.** The manifest registers an hourly deterministic service-route tick, not a bot prompt. Its static exact `execute: true` body only asks the package to evaluate policy: every venture policy still defaults disabled and dry-run, and an enabled paid policy also requires a positive integer micro-USD per-run cap. Preview and either dry-run gate reserve no run and call no bot. A due run refreshes BOM, market, and ops assumptions, then recomputes in code, omitting narration for a maximum of three paid calls. The UTC venture/slot is database-unique, and measured provider cost is persisted after each call. The atomic call that first reports an overshoot cannot be unspent, but no later call begins; missing cost also fails closed. Local tests prove registration, service authentication, route ownership, payload immutability, deactivation, and package policy behavior; live provider, real forced-RLS, and deployed scheduler acceptance remain unclaimed. See [the technical specification](REBASELINE-SCHEDULE.md).
+
 **As a swarm ticket.** The package registers ticket type `venture-plan` with the strategist as worker, so a re-baseline can arrive as a real ticket on the kernel queue ("the injection-mould quote came back at $14.20 — redo the plan") rather than borrowing another app's type.
 
 **Exports.** `.docx` narrative plan, `.xlsx` financial model, `.pptx` decision deck, and a `.zip` of everything plus the assumption register as CSV — through the `deck-generation` kernel skill. **There is no PDF renderer in either repo**, so PDF is browser print from the print view, and this README says so rather than implying an export that does not exist. An export is refused when no computed model snapshot exists; a plan must never be rendered from unresolved inputs.
@@ -114,12 +118,12 @@ Counts below were produced by running the command in the last column, not typed 
 
 | | Value | Derived by |
 |---|---:|---|
-| Modules (source) | 28 | `ls src-routes/venture-*.ts \| wc -l` |
-| Compiled modules (what the framework loads) | 28 | `ls routes/*.js \| wc -l` |
-| Test suites | 14 | `node ../scripts/list-suites.mjs tests` |
-| Tests, passing | 207 / 207 | `node --test "tests/*.test.js"` |
+| Modules (source) | 34 | `ls src-routes/*.ts \| wc -l` |
+| Compiled modules (what the framework loads) | 34 | `ls routes/*.js \| wc -l` |
+| Test suites | 18 | `ls tests/*.test.js \| wc -l` |
+| Tests, passing | 258 / 258 | `node --test "tests/*.test.js"` |
 | Personas | 4 | `ls personas/*.yaml \| wc -l` |
-| Migrations | 3 | `ls migrations/*.sql \| wc -l` |
+| Migrations | 5 | `ls migrations/*.sql \| wc -l` |
 | Documents in the worked example | 23 | `ls examples/pumpkin/[0-9]*.md \| wc -l` |
 | Scenarios in the worked example | 21 | `node examples/pumpkin/regenerate.js` (first line) |
 | Channel shapes modelled | 4 | direct, marketplace, big-box, distributor |
@@ -129,15 +133,17 @@ cd venture-plan && node --test "tests/*.test.js"          # the engine and its h
 node scripts/oshal-app.js validate ../oshal-apps/venture-plan   # from the CORE repo
 ```
 
-`validate` warns until `routes/venture-routes.js` is compiled into the package; that warning is the honest indicator of whether the HTTP and surface layer is present in your checkout. The engine, its suites and the worked example do not depend on it — they run from a plain `node` with no install.
+`validate` must pass before the package is admitted to the catalogue. The runtime loads the committed files under `routes/`; every source module under `src-routes/` therefore has a compiled twin, and the parity guard fails when those sets drift. The engine, its suites and the worked example run from plain `node` with no install.
 
-Money is **integer micro-dollars** (1e-6 USD) and rates are **integer basis points**. Not cents: a $0.0034 fastener rounds to $0.00 in cents and the unit cost is silently understated, which compounds up a three-level bill of materials. Rounding is half-up *away from zero* and happens at exactly two boundaries — after a rate multiplication, and once at presentation.
+Money is **integer micro-currency** (1e-6 of the venture or quote currency) and contractual rates are **integer basis points**. Not cents: a $0.0034 fastener rounds to $0.00 in cents and the unit cost is silently understated, which compounds up a three-level bill of materials. FX rates are integer nano-units and convert through an identified immutable snapshot using an exact integer intermediate. Rounding is half-up *away from zero* and happens only at declared rate/conversion and presentation boundaries.
 
 ## What the guards actually assert
 
 Every guard is written against the **compiled** modules — the same bytes the framework loads — and asserts calls and behaviour, never source text.
 
 - **Hand-derived known values**, written out in comments beside each assertion, with the code made to match them rather than the reverse. BOM roll-up with scrap and price-break selection; the landed stack with the merchandise-processing-fee cap binding; every channel waterfall round-tripping forward↔inverse; break-even agreeing with the monthly profit statement *by construction*; the cash trough summed month by month.
+- **Foreign quotes cannot masquerade as reporting-currency money.** Known-value and half-micro vectors exercise exact FX conversion; missing, foreign-owner and wrong-pair FX ids fail before any write; vendor and BOM references are owner-bound even when a UUID is known; concurrent retry keys replay or conflict rather than rebinding; and database triggers enforce the same ownership, conversion and immutability rules.
+- **Scheduled spend is default-deny at three boundaries.** No-row policies are disabled and dry-run, owner dry-run cannot dispatch, and the service tick itself requires exact `execute: true`. Tests prove unique UTC run slots, owner-bound progress writes, integer-only settlement, no callback after cap exhaustion/overshoot/capture failure, and no owner subject in service results.
 - **No bot-authorable source kind can reach `quoted` or `observed`.** The cap is a table, not a single branch: a `model-estimate` stops at `estimated` and a `published-rate` — a page a model says it read, and never fetched — stops at `benchmarked`. Those two strongest grades are reachable only through a recorded vendor quote or an operator's own entry. The guard proves it by relabelling every money assumption as a published rate with a plausible URL and asserting the document posture stays an estimate.
 - **An input with no ledger entry turns `canPublish` false**, and so does a computed figure that names no input at all. An empty provenance chain is unprovenanced, not clean — both classification branches test the reference list, so an empty list used to fall through both and score like a fully-quoted number.
 - **A document naming a figure the engine never computed throws** rather than printing a blank.
@@ -167,8 +173,8 @@ A plausible number is the failure mode this application is built around. If it e
 
 ## Next increments (not built)
 
-- **Opt-in re-baseline schedule.** A nightly or weekly re-plan is four paid model calls per venture, so it is not pre-wired; outward and spending automation is opt-in per user, default off. The manifest deliberately declares no `schedules:` block.
-- **Multi-currency.** Everything is USD today. Foreign-exchange as a first-class assumption with its own band is the honest version, not a single conversion at plan time.
+- **Live acceptance for rebaseline scheduling.** The package policy, dry-run service tick, idempotent run, measured-cost gate, and first-class kernel service-route schedule are built and locally exercised. Real forced-RLS, provider, and deployed scheduler evidence still require an authorized environment; no local test is represented as that live proof.
+- **FX console workflow and automated rate ingestion.** The backend accepts immutable, sourced FX evidence and binds foreign quotes today; the cockpit still needs an evidence-entry/selection view. Any future rate feed must save the observed response as a new snapshot rather than mutate prior quotes.
 - **Side-by-side scenario compare.** Scenarios exist and compute; comparing N of them in one view does not.
 - **A saved-quote inbox.** Today a quote is entered by hand. Attaching the quote document and reading the figure off it is the obvious next step and the point where the register stops being tedious.
 - **Live supplier directory lookups.** Deliberately absent: a directory search that returns plausible-looking suppliers nobody has contacted would re-introduce exactly the confidence this package exists to remove.

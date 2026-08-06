@@ -31,6 +31,9 @@
  * 2026-07-05 19:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | Tier-1 RLS at the lazy-DDL chokepoint (A1.2 follow-up): ensureYoutubeKidsSchema now appends buildOwnerRlsPolicyStatements for oshal_youtube_activity so a fresh database is never left policy-less between table creation and a migration-060 re-run.
  * 2026-07-17 18:00:00 | roger.murphy@emeraldcoastsystemsgroup.com | ADR-085 carve-out: moved into the youtube-kids store package. Factory is the standard (ctx) shape — the surface HTML now serves from the package's own tools/ dir (ctx.appPackageDir, portrait-studio pattern) instead of a passed-in apiDir; executeBotOrInline import rewritten to the @/app/routes alias (core helper, resolved by the loader at runtime). Logic unchanged.
  *
+ * 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: replace the public SESSION_SECRET fallback with package-local fail-closed encryption while retaining the existing envelope for stored Takeout exports.
+ * 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | Register the package's owner-scoped watch-history ingest function with the generic manifest Takeout spine.
+ *
  * @module youtube-kids-routes
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
@@ -69,15 +72,16 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ensureYoutubeKidsSchema = ensureYoutubeKidsSchema;
 exports.ingestWatchHistory = ingestWatchHistory;
+exports.ingestTakeoutWatchHistory = ingestTakeoutWatchHistory;
 exports.createYoutubeKidsRoutes = createYoutubeKidsRoutes;
 const express_1 = require("express");
 const path = __importStar(require("path"));
-const crypto = __importStar(require("crypto"));
 const logger_1 = require("@/shared/logger");
 const database_1 = require("@/shared/services/database");
 const agent_management_1 = require("@/features/agent-management");
 const inline_bot_execution_1 = require("@/app/routes/inline-bot-execution");
 const youtube_takeout_1 = require("./youtube-takeout");
+const session_crypto_1 = require("./session-crypto");
 const logger = (0, logger_1.createChildLogger)({ module: 'youtube-kids-routes' });
 /** Package install dir — set by the loader on the context; env fallback for tool-style callers. */
 let packageDir = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -101,17 +105,6 @@ function servePage(surfaceDir, file) {
             }
         });
     };
-}
-/** AES-256-GCM key = SHA256(SESSION_SECRET) — same scheme the connector tokens use. */
-function aesKey() {
-    return crypto.createHash('sha256').update(process.env.SESSION_SECRET || 'oshal-dev-secret').digest();
-}
-/** Encrypt a UTF-8 string to the connectors' `iv:tag:enc` base64 envelope. */
-function encrypt(plain) {
-    const iv = crypto.randomBytes(12);
-    const c = crypto.createCipheriv('aes-256-gcm', aesKey(), iv);
-    const enc = Buffer.concat([c.update(plain, 'utf8'), c.final()]);
-    return [iv.toString('base64'), c.getAuthTag().toString('base64'), enc.toString('base64')].join(':');
 }
 /** Create the per-user store if absent. Raw export kept encrypted; aggregate is JSONB. */
 async function ensureYoutubeKidsSchema(pool) {
@@ -164,9 +157,25 @@ async function ingestWatchHistory(pool, sub, rawJson) {
        VALUES ($1, $2, $3, $4, NULL, now(), NULL)
      ON CONFLICT (user_sub) DO UPDATE SET
        aggregate = EXCLUDED.aggregate, raw_blob = EXCLUDED.raw_blob,
-       total_watched = EXCLUDED.total_watched, brief = NULL, uploaded_at = now(), brief_at = NULL`, [sub, JSON.stringify(agg), encrypt(rawJson), agg.totalWatched]);
+       total_watched = EXCLUDED.total_watched, brief = NULL, uploaded_at = now(), brief_at = NULL`, [sub, JSON.stringify(agg), (0, session_crypto_1.encryptSessionValue)(rawJson), agg.totalWatched]);
     logger.info({ sub, totalWatched: agg.totalWatched, channels: agg.distinctChannels }, 'kid-lens watch history ingested');
     return { totalWatched: agg.totalWatched, distinctChannels: agg.distinctChannels, dateRange: agg.dateRange, topChannels: agg.topChannels.slice(0, 8) };
+}
+/**
+ * @description Package contribution invoked by the generic `/api/takeout` spine. It delegates
+ * to the exact direct-upload store path, preserving encryption, RLS bootstrap, stale-brief
+ * invalidation, and authenticated-owner isolation across both entry points.
+ */
+async function ingestTakeoutWatchHistory(ctx, input) {
+    if (!input.userSub.trim()) {
+        const error = new Error('Authenticated Takeout owner is required');
+        error.code = 'not_authenticated';
+        throw error;
+    }
+    const result = await ingestWatchHistory(ctx.pool, input.userSub, input.content);
+    return {
+        summary: `Stored ${result.totalWatched} watch entries across ${result.distinctChannels} channels.`,
+    };
 }
 /**
  * @description Builds the self-contained analyzer prompt. The full output contract lives

@@ -3,11 +3,14 @@
 -- validation score); the GPU box holds the heavy artifacts (.safetensors, datasets, samples).
 -- Tables are ALSO created at runtime by bot-lora-routes.ensureLoraSchema; this migration is the
 -- source of truth for prod (schema-bootstrap validate-only does no DDL).
+-- 2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | Make character ownership mandatory,
+-- permit the same subject independently per owner, and enforce owner/operator FORCE RLS on all
+-- character, model, and score rows. Legacy null-owner data remains operator-only.
 
 -- One row per character (the locked identity + its training config + which version is active).
 CREATE TABLE IF NOT EXISTS oshal_lora_characters (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  subject TEXT NOT NULL UNIQUE,            -- slug / trigger word, e.g. 'oshbrainrot'
+  subject TEXT NOT NULL,                   -- slug / trigger word, e.g. 'oshbrainrot'
   display_name TEXT NOT NULL,
   trigger_word TEXT NOT NULL,
   hero_image TEXT,                         -- locked-hero filename on the box (identity anchor)
@@ -17,8 +20,9 @@ CREATE TABLE IF NOT EXISTS oshal_lora_characters (
   max_hours NUMERIC(5,2) NOT NULL DEFAULT 9,
   plateau_epsilon NUMERIC(6,4) NOT NULL DEFAULT 0.0050,
   active_version INTEGER,                  -- the kept-best version (null until first train)
-  owner_sub TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  owner_sub TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (owner_sub, subject)
 );
 
 -- One row per trained (or queued/failed) LoRA version of a character.
@@ -59,14 +63,82 @@ CREATE TABLE IF NOT EXISTS oshal_lora_scores (
   UNIQUE (character_id, version)
 );
 
+-- Upgrade pre-owner installations without guessing a human owner. The starter template is cloned
+-- into each caller's own scope by the route on first use.
+ALTER TABLE oshal_lora_characters ADD COLUMN IF NOT EXISTS owner_sub TEXT;
+UPDATE oshal_lora_characters
+   SET owner_sub = 'system:legacy:lora'
+ WHERE owner_sub IS NULL OR btrim(owner_sub) = '';
+ALTER TABLE oshal_lora_characters ALTER COLUMN owner_sub SET NOT NULL;
+ALTER TABLE oshal_lora_characters DROP CONSTRAINT IF EXISTS oshal_lora_characters_subject_key;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_lora_characters_owner_subject
+  ON oshal_lora_characters (owner_sub, subject);
+
 -- Seed the existing cyclops so the studio opens on a real character (its dataset is overnight/curated.zip).
-INSERT INTO oshal_lora_characters (subject, display_name, trigger_word, hero_image, base_model, ident_prompt)
+INSERT INTO oshal_lora_characters
+  (subject, display_name, trigger_word, hero_image, base_model, ident_prompt, owner_sub)
 VALUES (
   'oshbrainrot',
   'Cyclops (oshbrainrot)',
   'oshbrainrot',
   'hero_brainrot_00002_.png',
   'v1-5-pruned-emaonly-fp16.safetensors',
-  'a one-eyed leathery orange-red screaming cyclops creature, big single eye, wide toothy mouth, stubby clawed legs, long thin arms, glossy 3d render, italian brainrot meme style'
+  'a one-eyed leathery orange-red screaming cyclops creature, big single eye, wide toothy mouth, stubby clawed legs, long thin arms, glossy 3d render, italian brainrot meme style',
+  'system:seed:lora'
 )
-ON CONFLICT (subject) DO NOTHING;
+ON CONFLICT (owner_sub, subject) DO NOTHING;
+
+ALTER TABLE oshal_lora_characters ENABLE ROW LEVEL SECURITY;
+ALTER TABLE oshal_lora_characters FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS oshal_lora_characters_owner_policy ON oshal_lora_characters;
+CREATE POLICY oshal_lora_characters_owner_policy ON oshal_lora_characters
+  USING (
+    owner_sub = current_setting('oshal.current_sub', true)
+    OR current_setting('oshal.is_operator', true) = 'on'
+  )
+  WITH CHECK (
+    owner_sub = current_setting('oshal.current_sub', true)
+    OR current_setting('oshal.is_operator', true) = 'on'
+  );
+
+ALTER TABLE oshal_lora_models ENABLE ROW LEVEL SECURITY;
+ALTER TABLE oshal_lora_models FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS oshal_lora_models_owner_policy ON oshal_lora_models;
+CREATE POLICY oshal_lora_models_owner_policy ON oshal_lora_models
+  USING (EXISTS (
+    SELECT 1 FROM oshal_lora_characters c
+     WHERE c.id = oshal_lora_models.character_id
+       AND (
+         c.owner_sub = current_setting('oshal.current_sub', true)
+         OR current_setting('oshal.is_operator', true) = 'on'
+       )
+  ))
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM oshal_lora_characters c
+     WHERE c.id = oshal_lora_models.character_id
+       AND (
+         c.owner_sub = current_setting('oshal.current_sub', true)
+         OR current_setting('oshal.is_operator', true) = 'on'
+       )
+  ));
+
+ALTER TABLE oshal_lora_scores ENABLE ROW LEVEL SECURITY;
+ALTER TABLE oshal_lora_scores FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS oshal_lora_scores_owner_policy ON oshal_lora_scores;
+CREATE POLICY oshal_lora_scores_owner_policy ON oshal_lora_scores
+  USING (EXISTS (
+    SELECT 1 FROM oshal_lora_characters c
+     WHERE c.id = oshal_lora_scores.character_id
+       AND (
+         c.owner_sub = current_setting('oshal.current_sub', true)
+         OR current_setting('oshal.is_operator', true) = 'on'
+       )
+  ))
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM oshal_lora_characters c
+     WHERE c.id = oshal_lora_scores.character_id
+       AND (
+         c.owner_sub = current_setting('oshal.current_sub', true)
+         OR current_setting('oshal.is_operator', true) = 'on'
+       )
+  ));

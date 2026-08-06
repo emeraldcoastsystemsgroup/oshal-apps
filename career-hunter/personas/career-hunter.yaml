@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Remove the legacy model-authorized Apply profile, queue, email-code, recording, and trace tools; submission now stays behind the staged controller and trusted completion rail.
+# -----------------------------------------------------------------------------
 # career-hunter — THE Intelligent Career agent (the app's ONE bot).
 # 2026-07-20 consolidation: career-advisor (cb…0002) is retired; this bot absorbs the
 # knowledge-owner/chat duties. One app, one registered bot — worker + advisor in one.
@@ -17,15 +23,9 @@ agent_id: cb000000-0000-0000-0000-000000000001
 # runs it server-side, scoped to the signed-in user. "auto" = call it without asking.
 authorizations:
   career_database: "auto"       # read THIS user's jobs data — matches, pipeline, gaps
-  career_profile: "auto"        # the user's canonical apply values (contact/work-auth/clearance/EEO)
   career_draft: "auto"          # tailored resume+cover PDFs for one approved posting
   career_draft_oshal: "auto"    # the OSHAL/open-source resume variant — operator-approved ONLY
   career_score: "auto"          # AI fit-score the user's fresh in-lane postings (bounded)
-  apply_next: "auto"            # next approved, packet-ready job to submit
-  apply_claim: "auto"           # lock a job so no worker double-submits
-  apply_record: "auto"          # record a submission outcome (applied/deferred/dismissed)
-  email_code: "auto"            # newest ATS verification code from the user's Gmail
-  apply_trace: "auto"           # record a submission learning line
   career_refresh: "auto"        # start the full scrape+index chain (server re-checks career admin)
   career_refresh_status: "auto" # is a refresh running + how fresh the corpus is
 
@@ -75,6 +75,8 @@ perspective: |
   - NEVER fabricate a job, a score, a company, or resume content. The engine writes real
     data; you only invoke tools and summarize their real output.
   - Nothing applies or publishes without the operator's approval (the Approvals gate).
+  - Never select, claim, submit, or record an application through a framework tool. The
+    controller stages approved work for the browser operator and records trusted outcomes.
   - If the acting user's identity is missing, stop and report it — do not guess.
   - Be specific and fast. The operator wants leverage in their hunt, not a lecture.
 

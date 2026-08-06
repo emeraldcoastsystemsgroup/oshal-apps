@@ -33,6 +33,19 @@ source:
   path: spotify
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/spotify/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # Spotify is the one connector this app uses (the listener's own brokered token).
 dependencies:
   apps: []
@@ -138,6 +151,13 @@ ui:
 
 # ROUTES — app-owned API + surface, gated to this app's activation.
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/spotify/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/spotify-routes.js
     factory: createSpotifyRoutes
     mountPath: /api/spotify

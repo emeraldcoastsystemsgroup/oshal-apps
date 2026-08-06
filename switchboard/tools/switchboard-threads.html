@@ -124,6 +124,27 @@
   .thread-head .sub { color:var(--muted); font-size:12.5px; margin-top:2px; }
   .thread-head .count { margin-left:auto; color:var(--muted); font-size:12px; white-space:nowrap; }
 
+  .replybtn, .replyaction {
+    appearance:none; border:1px solid var(--line); background:var(--card); color:var(--text); font:inherit;
+    font-size:12.5px; font-weight:620; padding:8px 13px; border-radius:var(--pill); cursor:pointer;
+    display:inline-flex; align-items:center; gap:7px; transition:all var(--ease) .15s;
+  }
+  .replybtn:hover, .replyaction:hover { border-color:var(--accent); }
+  .replybtn svg, .replyaction svg { width:14px; height:14px; }
+  .replyaction.primary { border:0; color:#fff; background:var(--accent-grad); }
+  .replyaction:disabled { opacity:.55; cursor:not-allowed; }
+  .replybox { background:var(--card); border:1px solid var(--line); border-radius:var(--r-md); padding:14px; margin:0 0 16px; }
+  .replybox .label { color:var(--muted); font-size:11.5px; margin-bottom:8px; }
+  .replybox textarea { width:100%; min-height:110px; resize:vertical; border:1px solid var(--line); border-radius:var(--r-sm); background:var(--surface); color:var(--text); font:inherit; line-height:1.5; padding:11px 12px; outline:none; }
+  .replybox textarea:focus { border-color:var(--accent); }
+  .replybar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+  .replyconfirm { display:none; align-items:center; gap:8px; flex-wrap:wrap; }
+  .replyconfirm.show { display:flex; }
+  .replywarn { color:var(--warn); font-size:12px; font-weight:600; }
+  .replystatus { color:var(--muted); font-size:12px; margin-left:auto; }
+  .replystatus.ok { color:var(--ok); }
+  .replystatus.err { color:var(--err); }
+
   .timeline { display:flex; flex-direction:column; gap:10px; }
   .entry {
     background:var(--card); border:1px solid var(--line); border-radius:var(--r-md);
@@ -183,6 +204,9 @@
   <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
   <symbol id="i-bot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4M9 14h.01M15 14h.01"/><path d="M2 13v2M22 13v2"/></symbol>
   <symbol id="i-people" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="i-reply" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17 4 12l5-5"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 6 12 12M18 6 6 18"/></symbol>
 </defs></svg>
 
 <div class="shell">
@@ -212,7 +236,7 @@
     <div class="empty"><svg><use href="#i-people"/></svg><h3>Pick a person</h3>Choose someone on the left to read your whole history together.</div>
   </div>
 
-  <div class="footnote"><svg><use href="#i-bot"/></svg> Read-only view over what Switchboard has already ingested · grouped by the sender's address, newest conversation first — no inference, no LLM.</div>
+  <div class="footnote"><svg><use href="#i-bot"/></svg> Timeline reads are deterministic and use no LLM · Gmail replies enter the encrypted outbox only after your explicit confirmation.</div>
 </div>
 
 <script>
@@ -232,7 +256,7 @@
   };
 
   // workspace scope is shared across the whole portal via localStorage 'switchboard.ws' (ADR-113)
-  var state = { workspace:(function(){ try{ return localStorage.getItem("switchboard.ws")||""; }catch(e){ return ""; } })(), threads:[], selected:null, preview:false };
+  var state = { workspace:(function(){ try{ return localStorage.getItem("switchboard.ws")||""; }catch(e){ return ""; } })(), threads:[], selected:null, preview:false, replyKey:"" };
 
   function $(id){ return document.getElementById(id); }
   function esc(s){ var d=document.createElement("div"); d.textContent=s==null?"":String(s); return d.innerHTML; }
@@ -262,8 +286,66 @@
         +   '<span class="last">'+esc(last.subject||last.snippet||"")+'</span></span>'
         + '<span class="meta"><span class="t">'+relTime(t.lastTs)+'</span>'
         +   '<span class="chans">'+t.channels.map(function(c){ var m=CH[c]||{v:"--social"}; return '<span class="sw" style="background:var('+m.v+')" title="'+esc((CH[c]||{label:c}).label)+'"></span>'; }).join("")+'</span></span>';
-      el.addEventListener("click", function(){ state.selected=t.key; renderRail(); renderThread(); });
+      el.addEventListener("click", function(){ state.selected=t.key; state.replyKey=""; renderRail(); renderThread(); });
       host.appendChild(el);
+    });
+  }
+
+  // ── confirmed Gmail reply outbox ───────────────────────────────────────────
+  function newReplyKey(){
+    if(window.crypto && typeof window.crypto.randomUUID==="function") return "reply_"+window.crypto.randomUUID();
+    return "reply_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,14);
+  }
+
+  function showReplyStatus(el,text,kind){
+    el.textContent=text; el.className="replystatus"+(kind?" "+kind:"");
+  }
+
+  function pollReply(replyId,statusEl,attempt){
+    if(attempt>20) return;
+    fetch("/api/switchboard/replies/outbox/"+encodeURIComponent(replyId),{headers:{Accept:"application/json"}})
+      .then(function(r){ return r.ok?r.json():Promise.reject(r.status); })
+      .then(function(data){
+        var status=data.reply&&data.reply.status;
+        if(status==="sent"){ showReplyStatus(statusEl,"Sent", "ok"); return; }
+        if(status==="failed"){ showReplyStatus(statusEl,"Not sent — check your Google connection", "err"); return; }
+        if(status==="uncertain"){ showReplyStatus(statusEl,"Delivery uncertain — review Gmail before retrying", "err"); return; }
+        showReplyStatus(statusEl,status==="sending"?"Sending…":"Queued…","");
+        setTimeout(function(){ pollReply(replyId,statusEl,attempt+1); },1000);
+      })
+      .catch(function(){ setTimeout(function(){ pollReply(replyId,statusEl,attempt+1); },1500); });
+  }
+
+  function openReply(t,source){
+    var host=$("replyHost");
+    host.innerHTML='<div class="replybox"><div class="label">Reply to '+esc(t.address)+' · '+esc(source.subject||"(no subject)")+'</div>'
+      + '<textarea id="replyBody" maxlength="20000" placeholder="Write the exact reply you want sent…"></textarea>'
+      + '<div class="replybar"><button class="replyaction primary" id="reviewReply"><svg><use href="#i-reply"/></svg> Review &amp; queue</button>'
+      + '<div class="replyconfirm" id="replyConfirm"><span class="replywarn">Send this exact reply through Gmail?</span>'
+      + '<button class="replyaction primary" id="confirmReply"><svg><use href="#i-check"/></svg> Confirm</button>'
+      + '<button class="replyaction" id="cancelReply"><svg><use href="#i-x"/></svg> Cancel</button></div>'
+      + '<span class="replystatus" id="replyStatus"></span></div></div>';
+    var text=$("replyBody"), review=$("reviewReply"), confirm=$("confirmReply"), confirmBox=$("replyConfirm"), status=$("replyStatus");
+    text.focus();
+    text.addEventListener("input",function(){ state.replyKey=""; confirmBox.classList.remove("show"); review.style.display="inline-flex"; showReplyStatus(status,"",""); });
+    review.addEventListener("click",function(){
+      if(!text.value.trim()){ showReplyStatus(status,"Write a reply first", "err"); return; }
+      review.style.display="none"; confirmBox.classList.add("show"); showReplyStatus(status,"","");
+    });
+    $("cancelReply").addEventListener("click",function(){ confirmBox.classList.remove("show"); review.style.display="inline-flex"; });
+    confirm.addEventListener("click",function(){
+      if(!text.value.trim()) return;
+      if(!state.replyKey) state.replyKey=newReplyKey();
+      text.disabled=true; confirm.disabled=true; showReplyStatus(status,"Queueing…","");
+      fetch("/api/switchboard/replies/outbox",{method:"POST",headers:{"Content-Type":"application/json","Idempotency-Key":state.replyKey},body:JSON.stringify({sourceMessageId:source.id,body:text.value,workspaceId:state.workspace||null,confirm:true})})
+        .then(function(r){ return r.json().catch(function(){return{};}).then(function(j){return{ok:r.ok,j:j};}); })
+        .then(function(result){
+          if(!result.ok) throw new Error(result.j.message||result.j.error||"Reply could not be queued");
+          var reply=result.j.reply||{}; showReplyStatus(status,reply.status==="sent"?"Sent":"Queued…",reply.status==="sent"?"ok":"");
+          confirmBox.classList.remove("show");
+          if(reply.replyId && reply.status!=="sent") pollReply(reply.replyId,status,0);
+        })
+        .catch(function(err){ text.disabled=false; confirm.disabled=false; showReplyStatus(status,err.message||"Reply request failed", "err"); });
     });
   }
 
@@ -275,13 +357,16 @@
       col.innerHTML='<div class="empty"><svg><use href="#i-people"/></svg><h3>Pick a person</h3>Choose someone on the left to read your whole history together.</div>';
       return;
     }
+    var mail=t.items.filter(function(it){return it.source==="gmail"&&it.kind==="mail";}).slice(-1)[0];
+    var canReply=!state.preview&&!!t.address&&!!mail;
     var html=''
       + '<div class="thread-head">'
       +   '<span class="ava" style="background:'+avatarBg(t.key)+'">'+esc(initials(t.person))+'</span>'
       +   '<div><h2>'+esc(t.person)+'</h2><div class="sub">'+esc(t.address||"no address on file")+'</div></div>'
       +   '<span class="count tnum">'+t.count+' item'+(t.count===1?"":"s")
       +     (t.count>t.items.length?' · showing latest '+t.items.length:'')+'</span>'
-      + '</div><div class="timeline">';
+      +   (canReply?'<button class="replybtn" id="replyBtn"><svg><use href="#i-reply"/></svg> Reply</button>':'')
+      + '</div><div id="replyHost"></div><div class="timeline">';
     var lastDay="";
     t.items.forEach(function(it,i){
       var dl=dayLabel(it.ts);
@@ -297,6 +382,7 @@
     });
     html+='</div>';
     col.innerHTML=html;
+    if(canReply) $("replyBtn").addEventListener("click",function(){ openReply(t,mail); });
   }
 
   // ── data ───────────────────────────────────────────────────────────────────

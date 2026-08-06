@@ -1,7 +1,7 @@
 /**
  * Venture Plan — the owner-scoped Postgres schema.
  *
- * ELEVEN TABLES, ONE FROZEN LIST. `VENTURE_TABLES` is the single source of truth
+ * THIRTEEN TABLES, ONE FROZEN LIST. `VENTURE_TABLES` is the single source of truth
  * for what this package owns: the RLS bootstrap iterates it, the schema-readiness
  * requirement list is derived from it, and a guard asserts every `CREATE TABLE` in
  * `SCHEMA_SQL` appears in it. Adding a table without adding RLS is therefore a red
@@ -21,9 +21,10 @@
  * funding memo was rendered from a model whose inputs have since changed" instead
  * of quietly serving a stale number under a fresh timestamp.
  *
- * MONEY UNITS. BOM lines and quotes are `BIGINT` micro-dollars (1e-6 USD) because a
+ * MONEY UNITS. BOM lines and quotes are `BIGINT` micro-currency units (1e-6) because a
  * $0.0034 fastener at qty 20 rounds to $0.00 in cents and the roll-up is silently
- * understated. Everything downstream of the roll-up is integer cents. The engine
+ * understated. Every downstream money value is integer micros too; legacy
+ * scenario cents are migrated exactly and never used by new writes. The engine
  * owns that arithmetic; this module only has to store it without losing precision.
  *
  * CHANGE LOG
@@ -31,6 +32,8 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial implementation — the eleven owner-scoped tables, the append-only assumption ledger with its live-row partial unique index, immutable model snapshots and versioned documents, and the frozen VENTURE_TABLES list the RLS bootstrap and the schema guard both read.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Add the owner-bound immutable FX table, foreign-quote integrity triggers, and constrained scenario micro-price migration to runtime bootstrap.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Add owner-bound default-deny rebaseline policies, immutable scheduled authorization, slot idempotency, and monotonic integer micro-USD run-cost evidence.
  *
  * @module venture-schema
  */
@@ -54,6 +57,8 @@ export const VENTURE_TABLES = Object.freeze([
   'venture_assumptions',
   'venture_scenarios',
   'venture_runs',
+  'venture_rebaseline_policies',
+  'venture_fx_assumptions',
   'venture_bom_lines',
   'venture_vendors',
   'venture_quotes',
@@ -117,6 +122,7 @@ CREATE TABLE IF NOT EXISTS venture_scenarios (
   volume_units INTEGER,
   retail_price_cents INTEGER,
   channel_mix JSONB NOT NULL DEFAULT '{}'::jsonb,
+  retail_price_micros BIGINT,
   is_base BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
 CREATE INDEX IF NOT EXISTS venture_scenarios_venture_idx ON venture_scenarios(venture_id, created_at);
@@ -250,6 +256,364 @@ CREATE TABLE IF NOT EXISTS venture_headcount (
 CREATE INDEX IF NOT EXISTS venture_headcount_venture_idx ON venture_headcount(venture_id, sort_order);
 `;
 
+/** Immutable FX evidence and foreign-quote/reporting-currency bindings. Mirrors migration 004. */
+const SCHEMA_FX = `
+CREATE TABLE IF NOT EXISTS venture_fx_assumptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  venture_id UUID NOT NULL REFERENCES venture_ventures(id) ON DELETE CASCADE,
+  owner_sub VARCHAR(255) NOT NULL,
+  source_currency CHAR(3) NOT NULL,
+  reporting_currency CHAR(3) NOT NULL,
+  rate_nanos BIGINT NOT NULL,
+  source_kind VARCHAR(24) NOT NULL,
+  source_ref TEXT NOT NULL,
+  observed_at TIMESTAMPTZ NOT NULL,
+  idempotency_key VARCHAR(128) NOT NULL,
+  authored_by VARCHAR(120) NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT venture_fx_currency_shape_ck CHECK (
+    source_currency ~ '^[A-Z]{3}$' AND reporting_currency ~ '^[A-Z]{3}$'
+      AND source_currency <> reporting_currency),
+  CONSTRAINT venture_fx_rate_ck CHECK (rate_nanos > 0 AND rate_nanos <= 1000000000000000),
+  CONSTRAINT venture_fx_source_kind_ck CHECK (
+    source_kind IN ('user-entered', 'published-source', 'vendor-quote')),
+  CONSTRAINT venture_fx_source_ref_ck CHECK (
+    char_length(source_ref) BETWEEN 1 AND 500 AND btrim(source_ref) <> ''),
+  CONSTRAINT venture_fx_idempotency_key_ck CHECK (
+    idempotency_key ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$'),
+  CONSTRAINT venture_fx_venture_idempotency_uq UNIQUE (venture_id, idempotency_key));
+CREATE INDEX IF NOT EXISTS venture_fx_assumptions_venture_idx
+  ON venture_fx_assumptions(venture_id, observed_at DESC, created_at DESC);
+
+CREATE OR REPLACE FUNCTION venture_validate_fx_owner()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  venture_currency CHAR(3);
+BEGIN
+  SELECT currency INTO venture_currency
+    FROM venture_ventures
+   WHERE id = NEW.venture_id AND owner_sub = NEW.owner_sub;
+  IF venture_currency IS NULL THEN
+    RAISE EXCEPTION 'FX assumption venture is missing or owned by another account'
+      USING ERRCODE = '23503';
+  END IF;
+  IF NEW.reporting_currency <> venture_currency THEN
+    RAISE EXCEPTION 'FX reporting currency does not match its owned venture'
+      USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS venture_fx_assumptions_validate_owner ON venture_fx_assumptions;
+CREATE TRIGGER venture_fx_assumptions_validate_owner
+  BEFORE INSERT ON venture_fx_assumptions
+  FOR EACH ROW EXECUTE FUNCTION venture_validate_fx_owner();
+
+CREATE OR REPLACE FUNCTION venture_reject_fx_mutation()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF TG_OP = 'DELETE' AND pg_trigger_depth() > 1 THEN RETURN OLD; END IF;
+  RAISE EXCEPTION 'venture FX assumptions are immutable; append a new assumption'
+    USING ERRCODE = '55000';
+END;
+$$;
+DROP TRIGGER IF EXISTS venture_fx_assumptions_immutable ON venture_fx_assumptions;
+CREATE TRIGGER venture_fx_assumptions_immutable
+  BEFORE UPDATE OR DELETE ON venture_fx_assumptions
+  FOR EACH ROW EXECUTE FUNCTION venture_reject_fx_mutation();
+
+ALTER TABLE venture_quotes
+  ADD COLUMN IF NOT EXISTS reporting_currency CHAR(3),
+  ADD COLUMN IF NOT EXISTS reporting_unit_cost_micros BIGINT,
+  ADD COLUMN IF NOT EXISTS reporting_tooling_cost_micros BIGINT,
+  ADD COLUMN IF NOT EXISTS fx_assumption_id UUID;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conname = 'venture_quotes_fx_assumption_fk'
+       AND conrelid = 'venture_quotes'::regclass
+  ) THEN
+    ALTER TABLE venture_quotes ADD CONSTRAINT venture_quotes_fx_assumption_fk
+      FOREIGN KEY (fx_assumption_id) REFERENCES venture_fx_assumptions(id) ON DELETE RESTRICT;
+  END IF;
+END $$;
+UPDATE venture_quotes q
+   SET reporting_currency = q.currency,
+       reporting_unit_cost_micros = q.unit_cost_micros,
+       reporting_tooling_cost_micros = q.tooling_cost_micros
+ WHERE q.reporting_currency IS NULL
+   AND q.currency = (
+     SELECT v.currency FROM venture_ventures v
+      WHERE v.id = q.venture_id AND v.owner_sub = q.owner_sub);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conname = 'venture_quotes_fx_binding_ck'
+       AND conrelid = 'venture_quotes'::regclass
+  ) THEN
+    ALTER TABLE venture_quotes ADD CONSTRAINT venture_quotes_fx_binding_ck CHECK (
+      reporting_currency IS NULL OR (
+        reporting_unit_cost_micros IS NOT NULL
+        AND reporting_tooling_cost_micros IS NOT NULL
+        AND (
+          (currency = reporting_currency AND fx_assumption_id IS NULL
+            AND reporting_unit_cost_micros = unit_cost_micros
+            AND reporting_tooling_cost_micros = tooling_cost_micros)
+          OR (currency <> reporting_currency AND fx_assumption_id IS NOT NULL)
+        )
+      )
+    ) NOT VALID;
+  END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION venture_validate_quote_fx_binding()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  bound_rate BIGINT;
+  venture_currency CHAR(3);
+BEGIN
+  IF NEW.reporting_currency IS NULL
+      OR NEW.reporting_unit_cost_micros IS NULL
+      OR NEW.reporting_tooling_cost_micros IS NULL THEN
+    RAISE EXCEPTION 'new quotes require reporting-currency amounts' USING ERRCODE = '23514';
+  END IF;
+  IF NEW.unit_cost_micros < 0 OR NEW.tooling_cost_micros < 0
+      OR NEW.reporting_unit_cost_micros < 0
+      OR NEW.reporting_tooling_cost_micros < 0 THEN
+    RAISE EXCEPTION 'quote currency amounts cannot be negative' USING ERRCODE = '23514';
+  END IF;
+  SELECT currency INTO venture_currency
+    FROM venture_ventures
+   WHERE id = NEW.venture_id AND owner_sub = NEW.owner_sub;
+  IF venture_currency IS NULL OR NEW.reporting_currency <> venture_currency THEN
+    RAISE EXCEPTION 'quote reporting currency does not match its owned venture'
+      USING ERRCODE = '23514';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM venture_vendors
+     WHERE id = NEW.vendor_id AND venture_id = NEW.venture_id
+       AND owner_sub = NEW.owner_sub
+  ) THEN
+    RAISE EXCEPTION 'quote vendor is missing or owned by another account'
+      USING ERRCODE = '23514';
+  END IF;
+  IF NEW.bom_line_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM venture_bom_lines
+     WHERE id = NEW.bom_line_id AND venture_id = NEW.venture_id
+       AND owner_sub = NEW.owner_sub
+  ) THEN
+    RAISE EXCEPTION 'quote BOM line is missing or owned by another account'
+      USING ERRCODE = '23514';
+  END IF;
+  IF NEW.currency = NEW.reporting_currency THEN
+    IF NEW.fx_assumption_id IS NOT NULL
+        OR NEW.reporting_unit_cost_micros <> NEW.unit_cost_micros
+        OR NEW.reporting_tooling_cost_micros <> NEW.tooling_cost_micros THEN
+      RAISE EXCEPTION 'same-currency quote has an invalid FX binding' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+  END IF;
+  SELECT rate_nanos INTO bound_rate
+    FROM venture_fx_assumptions
+   WHERE id = NEW.fx_assumption_id AND venture_id = NEW.venture_id
+     AND owner_sub = NEW.owner_sub AND source_currency = NEW.currency
+     AND reporting_currency = NEW.reporting_currency;
+  IF bound_rate IS NULL THEN
+    RAISE EXCEPTION 'foreign quote has no matching immutable FX assumption' USING ERRCODE = '23514';
+  END IF;
+  IF NEW.reporting_unit_cost_micros
+       <> ROUND(NEW.unit_cost_micros::NUMERIC * bound_rate / 1000000000)::BIGINT
+      OR NEW.reporting_tooling_cost_micros
+       <> ROUND(NEW.tooling_cost_micros::NUMERIC * bound_rate / 1000000000)::BIGINT THEN
+    RAISE EXCEPTION 'foreign quote reporting amounts do not match its FX assumption'
+      USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS venture_quotes_validate_fx ON venture_quotes;
+CREATE TRIGGER venture_quotes_validate_fx
+  BEFORE INSERT OR UPDATE OF unit_cost_micros, currency, tooling_cost_micros,
+    reporting_unit_cost_micros, reporting_currency, reporting_tooling_cost_micros,
+    fx_assumption_id, venture_id, owner_sub, vendor_id, bom_line_id
+  ON venture_quotes
+  FOR EACH ROW EXECUTE FUNCTION venture_validate_quote_fx_binding();
+
+ALTER TABLE venture_scenarios ADD COLUMN IF NOT EXISTS retail_price_micros BIGINT;
+UPDATE venture_scenarios
+   SET retail_price_micros = retail_price_cents * 10000::BIGINT
+ WHERE retail_price_micros IS NULL AND retail_price_cents IS NOT NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conname = 'venture_scenarios_retail_price_micros_ck'
+       AND conrelid = 'venture_scenarios'::regclass
+  ) THEN
+    ALTER TABLE venture_scenarios
+      ADD CONSTRAINT venture_scenarios_retail_price_micros_ck CHECK (
+        retail_price_micros IS NULL
+        OR retail_price_micros BETWEEN 0 AND 9007199254740000
+      ) NOT VALID;
+  END IF;
+END $$;
+`;
+
+/** Opt-in scheduling policy and measured-cost run evidence. Mirrors migration 005. */
+const SCHEMA_REBASELINE = `
+CREATE TABLE IF NOT EXISTS venture_rebaseline_policies (
+  venture_id UUID PRIMARY KEY REFERENCES venture_ventures(id) ON DELETE CASCADE,
+  owner_sub VARCHAR(255) NOT NULL,
+  enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  dry_run BOOLEAN NOT NULL DEFAULT TRUE,
+  cadence VARCHAR(12) NOT NULL DEFAULT 'weekly',
+  weekly_day SMALLINT NOT NULL DEFAULT 1,
+  max_cost_micros BIGINT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT venture_rebaseline_policy_cadence_ck CHECK (cadence IN ('nightly', 'weekly')),
+  CONSTRAINT venture_rebaseline_policy_weekday_ck CHECK (weekly_day BETWEEN 0 AND 6),
+  CONSTRAINT venture_rebaseline_policy_cap_ck
+    CHECK (max_cost_micros BETWEEN 0 AND 9007199254740000),
+  CONSTRAINT venture_rebaseline_policy_paid_ck
+    CHECK (NOT enabled OR dry_run OR max_cost_micros > 0));
+CREATE INDEX IF NOT EXISTS venture_rebaseline_policy_due_idx
+  ON venture_rebaseline_policies(enabled, cadence, weekly_day) WHERE enabled;
+
+CREATE OR REPLACE FUNCTION venture_validate_rebaseline_policy_owner()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM venture_ventures
+     WHERE id = NEW.venture_id AND owner_sub = NEW.owner_sub
+  ) THEN
+    RAISE EXCEPTION 'rebaseline policy venture is missing or owned by another account'
+      USING ERRCODE = '23503';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS venture_rebaseline_policy_validate_owner
+  ON venture_rebaseline_policies;
+CREATE TRIGGER venture_rebaseline_policy_validate_owner
+  BEFORE INSERT OR UPDATE OF venture_id, owner_sub
+  ON venture_rebaseline_policies
+  FOR EACH ROW EXECUTE FUNCTION venture_validate_rebaseline_policy_owner();
+
+ALTER TABLE venture_runs
+  ADD COLUMN IF NOT EXISTS trigger_kind VARCHAR(16) NOT NULL DEFAULT 'manual',
+  ADD COLUMN IF NOT EXISTS schedule_slot VARCHAR(32),
+  ADD COLUMN IF NOT EXISTS cost_cap_micros BIGINT,
+  ADD COLUMN IF NOT EXISTS cost_spent_micros BIGINT NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS cost_status VARCHAR(24) NOT NULL DEFAULT 'not-capped';
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conname = 'venture_runs_trigger_kind_ck'
+       AND conrelid = 'venture_runs'::regclass
+  ) THEN
+    ALTER TABLE venture_runs ADD CONSTRAINT venture_runs_trigger_kind_ck
+      CHECK (trigger_kind IN ('manual', 'scheduled')) NOT VALID;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conname = 'venture_runs_cost_status_ck'
+       AND conrelid = 'venture_runs'::regclass
+  ) THEN
+    ALTER TABLE venture_runs ADD CONSTRAINT venture_runs_cost_status_ck
+      CHECK (cost_status IN (
+        'not-capped', 'within-cap', 'exhausted', 'overshot', 'capture-failed'
+      )) NOT VALID;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conname = 'venture_runs_schedule_shape_ck'
+       AND conrelid = 'venture_runs'::regclass
+  ) THEN
+    ALTER TABLE venture_runs ADD CONSTRAINT venture_runs_schedule_shape_ck CHECK (
+      (trigger_kind = 'manual'
+        AND schedule_slot IS NULL
+        AND cost_cap_micros IS NULL
+        AND cost_spent_micros = 0
+        AND cost_status = 'not-capped')
+      OR
+      (trigger_kind = 'scheduled'
+        AND kind = 'rebaseline'
+        AND schedule_slot ~ '^(nightly|weekly):[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+        AND cost_cap_micros BETWEEN 1 AND 9007199254740000
+        AND cost_spent_micros BETWEEN 0 AND 9007199254740000
+        AND cost_status <> 'not-capped')
+    ) NOT VALID;
+  END IF;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS venture_runs_schedule_slot_uq
+  ON venture_runs(venture_id, schedule_slot) WHERE schedule_slot IS NOT NULL;
+
+CREATE OR REPLACE FUNCTION venture_validate_run_cost_transition()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.trigger_kind <> OLD.trigger_kind
+      OR NEW.schedule_slot IS DISTINCT FROM OLD.schedule_slot
+      OR NEW.cost_cap_micros IS DISTINCT FROM OLD.cost_cap_micros THEN
+    RAISE EXCEPTION 'run trigger, schedule slot, and cost authorization are immutable'
+      USING ERRCODE = '55000';
+  END IF;
+  IF NEW.cost_spent_micros < OLD.cost_spent_micros THEN
+    RAISE EXCEPTION 'run measured cost cannot decrease' USING ERRCODE = '55000';
+  END IF;
+  IF OLD.cost_status = 'capture-failed' AND NEW.cost_status <> OLD.cost_status THEN
+    RAISE EXCEPTION 'run capture failure is terminal' USING ERRCODE = '55000';
+  END IF;
+  IF OLD.cost_status IN ('exhausted', 'overshot')
+      AND NEW.cost_status NOT IN (OLD.cost_status, 'capture-failed') THEN
+    RAISE EXCEPTION 'run terminal cost status cannot regress' USING ERRCODE = '55000';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS venture_runs_validate_cost_transition ON venture_runs;
+CREATE TRIGGER venture_runs_validate_cost_transition
+  BEFORE UPDATE OF trigger_kind, schedule_slot, cost_cap_micros,
+    cost_spent_micros, cost_status
+  ON venture_runs
+  FOR EACH ROW EXECUTE FUNCTION venture_validate_run_cost_transition();
+
+CREATE OR REPLACE FUNCTION venture_validate_run_owner()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM venture_ventures
+     WHERE id = NEW.venture_id AND owner_sub = NEW.owner_sub
+  ) THEN
+    RAISE EXCEPTION 'run venture is missing or owned by another account'
+      USING ERRCODE = '23503';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS venture_runs_validate_owner ON venture_runs;
+CREATE TRIGGER venture_runs_validate_owner
+  BEFORE INSERT OR UPDATE OF venture_id, owner_sub
+  ON venture_runs
+  FOR EACH ROW EXECUTE FUNCTION venture_validate_run_owner();
+`;
+
 /** Immutable model snapshots and versioned documents. Mirrors migrations/003. */
 const SCHEMA_OUTPUTS = `
 CREATE TABLE IF NOT EXISTS venture_models (
@@ -293,13 +657,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS venture_documents_ver_idx
 /**
  * The whole schema, in application order.
  *
- * Split into three constants purely so the file reads, and so each block matches
+ * Split into five constants purely so the file reads, and so each block matches
  * one migration file byte-for-byte in intent. `runRuntimeSchemaBootstrap` applies
  * them in order, and every statement is idempotent.
  */
 export const SCHEMA_SQL: readonly string[] = Object.freeze([
   SCHEMA_CORE,
   SCHEMA_SUPPLY,
+  SCHEMA_FX,
+  SCHEMA_REBASELINE,
   SCHEMA_OUTPUTS,
 ]);
 

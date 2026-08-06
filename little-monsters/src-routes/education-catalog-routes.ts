@@ -14,9 +14,11 @@
  *
  * CHANGE LOG
  * ---------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                      | DESCRIPTION
+ * SEQ                 | AUTHOR                      | DESCRIPTION
  * ---------------------------------------------------------------------------
- * 2026-06-13 14:10:00 | roger.murphy@agenticfederal.us   | Initial class bank: GET /catalog (published classes + per-caller enrolled flag), POST /classes/:id/enroll (self-enroll into a published class), POST /classes/:id/leave (self-unenroll; owner can't leave)
+ * 1 | roger.murphy@agenticfederal.us   | Initial class bank: GET /catalog (published classes + per-caller enrolled flag), POST /classes/:id/enroll (self-enroll into a published class), POST /classes/:id/leave (self-unenroll; owner can't leave)
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Tenant-bound self-enroll and leave lookups so a class id from another school cannot create cross-tenant enrollment state; extracted handlers to keep each authorization decision independently reviewable
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Make enrollment and leave writes derive their target from the actor's current tenant and the class's current publication, status, and ownership state.
  * ---------------------------------------------------------------------------
  *
  * @module education-catalog-routes
@@ -29,6 +31,12 @@ import { resolveAuthedStudent, EducationAccessError } from './education-access';
 
 const logger = createChildLogger({ module: 'education-catalog-routes' });
 
+interface CatalogClassState {
+  published: boolean;
+  status: string;
+  teacher_student_id: string | null;
+}
+
 /** Map an EducationAccessError to its HTTP status; returns true if handled. */
 function sendAccessError(res: Response, err: unknown): boolean {
   if (err instanceof EducationAccessError) {
@@ -38,104 +46,148 @@ function sendAccessError(res: Response, err: unknown): boolean {
   return false;
 }
 
+/** Load a class only through the actor's current tenant row. */
+async function loadCatalogClass(
+  ctx: AppContext,
+  actorId: string,
+  classId: string,
+): Promise<CatalogClassState | null> {
+  const result = await ctx.pool.query(
+    `SELECT c.published, c.status, c.teacher_student_id
+       FROM lm_classes c
+       JOIN lm_students a ON a.student_id = $1 AND a.tenant_id = c.tenant_id
+      WHERE c.class_id = $2`,
+    [actorId, classId],
+  );
+  return result.rows[0] || null;
+}
+
+/** Preserve the public enrollment errors before the final atomic write guard. */
+function assertSelfEnrollmentOpen(row: CatalogClassState, actorId: string): void {
+  if (!row.published && row.teacher_student_id !== actorId) {
+    throw new EducationAccessError("this class isn't open for self-enrollment", 403);
+  }
+  if (row.status !== 'active') {
+    throw new EducationAccessError('this class is not currently active', 400);
+  }
+}
+
+/** Serve the published class bank scoped to the caller's tenant. */
+async function loadCatalog(ctx: AppContext, req: Request, res: Response): Promise<void> {
+  try {
+    const actor = await resolveAuthedStudent(req, ctx.pool);
+    const result = await ctx.pool.query(
+      `SELECT c.class_id, c.name, c.subject, c.grade_level, c.teacher_name,
+         (SELECT COUNT(*) FROM lm_enrollments e WHERE e.class_id = c.class_id) AS student_count,
+         EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id = c.class_id AND e.student_id = $1) AS enrolled
+       FROM lm_classes c
+       WHERE c.published = true AND c.status = 'active' AND c.tenant_id = $2
+       ORDER BY c.subject, c.name`,
+      [actor.studentId, actor.tenantId],
+    );
+    res.json({ classes: result.rows });
+  } catch (err: any) {
+    if (sendAccessError(res, err)) return;
+    logger.error({ err }, 'Failed to load class catalog');
+    res.status(500).json({ error: err.message });
+  }
+}
+
+/** Self-enroll the caller only when a same-tenant class is active and open. */
+async function enrollInClass(ctx: AppContext, req: Request, res: Response): Promise<void> {
+  try {
+    const classId = String(req.params.classId);
+    const actor = await resolveAuthedStudent(req, ctx.pool);
+    const row = await loadCatalogClass(ctx, actor.studentId, classId);
+    if (!row) {
+      res.status(404).json({ error: 'class not found' });
+      return;
+    }
+    assertSelfEnrollmentOpen(row, actor.studentId);
+    const result = await ctx.pool.query(
+      `WITH eligible AS MATERIALIZED (
+         SELECT a.student_id, c.class_id
+           FROM lm_students a
+           JOIN lm_classes c ON c.class_id = $2 AND c.tenant_id = a.tenant_id
+          WHERE a.student_id = $1 AND c.status = 'active'
+            AND (c.published = true OR c.teacher_student_id = a.student_id)
+       ), inserted AS (
+         INSERT INTO lm_enrollments (student_id, class_id)
+         SELECT student_id, class_id FROM eligible
+         ON CONFLICT (student_id, class_id) DO NOTHING
+         RETURNING 1
+       )
+       SELECT EXISTS (SELECT 1 FROM eligible) AS eligible,
+              (EXISTS (SELECT 1 FROM inserted) OR EXISTS (
+                SELECT 1 FROM lm_enrollments e JOIN eligible x
+                  ON x.student_id = e.student_id AND x.class_id = e.class_id
+              )) AS enrolled`,
+      [actor.studentId, classId],
+    );
+    if (!result.rows[0]?.eligible || !result.rows[0]?.enrolled) {
+      throw new EducationAccessError('class enrollment changed; reload and retry', 409);
+    }
+    logger.info({ classId, studentId: actor.studentId }, 'Student self-enrolled from class bank');
+    res.status(201).json({ success: true, classId, enrolled: true });
+  } catch (err: any) {
+    if (sendAccessError(res, err)) return;
+    logger.error({ err, classId: req.params.classId }, 'Failed to self-enroll');
+    res.status(500).json({ error: err.message });
+  }
+}
+
+/** Remove only the caller's same-tenant enrollment while retaining private progress. */
+async function leaveClass(ctx: AppContext, req: Request, res: Response): Promise<void> {
+  try {
+    const classId = String(req.params.classId);
+    const actor = await resolveAuthedStudent(req, ctx.pool);
+    const row = await loadCatalogClass(ctx, actor.studentId, classId);
+    if (!row) {
+      res.status(404).json({ error: 'class not found' });
+      return;
+    }
+    if (row.teacher_student_id === actor.studentId) {
+      res.status(400).json({ error: "you own this class — archive or delete it instead of leaving" });
+      return;
+    }
+    // Leaving remains available after archival or unpublishing; those flags gate
+    // entry, not a student's ability to remove their existing membership.
+    const result = await ctx.pool.query(
+      `WITH leavable AS MATERIALIZED (
+         SELECT a.student_id, c.class_id
+           FROM lm_students a
+           JOIN lm_classes c ON c.class_id = $2 AND c.tenant_id = a.tenant_id
+          WHERE a.student_id = $1 AND c.teacher_student_id IS DISTINCT FROM a.student_id
+       ), removed AS (
+         DELETE FROM lm_enrollments e USING leavable x
+          WHERE e.student_id = x.student_id AND e.class_id = x.class_id
+         RETURNING 1
+       )
+       SELECT EXISTS (SELECT 1 FROM leavable) AS leavable,
+              EXISTS (SELECT 1 FROM removed) AS removed`,
+      [actor.studentId, classId],
+    );
+    if (!result.rows[0]?.leavable) {
+      throw new EducationAccessError('class ownership changed; reload and retry', 409);
+    }
+    logger.info({ classId, studentId: actor.studentId }, 'Student left class');
+    res.json({ success: true, classId, enrolled: false });
+  } catch (err: any) {
+    if (sendAccessError(res, err)) return;
+    logger.error({ err, classId: req.params.classId }, 'Failed to leave class');
+    res.status(500).json({ error: err.message });
+  }
+}
+
 /**
  * @description Class-bank sub-router mounted inside createEducationRoutes.
- * @param ctx - shared app context (db pool)
- * @returns an Express router with the catalog + self-enroll endpoints
+ * @param ctx - shared app context containing the database pool
+ * @returns an Express router with catalog and self-enrollment endpoints
  */
 export function createEducationCatalogRoutes(ctx: AppContext): Router {
   const router = Router();
-
-  /** GET /api/education/catalog — the school-wide class bank: every PUBLISHED,
-   *  active class, each flagged with whether the caller is already enrolled so
-   *  the UI can show Join vs. Joined. School-wide on purpose (not enrollment
-   *  scoped) — discovery is the point of the bank. */
-  router.get('/catalog', async (req: Request, res: Response) => {
-    try {
-      const me = await resolveAuthedStudent(req, ctx.pool);
-      // Scoped to the caller's school (tenant) — the bank only shows classes
-      // published within your own school, never another tenant's.
-      const result = await ctx.pool.query(
-        `SELECT c.class_id, c.name, c.subject, c.grade_level, c.teacher_name,
-           (SELECT COUNT(*) FROM lm_enrollments e WHERE e.class_id = c.class_id) AS student_count,
-           EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id = c.class_id AND e.student_id = $1) AS enrolled
-         FROM lm_classes c
-         WHERE c.published = true AND c.status = 'active' AND c.tenant_id = $2
-         ORDER BY c.subject, c.name`,
-        [me.studentId, me.tenantId],
-      );
-      res.json({ classes: result.rows });
-    } catch (err: any) {
-      if (sendAccessError(res, err)) return;
-      logger.error({ err }, 'Failed to load class catalog');
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  /** POST /api/education/classes/:classId/enroll — the caller self-enrolls into a
-   *  published class. A private class can only be joined by its owner (others get
-   *  403); a non-active class is rejected. Idempotent (re-enroll is a no-op). */
-  router.post('/classes/:classId/enroll', async (req: Request, res: Response) => {
-    try {
-      const classId = String(req.params.classId);
-      const me = await resolveAuthedStudent(req, ctx.pool);
-      const row = (await ctx.pool.query(
-        'SELECT published, status, teacher_student_id FROM lm_classes WHERE class_id = $1',
-        [classId],
-      )).rows[0];
-      if (!row) {
-        res.status(404).json({ error: 'class not found' });
-        return;
-      }
-      const isOwner = row.teacher_student_id === me.studentId;
-      if (!row.published && !isOwner) {
-        throw new EducationAccessError("this class isn't open for self-enrollment", 403);
-      }
-      if (row.status !== 'active') {
-        res.status(400).json({ error: 'this class is not currently active' });
-        return;
-      }
-      await ctx.pool.query(
-        `INSERT INTO lm_enrollments (student_id, class_id) VALUES ($1, $2) ON CONFLICT (student_id, class_id) DO NOTHING`,
-        [me.studentId, classId],
-      );
-      logger.info({ classId, studentId: me.studentId }, 'Student self-enrolled from class bank');
-      res.status(201).json({ success: true, classId, enrolled: true });
-    } catch (err: any) {
-      if (sendAccessError(res, err)) return;
-      logger.error({ err, classId: req.params.classId }, 'Failed to self-enroll');
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  /** POST /api/education/classes/:classId/leave — the caller removes a class from
-   *  their own screen (self-unenroll). The owner can't leave their own class
-   *  (archive or delete it instead). The student's private progress is untouched. */
-  router.post('/classes/:classId/leave', async (req: Request, res: Response) => {
-    try {
-      const classId = String(req.params.classId);
-      const me = await resolveAuthedStudent(req, ctx.pool);
-      const row = (await ctx.pool.query(
-        'SELECT teacher_student_id FROM lm_classes WHERE class_id = $1',
-        [classId],
-      )).rows[0];
-      if (!row) {
-        res.status(404).json({ error: 'class not found' });
-        return;
-      }
-      if (row.teacher_student_id === me.studentId) {
-        res.status(400).json({ error: "you own this class — archive or delete it instead of leaving" });
-        return;
-      }
-      await ctx.pool.query('DELETE FROM lm_enrollments WHERE class_id = $1 AND student_id = $2', [classId, me.studentId]);
-      logger.info({ classId, studentId: me.studentId }, 'Student left class');
-      res.json({ success: true, classId, enrolled: false });
-    } catch (err: any) {
-      if (sendAccessError(res, err)) return;
-      logger.error({ err, classId: req.params.classId }, 'Failed to leave class');
-      res.status(500).json({ error: err.message });
-    }
-  });
-
+  router.get('/catalog', (req, res) => loadCatalog(ctx, req, res));
+  router.post('/classes/:classId/enroll', (req, res) => enrollInClass(ctx, req, res));
+  router.post('/classes/:classId/leave', (req, res) => leaveClass(ctx, req, res));
   return router;
 }

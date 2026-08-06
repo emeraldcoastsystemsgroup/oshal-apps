@@ -35,6 +35,8 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial guards — the blanket 401-before-any-query sweep, cross-sub 404s, the LLM-free proof for every compute and read path, the exactly-one-call proof for the two paid paths, run single-flight, export 409 without a snapshot, and a classic-script parse of every inline script in the served surface.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Guard immutable FX route ownership/idempotency, foreign-quote refusal, and retired scenario-cent input.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Guard owner-scoped rebaseline policy CRUD and mutation-free forced-dry-run preview behavior.
  */
 'use strict';
 
@@ -131,6 +133,26 @@ function ventureRow(over) {
   }, over || {});
 }
 
+/** An immutable FX row returned by the route store. */
+function fxRow(over) {
+  return Object.assign({
+    id: 'fx1', venture_id: 'v1', owner_sub: 'alice', source_currency: 'EUR',
+    reporting_currency: 'USD', rate_nanos: '1085000000', source_kind: 'published-source',
+    source_ref: 'ECB reference rate', observed_at: new Date('2026-08-01T00:00:00Z'),
+    idempotency_key: 'quote-eur-20260801', authored_by: 'user:alice',
+    created_at: new Date('2026-08-01T00:00:00Z'), was_inserted: true,
+  }, over || {});
+}
+
+/** One owner-scoped scheduled rebaseline policy row. */
+function rebaselinePolicyRow(over) {
+  return Object.assign({
+    venture_id: 'v1', owner_sub: 'alice', enabled: true, dry_run: false,
+    cadence: 'nightly', weekly_day: 1, max_cost_micros: '25000',
+    updated_at: new Date('2026-08-01T00:00:00Z'),
+  }, over || {});
+}
+
 /** A pool that owns exactly one venture, belonging to `sub`. */
 function ownedBy(sub, extra) {
   return makePool((sql, params) => {
@@ -166,7 +188,7 @@ test('EVERY registered route except the surface 401s before any query', async ()
     assert.equal(bot.calls.length, before, `${key} must not spend before the auth gate`);
     checked.push(key);
   }
-  assert.ok(checked.length >= 28, `the sweep must cover the whole route table (covered ${checked.length})`);
+  assert.ok(checked.length >= 31, `the sweep must cover the whole route table (covered ${checked.length})`);
 });
 
 /* ══ 2. cross-sub isolation at the HTTP boundary ═════════════════════════ */
@@ -190,7 +212,11 @@ test('a foreign caller cannot start a run, read documents, or export', async () 
   for (const [method, route] of [
     ['post', '/ventures/:id/runs'], ['get', '/ventures/:id/documents'],
     ['get', '/ventures/:id/export/bundle.zip'], ['get', '/ventures/:id/assumptions'],
-    ['post', '/ventures/:id/model'],
+    ['post', '/ventures/:id/model'], ['get', '/ventures/:id/fx-assumptions'],
+    ['post', '/ventures/:id/fx-assumptions'],
+    ['get', '/ventures/:id/rebaseline-policy'],
+    ['put', '/ventures/:id/rebaseline-policy'],
+    ['post', '/ventures/:id/rebaseline-policy/preview'],
   ]) {
     const pool = ownedBy('alice');
     const before = bot.calls.length;
@@ -201,6 +227,99 @@ test('a foreign caller cannot start a run, read documents, or export', async () 
 });
 
 /* ══ 3. the arithmetic is free, forever ══════════════════════════════════ */
+
+test('a missing rebaseline policy is visibly disabled and costs nothing', async () => {
+  const pool = ownedBy('alice');
+  const before = bot.calls.length;
+  const res = await call(pool, 'get', '/ventures/:id/rebaseline-policy', Object.assign({
+    params: { id: 'v1' },
+  }, AUTHED));
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.policy.enabled, false);
+  assert.equal(res.body.policy.dryRun, true);
+  assert.equal(res.body.policy.maxCostMicros, 0);
+  assert.equal(bot.calls.length, before);
+  assert.equal(pool.calls.filter((c) => /^\s*(INSERT|UPDATE|DELETE)/i.test(c.sql)).length, 0);
+});
+
+test('paid rebaseline enablement without a cap is refused before policy write', async () => {
+  const pool = ownedBy('alice');
+  const res = await call(pool, 'put', '/ventures/:id/rebaseline-policy', Object.assign({
+    params: { id: 'v1' }, body: { enabled: true, dryRun: false },
+  }, AUTHED));
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.error, 'rebaseline_cost_cap_required');
+  assert.equal(pool.calls.filter((c) => /INSERT INTO venture_rebaseline_policies/.test(c.sql)).length, 0);
+});
+
+test('valid rebaseline policy write selects through the owner venture', async () => {
+  const pool = ownedBy('alice', (sql) => (/INSERT INTO venture_rebaseline_policies/.test(sql)
+    ? { rows: [rebaselinePolicyRow()], rowCount: 1 } : null));
+  const res = await call(pool, 'put', '/ventures/:id/rebaseline-policy', Object.assign({
+    params: { id: 'v1' },
+    body: { enabled: true, dryRun: false, cadence: 'nightly', maxCostMicros: 25_000 },
+  }, AUTHED));
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.policy.maxCostMicros, 25_000);
+  const write = pool.calls.find((c) => /INSERT INTO venture_rebaseline_policies/.test(c.sql));
+  assert.ok(write);
+  assert.match(write.sql, /v\.id = \$1 AND v\.owner_sub = \$2/);
+  assert.deepEqual(write.params.slice(0, 2), ['v1', 'alice']);
+});
+
+test('rebaseline preview forces dry-run and performs no writes or bot calls', async () => {
+  const pool = ownedBy('alice', (sql) => (/FROM venture_rebaseline_policies/.test(sql)
+    ? { rows: [rebaselinePolicyRow()], rowCount: 1 } : null));
+  const before = bot.calls.length;
+  const res = await call(pool, 'post', '/ventures/:id/rebaseline-policy/preview', Object.assign({
+    params: { id: 'v1' }, body: { atIso: '2026-08-06T12:00:00Z' },
+  }, AUTHED));
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.decision.outcome, 'dry-run');
+  assert.equal(res.body.decision.wouldStart, false);
+  assert.equal(res.body.decision.slot, 'nightly:2026-08-06');
+  assert.equal(bot.calls.length, before);
+  assert.equal(pool.calls.filter((c) => /^\s*(INSERT|UPDATE|DELETE)/i.test(c.sql)).length, 0);
+});
+
+test('FX evidence creation is owner-scoped, immutable and idempotency-aware', async () => {
+  const pool = ownedBy('alice', (sql) => (/WITH inserted AS/.test(sql)
+    ? { rows: [fxRow()], rowCount: 1 } : null));
+  const res = await call(pool, 'post', '/ventures/:id/fx-assumptions', Object.assign({
+    params: { id: 'v1' },
+    body: {
+      sourceCurrency: 'EUR', reportingCurrency: 'USD', rateNanos: 1_085_000_000,
+      sourceKind: 'published-source', sourceRef: 'ECB reference rate',
+      observedAt: '2026-08-01T00:00:00.000Z', idempotencyKey: 'quote-eur-20260801',
+    },
+  }, AUTHED));
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.body.fxAssumption.id, 'fx1');
+  assert.equal(res.body.idempotentReplay, false);
+  const insert = pool.calls.find((c) => /WITH inserted AS/.test(c.sql));
+  assert.ok(insert.params.includes('alice'));
+  assert.match(insert.sql, /ON CONFLICT \(venture_id, idempotency_key\) DO NOTHING/);
+  assert.equal(pool.calls.filter((c) => /^\s*(UPDATE|DELETE)/i.test(c.sql)).length, 0);
+});
+
+test('foreign quote and retired scenario cents inputs fail with explicit 400s before writes', async () => {
+  const quotePool = ownedBy('alice');
+  const quote = await call(quotePool, 'post', '/ventures/:id/quotes', Object.assign({
+    params: { id: 'v1' },
+    body: { vendorId: 'ven1', unitCostMicros: 41_000_000, currency: 'EUR' },
+  }, AUTHED));
+  assert.equal(quote.statusCode, 400);
+  assert.equal(quote.body.error, 'fx_assumption_required');
+  assert.equal(quotePool.calls.filter((c) => /^\s*(INSERT|UPDATE|DELETE)/i.test(c.sql)).length, 0);
+
+  const scenarioPool = ownedBy('alice');
+  const scenario = await call(scenarioPool, 'post', '/ventures/:id/scenarios', Object.assign({
+    params: { id: 'v1' }, body: { name: 'Old cents', retailPriceCents: 1234 },
+  }, AUTHED));
+  assert.equal(scenario.statusCode, 400);
+  assert.equal(scenario.body.error, 'retail_price_cents_retired');
+  assert.equal(scenarioPool.calls.filter((c) => /INSERT INTO venture_scenarios/.test(c.sql)).length, 0);
+});
 
 test('POST /model recomputes WITHOUT ever calling a bot', async () => {
   const pool = ownedBy('alice', (sql) => (/INSERT INTO venture_models/.test(sql)
@@ -354,6 +473,8 @@ test('the router registers the document read and regenerate routes for the catal
   for (const key of ['get /ventures/:id/documents', 'get /ventures/:id/documents/:docKey',
     'post /ventures/:id/documents/:docKey/regenerate', 'get /ventures/:id/documents/:docKey/print',
     'get /ventures/:id/assumptions/:key/history', 'patch /ventures/:id/assumptions/:key',
+    'get /ventures/:id/fx-assumptions', 'get /ventures/:id/fx-assumptions/:fxId',
+    'post /ventures/:id/fx-assumptions',
     'get /ventures/:id/model/figures/:figureKey', 'post /chat']) {
     assert.ok(routes.includes(key), `${key} must be registered`);
   }

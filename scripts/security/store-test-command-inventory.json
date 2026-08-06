@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "commands": [
+    ".|node --test scripts/check-catalog.test.mjs",
+    "bake-off|node --test \"tests/*.test.js\"",
+    "career-hunter|node --test \"tests/*.test.mjs\"",
+    "dnd|node --test \"tests/*.test.js\"",
+    "game-show|npm test",
+    "kalshi|node --test \"tests/*.test.js\"",
+    "little-monsters|node --test \"tests/*.test.cjs\"",
+    "payroll|node --test \"tests/*.test.mjs\"",
+    "presentations|node --test \"tests/*.test.*\"",
+    "pumpkin|node --test \"tests/*.test.cjs\"",
+    "rides|node --test \"tests/*.test.js\"",
+    "spaces|node --test \"tests/*.test.js\"",
+    ".|node --test scripts/check-no-public-secret-fallback.test.mjs email-summarizer/tests/session-crypto.test.mjs finance/tests/session-crypto.test.mjs youtube-kids/tests/session-crypto.test.mjs",
+    "switchboard|node --test \"tests/*.test.js\"",
+    "venture-plan|node --test \"tests/*.test.js\"",
+    "video|node --test \"tests/*.test.js\"",
+    "world|node --test \"tests/*.test.js\""
+  ]
+}

@@ -6,6 +6,7 @@
  * 2026-06-19 00:00:00 | roger.murphy@agenticfederal.us   | ADR-058 Layer B: /api/world — feed the shared world graph + series
  * 2026-07-20 05:10:00 | roger.murphy@emeraldcoastsystemsgroup.com | Carved out of OSHAL core into the world app package (ADR-085 Wave 3, "skill with a surface"). The route body is byte-identical to the kernel original — same WORLD_INGEST_TOKEN fail-closed write guard, same open reads, same ENABLE_WORLD_INTELLIGENCE 503 gating, same WORLD_APP_HTML surface. The Layer-B ENGINE (@/features/world-data: service, schemas, outlet ratings, news fetcher, the surface HTML module) stays framework-resident — it keeps kernel importers (jarvis brief, the trading dispatch family, world-schedule-dispatch) — and is imported back via the preserved @/ aliases (D8 verified NOT orphaned).
  * 2026-07-19 16:20:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Surface HTML bundled INTO the package (./world-app-html): the deep module @/features/world-data/world-app-html lost its only importer at the carve and tsc pruned it from dist independently of the (well-anchored) rest of the slice - the packaged route failed at mount. Deep modules prune per-file; surface content rides with the surface (pumpkin f0e4ed1 doctrine).
+ * 2026-08-05 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Retired URL query-token authentication for every World machine write; accept bearer/dedicated headers with constant-time comparison and log only credential-source booleans
  */
 
 /**
@@ -17,6 +18,7 @@
  * factory (ENABLE_WORLD_INTELLIGENCE) → 503 when disabled.
  */
 import { Router, type Request, type Response, type NextFunction } from 'express';
+import { timingSafeEqual } from 'node:crypto';
 import { createChildLogger } from '@/shared/logger';
 import { createWorldIntelligenceService } from '@/features/world-data/world-intelligence-service';
 import { WorldContributionSchema } from '@/features/world-data/world-types';
@@ -25,6 +27,22 @@ import { ingestFeeds, backtest } from '@/features/world-data/news-fetcher';
 import { WORLD_APP_HTML } from './world-app-html';
 
 const logger = createChildLogger({ module: 'world-routes' });
+const WORLD_TOKEN_HEADER = 'x-world-ingest-token';
+
+/** Compare credentials without a content-dependent equality branch. */
+function tokenMatches(candidate: string, expected: string): boolean {
+  const candidateBytes = Buffer.from(candidate, 'utf8');
+  const expectedBytes = Buffer.from(expected, 'utf8');
+  return candidateBytes.length === expectedBytes.length
+    && timingSafeEqual(candidateBytes, expectedBytes);
+}
+
+/** Read only credential headers; query parameters are never an authentication source. */
+function readWriteCredentials(req: Request): { bearer: string; dedicated: string } {
+  const auth = req.header('authorization') || '';
+  const bearer = /^Bearer\s+(.+)$/i.exec(auth)?.[1]?.trim() || '';
+  return { bearer, dedicated: (req.header(WORLD_TOKEN_HEADER) || '').trim() };
+}
 
 export function createWorldRoutes(): Router {
   const router = Router();
@@ -51,14 +69,33 @@ export function createWorldRoutes(): Router {
   };
 
   const guard = (req: Request, res: Response, next: NextFunction): void => {
+    if (Object.prototype.hasOwnProperty.call(req.query, 'token')) {
+      logger.warn(
+        { method: req.method, path: req.path, queryTokenPresent: true },
+        'World ingest rejected: URL query credentials are prohibited',
+      );
+      res.status(401).json({ error: 'query_token_not_allowed' });
+      return;
+    }
     if (!token) {
       logger.warn('World ingest rejected: WORLD_INGEST_TOKEN is not configured');
       res.status(401).json({ error: 'world ingest token not configured' });
       return;
     }
-    const auth = req.header('authorization') || '';
-    const bearer = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-    if (bearer === token || req.query.token === token) { next(); return; }
+    const credentials = readWriteCredentials(req);
+    if ([credentials.bearer, credentials.dedicated].some((value) => tokenMatches(value, token))) {
+      next();
+      return;
+    }
+    logger.warn(
+      {
+        method: req.method,
+        path: req.path,
+        bearerPresent: credentials.bearer.length > 0,
+        dedicatedHeaderPresent: credentials.dedicated.length > 0,
+      },
+      'World ingest authentication rejected',
+    );
     res.status(401).json({ error: 'unauthorized' });
   };
 

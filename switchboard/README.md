@@ -7,7 +7,8 @@ platform, routed onto one board by one operator.
 
 Built pane by pane. This package currently ships the **Today** board, the portal
 sections (**Inbox / Calendar / Compose**), the **Threads** timeline, the **Stage**
-broadcast composer, and the **Workspaces** organizer.
+broadcast composer, the **Workspaces** organizer, and a durable confirmed Gmail
+reply outbox.
 
 ## Workspaces (shipped — [ADR-113](https://github.com/emeraldcoastsystemsgroup/open-shal/blob/main/docs/adr/113-switchboard-aggregation-surface-and-workspaces.md))
 
@@ -52,8 +53,10 @@ surface, mounted under its own prefix by `switchboard-routes.ts`. Every read tak
 - **Threads** (`/threads`, `/threads/items`) — one chronological timeline per **counterpart**:
   everything already ingested into the shared inbox store (mail + inbox-fed social mentions) folded
   per person. Identity is the package's existing model — the from-address email when present, display
-  name otherwise; bulk/no-reply senders never form a thread. Read-only first slice, workspace-scoped,
-  no LLM. The pure aggregation lives in `switchboard-threads-model` (guarded by the package suite).
+  name otherwise; bulk/no-reply senders never form a thread. The timeline remains a deterministic,
+  workspace-scoped read with no LLM. A Gmail row exposes a reply composer backed by the confirmed
+  outbox below; social rows remain read-only. The pure aggregation lives in
+  `switchboard-threads-model` (guarded by the package suite).
 - **Stage** (`/stage`, `/stage/broadcast`) — the broadcast fan-out composer: write once, pick target
   channels from the connected set (the surface reads Compose's own `/targets`), tailor per channel
   (Compose's `/variants`, on the bot) or send as-is, then **one confirmed action** fans the exact
@@ -63,8 +66,29 @@ surface, mounted under its own prefix by `switchboard-routes.ts`. Every read tak
   scheduler (scheduled sends stay behind the Calendar executor's opt-in flag). The pure fan-out lives
   in `switchboard-stage-fanout` (guarded by the package suite).
 
-Built in parallel (research → build → adversarial-verify, 3/3 passed), then integrated + compiled +
-deployed as one package.
+## Confirmed reply outbox (shipped locally)
+
+`POST /replies/outbox` accepts only an exact reply body, an owned Gmail source message id,
+`confirm: true`, and a mandatory `Idempotency-Key`. The server derives the recipient and
+subject from that caller-owned inbox row; callers cannot turn the route into an arbitrary-recipient
+mail endpoint. Recipient, subject, body, and source id are owner-key encrypted before the durable
+row is inserted. `GET /replies/outbox` and `GET /replies/outbox/:id` return content-free status only.
+
+The executor claims with PostgreSQL `FOR UPDATE SKIP LOCKED`, then resolves the caller's Google token
+immediately before reusing the kernel's single fenced `sendGmail` implementation. A repeated request
+with the same key and content returns the original row even if the source inbox row was later pruned.
+Reusing a key for changed content is `409`; each worker claim also decrypts and re-hashes every
+send-affecting field before touching a provider, so a plaintext/ciphertext mutation fails closed.
+If a process loses a claim or a provider result is ambiguous, the row becomes `uncertain` and is
+never blindly resent; the provider API has no downstream idempotency key, so safety requires manual
+review. Delivery is enabled for already-confirmed rows by default and can be paused with
+`SWITCHBOARD_REPLY_EXECUTOR=false`. This code has local boundary tests; it does not claim a live
+Gmail acceptance run or deployment.
+
+The earlier portal pane set was built in parallel (research → build → adversarial-verify, 3/3
+passed), then integrated + compiled + deployed as one package. The reply-outbox addition described
+above remains a locally verified change until it clears the normal protected-branch and deployment
+workflow.
 
 ## Today (shipped)
 
@@ -114,8 +138,9 @@ all 11 cockpit themes and still renders if opened on its own. Platform brand mar
   **Threads** past the Gmail-fed store (today its timeline covers what the store has ingested:
   mail + inbox-fed social notifications — not live DM/text/call legs) and lets its identity
   grouping graduate to the ADR-100 person model.
-- **Thread actions** — reply/draft from inside a thread (on the communications-bot, cost
-  captured); the first slice is deliberately read-only.
+- **Reply provider parity + assisted drafts** — the durable confirmed path currently covers
+  Gmail rows already present in the shared inbox store. Outlook/social reply adapters and
+  communications-bot drafting (with cost captured) remain separate follow-ups.
 - **Stage media** — attaching a generated image to a fan-out publish (blocked on the same
   X media/upload + LinkedIn asset-register follow-ups Compose's `/publish` documents).
 - **Carve/retire** the three predecessor packages once the panes are signed off.
@@ -127,5 +152,7 @@ install) against the **compiled** `routes/*.js` — the same bytes the framework
 Stage fan-out core (one compose → one submission per channel, per-channel failure isolation,
 twitter→x alias folding), the Stage route's send gates (no confirm → 428 and the publisher is
 never invoked; workspace mismatch sends nothing), the Threads aggregation (email-first
-identity, chronological ordering, bulk exclusion, honest counts under caps), and a
-classic-script parse guard over every surface's inline `<script>` (the world 1.0.1 lesson).
+identity, chronological ordering, bulk exclusion, honest counts under caps), the reply outbox
+(confirmation-before-I/O, source-owned recipient binding, encryption, semantic idempotency,
+atomic claims, and terminal ambiguous outcomes), and a classic-script parse guard over every
+surface's inline `<script>` (the world 1.0.1 lesson).

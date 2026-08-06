@@ -39,6 +39,19 @@ source:
   path: bake-off
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/bake-off/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # ─────────────────────────────────────────────────────────────────────────────
 # KERNEL SKILLS this package IMPORTS (ADR-085 §2 / ADR-090 D8). Declared because an
 # undeclared import is invisible to the prune guard: the first carve that drops the
@@ -109,6 +122,13 @@ bots:
 # RLS underneath as the backstop.
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/bake-off/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/bake-off-routes.js
     factory: createBakeOffRoutes
     mountPath: /api/bake-off

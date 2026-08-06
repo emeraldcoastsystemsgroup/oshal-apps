@@ -3,7 +3,19 @@
   Career Hunter — native Job Board surface (Phase 1: full engine parity).
   Reads /api/career-hunter/jobs (filters q/min_score/min_pay/days/remote/status/sort +
   land_prob/high_win/salary) + /jobs/stats; opens resumes via /resume; marks status via
-  /jobs/:id/status. Replaces the proxy-to-Flask board. Author: roger.murphy@agenticfederal.us
+  /jobs/:id/status. Replaces the retired proxy-to-Flask board.
+
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  SEQ                 | AUTHOR                                      | DESCRIPTION
+  -----------------------------------------------------------------------------
+  1 | maintainer@emeraldcoastsystemsgroup.com | Remove the classic-dashboard link after retiring its unbounded persistent process.
+  2 | maintainer@emeraldcoastsystemsgroup.com | Prioritize the current resume-ingest lifecycle over stale profile data and render a retryable failure state.
+  3 | maintainer@emeraldcoastsystemsgroup.com | Render escaped guide-action failures distinctly instead of silently dropping partial outcomes.
+  4 | maintainer@emeraldcoastsystemsgroup.com | Show model-suggested job-guide changes as proposals and require a separate explicit confirmation click before mutation.
+  5 | maintainer@emeraldcoastsystemsgroup.com | Render explicit, redacted application provenance without treating manual or worker-reported completion as confirmation-backed.
+  6 | maintainer@emeraldcoastsystemsgroup.com | Surface a private per-user offline autofill bookmarklet that remains usable when the OSHAL stack is unavailable.
+  7 | maintainer@emeraldcoastsystemsgroup.com | Explain the supported-site, page-event boundary for offline autofill without promising control over employer page scripts.
 -->
 <html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -38,8 +50,15 @@
   .meta { display:flex; gap:13px; flex-wrap:wrap; color:var(--muted); font-size:12px; margin:9px 0 0; align-items:center; }
   .meta .sal { color:var(--accent2); font-weight:600; }
   .pill { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:2px 7px; border-radius:9px; }
-  .st-applied { background:rgba(0,211,167,.15); color:var(--accent2); } .st-generated { background:rgba(124,108,255,.15); color:var(--accent); }
+  .st-applied { background:rgba(139,139,163,.14); color:var(--muted); } .st-generated { background:rgba(124,108,255,.15); color:var(--accent); }
   .st-promoted { background:rgba(255,180,84,.16); color:var(--warn); } .st-dismissed { background:rgba(139,149,167,.14); color:var(--muted); }
+  .application-proof { display:flex; gap:7px; flex-wrap:wrap; align-items:baseline; margin:8px 0 0;
+    padding:6px 9px; border:1px solid var(--line); border-radius:7px; color:var(--muted); font-size:11.5px; }
+  .application-proof b { color:var(--text); font-size:11.5px; }
+  .application-proof.proof-manual { border-color:rgba(124,108,255,.42); }
+  .application-proof.proof-worker { border-color:rgba(255,180,84,.48); }
+  .application-proof.proof-confirmation { border-color:rgba(0,211,167,.52); }
+  .application-proof.proof-unverified { border-color:rgba(255,107,107,.42); }
   .acts { display:flex; gap:7px; flex-wrap:wrap; margin:10px 0 0; }
   .btn { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:5px 11px; font-size:12px; cursor:pointer; text-decoration:none; display:inline-block; }
   .btn:hover { border-color:var(--accent); } .btn.go { border-color:var(--accent2); color:var(--accent2); } .btn.danger:hover { border-color:var(--danger); color:var(--danger); }
@@ -110,7 +129,7 @@
 <body>
 <div class="wrap">
   <h1>Job Board</h1>
-  <p class="sub">Scored corpus + your pipeline. <a href="/api/career-hunter/board" target="_top">Classic dashboard →</a></p>
+  <p class="sub">Scored corpus + your pipeline.</p>
   <div class="tabs" id="tabs"></div>
   <div id="onboard" hidden></div>
   <div class="bar">
@@ -119,7 +138,7 @@
       <select id="sort">
         <option value="ai">Best fit</option><option value="prob">P(land)</option><option value="highwin">High-Win</option>
         <option value="salary">Salary</option><option value="posted">Posted</option><option value="recent">Newest</option>
-        <option value="company">Company</option><option value="generated">Generated</option><option value="applied">Applied</option>
+        <option value="company">Company</option><option value="generated">Generated</option><option value="applied">Application records</option>
       </select>
     </label>
     <label>Fit≥<select id="min_score"><option value="">any</option><option>70</option><option>80</option><option>90</option></select></label>
@@ -132,6 +151,7 @@
     <div class="bulk">
       <label class="nodepick">On <select id="nodeSel" title="Which computer runs the browser"><option value="">auto-pick</option></select></label>
       <span class="hint" id="workerHint"></span>
+      <button class="btn go" id="copyAutofill" onclick="copyOfflineAutofill()">Copy offline autofill bookmarklet</button>
       <button class="btn submit" id="subAll" onclick="submitAllReady()">Submit all ready ▶▶</button>
       <a class="btn" href="/api/career-hunter/submissions" target="_top">Submissions queue →</a>
     </div>
@@ -140,8 +160,17 @@
     <summary>How submitting works — 2 things to set up first</summary>
     <ol>
       <li><b>Install an OSHAL leaf node</b> on the computer that has your logged-in Chrome — your own desktop, or a remote box you've joined to the swarm — with <b>screen control enabled</b>. The browser is driven with real clicks/keystrokes, so it <b>runs in the foreground on that machine (no headless mode)</b> — leave it signed in and awake.</li>
-      <li><b>Connect your email provider in <a href="/api/career-hunter/settings" target="_top">Settings</a></b> so the worker can read the one-time verification codes some ATS forms (Greenhouse/Workday 2FA) email you mid-application.</li>
+      <li><b>Keep the target-site account ready on that desktop.</b> Account sign-in, email/SMS codes, and CAPTCHAs pause the run in <b>Needs you</b>; complete those challenges yourself on the target machine.</li>
       <li>Pick the target computer in the <b>On …</b> dropdown above (or leave it on <b>auto-pick</b>), then hit <b>Submit</b>. Watch each run in the <a href="/api/career-hunter/submissions" target="_top">Submissions</a> tab.</li>
+    </ol>
+  </details>
+  <details class="rules" id="autofillRules">
+    <summary>Offline Apply / Autofill — no worker or running stack needed after setup</summary>
+    <ol>
+      <li>Click <b>Copy offline autofill bookmarklet</b>, create a browser bookmark, and paste the copied <code>javascript:</code> URL into that bookmark's address.</li>
+      <li>Open a supported Ashby, Greenhouse, Lever, Workday, or Distyl application, then run the bookmark. OSHAL fills only empty visible fields and does not directly upload, click, navigate, call the network, create an account, answer demographic questions, or submit.</li>
+      <li>The bookmark emits normal field-change events so React-style forms retain the values. Employer page scripts can react to those events, so keep the page in view and verify every result before continuing.</li>
+      <li><b>Privacy:</b> the bookmark URL contains your contact/application profile. Keep it out of shared or browser-synced profiles, and delete it when you no longer need it.</li>
     </ol>
   </details>
   <div id="list"></div>
@@ -151,15 +180,74 @@
 const $ = id => document.getElementById(id);
 const listEl=$('list'), tabsEl=$('tabs'), toastEl=$('toast'), countEl=$('count');
 let activeStatus='';
+const guideProposals=new Map();
+// APPLICATION_PROVENANCE_START
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const APPLICATION_PROVENANCE=Object.freeze({
+  'manual-mark':{tone:'manual',label:'Marked applied manually',detail:'An operator recorded this status; no automated submission confirmation is claimed.'},
+  'worker-reported':{tone:'worker',label:'Worker reported submitted',detail:'A worker reported completion; employer receipt is not confirmed.'},
+  'verified-submission':{tone:'confirmation',label:'Confirmation file present',detail:'A retained confirmation artifact exists; this does not prove employer acceptance.'},
+  unverified:{tone:'unverified',label:'Historical applied — unverified',detail:'No source and retained confirmation jointly establish this historical status.'},
+});
+/** Reduce a worker task id to a non-sensitive diagnostic suffix, never the full identifier. */
+function applicationTaskReference(value){
+  if(typeof value!=='string') return '';
+  const raw=value.trim(); if(!raw) return '';
+  if(raw.length<=8) return 'Worker task recorded';
+  const tail=raw.replace(/[^A-Za-z0-9]/g,'').slice(-6);
+  return tail.length===6?`Worker task …${tail}`:'Worker task recorded';
+}
+/** Resolve the exact allowlisted source; missing and future values deliberately fail closed. */
+function applicationProvenance(record){
+  const raw=record&&typeof record.application_source==='string'?record.application_source:'';
+  let source=Object.prototype.hasOwnProperty.call(APPLICATION_PROVENANCE,raw)?raw:'unverified';
+  const hasConfirmation=record&&typeof record.confirmation_path==='string'&&record.confirmation_path.trim();
+  if(source==='verified-submission'&&!hasConfirmation) source='unverified';
+  const base=APPLICATION_PROVENANCE[source]; let detail=base.detail;
+  if(source==='worker-reported'){
+    const ref=applicationTaskReference(record.application_task_id); detail=(ref?ref+'. ':'')+detail;
+  }
+  return {source,tone:base.tone,label:base.label,detail};
+}
+/** Render only escaped summary text; raw task ids and confirmation paths never enter the DOM. */
+function applicationProofHtml(record){
+  const summarized=record&&typeof record.tone==='string'&&typeof record.label==='string';
+  if(!record||(!summarized&&record.status!=='applied')) return '';
+  const proof=summarized?record:applicationProvenance(record);
+  return `<div class="application-proof proof-${esc(proof.tone)}"><b>${esc(proof.label)}</b><span>${esc(proof.detail)}</span></div>`;
+}
+// APPLICATION_PROVENANCE_END
 function toast(m,err){ toastEl.textContent=m; toastEl.className='toast show'+(err?' err':''); setTimeout(()=>toastEl.className='toast',2400); }
+/** Copy text during the click gesture, with a temporary textarea fallback for restricted iframes. */
+async function copyPrivateText(value){
+  if(navigator.clipboard&&navigator.clipboard.writeText){ await navigator.clipboard.writeText(value); return; }
+  const area=document.createElement('textarea'); area.value=value; area.setAttribute('readonly','');
+  area.style.position='fixed'; area.style.opacity='0'; document.body.appendChild(area); area.select();
+  try { if(!document.execCommand('copy')) throw new Error('clipboard unavailable'); }
+  finally { area.remove(); }
+}
+/** Fetch once while online; bookmark code makes no direct network call, though page event handlers may. */
+async function copyOfflineAutofill(){
+  const warning='This bookmark stores your application profile (including contact details) inside its URL. Keep it private and do not save it in a shared or synced browser. Continue?';
+  if(!window.confirm(warning)) return;
+  const button=$('copyAutofill'); button.disabled=true; button.textContent='Preparing private bookmark…';
+  try {
+    const response=await fetch('/api/career-hunter/autofill/bookmarklet',{cache:'no-store'});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok) throw new Error(result.error||('HTTP '+response.status));
+    if(typeof result.bookmarklet!=='string'||!result.bookmarklet.startsWith('javascript:')) throw new Error('invalid bookmarklet response');
+    await copyPrivateText(result.bookmarklet);
+    toast('Offline autofill copied — paste it as a new bookmark URL.');
+  } catch(error) { toast('Autofill copy failed: '+error.message,true); }
+  finally { button.disabled=false; button.textContent='Copy offline autofill bookmarklet'; }
+}
 function salary(j){ const a=j.salary_max||j.salary_min; if(!a) return ''; const k=n=>'$'+Math.round(n/1000)+'k'; return (j.salary_min&&j.salary_max&&j.salary_min!==j.salary_max)?`${k(j.salary_min)}–${k(j.salary_max)}`:k(a); }
 
 async function loadStats(){
   try {
     const { byStatus=[] } = await (await fetch('/api/career-hunter/jobs/stats')).json();
-    // Pipeline lanes: a produced résumé = "Ready for submission"; a submitted app = "Submitted".
-    const LABELS={ generated:'Ready for submission', applied:'Submitted', interview:'Interview', offer:'Offer', promoted:'Promoted', deferred:'Needs you', dismissed:'Dismissed' };
+    // A produced résumé is ready; an applied row is only a record until its provenance is shown.
+    const LABELS={ generated:'Ready for submission', applied:'Applications recorded', interview:'Interview', offer:'Offer', promoted:'Promoted', deferred:'Needs you', dismissed:'Dismissed' };
     const order=['generated','applied','interview','offer','promoted','deferred','dismissed']; const map=Object.fromEntries(byStatus.map(s=>[s.status,s.n]));
     const tabs=[{k:'',label:'All'}].concat(order.filter(s=>map[s]).map(s=>({k:s,label:LABELS[s]||(s[0].toUpperCase()+s.slice(1)),n:map[s]})));
     tabsEl.innerHTML=tabs.map(t=>`<button class="tab${t.k===activeStatus?' active':''}" data-k="${t.k}">${t.label}${t.n!=null?`<span class="n">${t.n}</span>`:''}</button>`).join('');
@@ -169,7 +257,8 @@ async function loadStats(){
 
 function card(j){
   const fit=j.ai_fit_score??j.fit_score, sal=salary(j);
-  const st=j.status&&j.status!=='new'?`<span class="pill st-${esc(j.status)}">${esc(j.status)}</span>`:'';
+  const shownStatus=j.status==='applied'?'application recorded':j.status;
+  const st=j.status&&j.status!=='new'?`<span class="pill st-${esc(j.status)}">${esc(shownStatus)}</span>`:'';
   return `<div class="card" data-job-id="${j.id}">
     <div class="top">
       <div><p class="title">${esc(j.title)}</p><p class="co">${esc(j.company||'')}${j.referral?' · ⭐ referral':''}</p></div>
@@ -180,13 +269,14 @@ function card(j){
       </div>
     </div>
     <div class="meta">${st}${sal?`<span class="sal">${sal}</span>`:''}${j.location?`<span>${esc(j.location)}</span>`:''}${j.remote?'<span>remote</span>':''}${j.job_type?`<span>${esc(j.job_type)}</span>`:''}${j.posted_date?`<span>posted ${esc(j.posted_date)}</span>`:''}</div>
+    ${applicationProofHtml(j)}
     <div class="acts">
       <button class="btn" onclick="toggleDetail(${j.id})">Details</button>
       ${j.url?`<a class="btn go" href="${esc(j.url)}" target="_blank" rel="noopener">Open posting ↗</a>`:''}
       ${j.has_resume?`<a class="btn" href="/api/career-hunter/resume?id=${j.id}&kind=resume" target="_blank">Resume</a>`:''}
       ${j.has_cover?`<a class="btn" href="/api/career-hunter/resume?id=${j.id}&kind=cover" target="_blank">Cover</a>`:''}
       ${(j.has_resume && j.status!=='applied')?`<button class="btn submit" id="sub${j.id}" onclick='submitJob(${JSON.stringify(subArg(j))})'>Submit on my desktop ▶</button>`:''}
-      ${j.status!=='applied'?`<button class="btn" onclick="setStatus(${j.id},'applied')">Mark applied</button>`:''}
+      ${j.status!=='applied'?`<button class="btn" onclick="setStatus(${j.id},'applied')">Mark applied manually</button>`:''}
       ${j.status!=='dismissed'?`<button class="btn danger" onclick="setStatus(${j.id},'dismissed')">Dismiss</button>`:''}
     </div>
     <div class="detail" id="d${j.id}" hidden></div>
@@ -313,7 +403,7 @@ async function setStatus(id,status){
     const r=await fetch(`/api/career-hunter/jobs/${id}/status`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
     const saved=await r.json().catch(()=>({}));
     if(!r.ok || saved.ok!==true) throw new Error(saved.error||('HTTP '+r.status));
-    toast('Marked '+status); loadStats();
+    toast(status==='applied'?'Marked applied manually':'Marked '+status); loadStats();
     if(dismissing){
       el.classList.add('dismiss-away');
       window.setTimeout(()=>{
@@ -371,7 +461,44 @@ function detailHtml(j){
     </div>
   </div>`;
 }
-/** Talk to your career agent about ONE job; it replies + may generate, augment your profile, or set status. */
+/** Describe one normalized proposal without interpreting model text as markup. */
+function guideActionText(action){
+  if(action.op==='augment_profile') return 'Save candidate facts: '+action.facts;
+  if(action.op==='generate') return 'Generate resume + cover'+(action.guidance?': '+action.guidance:'');
+  return 'Set pipeline status to "'+action.status+'"';
+}
+/** Render a guide response and an explicit confirmation control for proposed mutations. */
+function renderGuideResponse(id,j){
+  const o=document.getElementById('jtout-'+id); const lines=[j.reply||''];
+  if(j.applied&&j.applied.length) lines.push('',...j.applied.map(x=>'✓ '+x));
+  if(j.failed&&j.failed.length) lines.push('',...j.failed.map(x=>'⚠ '+x));
+  o.textContent=lines.join('\n');
+  const actions=Array.isArray(j.proposedActions)?j.proposedActions:[];
+  if(!actions.length){ guideProposals.delete(String(id)); return; }
+  guideProposals.set(String(id),actions);
+  const summary=document.createElement('div'); summary.style.marginTop='8px';
+  summary.textContent='Proposed changes (review before confirming):\n• '+actions.map(guideActionText).join('\n• ');
+  const confirm=document.createElement('button');
+  confirm.className='btn go'; confirm.style.marginTop='8px'; confirm.textContent='Confirm proposed changes';
+  confirm.onclick=()=>confirmJobActions(id);
+  const cancel=document.createElement('button');
+  cancel.className='btn'; cancel.style.margin='8px 0 0 6px'; cancel.textContent='Dismiss';
+  cancel.onclick=()=>{ guideProposals.delete(String(id)); summary.remove(); confirm.remove(); cancel.remove(); };
+  o.append(summary,confirm,cancel);
+}
+/** Execute only proposals the signed-in operator confirms in this separate request. */
+async function confirmJobActions(id){
+  const actions=guideProposals.get(String(id)); if(!actions||!actions.length) return;
+  const o=document.getElementById('jtout-'+id); o.textContent='Applying confirmed changes…';
+  try{
+    const r=await fetch('/api/career-hunter/jobs/'+id+'/guide',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirmedActions:actions})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok){ o.textContent='Error: '+(j.error||('HTTP '+r.status)); return; }
+    guideProposals.delete(String(id)); renderGuideResponse(id,j);
+    if(j.applied&&j.applied.length) setTimeout(loadStats,1500);
+  }catch(e){ o.textContent='Error: '+e.message; }
+}
+/** Talk to the Career agent about one job; returned actions remain proposals until confirmed. */
 async function jobTalk(id){
   const inp=document.getElementById('jt-'+id); const msg=(inp&&inp.value||'').trim(); if(!msg) return;
   const o=document.getElementById('jtout-'+id); o.innerHTML='<span class="spin"></span> Thinking…';
@@ -380,8 +507,7 @@ async function jobTalk(id){
     const j=await r.json().catch(()=>({}));
     if(!r.ok){ o.textContent='Error: '+(j.error||('HTTP '+r.status)); return; }
     inp.value='';
-    o.textContent=(j.reply||'')+((j.applied&&j.applied.length)?('\n\n✓ '+j.applied.join('\n✓ ')):'');
-    if(j.applied&&j.applied.length){ setTimeout(loadStats,1500); }
+    renderGuideResponse(id,j);
   }catch(e){ o.textContent='Error: '+e.message; }
 }
 // View-links for an already-generated packet (shown in the detail panel as soon as a resume exists).
@@ -545,6 +671,15 @@ function renderIndexing(){
     <p class="sub" style="margin:0;">Parsing your experience, skills, and metrics into your private profile. This usually takes <b>2–3 minutes</b> — you can leave this open, it refreshes automatically.</p>
   </div>`;
 }
+function renderIngestFailure(message){
+  $('onboard').innerHTML = `
+  <div style="border:1px solid var(--danger);border-radius:14px;padding:28px;max-width:680px;margin:18px auto;background:rgba(255,107,107,.08);">
+    <h2 style="margin:0 0 6px;font-size:18px;">Resume indexing failed</h2>
+    <p class="sub" style="margin:0 0 16px;">${esc(message||'The resume could not be indexed. Upload it again to retry.')}</p>
+    <input type="file" id="obFile" accept=".pdf,.docx,.txt,.md" style="display:none" onchange="uploadResume(this)"/>
+    <button class="btn go" id="obBtn" onclick="document.getElementById('obFile').click()">Upload &amp; retry</button>
+  </div>`;
+}
 async function uploadResume(input){
   const f=input.files&&input.files[0]; if(!f) return;
   const btn=$('obBtn'); if(btn){ btn.disabled=true; btn.textContent='Uploading…'; }
@@ -588,13 +723,18 @@ async function checkOnboarding(prefetch){
   let st; try { st=await (await fetch('/api/career-hunter/resume/state')).json(); }
   catch(e){ st={hasResume:true,scored:1}; } // never block the board on a status hiccup
   const ob=$('onboard');
+  if(st && st.indexing){
+    boardControls(false); ob.hidden=false; renderIndexing(); setTimeout(checkOnboarding,6000); return;
+  }
+  if(st && st.ingest && st.ingest.state==='failed'){
+    boardControls(false); ob.hidden=false; renderIngestFailure(st.ingest.error); return;
+  }
   if(st && st.hasResume && st.scored>0){
     ob.hidden=true; boardControls(true);
     if(feed){ const d=await feed; if(d && !d.error){ renderJobs(d); return; } }
     loadStats(); loadJobs(); return;
   }
   boardControls(false); ob.hidden=false;
-  if(st && st.indexing){ renderIndexing(); setTimeout(checkOnboarding,6000); return; }
   if(st && st.hasResume){ renderBuildBoard(); return; }   // resume done, no scored jobs yet
   renderGetStarted();
 }

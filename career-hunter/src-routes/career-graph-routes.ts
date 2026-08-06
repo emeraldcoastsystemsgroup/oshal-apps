@@ -1,4 +1,14 @@
 /**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Add caller-scoped Career SQLite ingestion and graph insights for skills, industries, referrals, and recruiters.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Mirror bounded fresh postings into the owning person graph through the fail-open kernel ingestion seam.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Replace the lazy main-registrar dependency with the cycle-free user-store leaf.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Resolve graph ingestion databases through the canonical contained user-store mapper.
+ */
+/**
  * Career-graph routes — the first ADR-045 domain carve-out (jobs).
  *
  * Reads the caller's career-hunter sqlite (user signals + the ATTACHed shared corpus) and ingests
@@ -8,29 +18,16 @@
  * market demand). Pure ADR-045 pattern: domain ingestion + NL/graph queries over /api/graph — no
  * new database. Mount under requiresAuth.
  *
- * CHANGE LOG
- * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                      | DESCRIPTION
- * -----------------------------------------------------------------------------
- * 2026-06-17 21:40:00 | roger.murphy@emeraldcoastsystemsgroup.com | ADR-045 jobs carve-out — ingest career-hunter sqlite (gap_themes/recruiter_firms/scored postings) into the caller's person graph; /insights graph queries (top gaps, fit-industries w/ warm referrals, recruiter buckets).
- * 2026-07-19 17:55:00 | roger.murphy@emeraldcoastsystemsgroup.com | ingestJobsGraphForUser() — the package-side CALL for the kernel's ADR-045 jobs ingestion (kernel 85931d2a shipped ingestJobsForPerson on @/features/graph and left the call to this carved package). Reads the user's freshly-indexed postings (first_seen-bounded, capped) and mirrors them into the OWNING person graph, engine-gated fail-open exactly like the kernel hooks: try/catch, ERROR log, never throws, never blocks the write chain (cron fires it void). Lazy-requires career-hunter-routes' openUserDb (the cron-bootstrap pattern) so module eval stays cycle-free.
- *
  * @module career-graph-routes
  */
 import { Router, type Request, type Response } from 'express';
-import * as path from 'path';
 import * as fs from 'fs';
 import Database from 'better-sqlite3';
 import { createChildLogger } from '@/shared/logger';
 import { createGraphConnector, getGraphIngestionService, type GraphEdge, type GraphNode, type GraphHandle, type JobGraphRecord } from '@/features/graph';
+import { callerSub, openUserDb, userPaths } from './career-user-store';
 
 const logger = createChildLogger({ module: 'career-graph-routes' });
-
-/** Signed-in caller's OIDC sub. */
-function callerSub(req: Request): string | null {
-  const u = (req as { oidc?: { user?: { sub?: string } } }).oidc?.user;
-  return u?.sub ? String(u.sub) : null;
-}
 
 /** A url/id-safe slug. */
 function slug(s: string): string {
@@ -44,10 +41,9 @@ const GRAPH_INGEST_FIRST_SEEN_DAYS = Math.max(1, Number(process.env.CAREER_GRAPH
  *  multi-minute write burst (identifier-scale payloads only — kernel clips them further). */
 const GRAPH_INGEST_LIMIT = Math.max(1, Number(process.env.CAREER_GRAPH_INGEST_LIMIT) || 1000);
 
-/** Default DB opener: career-hunter-routes' openUserDb (shared corpus ATTACHed). Lazy require —
- *  the same cycle-free bootstrap pattern career-hunter-routes uses for the cron module. */
+/** Default DB opener from the dependency-leaf user store (shared corpus ATTACHed). */
 function defaultOpenUserDb(sub: string): { prepare: (sql: string) => { all: (...a: unknown[]) => unknown[] }; close: () => void } | null {
-  return (require('./career-hunter-routes') as typeof import('./career-hunter-routes')).openUserDb(sub);
+  return openUserDb(sub);
 }
 
 /**
@@ -59,7 +55,7 @@ function defaultOpenUserDb(sub: string): { prepare: (sql: string) => { all: (...
  * kernel service, and ANY failure here (missing store, sqlite error, thrown connector) is logged
  * at ERROR and swallowed — the write chain is never blocked or failed by graph availability.
  * @param userSub - the owning user's sub (the person-graph isolation key)
- * @param openDb - injectable DB opener (tests); defaults to career-hunter-routes' openUserDb
+ * @param openDb - injectable DB opener (tests); defaults to career-user-store's openUserDb
  * @returns resolves when the mirror completes or was skipped; NEVER rejects
  */
 export async function ingestJobsGraphForUser(
@@ -94,10 +90,12 @@ export async function ingestJobsGraphForUser(
   }
 }
 
-/** Resolve the caller's career-hunter sqlite paths (user db + shared corpus). */
-function dbPaths(sub: string): { userPath: string; corpusPath: string } {
-  const root = path.join(process.env.CONFIG_OUTPUT_DIR || '/app/output', 'career-hunter-data', 'default');
-  return { userPath: path.join(root, sub, `user-${sub}.db`), corpusPath: path.join(root, 'corpus.db') };
+/** Resolve graph SQLite paths through the same contained mapper as every Career route and CLI. */
+function dbPaths(
+  sub: string, resolvePaths: typeof userPaths = userPaths,
+): { userPath: string; corpusPath: string } {
+  const paths = resolvePaths(sub);
+  return { userPath: paths.userDb, corpusPath: paths.corpusDb };
 }
 
 /** Read the career sqlite (corpus ATTACHed) into graph nodes + edges. The user node is 'me'. */

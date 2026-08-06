@@ -54,3 +54,12 @@ node scripts/oshal-app.js install email-summarizer
 No migrations — `oshal_email_digests` is created lazily at the route's
 `ensureEmailSchema` chokepoint with owner-RLS appended. Uninstall/toggle never
 touches your digests or your mail.
+
+<!-- 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | Document fail-closed digest recovery after removal of the public encryption-key fallback. -->
+
+## `SESSION_SECRET` digest recovery
+
+Set a nonblank `SESSION_SECRET` before creating or reading cached summaries. A digest encrypted
+under the retired public fallback cannot be authenticated with a newly provisioned secret; use
+**Summarize my day** again to replace that cache. Reconnect Google only if the kernel Accounts page
+also reports its separately managed connector credential as unreadable.

@@ -12,6 +12,7 @@
  * 2026-07-18 20:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | AI Office residue: DELETE /file (owner-scoped — store copy via deleteStoredFile's recycle semantics + the caller's table rows) and POST /email (render the current outline and send it as an attachment over the user's OWN mailbox — sendGmail, else the Graph sibling; behind the standard confirm:true 428 gate because generation is not consent to broadcast).
  * 2026-07-18 21:10:00 | roger.murphy@emeraldcoastsystemsgroup.com | DELETE /file follows the ROW's provider when it says oshal-local (deterministic path, no folder prefs) — live QA orphaned local copies behind a target switch; other cross-provider rows keep current-target semantics because their folder config may have drifted since the save.
  * 2026-07-19 18:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | Carved out of OSHAL core into the presentations app package (ADR-085 Wave 2, "skill with a surface" — the deck-generation ENGINE stays a kernel skill; this app is the AI Office surface + studio routes over it). Standard (ctx) factory; the surface serves from ctx.appPackageDir/tools (load-time env fallback, D10); shared core helpers (storage-target skill, inline-bot-execution, connectors, email senders) import via @/app/routes aliases; ensurePresentationsSchema appends buildOwnerRlsPolicyStatements (A1.2 fresh-DB chokepoint parity with migration 060).
+ * 2026-08-06 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | ADR-043 item A — make the resolved save destination visible before a paid render. GET /destination resolves only the authenticated caller's Files target; a validated `?provider=` previews a one-off override through the same cleanOverride contract as Generate. Anonymous calls stop before preference lookup and lookup failures return 502 rather than guessing a provider.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -261,6 +262,36 @@ function createBotPresentationRoutes(ctx) {
      */
     router.get('/themes', (_req, res) => {
         res.json({ themes: (0, presentation_generation_1.themeCatalog)(), layouts: (0, presentation_generation_1.layoutCatalog)(), defaultTheme: presentation_generation_1.DEFAULT_THEME_ID });
+    });
+    /**
+     * @description Report where the next Generate will save, before the caller spends a render.
+     * With no override this resolves the authenticated caller's configured Files target. A valid
+     * `?provider=` previews the same one-off override accepted by Generate without reading or
+     * mutating the stored preference. Unknown providers deliberately fall back to the real default
+     * so the surface never promises a destination the save path would reject.
+     */
+    router.get('/destination', async (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        const override = cleanOverride({ provider: String(req.query.provider ?? '') });
+        try {
+            const target = override ?? await (0, storage_target_1.resolveStorageTarget)(ctx, sub, 'files');
+            res.json({
+                provider: target.provider,
+                folder: target.folder ?? null,
+                repo: target.repo ?? null,
+                subfolder: DECK_SUBFOLDER,
+                // Distinguish the durable account default from a previewed one-off selection in the UI.
+                isDefault: !override,
+            });
+        }
+        catch (err) {
+            logger.error({ err, sub }, 'resolve save destination failed');
+            res.status(502).json({ error: 'could not resolve your save destination' });
+        }
     });
     /** GET /list — the caller's generated decks (the studio's "My decks" panel). The bot's store
      *  (oshal/{bot-id}/ on the current Files target) is authoritative for what exists; the

@@ -16,6 +16,11 @@ DATE/TIME           | AUTHOR                      | DESCRIPTION
                     |                             | AREA=0.52 m^2, battery swept to 0.100 kg).
                     |                             | The R6 box alone rejected three of the four
                     |                             | shipped presets -- all recorded engine runs.
+2026-08-06 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Make the input-only design readout
+                    |                             | derivation an explicit server contract and
+                    |                             | reuse it in the vector mapper. A shipped
+                    |                             | browser helper is parity-tested against this
+                    |                             | function, including the 79.9 m span ceiling.
 
 aero-lab engine service -- the BUILD_CONTRACT section-5 worker.
 
@@ -123,6 +128,10 @@ def _import_export_module():
 G0 = 9.80665
 DAY_S = 86400.0
 DT_S = 60.0
+#: Stay below the structure module's 80 m hard ceiling at the design-box corner.
+#: The same named constant lives in tools/aero-lab-geometry.js and cross-runtime
+#: tests compare both implementations rather than trusting the duplicated value.
+MAX_DERIVED_SPAN_M = 79.9
 
 # ---------------------------------------------------------------------------
 # Design-vector bounds. Source: the union of the engine's validated study
@@ -381,6 +390,27 @@ def _validate_vector(design) -> dict:
     return v
 
 
+def _design_readouts(v: dict) -> dict:
+    """@description Derive the input-only geometry/capacity values shared with
+        the browser cockpit. Performance remains authoritative only in engine
+        responses; this helper exists so duplicated cross-runtime arithmetic has
+        one explicit parity contract.
+    @param v Validated design vector (or a parity-test subset with these fields).
+    @returns {span_m, mean_chord_m, pack_Wh}, all in SI/Wh units.
+    """
+    area_m2 = float(v["area_m2"])
+    aspect_ratio = float(v["aspect_ratio"])
+    battery_mass_kg = float(v["battery_mass_kg"])
+    pack_Wh_per_kg = float(v["pack_Wh_per_kg"])
+    raw_span_m = math.sqrt(aspect_ratio * area_m2)
+    span_m = min(raw_span_m, MAX_DERIVED_SPAN_M)
+    return {
+        "span_m": span_m,
+        "mean_chord_m": area_m2 / span_m,
+        "pack_Wh": battery_mass_kg * pack_Wh_per_kg,
+    }
+
+
 def _to_design(m: dict, v: dict):
     """@description The sweep's vector -> _SolarCruiseDesign mapping
         (R6_search.to_design, verbatim math): span from AR*S, the wing billed
@@ -393,9 +423,7 @@ def _to_design(m: dict, v: dict):
     vd = m["validate_designs"]
     st = m["structure"]
     S = v["area_m2"]
-    b = math.sqrt(v["aspect_ratio"] * S)
-    if b > 79.9:
-        b = 79.9
+    b = _design_readouts(v)["span_m"]
     wing_kg = st.wing_mass_kg(b, S, 3.0)
     pv_kg = S * v["pv_density"]
     th = m["vehicle"].Thruster(
@@ -438,7 +466,7 @@ def _classify(exc: Exception) -> WorkerError:
         return WorkerError("invalid_design", msg)
     if name in ("ValidationError", "MassClosureError", "NoValidPointError",
                 "TrimConvergenceError", "MissionConfigError",
-                "GustPlacardError", "ValueError"):
+                "GustPlacardError", "MeshValidationError", "ValueError"):
         return WorkerError("inadmissible_input", msg)
     return WorkerError("engine_error", msg)
 

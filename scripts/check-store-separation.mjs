@@ -27,9 +27,48 @@
  */
 import { readdirSync, existsSync, statSync } from 'node:fs';
 import { join, resolve, basename } from 'node:path';
+import { spawnSync } from 'node:child_process';
 
-/** Top-level directories that are repo infrastructure rather than a package. */
-const INFRA_DIRS = new Set(['scripts', '.github', '.git', 'node_modules']);
+/**
+ * @description Does this directory tree hold at least one file? Git tracks files, so a tree of
+ * nothing but directories is untrackable and therefore cannot carry a separation violation.
+ * @param dir - Directory to search.
+ * @returns True as soon as any regular file is found at any depth.
+ */
+function containsFile(dir) {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    if (e.isFile()) return true;
+    if (e.isDirectory() && containsFile(join(dir, e.name))) return true;
+  }
+  return false;
+}
+
+/**
+ * @description Resolve which of `names` git ignores at `root`. Best-effort by design: this guard
+ * also runs against the built public snapshot, which is not a git worktree, and an unavailable git
+ * must never turn into a false clean OR a false violation — it simply means no name is filtered.
+ * @param root - Tree root to test within.
+ * @param names - Top-level directory names to test.
+ * @returns Set of names git reports as ignored; empty when git cannot answer.
+ */
+function gitIgnoredNames(root, names) {
+  if (names.length === 0) return new Set();
+  const res = spawnSync('git', ['-C', root, 'check-ignore', '--', ...names], { encoding: 'utf8' });
+  // exit 0 = some ignored, 1 = none ignored, anything else (128 = not a repo) = cannot answer.
+  if (res.error || (res.status !== 0 && res.status !== 1)) return new Set();
+  return new Set(
+    (res.stdout || '').split(/\r?\n/).map((l) => l.trim().replace(/\/$/, '')).filter(Boolean),
+  );
+}
+
+/**
+ * Top-level directories that are repo infrastructure rather than a package.
+ * `audits/` holds the reviewed per-package release attestations (APP-02) — repository data the
+ * security gate requires, not installable content. It is named here rather than exempted case by
+ * case, because the rule this guard enforces is "packages plus a known infrastructure set", and a
+ * new infrastructure directory has to join that set explicitly to stay visible.
+ */
+const INFRA_DIRS = new Set(['scripts', '.github', '.git', 'node_modules', 'audits']);
 
 /**
  * Platform-only paths. Presence of any of these means core code has been copied into the store.
@@ -78,10 +117,19 @@ export function checkStoreSeparation(root) {
     );
   }
 
+  const ignored = gitIgnoredNames(root, entries.filter((e) => e.isDirectory()).map((e) => e.name));
+
   let packages = 0;
   for (const e of entries) {
     if (!e.isDirectory() || INFRA_DIRS.has(e.name)) continue;
     if (existsSync(join(root, e.name, 'oshal-app.yaml'))) { packages += 1; continue; }
+    // Git tracks files, not directories, and will not track an ignored path — so a directory tree
+    // holding no files at all, or an ignored one, cannot be a separation violation. These are
+    // local debris (runtime scaffolding like apps/<pkg>/data/, output/logs/, a stale mount point)
+    // and flagging them trains everyone to ignore this gate's output. Note the check is recursive:
+    // apps/career-hunter/data/ is ten nested directories and zero files.
+    if (!containsFile(join(root, e.name))) continue;
+    if (ignored.has(e.name)) continue;
     violations.push(
       `top-level directory '${e.name}/' has no oshal-app.yaml — every top-level directory here is ` +
       `either a package or repo infrastructure (${[...INFRA_DIRS].join(', ')}).`,

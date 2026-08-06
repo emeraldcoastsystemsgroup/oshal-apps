@@ -78,6 +78,18 @@
   .bar { display:flex; align-items:center; gap:12px; margin-top:14px; flex-wrap:wrap; }
   .hint { color:var(--muted); font-size:12px; }
   .opts { display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+  /* ADR-043 item A: a status-like button showing the resolved destination before rendering.
+     Clicking it opens the existing destination control, keeping visibility and choice together. */
+  .destchip {
+    display:inline-flex; align-items:center; gap:6px; cursor:pointer;
+    font-size:12px; color:var(--muted); background:transparent;
+    border:1px solid var(--border-color, rgba(255,255,255,.16)); border-radius:999px;
+    padding:4px 10px; line-height:1.4; max-width:100%;
+  }
+  .destchip:hover { color:var(--text, inherit); border-color:var(--border-color-hover, rgba(255,255,255,.3)); }
+  .destchip[data-state="over"] { border-style:dashed; }
+  .destchip[data-state="err"] { border-color:#c4553f; color:#c4553f; }
+  .destchip b { font-weight:600; color:var(--text, inherit); }
   .opts label { display:flex; align-items:center; gap:6px; margin:0; font-size:12px; cursor:pointer; }
   .opts input[type=checkbox] { width:auto; }
   .opts .in { width:190px; }
@@ -483,6 +495,7 @@
         <button class="btn ghost" id="genAlt1"></button>
         <button class="btn ghost" id="genAlt2"></button>
         <button class="btn ghost" id="emailBtn" title="Email the current outline as a rendered attachment — sent from your own mailbox, only when you click Send">✉ Email</button>
+        <button class="destchip" type="button" id="destChip" title="Where this file will be saved — click to change">📁 <span id="destText">Checking where this saves…</span></button>
         <span class="hint" id="status"></span>
       </div>
       <div class="bar" id="emailRow" style="display:none">
@@ -696,6 +709,37 @@ function parseOutline(text){
     if (!lines.length) return null;
     return { title: lines[0].trim(), content: lines.slice(1).join('\n') };
   }).filter(Boolean);
+}
+
+// ADR-043 item A: "My default" must not be a black box. Resolve it before Generate and
+// re-resolve after every one-off override change so the chip always describes the next save.
+function paintDest(destination){
+  const chip = $('destChip'), text = $('destText');
+  if (!chip || !text) return;
+  if (!destination){
+    chip.dataset.state = 'err';
+    text.textContent = 'Save location unavailable — check Storage settings';
+    chip.title = 'OSHAL could not resolve where your files save. Open Storage settings to pick a target.';
+    return;
+  }
+  const name = PROV_NAME[destination.provider] || destination.provider;
+  // GitHub targets need both repository and optional folder to be findable; document stores use
+  // only folder. Filter empty roots so local/default targets stay compact.
+  const where = [name, destination.repo, destination.folder].filter(Boolean).join(' / ');
+  chip.dataset.state = destination.isDefault ? 'def' : 'over';
+  text.innerHTML = 'Saving to <b>' + esc(where) + '</b>' + (destination.isDefault ? '' : ' (just this one)');
+  chip.title = (destination.isDefault ? 'Your default file target' : 'A one-off override for this generate')
+    + ' — files land under ' + (destination.subfolder || 'your files') + '. Click to change.';
+}
+
+async function refreshDest(){
+  const override = $('saveTo') ? $('saveTo').value : '';
+  try {
+    const url = '/api/presentations/sections/destination' + (override ? '?provider=' + encodeURIComponent(override) : '');
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    paintDest(await response.json());
+  } catch (_err){ paintDest(null); }
 }
 
 /** Deck-level options shared by both generate paths. */
@@ -1078,7 +1122,14 @@ async function sendChat(){
 $('chatSend').onclick = sendChat;
 $('chatIn').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); } });
 
-renderKinds(); renderTemplates(); loadThemes(); loadDecks();
+$('saveTo').addEventListener('change', refreshDest);
+$('destChip').onclick = () => {
+  const fold = $('saveTo').closest('details');
+  if (fold) fold.open = true;
+  $('saveTo').focus();
+};
+
+renderKinds(); renderTemplates(); loadThemes(); loadDecks(); refreshDest();
 
 // ── The front-door walkthrough ─────────────────────────────────────────────
 // Drives the studio's own pickers, owns no duplicate state. Session-scoped skip: dismissing it

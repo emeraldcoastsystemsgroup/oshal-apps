@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/emeraldcoastsystemsgroup/oshal-apps/blob/main/audits/profile-v1.schema.json",
+  "title": "OSHAL package audit profile v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "profileVersion",
+    "app",
+    "version",
+    "sourceSha",
+    "status",
+    "auditedAt",
+    "controls",
+    "evidence"
+  ],
+  "properties": {
+    "profileVersion": { "const": 1 },
+    "app": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$" },
+    "sourceSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "status": { "enum": ["pending", "passed", "failed"] },
+    "auditedAt": {
+      "type": ["string", "null"],
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+    },
+    "controls": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifest", "authz", "rls", "dependencies", "installLifecycle", "surface"],
+      "properties": {
+        "manifest": { "$ref": "#/$defs/controlStatus" },
+        "authz": { "$ref": "#/$defs/controlStatus" },
+        "rls": { "$ref": "#/$defs/controlStatus" },
+        "dependencies": { "$ref": "#/$defs/controlStatus" },
+        "installLifecycle": { "$ref": "#/$defs/controlStatus" },
+        "surface": { "$ref": "#/$defs/controlStatus" }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "sha256"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "controlStatus": { "enum": ["pending", "passed", "failed"] }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "pending" } } },
+      "then": {
+        "properties": {
+          "sourceSha": { "const": "0000000000000000000000000000000000000000" },
+          "auditedAt": { "type": "null" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "status": { "const": "passed" } } },
+      "then": {
+        "properties": {
+          "auditedAt": { "type": "string" },
+          "controls": {
+            "properties": {
+              "manifest": { "const": "passed" },
+              "authz": { "const": "passed" },
+              "rls": { "const": "passed" },
+              "dependencies": { "const": "passed" },
+              "installLifecycle": { "const": "passed" },
+              "surface": { "const": "passed" }
+            }
+          },
+          "evidence": { "minItems": 1 }
+        }
+      }
+    }
+  ]
+}
+

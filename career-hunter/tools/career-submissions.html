@@ -1,8 +1,4 @@
-<!DOCTYPE html><html lang="en"><head>
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Submissions</title>
-<link rel="stylesheet" href="/shared/ui/css/surface-themes.css"/>
-<script src="/shared/ui/js/surface-theme.js"></script>
+<!DOCTYPE html>
 <!--
   Submissions — the print-queue view of the desktop worker.
 
@@ -13,7 +9,19 @@
   beats from /api/apply-operator/story/:ticketId and streams frames from /shot/:ticketId/:file.
 
   Read-only. The only actions live on the Job Board (queue one) — this watches.
+
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  SEQ                 | AUTHOR                                      | DESCRIPTION
+  -----------------------------------------------------------------------------
+  1 | maintainer@emeraldcoastsystemsgroup.com | Merge safe board-feed provenance summaries into completed runs and default missing evidence to unverified.
+  2 | maintainer@emeraldcoastsystemsgroup.com | Render exact assigned-worker acknowledgement, callback-pending, no-worker, assist-review, and failed states; animate only confirmed running work.
 -->
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Submissions</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css"/>
+<script src="/shared/ui/js/surface-theme.js"></script>
 <style>
   :root { --bg:#0b0f14; --panel:#121821; --panel2:#0e141c; --line:#2a2f3a; --text:#e6edf3; --muted:#8b98a5; --accent:#4aa3ff; --accent2:#3fb950; --danger:#f85149; --warn:#d29922; }
   * { box-sizing:border-box; }
@@ -48,10 +56,18 @@
   .pill { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; border:1px solid var(--line); border-radius:20px; padding:2px 9px; color:var(--muted); white-space:nowrap; }
   .pill.queued { color:var(--accent); border-color:var(--accent); }
   .pill.submitting { color:var(--warn); border-color:var(--warn); }
-  .pill.applied { color:var(--accent2); border-color:var(--accent2); }
+  .pill.applied { color:var(--muted); border-color:var(--line); }
   .pill.needs_you { color:var(--danger); border-color:var(--danger); }
+  .pill.failed { color:var(--danger); border-color:var(--danger); }
   .rmeta { color:var(--muted); font-size:11.5px; margin:5px 0 0; display:flex; gap:12px; flex-wrap:wrap; }
   .rmeta a { color:var(--accent); text-decoration:none; }
+  .application-proof { margin:8px 0 0; padding:6px 9px; border:1px solid var(--line); border-radius:7px;
+    color:var(--muted); font-size:11.5px; line-height:1.4; }
+  .application-proof b { display:block; color:var(--text); }
+  .application-proof.proof-manual { border-color:rgba(74,163,255,.42); }
+  .application-proof.proof-worker { border-color:rgba(210,153,34,.48); }
+  .application-proof.proof-confirmation { border-color:rgba(63,185,80,.52); }
+  .application-proof.proof-unverified { border-color:rgba(248,81,73,.42); }
 
   /* Live progress bar — the one thing that says "it is moving" during a long submission. */
   .bar { height:3px; border-radius:3px; background:var(--panel2); overflow:hidden; margin:8px 0 0; }
@@ -96,13 +112,50 @@
 
 <script>
 const $=id=>document.getElementById(id);
+// APPLICATION_PROVENANCE_START
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const LANES=[['queued','Queued'],['submitting','Submitting'],['applied','Applied'],['needs_you','Needs you'],['dismissed','Dismissed']];
+const APPLICATION_PROVENANCE=Object.freeze({
+  'manual-mark':{tone:'manual',label:'Marked applied manually',detail:'An operator recorded this status; no automated submission confirmation is claimed.'},
+  'worker-reported':{tone:'worker',label:'Worker reported submitted',detail:'A worker reported completion; employer receipt is not confirmed.'},
+  'verified-submission':{tone:'confirmation',label:'Confirmation file present',detail:'A retained confirmation artifact exists; this does not prove employer acceptance.'},
+  unverified:{tone:'unverified',label:'Historical applied — unverified',detail:'No source and retained confirmation jointly establish this historical status.'},
+});
+/** Reduce a worker task id to a non-sensitive diagnostic suffix, never the full identifier. */
+function applicationTaskReference(value){
+  if(typeof value!=='string') return '';
+  const raw=value.trim(); if(!raw) return '';
+  if(raw.length<=8) return 'Worker task recorded';
+  const tail=raw.replace(/[^A-Za-z0-9]/g,'').slice(-6);
+  return tail.length===6?`Worker task …${tail}`:'Worker task recorded';
+}
+/** Resolve the exact allowlisted source; missing and future values deliberately fail closed. */
+function applicationProvenance(record){
+  const raw=record&&typeof record.application_source==='string'?record.application_source:'';
+  let source=Object.prototype.hasOwnProperty.call(APPLICATION_PROVENANCE,raw)?raw:'unverified';
+  const hasConfirmation=record&&typeof record.confirmation_path==='string'&&record.confirmation_path.trim();
+  if(source==='verified-submission'&&!hasConfirmation) source='unverified';
+  const base=APPLICATION_PROVENANCE[source]; let detail=base.detail;
+  if(source==='worker-reported'){
+    const ref=applicationTaskReference(record.application_task_id); detail=(ref?ref+'. ':'')+detail;
+  }
+  return {source,tone:base.tone,label:base.label,detail};
+}
+/** Render only escaped summary text; raw task ids and confirmation paths never enter the DOM. */
+function applicationProofHtml(record){
+  const summarized=record&&typeof record.tone==='string'&&typeof record.label==='string';
+  if(!record||(!summarized&&record.status!=='applied')) return '';
+  const proof=summarized?record:applicationProvenance(record);
+  return `<div class="application-proof proof-${esc(proof.tone)}"><b>${esc(proof.label)}</b><span>${esc(proof.detail)}</span></div>`;
+}
+// APPLICATION_PROVENANCE_END
+const LANES=[['queued','Queued'],['submitting','Submitting'],['applied','Completed'],['needs_you','Needs you'],['failed','Failed'],['dismissed','Dismissed']];
 
 let filter='';            // '' = all lanes
 let openTicket=null;      // the run whose story is expanded
 let stories={};           // ticketId -> beats (kept across polls so an open run doesn't flicker)
 let lastSig='';           // change signature, so a poll that changed nothing doesn't re-render
+const applicationProofs=new Map(); // postingId -> redacted summary; no task id or path is retained.
+let applicationProofReadAt=0;
 
 function rel(ms){
   if(ms==null) return '';
@@ -146,19 +199,26 @@ function beatHtml(t,b){
     </div></div>`;
 }
 
-function storyHtml(t,live){
-  const beats=stories[t];
+function storyHtml(it){
+  const beats=stories[it.ticketId];
   if(beats===undefined) return `<div class="story"><div class="empty">Loading the run…</div></div>`;
-  if(!beats.length) return `<div class="story"><div class="empty">${live
-    ? 'No steps reported yet — the worker sends its first update once it has the posting open.'
-    : 'This submission ran without reporting steps (it predates step reporting, or the worker could not reach the controller).'}</div></div>`;
-  return `<div class="story">${beats.map(b=>beatHtml(t,b)).join('')}</div>`;
+  if(!beats.length){
+    const message=it.executionState==='no_worker'?'No worker picked this up.'
+      :it.executionState==='assigned'?'Assigned to a worker, but it has not claimed the task yet.'
+      :it.executionState==='working'?'The worker claimed this task; its first narrated step has not arrived yet.'
+      :it.executionState==='callback_pending'?'The worker finished; trusted result settlement is pending.'
+      :(it.executionDetail||'This run has no retained narrated steps.');
+    return `<div class="story"><div class="empty">${esc(message)}</div></div>`;
+  }
+  return `<div class="story">${beats.map(b=>beatHtml(it.ticketId,b)).join('')}</div>`;
 }
 
 function rowHtml(it){
-  const live=it.lane==='submitting';
+  const live=it.executionState==='working';
   const open=openTicket===it.ticketId;
   const n=stories[it.ticketId]?stories[it.ticketId].length:0;
+  const proof=it.lane==='applied'
+    ? (applicationProofs.get(Number(it.postingId))||applicationProvenance({status:'applied'})) : null;
   return `<div class="row${live?' live':''}">
     <div class="rtop">
       <div>
@@ -168,13 +228,15 @@ function rowHtml(it){
       <span class="pill ${it.lane}">${esc((LANES.find(l=>l[0]===it.lane)||[,it.status])[1]||it.status)}</span>
     </div>
     <div class="rmeta">
-      ${live&&it.inFlightMs!=null?`<span>running ${esc(rel(it.inFlightMs))}</span>`:`<span>${esc(ago(it.updatedAt))}</span>`}
-      ${it.targetClientId?`<span class="rtarget">on ${esc(it.targetHostname||it.targetClientId.slice(0,12))}</span>`:''}
+      ${live&&it.inFlightMs!=null?`<span>running ${esc(rel(it.inFlightMs))}</span>`:`<span>${esc(it.executionDetail||ago(it.updatedAt))}</span>`}
+      ${it.assignedClientId?`<span class="rtarget">assigned to ${esc(it.assignedHostname||it.assignedClientId.slice(0,12))}</span>`
+        :it.targetClientId?`<span class="rtarget">target ${esc(it.targetHostname||it.targetClientId.slice(0,12))}</span>`:''}
       ${it.jobUrl?`<a href="${esc(it.jobUrl)}" target="_blank" rel="noopener">posting ↗</a>`:''}
       <a href="#" onclick="toggle('${it.ticketId}');return false">${open?'hide the run ▲':(n?`show the run (${n} steps) ▼`:'show the run ▼')}</a>
     </div>
+    ${proof?applicationProofHtml(proof):''}
     ${live?'<div class="bar"><i></i></div>':''}
-    ${open?storyHtml(it.ticketId,live):''}
+    ${open?storyHtml(it):''}
   </div>`;
 }
 
@@ -211,27 +273,44 @@ async function loadWorkers(){
   } catch(e){ if(hint) hint.textContent=''; }
 }
 
+/** Refresh bounded applied-job evidence and retain only the already-redacted UI summary. */
+async function refreshApplicationProofs(){
+  const now=Date.now(); if(now-applicationProofReadAt<30000) return;
+  applicationProofReadAt=now;
+  try{
+    const r=await fetch('/api/career-hunter/jobs?status=applied&sort=applied&per=150&lane=all');
+    if(!r.ok) return;
+    const {jobs=[]}=await r.json(); const next=new Map();
+    jobs.forEach(j=>next.set(Number(j.id),applicationProvenance(j)));
+    applicationProofs.clear(); next.forEach((value,key)=>applicationProofs.set(key,value));
+  }catch(e){ /* Queue rows remain explicitly unverified when the evidence feed is unavailable. */ }
+}
+
 async function poll(){
   let q;
   const node=selectedNode();
+  const proofLoad=refreshApplicationProofs();
   try { q=await (await fetch('/api/apply-operator/queue'+(node?('?clientId='+encodeURIComponent(node)):''))).json(); }
   catch(e){ $('list').innerHTML='<div class="empty">Could not reach the queue: '+esc(e.message)+'</div>'; return; }
   if(!q||!q.worker) return;
+  await proofLoad;
 
   renderWorker(q.worker);
   renderLanes(q.counts||{});
 
   const items=(q.items||[]).filter(it=>!filter||it.lane===filter);
 
-  // An open, still-running submission re-pulls its beats each cycle — that is the live narration.
+  // Only a worker-confirmed live submission re-pulls beats each cycle.
   if(openTicket){
     const it=(q.items||[]).find(i=>i.ticketId===openTicket);
-    if(it&&it.lane==='submitting') await loadStory(openTicket);
+    if(it&&it.executionState==='working') await loadStory(openTicket);
   }
 
   // Only repaint on real change: repainting every 5s would fight the user's scroll and reload images.
   const sig=JSON.stringify([filter,openTicket,q.worker.available,q.worker.detail,q.counts,
-    items.map(i=>[i.ticketId,i.lane,i.updatedAt,Math.round((i.inFlightMs||0)/5000)]),
+    items.map(i=>[i.ticketId,i.lane,i.executionState,i.executionDetail,i.assignedClientId,
+      i.updatedAt,Math.round((i.inFlightMs||0)/5000),
+      applicationProofs.get(Number(i.postingId))?.source||'unverified']),
     openTicket?(stories[openTicket]||[]).length:0]);
   if(sig===lastSig) return;
   lastSig=sig;

@@ -108,10 +108,20 @@ Change them at runtime on the app's **Settings** tab (`GET`/`PUT /api/kalshi/set
 is rendered *from* the manifest schema, labels and bounds included. Edit the YAML to change what a
 fresh install ships with.
 
-**Not verified in a browser (honest):** the Settings/Alerts panels are covered structurally — a guard
-asserts every id the surface script reaches for exists in the markup, and every tab has a panel — but
-this deployment runs `MOCK_OIDC=false`, so the panels have not been driven by a human session. That is
-the remaining verification gap on this feature.
+**Browser-verified at the package boundary:**
+[`tests/kalshi-settings-alerts-browser.test.js`](tests/kalshi-settings-alerts-browser.test.js)
+launches real Chromium against an ephemeral local HTTP server that mounts the compiled
+`routes/kalshi-routes.js` factory and serves the real `tools/kalshi.html`. A signed, short-lived,
+HttpOnly local-session cookie protects the mount. The test drives both tabs, saves and reads the
+caller's settings, proves alert isolation across two users, rejects a body-supplied subject,
+rejects non-operator deployment writes, and exercises an operator cadence save. Anonymous and
+forged sessions receive `401` before the settings store is touched.
+
+The fixture replaces Postgres, the market provider, and the background cron with deterministic
+in-memory collaborators because those systems are outside this UI/auth/route contract. It does
+**not** claim that a deployed identity provider has been accepted: a production/canary run through
+the configured OIDC tenant, recorded against the release commit, remains an external acceptance
+step.
 
 **Framework gap (honest):** the store contract documents `settings.schema` as "rendered in a
 settings panel", but the kernel does not consume manifest settings yet — nothing in `src/` reads
@@ -159,8 +169,12 @@ preference center through `@/app/routes/jarvis-task-store` and `@/app/routes/not
 node scripts/oshal-app.js build <this dir> --framework .
 node scripts/oshal-app.js validate <this dir>
 
-# the guards (dependency-free, and what store-ci runs)
+# all guards (store-ci installs pinned Playwright/Chromium + Express for the browser contract)
 cd <this dir> && node --test "tests/*.test.js"
+
+# local alternative: resolve the same dependencies from a sibling oshal checkout (the default),
+# or point explicitly at an installed test-dependency root.
+KALSHI_BROWSER_DEPS=/path/to/browser-deps node --test "tests/*.test.js"
 ```
 
 ## Status

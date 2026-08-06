@@ -1,7 +1,8 @@
-# Intelligent Career — what is actually true
+# Intelligent Career — historical 2026-07-30 operating record
 
-*Verified against the running system on 2026-07-30. Every number here was read off the live
-stack that day, not remembered. §7 is the command that re-derives all of it.*
+*The numbers and deployment/version statements in this file are a dated incident record, verified
+on 2026-07-30. They are not current-state evidence. Use `README.md`, `BACKEND-CUTOVER.md`, the
+dual-backend contract, and a newly generated convergence report for present decisions.*
 
 ---
 
@@ -216,37 +217,30 @@ through the engine's `db.connect()`.
 
 ---
 
-## 8. Honestly not done
+## 8. Current repository status and remaining external gates (2026-08-06)
 
-1. **`JOBHUNTER_STORE` still defaults to `sqlite`.** Reads are proven, and as of 2026-07-31
-   so are **per-user writes** — `user_set()` (the single chokepoint for every fit / status /
-   path write) round-trips through both target tables, the value survives an explicit
-   `commit()`, and RLS **refuses a write attributed to another `user_sub`**
-   (`InsufficientPrivilege`). That commit test matters specifically: it is what would have
-   caught `SET LOCAL` silently dropping the GUC mid-run.
-
-   Still NOT exercised: the **ingest** writes — `upsert_posting` / `upsert_company` /
-   `deactivate_missing` running a real `scrape --all` against Postgres, and the full nightly
-   chain end to end in postgres mode. Per-user writes are proven; corpus writes are not.
-2. **No AUTOMATIC sync.** Re-running the loader now genuinely converges (it upserts; it used
-   to be insert-only, which silently skipped every changed row — see below), but nothing runs
-   it on a schedule, so Postgres drifts from the moment the next scrape starts. Re-run it
-   after a nightly chain if you intend to read from Postgres.
-3. **All three real users are migrated.** 22 guest stores are untouched by choice — throwaway
-   demo sessions holding ~113K rows each.
-4. **`psycopg2-binary` is on branch `fix/psycopg2-dockerfile`, unmerged — needs a human.**
-   Core `main` is protected and another session had ~84 uncommitted files in that tree, so it
-   was pushed to its own branch rather than forced through. Until it lands, the next image
-   rebuild produces an engine that cannot reach Postgres.
-5. Manifest says 1.6.0; registered app says 1.5.0. Reconciling means reloading the app.
+1. `JOBHUNTER_STORE` still defaults to SQLite, but an unknown value now fails before opening a
+   database. The engine requirements are exact and include `psycopg2-binary` in this package.
+2. One shared contract now exercises a real loopback ATS, company/posting upserts, deactivation,
+   job types, sequences, fresh keyword indexing, application lifecycle/provenance, and owner
+   isolation in SQLite and disposable PostgreSQL. Store CI requires both halves.
+3. Loader replays update every mutable corpus/per-user dataset. Migration 103 adds stable
+   per-user interview source IDs so retries cannot duplicate transcripts; pre-103 unmapped rows
+   remain a loud reconciliation failure.
+4. `engine/sync/report_convergence.py` streams counts, canonical SHA-256 digests, and product key
+   queries and can fail the cutover gate with `--require-convergence`.
+5. A live stop-write, backup/restore proof, final sync, read-only smoke, PostgreSQL write cutover,
+   and seven-day observation have **not** been performed or claimed. PostgreSQL writes remain
+   gated on the reverse-projector design and fault tests in `BACKEND-CUTOVER.md`.
 
 *(The `bin/oshal-jobhunter.js` duplicate join was fixed 2026-07-31 — it now compares
 `first_seen_at` against a cutoff computed in JS, and runs in both backends.)*
 
 ### The convergence check, if you ever doubt the two stores
 
-Compare the same query across both — not a row count, the actual product query through the
-engine in each mode:
+The command below is retained as the historical quick probe. The current cutover gate is
+`engine/sync/report_convergence.py --require-convergence`, which compares counts, full canonical
+digests, and three product queries per user. A single board query is useful diagnosis, not closure.
 
 ```powershell
 foreach ($m in @("sqlite","postgres")) {

@@ -21,6 +21,8 @@
  *            | concierge: TMDB discovery, where-to-watch + Fandango ticket handoffs, watchlist,
  *            | brain via the orchestrator. Mirrors the Spotify concierge, screen-shaped.
  * ---------------------------------------------------------------------------
+ * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove TMDB credentials from generic orchestrator dispatch. The controller resolves TMDB only for its bounded catalog call and sends the model sanitized candidate records.
+ *
  * @module movies-routes
  */
 
@@ -32,7 +34,6 @@ import { buildOwnerRlsPolicyStatements, runRuntimeSchemaBootstrap } from '@/shar
 import type { AppContext } from '@/app/composition/app-context';
 import type { Pool } from 'pg';
 import { getValidAccessToken } from '@/app/routes/connectors-routes';
-import { resolveBotCreds } from '@/app/routes/connector-token-broker';
 import {
   tmdbSearch, tmdbTrending, tmdbDetails, tmdbWhereToWatch, tmdbTrailer, tmdbRecommendations,
   buildTicketsUrl, type TmdbTitle,
@@ -326,12 +327,11 @@ export function createMoviesRoutes(ctx: AppContext): Router {
     const watchlistTitles = (await pool.query(`SELECT title FROM movies_watchlist WHERE user_sub = $1 ORDER BY created_at DESC LIMIT 20`, [sub])).rows.map((r) => r.title);
 
     const prompt = buildConciergePrompt({ message, history, candidates, profile, notes, watchlistTitles });
-    const creds = await resolveBotCreds(pool as unknown as never, sub, ['tmdb']);
     let raw = '';
     try {
       const orchestrator = (ctx as any).orchestrator;
       const result = await orchestrator.processMessage(`movies-${sub}-${randomUUID()}`, prompt, {
-        agenticMode: true, autoApprove: false, source: 'movies', agentId: CONCIERGE_AGENT_ID, userSub: sub, creds,
+        agenticMode: false, autoApprove: false, source: 'movies', agentId: CONCIERGE_AGENT_ID, userSub: sub,
       });
       raw = String(result?.response || '').trim();
     } catch (e) { logger.error({ e }, 'movies concierge orchestrate failed'); }

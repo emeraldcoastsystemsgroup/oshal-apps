@@ -33,6 +33,8 @@
  * 2026-07-23 03:10:00 | roger.murphy@emeraldcoastsystemsgroup.com | Initial compose module: GET /compose (surface) + GET /compose/targets (connected/workspace-scoped platforms) + POST /compose/variants (per-platform rewrites on the comms bot) + POST /compose/image (real image generation via the media-generation kernel skill, returned as a preview data-URL, spend captured) + POST /compose/publish (exact approved text to X/LinkedIn/Facebook via the connector token, confirm-gated, no LLM). Reads the parent-owned workspace tables to scope "posting as workspace".
  * 2026-07-31 18:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Export PLATFORMS + PUBLISHABLE + platformProviders (additive, no behavior change) so the Stage broadcast pane fans out through this module's exact platform spec and the SAME publishTo path — never a parallel rail (the same reuse contract the calendar executor already follows).
  *
+ * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: retire connector credentials from the comms-bot variant request. The model receives only the source copy and platform constraints; confirmed publishing remains deterministic and resolves one provider token immediately before its API call.
+ *
  * @module switchboard-compose-routes
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
@@ -79,7 +81,6 @@ const crypto = __importStar(require("crypto"));
 const logger_1 = require("@/shared/logger");
 const agent_management_1 = require("@/features/agent-management");
 const connectors_routes_1 = require("@/app/routes/connectors-routes");
-const connector_token_broker_1 = require("@/app/routes/connector-token-broker");
 const inline_bot_execution_1 = require("@/app/routes/inline-bot-execution");
 const explicit_write_confirmation_1 = require("@/shared/security/explicit-write-confirmation");
 const video_generation_1 = require("@/features/video-generation");
@@ -146,16 +147,14 @@ async function workspaceProviders(pool, sub, workspaceId) {
 }
 /** Run a reasoning prompt on the comms bot (cost captured there). Mirrors social-routes' runOnBot. */
 async function runOnBot(ctx, kind, sub, prompt) {
-    const creds = await (0, connector_token_broker_1.resolveBotCreds)(ctx.pool, sub, ['google', 'twitter']);
     const result = await (0, inline_bot_execution_1.executeBotOrInline)(ctx, botClient, COMMS_BOT_AGENT_ID, {
         text: prompt,
         taskId: `switchboard-compose-${kind}-${sub}`,
         workspaceFolderId: `switchboard-${sub}`,
         agentId: COMMS_BOT_AGENT_ID,
-        agenticMode: true,
+        agenticMode: false,
         direct: true,
         userSub: sub,
-        creds,
     });
     return result.response;
 }

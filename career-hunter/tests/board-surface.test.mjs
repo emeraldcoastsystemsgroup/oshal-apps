@@ -1,9 +1,16 @@
 /**
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                                      | DESCRIPTION
+ * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-08-01 00:00:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Guards for the board surface: the inline script is never parsed by a compiler (a served HTML file), so a syntax error ships silently — this parses it. Plus the filter-memory contract the operator asked for (the board must come back with the filter it was left on) and the boot shape that stopped putting two round-trips in front of the first paint.
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Parse the uncompiled board script and guard filter persistence plus parallel first-load requests.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Require pending and failed resume-ingest lifecycle states to take precedence over an older ready profile.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Require guide partial failures to render through textContent with a distinct warning line.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Require proposed guide mutations to render as text and cross a separate confirmation request before execution.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Guard truthful, redacted application provenance across board, approvals, mobile, and submissions surfaces.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Guard the rendered offline autofill affordance, PII warning, and one-time bookmarklet copy flow.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Require supported-site refusal and accurate direct-action versus employer-page event wording.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Prove mobile startup is read-only, draft top-up requires an explicit action, and status uses the owner-scoped durable apply queue.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,15 +20,41 @@ import { dirname, join } from 'node:path';
 import vm from 'node:vm';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const html = readFileSync(join(here, '..', 'tools', 'career-board.html'), 'utf8');
-const inline = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]);
+const surfaceNames = [
+  'career-board.html', 'career-approvals.html', 'career-mobile.html', 'career-submissions.html',
+];
+const surfaces = Object.fromEntries(surfaceNames.map((name) => [
+  name, readFileSync(join(here, '..', 'tools', name), 'utf8'),
+]));
+const html = surfaces['career-board.html'];
+const inlineBySurface = Object.fromEntries(Object.entries(surfaces).map(([name, source]) => [
+  name, [...source.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]),
+]));
+const inline = inlineBySurface['career-board.html'];
 const body = inline.join('\n;\n');
 
+const PROVENANCE_START = '// APPLICATION_PROVENANCE_START';
+const PROVENANCE_END = '// APPLICATION_PROVENANCE_END';
+
+/** Execute only a surface's dependency-free provenance helpers, never its DOM boot code. */
+function provenanceRuntime(name) {
+  const source = surfaces[name];
+  const start = source.indexOf(PROVENANCE_START);
+  const end = source.indexOf(PROVENANCE_END, start);
+  assert.ok(start >= 0 && end > start, `${name}: provenance helper markers are missing`);
+  const context = {};
+  const snippet = source.slice(start + PROVENANCE_START.length, end);
+  vm.runInNewContext(`${snippet}\nthis.describe=applicationProvenance;this.render=applicationProofHtml;`, context);
+  return context;
+}
+
 test('every inline script parses — nothing else in the toolchain checks this file', () => {
-  assert.ok(inline.length > 0, 'expected inline script blocks');
-  inline.forEach((src, i) => {
-    assert.doesNotThrow(() => new vm.Script(src, { filename: `career-board.html#${i}` }));
-  });
+  for (const [name, scripts] of Object.entries(inlineBySurface)) {
+    assert.ok(scripts.length > 0, `${name}: expected inline script blocks`);
+    scripts.forEach((src, i) => {
+      assert.doesNotThrow(() => new vm.Script(src, { filename: `${name}#${i}` }));
+    });
+  }
 });
 
 test('the filter set is written to localStorage on every change', () => {
@@ -74,8 +107,125 @@ test('the feed request is issued in parallel with the onboarding gate', () => {
   assert.ok(kick > -1 && gate > kick, 'the feed must be kicked off before awaiting resume/state');
 });
 
+test('the current resume ingest lifecycle takes precedence over stale profile readiness', () => {
+  const indexing = body.indexOf('if(st && st.indexing)');
+  const ready = body.indexOf('if(st && st.hasResume && st.scored>0)');
+  assert.ok(indexing > -1 && ready > indexing, 'pending ingest must be checked before old profile data');
+  assert.match(body, /st\.ingest\.state==='failed'/);
+  assert.match(body, /renderIngestFailure\(st\.ingest\.error\)/);
+  assert.match(body, /Upload &amp; retry/);
+});
+
 test('the surface tells the operator what a pooled ranking covered', () => {
   // Reporting "ranked within your top N" is the honest counterpart to bounding the pool.
   assert.match(body, /ranked within your top/);
   assert.match(body, /no further scored matches/);
+});
+
+test('job guide outcomes and proposals use text-only rendering plus explicit confirmation', () => {
+  assert.match(body, /j\.failed&&j\.failed\.length/);
+  assert.match(body, /j\.failed\.map\(x=>/);
+  assert.match(body, /o\.textContent=lines\.join/);
+  assert.match(body, /summary\.textContent='Proposed changes/);
+  assert.match(body, /confirm\.onclick=\(\)=>confirmJobActions\(id\)/);
+  assert.match(body, /JSON\.stringify\(\{confirmedActions:actions\}\)/);
+});
+
+test('every application surface renders four exact provenance states without sensitive values', () => {
+  const taskId = 'apply-12345678-1234-1234-1234-ABC123';
+  const confirmationPath = 'C:\\private\\tenant\\confirm-42.png';
+  const expected = [
+    ['manual-mark', 'manual', 'Marked applied manually'],
+    ['worker-reported', 'worker', 'Worker reported submitted'],
+    ['verified-submission', 'confirmation', 'Confirmation file present'],
+    ['unverified', 'unverified', 'Historical applied — unverified'],
+  ];
+  for (const name of surfaceNames) {
+    const runtime = provenanceRuntime(name);
+    for (const [source, tone, label] of expected) {
+      const record = { status: 'applied', application_source: source,
+        application_task_id: taskId, confirmation_path: confirmationPath };
+      assert.equal(runtime.describe(record).tone, tone, `${name}: ${source} tone`);
+      const rendered = runtime.render(record);
+      assert.ok(rendered.includes(label), `${name}: ${source} label`);
+      if (source === 'worker-reported') assert.ok(rendered.includes('Worker task …ABC123'));
+      assert.ok(!rendered.includes(taskId), `${name}: leaked a full task id`);
+      assert.ok(!rendered.includes(confirmationPath), `${name}: leaked a confirmation path`);
+    }
+  }
+});
+
+test('worker reports never inherit confirmation styling or wording, and unknown sources fail closed', () => {
+  for (const name of surfaceNames) {
+    const runtime = provenanceRuntime(name);
+    const worker = runtime.render({ status: 'applied', application_source: 'worker-reported',
+      application_task_id: 'apply-12345678-1234-1234-1234-ABC123' });
+    assert.ok(!worker.includes('proof-confirmation'), `${name}: worker received confirmation styling`);
+    assert.ok(!worker.includes('Confirmation file present'), `${name}: worker was labeled confirmed`);
+    const unknown = runtime.describe({ status: 'applied', application_source: 'future-value' });
+    assert.equal(unknown.tone, 'unverified', `${name}: unknown provenance must fail closed`);
+    const missingFile = runtime.describe({ status: 'applied', application_source: 'verified-submission' });
+    assert.equal(missingFile.tone, 'unverified', `${name}: missing confirmation must fail closed`);
+    assert.equal(runtime.render({ status: 'generated', application_source: 'worker-reported' }), '',
+      `${name}: a non-application inherited stale proof UI`);
+  }
+});
+
+test('each production renderer escapes every provenance summary field', () => {
+  for (const name of surfaceNames) {
+    const runtime = provenanceRuntime(name);
+    const rendered = runtime.render({
+      tone: 'worker" data-owned="yes', label: '<img src=x onerror=alert(1)>',
+      detail: '<script>alert(2)</script>',
+    });
+    assert.ok(!rendered.includes('<img'), `${name}: label became markup`);
+    assert.ok(!rendered.includes('<script'), `${name}: detail became markup`);
+    assert.ok(!rendered.includes(' data-owned="yes'), `${name}: tone escaped its class attribute`);
+    assert.match(rendered, /&lt;img/);
+  }
+});
+
+test('completed lanes use neutral labels and wire the provenance renderer', () => {
+  assert.match(surfaces['career-board.html'], /applied:'Applications recorded'/);
+  assert.match(surfaces['career-board.html'], /value="applied">Application records/);
+  assert.match(surfaces['career-approvals.html'], /applicationProofHtml\(a\.application_proof\|\|a\)/);
+  assert.match(surfaces['career-approvals.html'], /jobs\?status=applied/);
+  assert.match(surfaces['career-mobile.html'], /lane\('applied','Application records'/);
+  assert.match(surfaces['career-mobile.html'], /applicationProofHtml\(j\)/);
+  assert.match(surfaces['career-submissions.html'], /\['applied','Completed'\]/);
+  assert.match(surfaces['career-submissions.html'], /applicationProofHtml\(proof\)/);
+});
+
+test('manual controls say they are manual and login challenges stay with the operator', () => {
+  assert.match(surfaces['career-board.html'], />Mark applied manually<\/button>/);
+  assert.match(surfaces['career-approvals.html'], />Mark applied manually<\/button>/);
+  assert.match(surfaces['career-mobile.html'], />I applied it manually ✓<\/button>/);
+  assert.doesNotMatch(surfaces['career-board.html'], /worker can read|read the one-time verification codes/i);
+  assert.match(surfaces['career-board.html'], /email\/SMS codes, and CAPTCHAs pause the run in <b>Needs you<\/b>/);
+});
+
+test('mobile startup cannot enqueue drafts and apply status comes from the durable owner queue', () => {
+  const mobile = surfaces['career-mobile.html'];
+  const loadDeck = mobile.match(/async function loadDeck\(topUp\)\{([\s\S]*?)\n\}/);
+  assert.ok(loadDeck, 'mobile loadDeck implementation is missing');
+  assert.match(loadDeck[1], /if\(topUp===true\)\{/);
+  assert.match(loadDeck[1], /jpost\(CH\+'\/enqueue-drafts',\{limit:20\}\)/);
+  assert.doesNotMatch(loadDeck[1], /pending\.length\s*</);
+  assert.match(mobile, /loadDeck\(false\); refreshBadges\(\);/);
+  assert.match(mobile, /onclick="loadDeck\(true\)"/);
+  assert.match(mobile, /jget\(AP\+'\/queue'\)/);
+  assert.doesNotMatch(mobile, /jget\(AP\+'\/inflight'\)/);
+  assert.match(mobile, /authorizes this one exact task[^<]+final Submit button/);
+});
+
+test('the board renders the offline autofill setup with an explicit PII warning', () => {
+  assert.match(html, /id="copyAutofill"[^>]*>Copy offline autofill bookmarklet<\/button>/);
+  assert.match(html, /Offline Apply \/ Autofill/);
+  assert.match(body, /fetch\('\/api\/career-hunter\/autofill\/bookmarklet',\{cache:'no-store'\}\)/);
+  assert.match(body, /navigator\.clipboard\.writeText/);
+  assert.match(body, /stores your application profile \(including contact details\) inside its URL/);
+  assert.match(body, /startsWith\('javascript:'\)/);
+  assert.match(html, /supported Ashby, Greenhouse, Lever, Workday, or Distyl application/);
+  assert.match(html, /does not directly upload, click, navigate, call the network, create an account, answer demographic questions, or submit/);
+  assert.match(html, /Employer page scripts can react to those events/);
 });

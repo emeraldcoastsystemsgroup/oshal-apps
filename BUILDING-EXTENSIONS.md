@@ -37,7 +37,7 @@ node scripts/oshal-app.js init my-app
 # 3. validate  (also a CI gate — exits non-zero on error)
 node scripts/oshal-app.js validate my-app
 
-# 4. publish   (copy the folder into THIS repo, add it to marketplace.json, push)
+# 4. publish   (copy the folder into THIS repo, add it to marketplace.json + audits/, push)
 
 # 5. install into a swarm
 node scripts/oshal-app.js install my-app
@@ -206,7 +206,19 @@ while little-monsters remains.
 1. `oshal-app validate my-app` → clean.
 2. Copy `my-app/` into this repo (a top-level folder = one installable package).
 3. Add an entry to [`marketplace.json`](marketplace.json) (name, description, `source`, deps).
-4. Commit + push.
+4. Add a truthful [`audits/<app>.json`](audits/README.md) profile-v1 record and bind it from the
+   catalog. A new package begins `pending`; never manufacture a pass or use an uncommitted SHA.
+5. Run `node scripts/security/validate-package-audits.mjs` and
+   `node --test scripts/security/package-audit.test.mjs`.
+6. Commit + push.
+
+### Package-audit rollout
+
+`OSHAL_PACKAGE_AUDIT_MODE=compatible` is the default while the 47-package evidence program runs.
+It preserves legacy installs but never returns an unsafe SHA as trusted. In `enforce` mode, the
+installer must reject missing, pending, failed, malformed, version-mismatched, and SHA-mismatched
+records, then install the exact `sourceSha` returned by the validator instead of mutable `source.ref`.
+See [`audits/README.md`](audits/README.md) for the controls, evidence format, and maintainer flow.
 
 ## 9. For an LLM asked to "build an OSHAL extension"
 

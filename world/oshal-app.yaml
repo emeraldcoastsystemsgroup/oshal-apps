@@ -20,7 +20,7 @@
 #     DETERMINISTIC world-refresh / ticker-pulse dispatch (the schedules below
 #     only fire through it when this app is installed + the scheduler is on);
 #   - scripts/oshal-world.js (the world_* CLI the tools below invoke — it calls
-#     the local /api/world, injecting WORLD_INGEST_TOKEN for ingest);
+#     the local /api/world, injecting WORLD_INGEST_TOKEN as a bearer header for ingest);
 #   - the world-analyst registry entry (swarm-bot-registry-local.ts) + the
 #     ai-lab personas — the personas/ here are package COPIES for the registrar;
 #   - the WORLD_INGEST_TOKEN compose env and the tool-world-dashboard default
@@ -41,7 +41,7 @@ description: >-
   sentiment graph (political + economic + outlet-kind axes), entity co-mention graph,
   and historical series. Ask the analyst "what's the press saying about X" and get a
   structured, bias-contextualized read, not a misleading average.
-version: 1.0.2
+version: 1.0.3
 status: active
 
 source:
@@ -49,6 +49,19 @@ source:
   url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: world
   ref: main
+
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/world/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
 
 # No connector allow-list: the world layer is machine-fed from public feed
 # registries + the shared swarm creds — no per-user OAuth connector involved.
@@ -314,6 +327,13 @@ ui:
 # ENABLE_WORLD_INTELLIGENCE is configured.
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/world/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/world-routes.js
     factory: createWorldRoutes
     mountPath: /api/world

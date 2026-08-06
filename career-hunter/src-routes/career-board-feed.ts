@@ -1,4 +1,14 @@
 /**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Extract and replan the board feed around a bounded signal-driven candidate CTE with filter push-down and unscored tail-fill.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Use the narrow SQLite prepare/all/get contract required by the planner so canonical compilation avoids optional library types.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Document the exported query, ranking, filter, and page contracts consumed by route modules and tests.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Carry explicit application provenance and task correlation through every bounded board-feed plan.
+ */
+/**
  * Career Hunter — board feed query planner
  *
  * The board's list query used to be a single "join everything, then sort" statement: it walked
@@ -23,31 +33,32 @@
  * Measured on the live store, same box, same data — first page, default feed: **50,004ms -> 16ms**.
  * Worst observed path (narrow filter forcing a full escalation) is ~2.6s, inside the 3s budget.
  *
- * CHANGE LOG
- * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                                      | DESCRIPTION
- * -----------------------------------------------------------------------------
- * 2026-08-01 00:00:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Extracted the board feed out of career-hunter-routes and replanned it: signal-driven candidate CTE with signal-side filter push-down, adaptive pool escalation, unscored tail-fill, and the sargable `p.target_role = 1` rewrite (the old `COALESCE(p.target_role,0) = 1` could not use idx_corpus_lane). Fixes the operator-reported 50s board load.
- *
  * @module career-board-feed
  */
-import type { Database as SqliteDb } from 'better-sqlite3';
+interface SqliteStatement {
+  all(...params: unknown[]): unknown[];
+  get(...params: unknown[]): unknown;
+}
 
-/** Express `req.query` shape, narrowed to what the board sends. */
+interface SqliteDb {
+  prepare(sql: string): SqliteStatement;
+}
+
+/** @description Express query shape narrowed to the filter values accepted by the board. */
 export type BoardQuery = Record<string, unknown>;
 
-/** P(land): fit decayed by posting age (28-day half-life), lifted by a referral path. */
+/** @description SQL expression for fit decayed by posting age and lifted by a referral path. */
 export const LAND_PROB = "CAST(MIN(100.0, COALESCE(s.ai_fit_score,s.fit_score,0) "
   + "* MAX(0.25, POW(0.5,(JULIANDAY('now')-JULIANDAY(COALESCE(p.posted_date,p.first_seen_at)))/28.0)) "
   + "* (1.0+0.35*COALESCE(c.referral,0))) AS INT)";
 
-/** High-Win: fit plus clearance / platform-role / mission-industry bonuses. */
+/** @description SQL expression combining fit with clearance, platform-role, and mission bonuses. */
 export const HIGH_WIN = "CAST(MIN(100, COALESCE(s.ai_fit_score,s.fit_score,0) "
   + "+ CASE WHEN LOWER(p.title) LIKE '%clear%' OR LOWER(p.title) LIKE '%secret%' OR LOWER(p.title) LIKE '%ts/sci%' OR LOWER(p.title) LIKE '%polygraph%' THEN 12 ELSE 0 END "
   + "+ CASE WHEN LOWER(p.title) LIKE '%ai%' OR LOWER(p.title) LIKE '%devops%' OR LOWER(p.title) LIKE '%sre%' OR LOWER(p.title) LIKE '%site reliab%' OR LOWER(p.title) LIKE '%platform%' OR LOWER(p.title) LIKE '%automation%' OR LOWER(p.title) LIKE '%machine learning%' THEN 8 ELSE 0 END "
   + "+ CASE WHEN LOWER(COALESCE(c.industry,'')) LIKE '%gov%' OR LOWER(COALESCE(c.industry,'')) LIKE '%defense%' OR LOWER(COALESCE(c.industry,'')) LIKE '%national security%' OR LOWER(COALESCE(c.industry,'')) LIKE '%aerospace%' OR LOWER(COALESCE(c.industry,'')) LIKE '%autonomy%' OR LOWER(COALESCE(c.industry,'')) LIKE '%intelligence%' THEN 12 ELSE 0 END) AS INT)";
 
-/** Final ORDER BY per `sort=` value. Applied to the joined candidate set. */
+/** @description Final ORDER BY expressions keyed by supported board sort values. */
 export const SORT_MAP: Record<string, string> = {
   ai: 'COALESCE(s.ai_fit_score,-1) DESC, COALESCE(s.fit_score,0) DESC',
   prob: `${LAND_PROB} DESC, COALESCE(s.ai_fit_score,0) DESC`,
@@ -87,18 +98,20 @@ const POOL_STEPS = [4000, 25000];
 
 /** Signal columns the CTE must carry so the outer SELECT and the scoring expressions still work. */
 const CAND_COLS = 'posting_id, fit_score, ai_fit_score, ai_fit_rationale, status, applied_at, '
-  + 'promoted_at, generated_at, notes, resume_path, cover_path';
+  + 'promoted_at, generated_at, notes, resume_path, cover_path, confirmation_path, '
+  + 'application_source, application_task_id';
 
 /** The board card's column list. Deliberately excludes `p.description` (1.1GB of the corpus). */
 const SELECT_COLS = `p.id, p.title, c.name AS company, p.location, p.url, p.posted_date, p.first_seen_at,
         p.job_type, p.remote, p.state, p.salary_min, p.salary_max, p.salary_currency, p.salary_period, p.salary_source, p.target_role,
         COALESCE(c.referral,0) AS referral, c.industry,
         s.fit_score, s.ai_fit_score, s.ai_fit_rationale, s.status, s.applied_at, s.promoted_at, s.generated_at, s.notes,
+        s.confirmation_path, s.application_source, s.application_task_id,
         ${LAND_PROB} AS land_prob, ${HIGH_WIN} AS high_win,
         CASE WHEN s.resume_path IS NOT NULL AND s.resume_path<>'' THEN 1 ELSE 0 END AS has_resume,
         CASE WHEN s.cover_path  IS NOT NULL AND s.cover_path<>''  THEN 1 ELSE 0 END AS has_cover`;
 
-/** Board filters split by which table they constrain. */
+/** @description Board filters split by signal and corpus ownership for query push-down. */
 export interface BoardFilterParts {
   /** Predicates on `user_signals`, sargable, pushed into the candidate CTE. */
   scoredWhere: string;
@@ -200,7 +213,7 @@ export function buildJobFilters(query: BoardQuery): { whereSql: string; args: un
   };
 }
 
-/** A single page of the board feed, plus how it was planned. */
+/** @description One board page plus facts explaining whether its ranking used a bounded pool. */
 export interface BoardPage {
   jobs: Record<string, unknown>[];
   page: number;

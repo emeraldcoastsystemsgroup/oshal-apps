@@ -1,4 +1,15 @@
 /**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Await the durable remote-task journal enqueue so dispatch returns the accepted task identity and catches asynchronous rejection.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Keep remote enqueue exception text out of API responses and structured logs.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Bind every box callback command to the initiating owner through the canonical base64url service-identity argument.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Remove the fleet secret from durable shell-task command payloads and quote all data-derived PowerShell arguments as literals.
+ */
+
+/**
  * LoRA Studio — ticket-gated box dispatch. Training and validation run on the GPU edge box; per the
  * ADR-070 privilege rule, the box is reached ONLY through the queue/worker path on an authorized
  * action — never a direct endpoint call. This module builds the box-side command and enqueues it as
@@ -50,7 +61,8 @@ const LORA_DIRECTOR_AGENT_ID = 'a0000000-0000-0000-0000-000000000049';
  *     run used a folder, not the old ~/overnight/curated.zip default which was not present on the box).
  *     Default below is a folder; override per-box via LORA_BOX_DATASET.
  *  6. CALLBACK. The box reports results back to the controller at LORA_CONTROLLER_URL
- *     (http://localhost:35457) with the shared SWARM_SERVICE_SECRET → POST /api/lora/ingest.
+ *     (http://localhost:35457). The edge worker supplies SWARM_SERVICE_SECRET from its own
+ *     process environment; that fleet credential must never enter the durable shell-task command.
  * ─────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
@@ -101,27 +113,60 @@ function pyScript(script: string, args: string): string {
   return `& "${BOX_VENV_PY}" "${BOX_REPO}/scripts/comfyui-edge/${script}" ${args}`.trim();
 }
 
+/** Quote an untrusted argument as one literal PowerShell token (single quotes escape by doubling). */
+function psLiteral(value: string): string {
+  if (value.includes('\0') || Buffer.byteLength(value, 'utf8') > 2048) {
+    throw new Error('LoRA command argument is invalid or too large');
+  }
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+/** Accept only an HTTP(S) callback origin without credentials, query data, or fragments. */
+function controllerCallbackUrl(): string {
+  let parsed: URL;
+  try { parsed = new URL(CONTROLLER_URL); } catch { throw new Error('LORA_CONTROLLER_URL is invalid'); }
+  if (!['http:', 'https:'].includes(parsed.protocol)
+      || parsed.username || parsed.password || parsed.search || parsed.hash) {
+    throw new Error('LORA_CONTROLLER_URL must be an HTTP(S) URL without credentials, query, or fragment');
+  }
+  return parsed.toString().replace(/\/$/, '');
+}
+
 /**
- * Single-line python invocation on the box (PowerShell), with the controller callback + secret.
+ * Single-line python invocation on the box (PowerShell), with the controller callback + owner.
  * Always sets PYTHONUTF8=1 first (cp1252 stdout otherwise crashes train/validate) and invokes the
- * kohya venv python (bare `python` on the box is a non-functional Store stub). See BOX FACTS above.
+ * kohya venv python (bare `python` on the box is a non-functional Store stub). The edge process,
+ * not this persisted command, owns SWARM_SERVICE_SECRET. See BOX FACTS above.
  */
-function pyCommand(script: string, args: string): string {
-  const secret = (process.env.SWARM_SERVICE_SECRET || '').trim();
-  const tail = `--controller ${CONTROLLER_URL} --secret ${secret}`;
+function pyCommand(script: string, args: string, ownerSub: string): string {
+  const ownerSubB64 = Buffer.from(ownerSub, 'utf8').toString('base64url');
+  const tail = `--controller ${psLiteral(controllerCallbackUrl())} --owner-sub-b64 ${psLiteral(ownerSubB64)}`;
   return `$env:PYTHONUTF8="1"; ${pyScript(script, `${args} ${tail}`)}`.trim();
 }
 
 /** The kohya training command for one version (improve passes the parent it builds on). */
-export function buildTrainCommand(subject: string, version: number, parentVersion?: number | null): string {
+export function buildTrainCommand(
+  subject: string,
+  version: number,
+  parentVersion: number | null | undefined,
+  ownerSub: string,
+): string {
   const parent = parentVersion != null ? ` --parent-version ${parentVersion}` : '';
-  return pyCommand('train-lora.py', `--character ${subject} --version ${version} --dataset "${BOX_DATASET}"${parent}`);
+  return pyCommand(
+    'train-lora.py',
+    `--character ${psLiteral(subject)} --version ${version} --dataset "${BOX_DATASET}"${parent}`,
+    ownerSub,
+  );
 }
 
 /** The ComfyUI validation command for one trained version. */
-export function buildValidateCommand(subject: string, version: number): string {
+export function buildValidateCommand(subject: string, version: number, ownerSub: string): string {
   const loraName = `${subject}_v${version}.safetensors`;
-  return pyCommand('validate-lora.py', `--character ${subject} --version ${version} --lora-name ${loraName}`);
+  return pyCommand(
+    'validate-lora.py',
+    `--character ${psLiteral(subject)} --version ${version} --lora-name ${psLiteral(loraName)}`,
+    ownerSub,
+  );
 }
 
 /**
@@ -129,18 +174,33 @@ export function buildValidateCommand(subject: string, version: number): string {
  * version on the augmented set (PowerShell `;` sequences the two steps on the box).
  * @param weakValues - the scorecard's weak_cells[].value list to over-sample
  */
-export function buildImproveCommand(subject: string, version: number, parentVersion: number, weakValues: string[]): string {
-  const weak = weakValues.map((v) => v.replace(/"/g, '')).join('||');
+export function buildImproveCommand(
+  subject: string,
+  version: number,
+  parentVersion: number,
+  weakValues: string[],
+  ownerSub: string,
+): string {
+  const weak = weakValues.join('||');
   // PYTHONUTF8 is set once at the front; the venv interpreter runs the batch step, then training.
-  const batch = `$env:PYTHONUTF8="1"; ${pyScript('make-targeted-batch.py', `--character ${subject} --weak "${weak}" --count 60`)}`;
+  const batch = `$env:PYTHONUTF8="1"; ${pyScript('make-targeted-batch.py', `--character ${psLiteral(subject)} --weak ${psLiteral(weak)} --count 60`)}`;
   // buildTrainCommand already re-asserts $env:PYTHONUTF8 + the venv python, so the two steps are independent.
-  return `${batch}; ${buildTrainCommand(subject, version, parentVersion)}`;
+  return `${batch}; ${buildTrainCommand(subject, version, parentVersion, ownerSub)}`;
 }
 
 /** The autonomous overnight loop (improve→validate until plateau / max hours, then park a review ticket). */
-export function buildOvernightCommand(subject: string, startVersion: number, maxHours: number, plateau: number): string {
-  return pyCommand('overnight-loop.py',
-    `--character ${subject} --start-version ${startVersion} --max-hours ${maxHours} --plateau ${plateau} --dataset "${BOX_DATASET}"`);
+export function buildOvernightCommand(
+  subject: string,
+  startVersion: number,
+  maxHours: number,
+  plateau: number,
+  ownerSub: string,
+): string {
+  return pyCommand(
+    'overnight-loop.py',
+    `--character ${psLiteral(subject)} --start-version ${startVersion} --max-hours ${maxHours} --plateau ${plateau} --dataset "${BOX_DATASET}"`,
+    ownerSub,
+  );
 }
 
 /**
@@ -149,8 +209,9 @@ export function buildOvernightCommand(subject: string, startVersion: number, max
  * `{ ok: false, error }` so the route can surface a clean "box not connected" message.
  * @param command - the box-side shell command (built by buildTrainCommand/buildValidateCommand)
  * @param correlationId - ties the task to its ticket (the ticket id)
+ * @returns The accepted remote-task identity or a sanitized dispatch failure.
  */
-export function dispatchBoxCommand(command: string, correlationId: string): DispatchResult {
+export async function dispatchBoxCommand(command: string, correlationId: string): Promise<DispatchResult> {
   const client = pickEdgeClient();
   if (!client) {
     return { ok: false, error: 'No online GPU edge worker — the oshal-chat node on the box is not connected.' };
@@ -166,12 +227,12 @@ export function dispatchBoxCommand(command: string, correlationId: string): Disp
     createdAt: new Date().toISOString(),
   };
   try {
-    const task = remoteClientRegistry.enqueueTask(client.clientId, envelope);
+    const task = await remoteClientRegistry.enqueueTask(client.clientId, envelope);
     logger.info({ clientId: client.clientId, taskId: task.taskId }, 'lora box command dispatched');
     return { ok: true, clientId: client.clientId, taskId: task.taskId };
   } catch (err) {
-    const error = err instanceof Error ? err.message : 'enqueue failed';
-    logger.error({ err, clientId: client.clientId }, 'lora box dispatch failed');
-    return { ok: false, error };
+    const errorType = err instanceof Error ? err.name : 'UnknownError';
+    logger.error({ errorType, clientId: client.clientId }, 'lora box dispatch failed');
+    return { ok: false, error: 'The GPU edge worker could not accept the task.' };
   }
 }

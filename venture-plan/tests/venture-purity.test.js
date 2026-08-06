@@ -24,6 +24,8 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial guards — byte-identical determinism across repeat builds, no input mutation, isolated child-process load of every compiled module with an empty resolution path, no clock dependence, and the built/source module-set parity check.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Include exact FX arithmetic in the isolated engine and source/compiled parity guards.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Include deterministic rebaseline policy and integer-micro cost gating in the isolated pure-module guards.
  */
 'use strict';
 
@@ -37,7 +39,7 @@ const { PKG, engine, ventureInput } = require('./fixture-venture');
 const M = engine('venture-model');
 
 const ENGINE_MODULES = [
-  'venture-primitives', 'venture-issues', 'venture-assumptions', 'venture-bom',
+  'venture-primitives', 'venture-currency', 'venture-rebaseline', 'venture-issues', 'venture-assumptions', 'venture-bom',
   'venture-landed', 'venture-fba-tables', 'venture-channels', 'venture-demand',
   'venture-schedule', 'venture-headcount', 'venture-financials', 'venture-sensitivity',
   'venture-figures', 'venture-model',

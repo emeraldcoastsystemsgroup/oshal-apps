@@ -1,3 +1,15 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1   | maintainer@emeraldcoastsystemsgroup.com     | Add issuer-bound identity migration 032 and collision-resistant RAG collection ownership patterns
+# 2   | maintainer@emeraldcoastsystemsgroup.com     | Add private-study ownership, revocable material RAG, tenant enrollment, and authoritative progress migrations
+# 3   | maintainer@emeraldcoastsystemsgroup.com     | Describe caller-owned and teacher-approved per-material grounding so catalog and operator expectations match runtime authorization
+# 4   | maintainer@emeraldcoastsystemsgroup.com     | Correct inline UI capability and theme rationale after the app-dependency removal; the assistant is declarative and theme fallback remains host-owned
+# 5   | maintainer@emeraldcoastsystemsgroup.com     | Route the Presentations tab to the package-owned lecture picker instead of the unmounted AI Office surface
+# 6   | maintainer@emeraldcoastsystemsgroup.com     | Align the package description with authoritative quiz grading and the live caller/teacher/admin material-approval boundary
+# 7   | maintainer@emeraldcoastsystemsgroup.com     | Add migration 037 for atomic append-only roster authorization audit facts
+# -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL App Package — Little Monsters
 # Format: ADR-085 (remote app packages). This file is self-contained: every path
@@ -14,16 +26,22 @@ suite: ai-home   # ADR-097: primary catalog shelf (tools keep their own category
 displayName: Little Monsters
 description: >-
   Voice-first ADHD study companion for K-12 students. Record lectures,
-  auto-generate flashcards and quizzes, and chat with a Socratic tutor
-  grounded in each class's textbook via RAG.
-version: 1.0.7
+  generate flashcards and authoritative quizzes, and chat with a Socratic tutor
+  grounded only in caller-owned or teacher/admin-approved class material through
+  per-material RAG collections.
+version: 1.0.9
 status: active
 # ADR-085 §5: RAG collections this app OWNS. Reported by uninstall-impact; deleted
 # at uninstall ONLY under the operator's explicit ?dropData=true (toggle-off never
-# touches them). Covers per-class textbook/lecture and the newer shared/private sets.
+# touches them). `lm-cls-*` remains cleanup-only for collision-prone historical
+# collections; each newly grounded upload uses one exact lm-material collection so a single
+# moderation or deletion action never leaves text mixed into a shared bucket.
 ragCollections:
   - "lm-class-*"
   - "lm-cls-*"
+  - "lm-prv-*"
+  - "lm-shr-*"
+  - "lm-material-*"
   - "lm-global-*"
 # Deployment-wide visibility, matching the pre-carve-out behavior (the in-repo
 # manifest had no scope → defaulted public). 'person' made the installed row
@@ -38,6 +56,19 @@ source:
   url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: little-monsters
   ref: main
+
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/little-monsters/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
 
 # ── ADR-090 D8: kernel SKILLS this app calls ────────────────────────────────
 # Derived from what this package's code ACTUALLY imports, not from its description:
@@ -183,8 +214,9 @@ ui:
     - { toolName: lm-files,         label: My Files,          icon: codicon codicon-folder,              iframeUrl: /api/education/files,            section: top }
     - { toolName: lm-arcade,        label: Games,             icon: codicon codicon-game,                iframeUrl: /api/education/arcade,           section: top }
     - { toolName: lm-monsters,      label: My Monsters,       icon: codicon codicon-heart,               iframeUrl: /api/education/my-monsters,      section: top }
-    # Provided by the presentations dependency (see `dependencies.apps`).
-    - { toolName: lm-presentations, label: Presentations,     icon: codicon codicon-graph,               iframeUrl: /api/presentations/sections/ui, section: top }
+    # This package-owned lecture picker calls the framework-resident deck-generation skill
+    # declared in `uses`; it does not require the separately packaged AI Office surface.
+    - { toolName: lm-presentations, label: Presentations,     icon: codicon codicon-graph,               iframeUrl: /api/education/presentation, section: top }
     - { toolName: lm-teacher,       label: Teacher,           icon: codicon codicon-mortar-board,        iframeUrl: /api/education/teacher,          section: bottom }
     - { toolName: lm-voice-settings, label: Voice Settings,   icon: codicon codicon-unmute,              iframeUrl: /api/education/voice-settings,   section: bottom }
   dynamic:
@@ -207,6 +239,13 @@ ui:
 # The .js files are produced by the extraction build — see BUILD.md.
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/little-monsters/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - { module: routes/education-routes.js,          factory: createEducationRoutes,         mountPath: /api/education, requiresAuth: true,  requiresContext: true }
   - { module: routes/education-calendar-routes.js,  factory: createEducationCalendarRoutes, mountPath: /api/education, requiresAuth: true,  requiresContext: true }
   - { module: routes/education-voice-routes.js,     factory: createEducationVoiceRoutes,    mountPath: /api/education, requiresAuth: true,  requiresContext: false }
@@ -228,6 +267,13 @@ migrations:
   - migrations/028-class-materials.sql
   - migrations/029-material-sharing.sql
   - migrations/030-multi-tenant.sql
+  - migrations/031-tenant-domain-uniqueness.sql
+  - migrations/032-oidc-principal-binding.sql
+  - migrations/033-flashcard-set-ownership.sql
+  - migrations/034-material-rag-lifecycle.sql
+  - migrations/035-enrollment-tenant-invariant.sql
+  - migrations/036-authoritative-progress.sql
+  - migrations/037-authorization-audit.sql
 
 # Voice channels (provider ids from the swarm voice-providers registry; swarm-default defers).
 voice:
@@ -242,7 +288,8 @@ workflow:
   workerBot: lecture-scribe
   phases: [intake, processing, delivery]
 
-# Theme = an existing COCKPIT_THEMES skin id (chosen, not shipped). sharedCss is bundled.
+# Theme is a requested host skin id; an unregistered id falls back to the operator's theme.
+# The education surface styling that must travel with the package is bundled via sharedCss.
 theme: little-monsters
 sharedCss: ui/education.css
 

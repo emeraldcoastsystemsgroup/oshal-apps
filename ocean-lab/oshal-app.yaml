@@ -44,6 +44,19 @@ source:
   path: ocean-lab
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/ocean-lab/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # No connectors, no dependencies: the engine is bundled and local.
 dependencies:
   apps: []
@@ -213,6 +226,13 @@ ui:
 # timesteps, which is a denial of service against the controller's only thread,
 # not merely a slow response.
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/ocean-lab/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/ocean-lab-routes.js
     factory: createOceanLabRoutes
     mountPath: /api/ocean-lab

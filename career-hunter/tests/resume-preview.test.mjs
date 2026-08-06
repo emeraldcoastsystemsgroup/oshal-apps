@@ -1,14 +1,15 @@
 /**
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                                      | DESCRIPTION
+ * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-08-01 00:00:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Regression guards for the operator-reported invisible résumé preview. The defect was reported more than once and survived, because it is invisible to every desktop check: a PDF in an iframe renders fine in Chrome/Firefox/macOS Safari and renders NOTHING on any phone, while the frame keeps its box. These guards therefore assert the two things a desktop cannot: that no surface points a preview frame at the PDF endpoint, and that the HTML mode never silently degrades back to a PDF.
+ * 1 | maintainer@emeraldcoastsystemsgroup.com   | Guard HTML packet previews and prevent surfaces from silently falling back to embedded PDFs.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Cover sibling-prefix, linked-path, and nonregular-file rejection for both PDF and HTML serving.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { readFileSync, mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, mkdtempSync, writeFileSync, mkdirSync, symlinkSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -25,6 +26,7 @@ const inlineJs = (html) =>
 
 const board = readSurface('career-board.html');
 const mobile = readSurface('career-mobile.html');
+const boardRoutes = readFileSync(join(here, '..', 'src-routes', 'career-board-routes.ts'), 'utf8');
 
 /** A throwaway store laid out like a real one: <userDir>/applications/<Company__id>/<packet>. */
 function fixtureStore({ withHtml = true } = {}) {
@@ -76,6 +78,48 @@ test('the preview cannot be walked out of the user directory', () => {
     'another user\'s packet resolved through the preview path');
   // And a relative walk out of the caller's own directory.
   assert.equal(preview.resolvePreviewPath(join(userDir, '..', '..', 'etc', 'shadow.pdf'), userDir), null);
+});
+
+test('sibling-prefix paths are outside the authorization boundary for PDF and HTML', () => {
+  const parent = mkdtempSync(join(tmpdir(), 'career-prefix-'));
+  const userDir = join(parent, 'user');
+  const siblingDir = join(parent, 'user-backup');
+  mkdirSync(userDir);
+  mkdirSync(siblingDir);
+  const pdf = join(siblingDir, 'Resume_ATS.pdf');
+  writeFileSync(pdf, '%PDF-1.4 sibling');
+  writeFileSync(join(siblingDir, 'Resume_ATS.html'), '<!doctype html><body>sibling</body>');
+  assert.equal(preview.resolveContainedRegularFile(pdf, userDir), null);
+  assert.equal(preview.resolvePreviewPath(pdf, userDir), null);
+});
+
+test('linked paths cannot redirect PDF or HTML reads outside the caller store', () => {
+  const userDir = mkdtempSync(join(tmpdir(), 'career-link-owner-'));
+  const foreignDir = mkdtempSync(join(tmpdir(), 'career-link-target-'));
+  const applications = join(userDir, 'applications');
+  mkdirSync(applications);
+  writeFileSync(join(foreignDir, 'Resume_ATS.pdf'), '%PDF-1.4 foreign');
+  writeFileSync(join(foreignDir, 'Resume_ATS.html'), '<!doctype html><body>foreign</body>');
+  const linkedDir = join(applications, 'linked');
+  symlinkSync(foreignDir, linkedDir, process.platform === 'win32' ? 'junction' : 'dir');
+  const linkedPdf = join(linkedDir, 'Resume_ATS.pdf');
+  assert.equal(preview.resolveContainedRegularFile(linkedPdf, userDir), null);
+  assert.equal(preview.resolvePreviewPath(linkedPdf, userDir), null);
+});
+
+test('directories and other nonregular packet paths are never served', () => {
+  const userDir = mkdtempSync(join(tmpdir(), 'career-nonregular-'));
+  const appDir = join(userDir, 'applications', 'Acme__1');
+  mkdirSync(join(appDir, 'Packet.pdf'), { recursive: true });
+  mkdirSync(join(appDir, 'Packet.html'));
+  assert.equal(preview.resolveContainedRegularFile(join(appDir, 'Packet.pdf'), userDir), null);
+  assert.equal(preview.resolvePreviewPath(join(appDir, 'Packet.pdf'), userDir), null);
+});
+
+test('the board sends PDF paths through the shared containment resolver', () => {
+  assert.match(boardRoutes, /resolvePacketPath\(filePath, userDir\)/);
+  assert.match(boardRoutes, /resolveContainedRegularFile\(filePath, userDir\)/);
+  assert.doesNotMatch(boardRoutes, /\.startsWith\(safeRoot\)/);
 });
 
 test('the served preview is the artifact plus screen-only CSS, unmodified', () => {

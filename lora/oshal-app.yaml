@@ -14,9 +14,9 @@
 # keeps the heavy artifacts (.safetensors / datasets / samples).
 #
 # AUTH SHAPE (first package to exercise the D2 split-mountPath pattern): the
-# box→controller callback mounts at /api/lora/ingest with auth: public and
-# self-guards on x-service-secret (exactly core's posture — the mount was public,
-# the router checked the secret); the studio mounts at /api/lora with auth: oidc.
+# box→controller callback mounts at /api/lora/ingest with auth: public. GET is a
+# health-only probe; POST self-guards on BOTH x-service-secret and the canonical
+# x-oshal-user-sub-b64 owner assertion. The studio mounts at /api/lora with auth: oidc.
 # The loader forbids mixing modes on ONE mountPath — splitting is the sanctioned
 # carve shape (see swarm-app-loader.ts's own /api/lora comment).
 #
@@ -34,7 +34,7 @@ description: >-
   matrix, and improve it by regenerating data aimed at its weak spots and retraining — with every
   version scored objectively so "better" is a number. Generation/validation run free on your GPU box;
   paid escalation never happens without an approval gate.
-version: 1.0.1
+version: 1.0.2
 status: active
 
 # Per-app skin — indigo so the model-lab reads distinct from the sakura Video Studio.
@@ -45,6 +45,19 @@ source:
   url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: lora
   ref: main
+
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/lora/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
 
 # Kernel skills only (logger, database bootstrap, authz, remote-client registry via
 # @/app alias) — no app, tool, or connector dependencies.
@@ -78,10 +91,17 @@ bots:
 # Compiled-JS routes (built from src-routes/ by `oshal-app build`). Split mounts —
 # see the AUTH SHAPE note in the header.
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/lora/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/bot-lora-routes.js
     factory: createLoraIngestRoutes
     mountPath: /api/lora/ingest
-    auth: public          # box→controller callback; router self-guards on x-service-secret
+    auth: public          # GET health-only; POST requires service secret + exact encoded owner
     requiresContext: true
   - module: routes/bot-lora-routes.js
     factory: createBotLoraRoutes
@@ -110,9 +130,11 @@ ribbon:
 
 # DATABASE MIGRATIONS — applied idempotently on install/activation
 # (app_package_migrations tracks them). The route ALSO carries the identical lazy
-# ensureLoraSchema as belt-and-braces, matching core behavior.
+# ensureLoraSchema as belt-and-braces, matching core behavior. Migration 100 upgrades
+# installations that already recorded 058; both enforce mandatory ownership + FORCE RLS.
 migrations:
   - migrations/058-lora-studio.sql
+  - migrations/100-lora-owner-rls.sql
 
 # WORKFLOW — training tickets of type 'lora-train' route to the director, which authorizes the
 # box-side kohya run via the worker node's gated shell.exec (lora-train-dispatch, vendored).

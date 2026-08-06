@@ -17,8 +17,9 @@ the app's only home. **First package to exercise the D2 split-mountPath auth sha
 | `routes/` | **Compiled JS** the loader mounts (`oshal-app build` output). |
 | `personas/lora-director.yaml` | The director bot's persona. |
 | `tools/lora.html` | The studio surface, served by `GET /api/lora/ui` from this package dir. |
-| `migrations/058-lora-studio.sql` | The app's schema (3 tables + seed), idempotent; applied via `app_package_migrations`. The route also carries the identical lazy `ensureLoraSchema` (belt-and-braces, matches core). |
-| `tests/lora-scorecard.spec.ts` | Scorecard math unit spec (run against a checkout with the package present). |
+| `migrations/058-lora-studio.sql` | Fresh-install schema with mandatory per-subject ownership and forced row-level security. |
+| `migrations/100-lora-owner-rls.sql` | Idempotent upgrade for installations that already recorded migration 058; legacy rows become operator-only rather than being guessed onto a user. |
+| `tests/` | Scorecard/dispatch tests plus owner-scoping, callback-attribution, and command-boundary guards. |
 
 ## Auth shape (the split-mountPath pattern)
 
@@ -26,10 +27,20 @@ Core mounted one path two ways (public ingest before the OIDC wall + OIDC studio
 forbids mixing auth modes on one mountPath, and its own comment names the sanctioned carve
 shape — split the mounts:
 
-- `POST/GET /api/lora/ingest` — `auth: public`, router self-guards on `x-service-secret`
-  (the GPU box's callback; **the external URL is byte-identical to core**, internal router
-  paths moved to `/`). Expect the loader's loud ANONYMOUS-CALLABLE warn at load — intended.
+- `GET /api/lora/ingest` — a health-only public probe; it neither reads nor mutates
+  model data.
+- `POST /api/lora/ingest` — the GPU-box callback. It requires both
+  `X-Service-Secret` and the canonical base64url `X-Oshal-User-Sub-B64` for the
+  exact initiating owner. The external URL is byte-identical to core and the
+  internal router path remains `/`. A fleet secret by itself cannot choose a
+  character or write another user's result.
 - `/api/lora/...` — `auth: oidc` (the studio + surface).
+
+Characters, models, and scorecards are owner-scoped in route predicates and by
+forced PostgreSQL RLS. Each authenticated owner gets an isolated starter
+character, so identical character subjects can safely exist for different users.
+The studio treats callback/database fields as untrusted text, binds actions without
+inline JavaScript arguments, and accepts only parsed credential-free HTTP(S) gallery URLs.
 
 ## The GPU box
 
@@ -43,6 +54,12 @@ framework `.env.example`): `LORA_CONTROLLER_URL`, `LORA_EDGE_CLIENT_ID`, `LORA_E
 (+ code-read `LORA_BOX_REPO`, `LORA_BOX_VENV_PY`, `LORA_BOX_DATASET`). Note
 `LORA_CONTROLLER_URL` is also read as a *fallback* by the apply/profile-studio dispatches —
 the name is not lora-exclusive.
+
+Training, validation, and overnight commands carry the owner as a bounded
+base64url argument. Every callback reconstructs that exact subject into
+`X-Oshal-User-Sub-B64`; credentials and owner identity are never placed in a URL.
+The edge worker reads `SWARM_SERVICE_SECRET` from its local process environment;
+the fleet credential is never embedded in the durable remote-task command.
 
 ## Install
 

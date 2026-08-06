@@ -1,4 +1,15 @@
 /**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Add caller-scoped digest settings, new-hit selection, connected-channel delivery, cron integration, and preview/send routes.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Honor notification-center channel preferences without weakening opt-out or once-per-day guards.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Use the dependency-leaf user-store API so digest callers avoid the main registrar cycle.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Complete exported digest data and registrar documentation for package consumers.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Send Twilio digests through the caller-scoped in-process operation instead of a full-environment child process.
+ */
+/**
  * Career daily digest — the batch notifier that tells each career-hunter user about
  * their NEW high-fit matches, at most once a day, over THEIR OWN connected channel.
  *
@@ -12,23 +23,15 @@
  * reflects the freshest ai_scored_at. The persistent once/day guard is Postgres
  * (career_digest_settings.last_digest_at, >20h), so boot catch-ups can never double-send.
  *
- * CHANGE LOG
- * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                                      | DESCRIPTION
- * -----------------------------------------------------------------------------
- * 2026-07-15 07:25:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial daily digest: settings (077-career-digest.sql), new-hits query (ai_scored_at cursor, NOT posted_date — most ATS feeds omit it), smart channel pick (own Gmail via getValidAccessToken+sendGmail, else own Twilio via scripts/oshal-twilio.js sms), cron hook, and per-user settings/preview/send-now routes for the Career Settings surface.
- * 2026-07-15 16:29:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Notification preference center wiring: a saved 'career-digest' pref (user_notification_prefs, 079) now overrides WHICH channel carries the digest (email/sms/none); the digest's own opt-out (digest_enabled) and once/day ai_scored_at cursor are untouched, and no pref row = exactly the previous auto behavior.
- *
  * @module career-digest
  */
 import { type Router, type Request, type Response } from 'express';
-import * as path from 'path';
-import { spawn } from 'child_process';
 import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
 import { getValidAccessToken } from '@/app/routes/connectors-routes';
 import { sendGmail } from '@/app/routes/email-routes';
-import { callerSub, listStoreUsers, openUserDb } from './career-hunter-routes';
+import { sendUserTwilioSms } from '@/app/routes/twilio-sms-operation';
+import { callerSub, listStoreUsers, openUserDb } from './career-user-store';
 import { readUserPref } from '@/features/notifications';
 
 const logger = createChildLogger({ module: 'career-digest' });
@@ -39,7 +42,7 @@ const MIN_FIT = 70; // matches the engine's freshHighFit threshold
 // (RESEND_GUARD_HOURS + dueForDigest moved to @/app/routes/digest-resend-guard —
 //  shared with the core morning-brief cron across the ADR-085 carve boundary.)
 
-/** One row of the digest — a newly surfaced high-fit role for this user. */
+/** @description One newly surfaced high-fit role eligible for the caller's digest. */
 export interface DigestHit {
   id: number;
   title: string;
@@ -50,7 +53,7 @@ export interface DigestHit {
   salaryMax?: number | null;
 }
 
-/** Per-user digest settings (career_digest_settings row, or the defaults when absent). */
+/** @description Per-user digest settings mapped from storage or safe defaults when absent. */
 export interface DigestSettings {
   enabled: boolean;
   lastDigestAt: string | null;
@@ -200,23 +203,18 @@ async function sendViaEmail(pool: AppContext['pool'], userSub: string, hits: Dig
   }
 }
 
-/** Send via the user's own Twilio (scripts/oshal-twilio.js resolves their per-user secret). */
-function sendViaText(userSub: string, phone: string, hits: DigestHit[]): Promise<boolean> {
-  const cli = path.resolve(process.cwd(), 'scripts', 'oshal-twilio.js');
+/** Send through the user's own Twilio connection without moving its credential into a child. */
+async function sendViaText(
+  pool: AppContext['pool'],
+  userSub: string,
+  phone: string,
+  hits: DigestHit[],
+): Promise<boolean> {
   const body = formatDigestSms(hits, boardUrl());
-  return new Promise((resolve) => {
-    const proc = spawn('node', [cli, 'sms', phone, body, '--confirm'], {
-      env: { ...process.env, OSHAL_USER_SUB: userSub, OSHAL_MESSAGE_SEND_CONFIRM: 'true' },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    let err = '';
-    proc.stderr?.on('data', (d) => { err += String(d); });
-    proc.on('exit', (code) => {
-      if (code === 0) { logger.info({ userSub, hits: hits.length }, 'digest: texted'); resolve(true); }
-      else { logger.warn({ userSub, code, err: err.slice(-300) }, 'digest: sms send failed'); resolve(false); }
-    });
-    proc.on('error', (e) => { logger.error({ userSub, err: (e as Error).message }, 'digest: sms spawn failed'); resolve(false); });
-  });
+  const result = await sendUserTwilioSms(pool, userSub, phone, body);
+  if (result.delivered) logger.info({ userSub, hits: hits.length, id: result.id }, 'digest: texted');
+  else logger.warn({ userSub, reason: result.error }, 'digest: sms send failed');
+  return result.delivered;
 }
 
 /**
@@ -257,7 +255,7 @@ export async function sendDigestForUser(
   let channel: 'email' | 'text' | null = null;
   let ok = false;
   if (wantChannel !== 'text' && ready.emailReady) { ok = await sendViaEmail(pool, userSub, hits); channel = ok ? 'email' : null; }
-  if (!ok && wantChannel !== 'email' && ready.textReady && phone) { ok = await sendViaText(userSub, phone, hits); channel = ok ? 'text' : null; }
+  if (!ok && wantChannel !== 'email' && ready.textReady && phone) { ok = await sendViaText(pool, userSub, phone, hits); channel = ok ? 'text' : null; }
   if (!ok) {
     logger.info({ userSub, hits: hits.length, ready, pref: wantChannel }, 'digest: hits found but no usable channel — skipped');
     return { sent: false, hits: hits.length, reason: 'no-channel' };
@@ -272,6 +270,7 @@ export async function sendDigestForUser(
  * @description The cron batch: run the digest for every per-user store. Per-user failures
  * are logged and never abort the batch.
  * @param ctx app context (pool)
+ * @returns nothing after every current user store has been attempted
  */
 export async function sendDigestsForAllUsers(ctx: AppContext): Promise<void> {
   for (const userSub of listStoreUsers()) {
@@ -290,6 +289,7 @@ export async function sendDigestsForAllUsers(ctx: AppContext): Promise<void> {
  * digest would contain, and an explicit send-now (confirm-gated; outward-facing send).
  * @param router the career-hunter router
  * @param ctx app context
+ * @returns nothing after routes are mounted
  */
 export function registerCareerDigestRoutes(router: Router, ctx: AppContext): void {
   const pool = ctx.pool;

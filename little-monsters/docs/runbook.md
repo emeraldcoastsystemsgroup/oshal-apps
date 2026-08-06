@@ -1,61 +1,61 @@
 # Little Monsters — Local Runbook
 
-How to start, open, verify, and debug the Little Monsters education swarm on a local
-Docker Desktop (Windows) deployment. As-built as of 2026-06-27.
+How to install, open, verify, rebuild, and debug Little Monsters on a local Docker Desktop
+(Windows) oshal deployment.
+
+> **Superseding note (2026-08-05):** the original 2026-06-27 runbook started Little Monsters as
+> a kernel-resident compose profile. The app was subsequently carved into this store package.
+> The package install/build procedure below replaces that historical startup path; the dated
+> record remains available in repository history.
 
 > **Student experience & enhancements:** the student-facing build (master calendar, unified
 > Flashcards hub with create/edit, Formula Lab / STEM / Citations / Timelines tools, My Files,
 > the rewritten game arcade, the rewards → collection → equippable-avatar loop, the floating
 > concierge, anti-cheating tutor, and the Little-Monsters-branded onboarding) is specified and
-> tracked in [adr/075-little-monsters-onboarding-and-enhancements.md](../adr/075-little-monsters-onboarding-and-enhancements.md).
+> tracked in
+> [ADR-075](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/adr/075-little-monsters-onboarding-and-enhancements.md).
 > Reach the student view at `/cockpit/?app=little-monsters&student=1`.
 
 Related docs:
-- [swarm-apps-framework.md](../swarm-apps-framework.md) — the manifest format this app uses (ribbon focus mode, dynamic per-row icons, lifecycle)
-- [architecture/little-monsters-on-oshal-plan.md](../architecture/little-monsters-on-oshal-plan.md) — architecture and sprint history
-- [backlog/lm-feature-backlog.md](../backlog/lm-feature-backlog.md) — feature backlog
-- [../swarm-apps/little-monsters.yaml](../../swarm-apps/little-monsters.yaml) — the manifest itself (the single source of truth)
+- [App framework guide](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/swarm-apps-framework.md) — manifest format, ribbon focus mode, dynamic per-row icons, and lifecycle
+- [Architecture plan](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/architecture/little-monsters-on-oshal-plan.md) — architecture and sprint history
+- [Feature backlog](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/backlog/lm-feature-backlog.md) — remaining framework and app work
+- [Package manifest](../oshal-app.yaml) — the app's single source of truth
 
 ## What it is
 
-Little Monsters is a **swarm application manifest**, not framework code. The YAML in
-`swarm-apps/little-monsters.yaml` declares six education bots (lecture-scribe, class-tutor,
-quiz-master, textbook-librarian, study-coach, writing-coach), the `/api/education` routes,
-an `education` ticket pipeline, voice config, theming, and the cockpit UI surfaces.
-`SwarmAppService.autoLoadAll()` loads it at controller boot; `status: active` in the YAML
-activates everything.
+Little Monsters is an **oshal app package**, not framework code. The package-local
+[`oshal-app.yaml`](../oshal-app.yaml) declares its education bots, `/api/education` routes,
+ticket pipeline, voice config, theme, migrations, and cockpit surfaces. The installer places the
+whole package under `deployed-apps/little-monsters`; the app loader validates and activates that
+manifest at controller boot.
 
-## Start the swarm
+## Install and start the app
 
-The six LM bot containers sit behind the compose profile `little-monsters` — without the
-profile flag they do not start.
+Run these commands from a current oshal core checkout. `oshal-up.sh` performs the ordered
+infrastructure/controller/bot startup. Run the package helper inside the controller so its
+`CLINE_WORKSPACE_ROOT` places the installed package in the shared `deployed-apps/` volume.
 
 ```bash
-cd /c/Projects/open-shal-swarm-harness-agent-llm
-
-# 1. Build the image (only needed after src/ TS or dependency changes)
-docker build -f Dockerfile.oshal -t oshal-bot:latest .
-
-# 2. Up — base services + build/incident/LM bots, with the dev hot-swap override
-OSHAL_API_PORT=35460 docker compose \
-  -f docker-compose.oshal-local.yml \
-  -f docker-compose.override.yml \
-  --profile build --profile incident --profile little-monsters \
-  up -d
+cd /c/Projects/oshal
+bash scripts/oshal-up.sh
+docker compose -f docker-compose.oshal-local.yml exec oshal-api \
+  node scripts/oshal-app.js install little-monsters
+docker compose -f docker-compose.oshal-local.yml restart oshal-api
 ```
 
-- `docker-compose.override.yml` (gitignored, dev-only) bind-mounts
-  `any-bot/server/services/tools/education/` into the controller — **education UI HTML/CSS/JS
-  edits on the host serve instantly, no rebuild, no restart** (the routes `sendFile()` per
-  request). It also runs `echo-task-manager` as the any-bot runtime with its source bind-mounted.
-- Only changes under `src/` (TypeScript controller code) need the image rebuild + an
-  `up -d --force-recreate --no-deps oshal-api`.
-- Commit before rebuilding — Windows Docker builds occasionally miss uncommitted changes.
+- The install command fetches a committed store ref, validates its `oshal-app.yaml`, resolves app
+  dependencies, and atomically replaces the installed package.
+- Restarting the controller clears Node's route-module cache and causes the loader to apply the
+  installed manifest and its idempotent migrations.
+- Source-route changes must be compiled into `routes/*.js` with the package build command in
+  [Rebuild and reinstall](#rebuild-and-reinstall); editing `src-routes/*.ts` alone cannot change
+  the runtime.
 
 ## Open it
 
 ```
-http://localhost:35460/cockpit/?app=little-monsters
+http://localhost:35457/cockpit/?app=little-monsters
 ```
 
 `?app=<manifest-name>` is the **toolbar override** ("focus mode"). On page load,
@@ -81,12 +81,15 @@ source of truth — there is deliberately no localStorage stickiness; bookmark t
 ## Verify
 
 ```bash
-OSHAL_BASE=http://localhost:35460 bash scripts/oshal-local-checks.sh   # expect 15/15
+OSHAL_BASE=http://localhost:35457 bash scripts/oshal-local-checks.sh   # expect 11/11
+
+# From C:\Projects\oshal-apps\little-monsters:
+node --test "tests/*.test.cjs"
 ```
 
-Checks 11–15 are the LM-specific ones (app active, education UI served, tutor LLM reply,
-flashcard + quiz generator endpoints). The LM LLM endpoints use Claude (claude-code OAuth
-or `ANTHROPIC_API_KEY`).
+The core checks prove the local services and the app-store separation boundary. The package-local
+CJS suites then exercise the installed-byte authorization, privacy, and documentation contracts
+without depending on a framework checkout or live LLM provider.
 
 ## Troubleshooting
 
@@ -103,8 +106,8 @@ Diagnose:
 
 ```powershell
 # If 127.0.0.1 works but localhost doesn't, it's the ::1 squatter:
-curl.exe -s -o NUL -w "%{http_code}" http://127.0.0.1:35460/api/health
-Get-NetTCPConnection -LocalPort 35460 -State Listen |
+curl.exe -s -o NUL -w "%{http_code}" http://127.0.0.1:35457/api/health
+Get-NetTCPConnection -LocalPort 35457 -State Listen |
   ForEach-Object { "{0}:{1} {2}" -f $_.LocalAddress, $_.LocalPort, (Get-Process -Id $_.OwningProcess).ProcessName }
 # Healthy: only com.docker.backend. Broken: wslrelay also bound to ::1.
 ```
@@ -122,34 +125,30 @@ connect timeout is 10 s, so this self-heals. If it ever recurs: `docker restart 
 once the DB is quiet, then confirm `Dynamic row UIs registered` + `auto-load complete`
 `failedCount:0` in `docker logs oshal-local-api`.
 
-### Front-end edit doesn't show up (esp. via the public tunnel)
+### Package edit doesn't show up
 
-Two caches sit in front of the education UI:
+The store checkout is not the runtime copy. The controller serves the package under its shared
+`deployed-apps/little-monsters` volume, and Node caches loaded route modules. Rebuild source-route
+changes, install a committed package ref, and restart the controller. For surface-only changes,
+the build step is unnecessary, but reinstall and restart remain required. A browser hard refresh
+(Ctrl+Shift+R) clears its own static cache after the runtime copy is current.
 
-- **Bind mounts are hot.** `any-bot/server/services/tools/education/` and `src/pages/` are
-  bind-mounted into `oshal-api`, so HTML/CSS/JS edits there serve on the next request — **no
-  rebuild**. Only `src/**` TypeScript (routes, services) needs a rebuild + recreate.
-- **Cloudflare caches static `.js` on the public tunnel.** `oshal.agenticfederal.us` serves a
-  **stale copy of `/api/education/*.js` and `/cockpit/js/*.js`** even when the origin is fresh
-  (HTML stays fresh; the PWA service worker does NOT cache `/api/*`). Symptom: a JS-behavior fix
-  (mascot suppress, concierge skin, a game rewrite) doesn't take, but the page HTML did update.
-  **Fix: bump a cache-bust query** on the script reference (e.g. `mascot.js?v=3`,
-  `lm-concierge.js?v=2`, game iframe `index.html?v=2`) — Cloudflare treats the new URL as a miss.
-  A hard refresh (Ctrl+Shift+R) clears the browser copy; the `?v=N` bump clears Cloudflare's.
+### Rebuild and reinstall
 
-### Rebuild + redeploy the controller (after a `src/**` change)
+From a core checkout with dependencies installed, compile the package's TypeScript route sources,
+validate the package, and run all dependency-free package contracts:
 
 ```bash
-docker build -t oshal-bot:latest .          # root Dockerfile → oshal-bot:latest
-UI_PROFILE=oshal-framework docker compose -f docker-compose.oshal-local.yml \
-  up -d --no-deps --force-recreate oshal-api
+node scripts/oshal-app.js build C:/Projects/oshal-apps/little-monsters --framework .
+node scripts/oshal-app.js validate C:/Projects/oshal-apps/little-monsters
+node --test "C:/Projects/oshal-apps/little-monsters/tests/*.test.cjs"
 ```
 
-> Pass `UI_PROFILE=oshal-framework` (the compose default is `oshal-starter`) so recreating the
-> api doesn't reset the operator cockpit to the bare starter profile. The `?app=little-monsters`
-> URL overrides the profile per-request, so the student view is unaffected either way.
-> The container re-reads `swarm-apps/little-monsters.yaml` on boot, so manifest edits (new ribbon
-> tools, theme id) take effect on recreate.
+Commit the package artifact before installing it: the helper fetches a git ref, not uncommitted
+working-tree bytes. Re-run `node scripts/oshal-app.js install little-monsters` inside `oshal-api`
+as shown above (add `--ref <branch>` when validating a published branch), then restart the
+controller. It re-reads the installed `oshal-app.yaml`, so manifest, route, and surface changes
+activate together.
 
 ### Education ticket flow
 

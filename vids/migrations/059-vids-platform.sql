@@ -2,13 +2,15 @@
 -- Migration 059: Vids Studio platform
 -- Job ledger for the screen-driving Veo operator + the vids-operator bot.
 -- Idempotent: safe to re-run.
+-- 2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | Make job ownership mandatory and enforce
+-- caller/operator access through FORCE RLS; legacy null-owner rows become system-owned.
 -- =============================================================================
 
 -- Generate-jobs dispatched to a remote Vids worker (one row per requested clip).
 CREATE TABLE IF NOT EXISTS vids_jobs (
   job_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id     UUID,
-  user_sub      VARCHAR(255),
+  user_sub      VARCHAR(255) NOT NULL,
   client_id     VARCHAR(255),                       -- remote worker that ran it
   status        VARCHAR(20) NOT NULL DEFAULT 'queued', -- queued|running|done|failed
   idea          TEXT NOT NULL,                      -- the operator's raw idea
@@ -24,6 +26,26 @@ CREATE TABLE IF NOT EXISTS vids_jobs (
 CREATE INDEX IF NOT EXISTS idx_vids_jobs_user ON vids_jobs (user_sub);
 CREATE INDEX IF NOT EXISTS idx_vids_jobs_status ON vids_jobs (status);
 CREATE INDEX IF NOT EXISTS idx_vids_jobs_created ON vids_jobs (created_at DESC);
+
+-- Existing installations predate mandatory ownership. Keep those rows available only to an exact
+-- operator; never guess a human owner during migration.
+UPDATE vids_jobs
+   SET user_sub = 'system:legacy:vids'
+ WHERE user_sub IS NULL OR btrim(user_sub) = '';
+ALTER TABLE vids_jobs ALTER COLUMN user_sub SET NOT NULL;
+
+ALTER TABLE vids_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vids_jobs FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS vids_jobs_owner_policy ON vids_jobs;
+CREATE POLICY vids_jobs_owner_policy ON vids_jobs
+  USING (
+    user_sub = current_setting('oshal.current_sub', true)
+    OR current_setting('oshal.is_operator', true) = 'on'
+  )
+  WITH CHECK (
+    user_sub = current_setting('oshal.current_sub', true)
+    OR current_setting('oshal.is_operator', true) = 'on'
+  );
 
 -- Seed the Veo specialist bot.
 INSERT INTO agents (

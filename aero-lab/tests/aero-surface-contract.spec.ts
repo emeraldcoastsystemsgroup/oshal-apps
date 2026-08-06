@@ -17,6 +17,10 @@
  *                     |                             | the route layer's own validateDesign, with slider
  *                     |                             | ranges inside the sanity bounds; (3) both surface
  *                     |                             | files parse as the classic scripts the browser gets.
+ * 2026-08-06 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Pin the new geometry helper's
+ *                     |                             | route, load order and classic-script syntax
+ *                     |                             | so browser/server parity cannot be bypassed
+ *                     |                             | by shipping the helper without loading it.
  */
 
 import * as fs from 'fs';
@@ -28,10 +32,12 @@ import { validateDesign, DEFAULT_DESIGN, DESIGN_SANITY_BOUNDS } from '../src-rou
 const PACKAGE_DIR = path.resolve(__dirname, '..');
 const SURFACE_HTML = path.join(PACKAGE_DIR, 'tools', 'aero-lab.html');
 const SURFACE_JS = path.join(PACKAGE_DIR, 'tools', 'aero-lab.js');
+const GEOMETRY_JS = path.join(PACKAGE_DIR, 'tools', 'aero-lab-geometry.js');
 const ROUTES_TS = path.join(PACKAGE_DIR, 'src-routes', 'aero-lab-routes.ts');
 
 const html = fs.readFileSync(SURFACE_HTML, 'utf8');
 const js = fs.readFileSync(SURFACE_JS, 'utf8');
+const geometryJs = fs.readFileSync(GEOMETRY_JS, 'utf8');
 const routesSrc = fs.readFileSync(ROUTES_TS, 'utf8');
 
 interface PresetEntry { key: string; name: string; needs?: string; v: Record<string, number> }
@@ -72,7 +78,10 @@ describe('surface ↔ router contract', () => {
   });
 
   it('the HTML loads the surface script from the route that serves it', () => {
+    expect(html).toContain('src="/api/aero-lab/geometry.js"');
     expect(html).toContain('src="/api/aero-lab/app.js"');
+    expect(html.indexOf('/api/aero-lab/geometry.js')).toBeLessThan(html.indexOf('/api/aero-lab/app.js'));
+    expect(routesSrc).toMatch(/router\.get\(\s*'\/geometry\.js'/);
     expect(routesSrc).toMatch(/router\.get\(\s*'\/app\.js'/);
   });
 });
@@ -119,6 +128,10 @@ describe('surface presets survive the route layer (a preset that 400s is a broke
 });
 
 describe('surface files parse as the scripts the browser receives', () => {
+  it('tools/aero-lab-geometry.js parses as a classic script', () => {
+    expect(() => new vm.Script(geometryJs, { filename: 'aero-lab-geometry.js' })).not.toThrow();
+  });
+
   it('tools/aero-lab.js parses as a classic script', () => {
     expect(() => new vm.Script(js, { filename: 'aero-lab.js' })).not.toThrow();
   });

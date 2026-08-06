@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 2026-07-31 12:00:00 | roger.murphy@emeraldcoastsystemsgroup.com  | README apps table is GENERATED, never hand-typed: rewrite the block between the apps-table markers in README.md from marketplace.json (itself mirrored from the package manifests). The old hand-typed table listed 7 of 43 packages and carried versions three releases stale.
  * 2026-07-31 13:00:00 | roger.murphy@emeraldcoastsystemsgroup.com  | CRLF tolerance: emit the block in the checkout's own line endings. With core.autocrlf=true a Windows working copy holds CRLF and the LF-only block made --check permanently red right after a pull (same class as the dnd build-handshake CRLF bug).
+ * 2026-08-06 00:00:00 | maintainer@emeraldcoastsystemsgroup.com  | Pair generation with the catalog-integrity CI gate: the dynamic package count and every rendered row are release-blocking only after marketplace-to-manifest parity passes.
  *
  * Usage: node scripts/gen-readme-apps-table.mjs        (rewrites README.md in place)
  *        node scripts/gen-readme-apps-table.mjs --check (exit 1 if README is stale)

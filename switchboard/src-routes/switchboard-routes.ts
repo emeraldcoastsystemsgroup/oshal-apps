@@ -22,10 +22,11 @@
  *
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                                     | DESCRIPTION
+ * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-07-23 02:20:00 | roger.murphy@emeraldcoastsystemsgroup.com | Initial Switchboard Today pane: GET /today (surface) + GET /feed (unified board — Gmail needs-reply + calendar + inbox-fed social signals, normalized, ranked, time-bucketed). Read-only; no LLM in the controller path. Surfaces serve from ctx.appPackageDir/tools (D10 load-time fallback).
- * 2026-07-31 18:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Mount the two new panes: /threads (unified per-person timeline over the ingested inbox store, read-only) and /stage (broadcast fan-out composer riding Compose's exported publishTo, confirm-gated per send). Both are self-contained sibling modules per the ADR-113 portal-section pattern.
+ * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial Switchboard Today pane: GET /today (surface) + GET /feed (unified board — Gmail needs-reply + calendar + inbox-fed social signals, normalized, ranked, time-bucketed). Read-only; no LLM in the controller path. Surfaces serve from ctx.appPackageDir/tools (D10 load-time fallback).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Mount /threads and /stage through their self-contained sibling modules.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Mount the confirmed durable reply outbox under /replies without changing the parent authentication boundary.
  *
  * @module switchboard-routes
  */
@@ -42,6 +43,7 @@ import { createCalendarRoutes } from './switchboard-calendar-routes';
 import { createComposeRoutes } from './switchboard-compose-routes';
 import { createThreadsRoutes } from './switchboard-threads-routes';
 import { createStageRoutes } from './switchboard-stage-routes';
+import { createReplyOutboxRoutes } from './switchboard-reply-outbox-routes';
 
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -479,12 +481,13 @@ export function createSwitchboardRoutes(ctx: AppContext): Router {
 
   // Portal sections (each a self-contained module — ADR-113): the unified Inbox,
   // the content Calendar, the Compose desk, the per-person Threads timeline, and
-  // the Stage broadcast composer. Mounted under their own prefix.
+  // the Stage broadcast composer, and the confirmed reply outbox. Mounted under their own prefix.
   router.use('/inbox', createInboxRoutes(ctx));
   router.use('/calendar', createCalendarRoutes(ctx));
   router.use('/compose', createComposeRoutes(ctx));
   router.use('/threads', createThreadsRoutes(ctx));
   router.use('/stage', createStageRoutes(ctx));
+  router.use('/replies', createReplyOutboxRoutes(ctx));
 
   return router;
 }

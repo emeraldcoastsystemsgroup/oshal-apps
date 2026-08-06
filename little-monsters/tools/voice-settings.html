@@ -4,6 +4,14 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Little Monsters — Voice Settings</title>
+<!--
+  CHANGE LOG
+  ---------------------------------------------------------------------------
+  DATE           | AUTHOR                                      | DESCRIPTION
+  ---------------------------------------------------------------------------
+  2026-08-05     | maintainer@emeraldcoastsystemsgroup.com     | Replace retired kernel-manifest advice with the installed package manifest and current package-install workflow.
+  ---------------------------------------------------------------------------
+-->
 <script>
 // Sync iframe theme to parent cockpit's data-theme. Storage events don't fire
 // in the writing window, so a MutationObserver on the parent <html> is the
@@ -202,9 +210,9 @@
     + renderSection('Speech-to-Text providers', payload.stt.providers, sttDefault, null, 'stt')
     + '<div class="card">'
     +   '<strong>How to change defaults</strong>'
-    +   '<div class="subtle">Edit the <code>voice</code> block in <code>config-seed/global-config.json</code> (swarm-level) or <code>swarm-apps/little-monsters.yaml</code> (per-app override). Restart the swarm controller to apply.</div>'
-    +   '<code class="edit-hint">' + 'voice.tts.default = "' + ttsDefault + '"  →  change to "browser" | "gemini-tts" | "google-cloud-tts"' + '</code>'
-    +   '<code class="edit-hint">' + 'voice.stt.default = "' + sttDefault + '"  →  change to "browser" | "gemini-stt" | "google-cloud-stt"' + '</code>'
+    +   '<div class="subtle">Operator defaults come from the <code>voice</code> block in the installed Little Monsters <code>oshal-app.yaml</code>. Publish the manifest change, reinstall with <code>node scripts/oshal-app.js install little-monsters</code>, then restart the controller. The personal choices above remain device-local.</div>'
+    +   '<code class="edit-hint">' + 'voice.tts.provider = "' + ttsDefault + '"  →  change to "browser" | "gemini-tts" | "google-cloud-tts"' + '</code>'
+    +   '<code class="edit-hint">' + 'voice.stt.provider = "' + sttDefault + '"  →  change to "browser" | "gemini-stt" | "google-cloud-stt"' + '</code>'
     + '</div>';
 
   root.innerHTML = html;

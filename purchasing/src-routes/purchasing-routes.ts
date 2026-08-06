@@ -2,9 +2,9 @@
  * Purchasing Routes — Shopping Concierge surface API
  *
  * Backs the Shop surface at /cockpit?app=purchasing. The framework way:
- *  - PRODUCTS come from the connector CLI (scripts/oshal-walmart.js), which resolves
- *    the operator's Walmart credential from the connector store via the token broker —
- *    NO keys in env/compose.
+ *  - PRODUCTS come from the core Walmart provider helper. The controller resolves the operator's
+ *    credential for one fixed server operation and passes it as a request-scoped function argument;
+ *    no child environment or model dispatch carries it.
  *  - The BRAIN runs on the shopping-concierge bot via ctx.orchestrator (the caller's
  *    configured provider/model, cost captured), NOT a hardcoded LLM call here.
  *  - Cart / preferences / feedback persist per-shopper in the DB and feed the bot's memory.
@@ -29,26 +29,28 @@
  *            | (purchasing container / registries / personas / walmart*.js + purchasingTools.js)
  *            | stays core per ADR-093 interim. Logic unchanged.
  * ---------------------------------------------------------------------------
+ * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove Walmart credentials from generic orchestrator dispatch. Catalog access resolves a fixed-server-operation credential only inside the deterministic CLI helper; the model receives bounded product records and never a credential map.
+ * 2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove the final credential-bearing subprocess boundary. Walmart catalog/deep-link work now calls the import-safe core provider helper with one explicit request-scoped credential value.
+ *
  * @module purchasing-routes
  */
 
 import { Router, type Request, type Response, type RequestHandler } from 'express';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
-import { execFile } from 'child_process';
 import { createChildLogger } from '@/shared/logger';
 import { buildOwnerRlsPolicyStatements, runRuntimeSchemaBootstrap } from '@/shared/services/database';
 import type { AppContext } from '@/app/composition/app-context';
 import type { Pool } from 'pg';
 import { getTrustedServiceUserSub } from '@/shared/middleware/authz';
-import { resolveBotCreds } from '@/app/routes/connector-token-broker';
+import { resolveServerOperationCreds } from '@/app/routes/connector-token-broker';
+import { runWalmartProviderOperation } from '@/app/routes/provider-operation-clients';
 import { cleanConciergeReply } from '@/app/routes/concierge-reply';
 
 const logger = createChildLogger({ module: 'purchasing-routes' });
 
 /** The shopping-concierge agent (seeded by migration 036; inline bot run via the orchestrator). */
 const CONCIERGE_AGENT_ID = 'b0070000-0000-0000-0000-000000000001';
-const WALMART_CLI = 'scripts/oshal-walmart.js';
 
 /** Serve a static surface file from the package tools dir (ctx.appPackageDir — D10). */
 function serveFile(surfaceDir: string, fileName: string): RequestHandler {
@@ -83,23 +85,18 @@ function itemKey(intent: string): string {
 }
 
 /**
- * Run the Walmart connector CLI with the caller's brokered credential. The controller
- * decrypts the operator's Walmart cred (token broker) and hands it to the CLI as
- * OSHAL_CRED_WALMART — no key ever lives in env/compose. Demo JSON includes a bounded
- * fallbackReason/providerError diagnostic rather than collapsing every fallback into disconnected.
+ * Run one deterministic Walmart operation with the caller's request-scoped credential.
+ * The import-safe core helper receives the credential directly and cannot consult a child
+ * environment. Demo JSON retains its bounded fallbackReason/providerError diagnostic.
  */
-async function walmartCli(pool: Pool, sub: string, args: string[]): Promise<any> {
-  const creds = await resolveBotCreds(pool as unknown as never, sub, ['walmart']);
-  return new Promise((resolve) => {
-    const env: NodeJS.ProcessEnv = { ...process.env, OSHAL_USER_SUB: sub };
-    if (creds.OSHAL_CRED_WALMART) env.OSHAL_CRED_WALMART = creds.OSHAL_CRED_WALMART;
-    execFile('node', [path.resolve(process.cwd(), WALMART_CLI), ...args],
-      { env, timeout: 30000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
-        const text = (stdout || '').trim();
-        try { resolve(JSON.parse(text || '{}')); }
-        catch { resolve({ error: (err && err.message) || 'walmart CLI error', raw: text.slice(0, 300) }); }
-      });
-  });
+async function walmartProviderOperation(pool: Pool, sub: string, args: string[]): Promise<any> {
+  const creds = await resolveServerOperationCreds(
+    pool as unknown as never,
+    sub,
+    ['walmart'],
+    'fixed-server-operation',
+  );
+  return runWalmartProviderOperation(creds.OSHAL_CRED_WALMART, args);
 }
 
 // ── Conversational concierge helpers ─────────────────────────────────────────
@@ -115,7 +112,7 @@ interface WalmartFallbackMetadata {
   providerError?: WalmartProviderDiagnostic;
 }
 
-/** Keep the CLI diagnostic bounded even if a malformed subprocess response crosses the boundary. */
+/** Keep the provider diagnostic bounded even if a malformed helper result crosses the boundary. */
 export function walmartFallbackMetadata(value: unknown): WalmartFallbackMetadata {
   if (!value || typeof value !== 'object') return {};
   const input = value as Record<string, unknown>;
@@ -378,13 +375,13 @@ async function addItem(pool: Pool, sub: string, listId: string, prod: any, qty: 
   return ins.rows[0];
 }
 
-/** Build the order deep link for a list's pending items via the connector CLI. */
+/** Build the order deep link for a list's pending items via the request-scoped provider helper. */
 async function buildCheckout(pool: Pool, sub: string, listId: string): Promise<{ checkoutUrl: string | null; total: number; orderRef: string | null }> {
   const items = (await pool.query(
     `SELECT * FROM shop_list_items WHERE list_id = $1 AND user_sub = $2 AND status = 'pending'`, [listId, sub])).rows;
   if (!items.length) return { checkoutUrl: null, total: 0, orderRef: null };
   const spec = items.filter((i) => i.product_id).map((i) => `${i.product_id}_${i.quantity}`).join(',');
-  const r = await walmartCli(pool, sub, ['cart', spec]);
+  const r = await walmartProviderOperation(pool, sub, ['cart', spec]);
   const total = items.reduce((s, i) => s + (Number(i.unit_price) || 0) * (i.quantity || 1), 0);
   await pool.query(
     `INSERT INTO shop_purchase_history (user_sub, retailer, order_ref, items, total, handoff_url)
@@ -422,11 +419,11 @@ export function createPurchasingRoutes(ctx: AppContext): Router {
     res.json({ walmartConnected: !!r.rowCount });
   }));
 
-  // ── Live retailer reads (via the connector CLI) ────────────────────────────
+  // ── Live retailer reads (via the request-scoped provider helper) ───────────
   router.get('/search', shopper(async (req, res, sub) => {
     const q = String(req.query.q || req.query.query || '');
     if (!q) { res.json({ items: [] }); return; }
-    const r = await walmartCli(pool, sub, ['search', q, String(Number(req.query.limit) || 8)]);
+    const r = await walmartProviderOperation(pool, sub, ['search', q, String(Number(req.query.limit) || 8)]);
     const diagnostic = walmartFallbackMetadata(r);
     res.json({
       items: r.items || [], source: r.source || (r.error ? 'error' : 'walmart'),
@@ -436,7 +433,7 @@ export function createPurchasingRoutes(ctx: AppContext): Router {
   }));
 
   router.get('/deals', shopper(async (req, res, sub) => {
-    const r = await walmartCli(pool, sub, ['deals', String(req.query.feed || 'rollback')]);
+    const r = await walmartProviderOperation(pool, sub, ['deals', String(req.query.feed || 'rollback')]);
     const diagnostic = walmartFallbackMetadata(r);
     res.json({
       items: r.items || [], feed: r.feed || 'rollback', source: r.source || (r.error ? 'error' : 'walmart'),
@@ -456,7 +453,7 @@ export function createPurchasingRoutes(ctx: AppContext): Router {
         reason: `Your usual ${intent} — ${p.title}${p.buy_count > 1 ? ` (bought ${p.buy_count}×)` : ''}.` });
       return;
     }
-    const r = await walmartCli(pool, sub, ['search', intent, '1']);
+    const r = await walmartProviderOperation(pool, sub, ['search', intent, '1']);
     const diagnostic = walmartFallbackMetadata(r);
     res.json({
       hasUsual: false, item: r.items?.[0] || null,
@@ -540,7 +537,7 @@ export function createPurchasingRoutes(ctx: AppContext): Router {
       `SELECT role, content FROM shop_messages WHERE conversation_id = $1 ORDER BY created_at DESC LIMIT 12`, [conversationId])).rows.reverse();
 
     // Catalog candidates from the connector (live or explicitly diagnosed demo fallback; no keys here).
-    const searchRes = await walmartCli(pool, sub, ['search', message, '6']);
+    const searchRes = await walmartProviderOperation(pool, sub, ['search', message, '6']);
     const candidates: any[] = searchRes.items || [];
     const candById = new Map<string, any>(candidates.map((c: any) => [String(c.productId), c]));
     const catalogActionsAllowed = walmartCatalogAllowsActions(searchRes);
@@ -558,12 +555,11 @@ export function createPurchasingRoutes(ctx: AppContext): Router {
 
     // The BRAIN: run the concierge bot via the orchestrator on the caller's configured provider.
     const prompt = buildConciergePrompt({ message, history, candidates, cart, prefs, notes, profile, suggestions, catalog });
-    const creds = await resolveBotCreds(pool as unknown as never, sub, ['walmart']);
     let raw = '';
     try {
       const orchestrator = (ctx as any).orchestrator;
       const result = await orchestrator.processMessage(`purchasing-${sub}-${randomUUID()}`, prompt, {
-        agenticMode: true, autoApprove: false, source: 'purchasing', agentId: CONCIERGE_AGENT_ID, userSub: sub, creds,
+        agenticMode: false, autoApprove: false, source: 'purchasing', agentId: CONCIERGE_AGENT_ID, userSub: sub,
       });
       raw = String(result?.response || '').trim();
     } catch (e) { logger.error({ e }, 'concierge orchestrate failed'); }
@@ -576,7 +572,7 @@ export function createPurchasingRoutes(ctx: AppContext): Router {
     for (const a of env.add) {
       let prod = candById.get(a.productId);
       if (!prod) {
-        const lk = await walmartCli(pool, sub, ['search', a.productId, '1']);
+        const lk = await walmartProviderOperation(pool, sub, ['search', a.productId, '1']);
         if (!walmartCatalogAllowsActions(lk)) continue;
         prod = lk.items?.[0];
       }

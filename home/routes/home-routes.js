@@ -6,11 +6,13 @@
  * bot-owned scenes to a per-user store (the shared `home-data` volume, bot :rw /
  * api :ro). This module serves:
  *   - cheap reads (GET /devices, /scenes) straight from the store — NO LLM call;
- *   - the reasoning fast loop (POST /assistant, /refresh) → the home-bot via
- *     BotNodeClient with the caller's brokered SmartThings token (cost auto-
- *     captured on the bot side → chat_tasks). Same pattern as storage/content.
+ *   - the reasoning fast loop (POST /assistant) → the home-bot via BotNodeClient
+ *     with a bounded cached device/scene snapshot and no provider tools or credentials;
+ *   - deterministic SmartThings reads/writes (/refresh, /control, /scene/run) in the
+ *     controller, resolving the caller's token only for that exact provider operation.
  *
- * Writes belong to the bot (the owner). This route never writes the store.
+ * The shared bot store remains read-only here; live refresh uses an owner-keyed process
+ * overlay, and confirmed writes go straight to the fixed SmartThings API boundary.
  *
  * CHANGE LOG
  * -----------------------------------------------------------------------------
@@ -19,6 +21,8 @@
  * 2026-06-17 17:40:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial: GET /api/home/devices reads the bot's per-user device index (home-data :ro) — the cheap read-model for the Smart Home surface. Auth-gated; scoped to the caller's OIDC sub.
  * 2026-06-17 18:05:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Add the reasoning fast loop + scenes read + surface: POST /assistant (chat → home-bot, brokered SmartThings token, cost auto-tracked), POST /refresh (bot rebuilds the device index — the only writer), GET /scenes (cheap read of bot-owned scenes.json), GET /ui (serve home.html dashboard).
  * 2026-07-19 19:20:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Carved out of OSHAL core into the home app package (ADR-085 Wave 2). Standard (ctx) factory; the dashboard serves from ctx.appPackageDir/tools (load-time env fallback, D10); shared core helpers (token broker, connectors, inline-bot-execution, the kernel home-schedule branch, sun-times) import via @/ aliases. The home-bot node (container + registries + persona + oshal-smartthings.js + smartthingsToolKit), the home-data volume, and the scheduler's home-control branch stay framework-resident (ADR-093).
+ *
+ * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: retire the SmartThings credential carrier from generic home-bot dispatch. Reasoning now receives a bounded controller-read device/scene snapshot with tools disabled; direct controls/scenes and live refresh resolve the caller's token only at their deterministic SmartThings API boundary.
  *
  * @module home-routes
  */
@@ -63,7 +67,6 @@ const path = __importStar(require("path"));
 const logger_1 = require("@/shared/logger");
 const crypto = __importStar(require("crypto"));
 const agent_management_1 = require("@/features/agent-management");
-const connector_token_broker_1 = require("@/app/routes/connector-token-broker");
 const connectors_routes_1 = require("@/app/routes/connectors-routes");
 const home_schedule_dispatch_1 = require("@/app/home-schedule-dispatch");
 const sun_times_1 = require("@/shared/utils/sun-times");
@@ -75,7 +78,7 @@ const logger = (0, logger_1.createChildLogger)({ module: 'home-routes' });
 // The shared `home-data` volume (home-bot :rw, api :ro). The bot writes the store
 // here keyed by user_sub; this route only reads it. Mirrors the CLI's default.
 const HOME_DATA_DIR = process.env.OSHAL_HOME_DATA_DIR || '/app/home-data';
-/** The smart-home worker (codex; shells out to oshal-smartthings.js). */
+/** The smart-home reasoning worker; provider tools are disabled for this route's dispatch. */
 const HOME_BOT_AGENT_ID = 'd0000000-0000-0000-0000-000000000001';
 const botClient = new agent_management_1.BotNodeClient((0, agent_management_1.createRegistryEndpointResolver)());
 function homeAssistantMightWrite(message) {
@@ -101,22 +104,50 @@ function readStore(sub, file, fallback) {
         return fallback;
     }
 }
+/** Process-local overlay for a deterministic live refresh; the deployed api mount remains read-only. */
+const refreshedDeviceIndexes = new Map();
+function readDeviceIndex(sub) {
+    return refreshedDeviceIndexes.get(sub) || readStore(sub, 'devices.json', { devices: [], deviceCount: 0, generatedAt: null, hubs: [] });
+}
+function homeReasoningPrompt(sub, message) {
+    const index = readDeviceIndex(sub);
+    const scenes = readStore(sub, 'scenes.json', { scenes: [] });
+    const snapshot = {
+        devices: (index.devices || []).slice(0, 150).map((device) => ({
+            key: String(device.key || '').slice(0, 120),
+            name: String(device.userName || device.name || '').slice(0, 160),
+            room: device.room ? String(device.room).slice(0, 120) : null,
+            capabilities: (device.capabilities || []).slice(0, 40).map((capability) => String(capability).slice(0, 80)),
+            switch: device.switch ? String(device.switch).slice(0, 24) : null,
+        })),
+        scenes: (scenes.scenes || []).slice(0, 75).map((scene) => ({
+            key: String(scene.key || '').slice(0, 120),
+            name: String(scene.name || '').slice(0, 160),
+            stepCount: Array.isArray(scene.steps) ? scene.steps.length : 0,
+        })),
+        generatedAt: index.generatedAt || null,
+    };
+    return [
+        'Reason only over this controller-fetched smart-home snapshot.',
+        'Do not invoke tools, request credentials, or claim a device action ran. Direct writes use the deterministic controller endpoints.',
+        `SNAPSHOT_JSON=${JSON.stringify(snapshot)}`,
+        `USER_REQUEST=${message.slice(0, 8_000)}`,
+    ].join('\n');
+}
 /**
- * Dispatch a message to the home-bot via the fast loop with the caller's brokered
- * SmartThings token. `direct:true` = lean (no handover scaffolding); `agenticMode:true`
- * = the bot can shell out to its CLI. Cost auto-captures on the bot side.
+ * Dispatch a bounded, credential-free snapshot to the home-bot for reasoning only.
+ * Provider reads/writes are deterministic controller operations below; tools remain disabled.
  */
 async function runOnHomeBot(ctx, sub, message) {
-    const creds = await (0, connector_token_broker_1.resolveBotCreds)(ctx.pool, sub, ['smartthings']);
     const r = await (0, inline_bot_execution_1.executeBotOrInline)(ctx, botClient, HOME_BOT_AGENT_ID, {
-        text: message, taskId: `home-${sub}`, workspaceFolderId: `home-${sub}`,
-        agentId: HOME_BOT_AGENT_ID, agenticMode: true, direct: true, userSub: sub, creds,
+        text: homeReasoningPrompt(sub, message), taskId: `home-${sub}`, workspaceFolderId: `home-${sub}`,
+        agentId: HOME_BOT_AGENT_ID, agenticMode: false, direct: true, userSub: sub,
     });
     return r.response;
 }
 /** Resolve a device's SmartThings id from the cached index (canonical key or raw id). */
 function resolveDeviceId(sub, ref) {
-    const idx = readStore(sub, 'devices.json', { devices: [] });
+    const idx = readDeviceIndex(sub);
     const entry = (idx.devices || []).find((d) => d.key === ref);
     if (entry) {
         const s = (entry.sources || []).find((x) => x.hub === 'smartthings') || entry.sources?.[0];
@@ -140,6 +171,41 @@ async function smartThingsCommand(token, deviceId, capability, command, arg) {
     });
     if (!r.ok)
         throw new Error(`smartthings ${r.status}: ${(await r.text()).slice(0, 140)}`);
+}
+/** Fetch and sanitize the live SmartThings device index without exposing the token to a model or task. */
+async function fetchSmartThingsDeviceIndex(token, sub) {
+    const response = await fetch('https://api.smartthings.com/v1/devices', {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok)
+        throw new Error(`smartthings ${response.status}: ${(await response.text()).slice(0, 140)}`);
+    const payload = await response.json();
+    const prior = readDeviceIndex(sub);
+    const priorByKey = new Map((prior.devices || []).map((device) => [device.key, device]));
+    const devices = (payload.items || []).slice(0, 500).map((item) => {
+        const label = String(item.label || item.name || '(unnamed)').slice(0, 160);
+        const key = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 120) || 'device';
+        const components = Array.isArray(item.components) ? item.components : [];
+        const capabilities = components.flatMap((component) => (Array.isArray(component.capabilities)
+            ? component.capabilities.map((capability) => String(capability.id || '').slice(0, 80))
+            : [])).filter(Boolean).slice(0, 40);
+        const old = priorByKey.get(key);
+        return {
+            key,
+            name: label,
+            userName: old?.userName || null,
+            room: item.roomId ? String(item.roomId).slice(0, 120) : null,
+            capabilities,
+            switch: old?.switch || null,
+            sources: [{ hub: 'smartthings', deviceId: String(item.deviceId || '').slice(0, 160), label }],
+        };
+    }).filter((device) => Boolean(device.sources?.[0]?.deviceId));
+    return {
+        devices,
+        deviceCount: devices.length,
+        generatedAt: new Date().toISOString(),
+        hubs: ['smartthings'],
+    };
 }
 /** The natural-language instruction the home-bot executes when a schedule fires. */
 function buildSchedulePrompt(action) {
@@ -167,7 +233,7 @@ function buildScheduleCron(trigger) {
  * @description Smart Home routes (mount at /api/home, auth: oidc). Packaged shape
  * (ADR-085): standard (ctx) factory — the dashboard serves from the installed
  * package's tools/ dir (ctx.appPackageDir, captured at factory time per D10).
- * @param ctx - app context (pool for the token broker, appPackageDir for the surface)
+ * @param ctx - app context (pool for deterministic connector calls, appPackageDir for the surface)
  * @returns an Express router
  */
 function createHomeRoutes(ctx) {
@@ -193,7 +259,7 @@ function createHomeRoutes(ctx) {
             return;
         }
         try {
-            const idx = readStore(sub, 'devices.json', { devices: [], deviceCount: 0 });
+            const idx = readDeviceIndex(sub);
             res.json({
                 devices: idx.devices || [], deviceCount: idx.deviceCount ?? (idx.devices?.length || 0),
                 generatedAt: idx.generatedAt || null, hubs: idx.hubs || [],
@@ -215,8 +281,8 @@ function createHomeRoutes(ctx) {
         const store = readStore(sub, 'scenes.json', { scenes: [] });
         res.json({ scenes: store.scenes || [] });
     });
-    /** POST /api/home/assistant — chat → the home-bot turns it into device/scene action(s)
-     *  and replies. Body: { message }. The bot does the work; cost is auto-tracked. */
+    /** POST /api/home/assistant — credential-free reasoning over the bounded home snapshot.
+     *  Confirmed provider writes use /control or /scene/run, never a model tool. Body: { message }. */
     router.post('/assistant', async (req, res) => {
         const sub = callerSub(req);
         if (!sub) {
@@ -236,7 +302,7 @@ function createHomeRoutes(ctx) {
         }
         try {
             const prompt = mightWrite
-                ? `${message}\n\nThe user explicitly confirmed this smart-home write. Prefix SmartThings write commands with OSHAL_DEVICE_WRITE_CONFIRM=true.`
+                ? `${message}\n\nThe user explicitly confirmed the intent. Do not execute it here; explain the matching deterministic device or scene action.`
                 : message;
             res.json({ reply: await runOnHomeBot(ctx, sub, prompt) });
         }
@@ -437,8 +503,8 @@ function createHomeRoutes(ctx) {
             res.status(500).json({ error: err.message });
         }
     });
-    /** POST /api/home/refresh — ask the bot (the store's only writer) to rebuild the device
-     *  index, then return the fresh cached index for the surface. */
+    /** POST /api/home/refresh — fetch a sanitized live index at the deterministic provider boundary.
+     *  The api volume is read-only, so retain the refreshed snapshot in this process as an overlay. */
     router.post('/refresh', async (req, res) => {
         const sub = callerSub(req);
         if (!sub) {
@@ -446,8 +512,13 @@ function createHomeRoutes(ctx) {
             return;
         }
         try {
-            await runOnHomeBot(ctx, sub, 'Refresh my devices: run `node /app/scripts/oshal-smartthings.js index` to rebuild the device index, then confirm in one line how many devices you found.');
-            const idx = readStore(sub, 'devices.json', { devices: [], deviceCount: 0 });
+            const token = await (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, 'smartthings');
+            if (!token) {
+                res.status(409).json({ error: 'SmartThings not connected — connect it at /utilities' });
+                return;
+            }
+            const idx = await fetchSmartThingsDeviceIndex(token, sub);
+            refreshedDeviceIndexes.set(sub, idx);
             res.json({ devices: idx.devices || [], deviceCount: idx.deviceCount ?? 0, generatedAt: idx.generatedAt || null });
         }
         catch (err) {

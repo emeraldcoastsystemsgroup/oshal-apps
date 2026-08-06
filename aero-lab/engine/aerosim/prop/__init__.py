@@ -9,6 +9,8 @@ SEQ                 | AUTHOR                      | DESCRIPTION
     model, and the UIUC anchor data/manifest module. The BEMTThruster ELEMENT
     lives in aerosim/vehicle/bemt_thruster.py (it is a force element, and
     element modules live with the vehicle).
+2 | maintainer@emeraldcoastsystemsgroup.com   | Export the measured BEMT
+    swirl and 25/51/101-station convergence contract for certification tests.
 """
 
 from .bemt import (
@@ -19,9 +21,16 @@ from .bemt import (
     PropGeometry,
     PropPoint,
     SECTION_CATALOGUE,
+    SWIRL_ABS_TOL_MS,
+    SWIRL_REL_TOL,
     TIP_MACH_LIMIT,
     polar_cache_info,
     solve_prop_point,
+)
+from .certification import (
+    BEMT_STABILITY_STATIONS,
+    BEMT_STABILITY_TOLERANCES,
+    station_stability_report,
 )
 from .motor import (
     ESC_RATED_ETA_BAND,
@@ -53,6 +62,8 @@ from .uiuc_anchor import (
 
 __all__ = [
     "ALPHA_REF_OFFSET_DEG",
+    "BEMT_STABILITY_STATIONS",
+    "BEMT_STABILITY_TOLERANCES",
     "ANCHOR_CASES",
     "ANCHOR_CP_TOL",
     "ANCHOR_CT_TOL",
@@ -71,6 +82,8 @@ __all__ = [
     "PropGeometry",
     "PropPoint",
     "SECTION_CATALOGUE",
+    "SWIRL_ABS_TOL_MS",
+    "SWIRL_REL_TOL",
     "TIP_MACH_LIMIT",
     "UIUC_MANIFEST_SHA256",
     "VENDOR_ANCHORS",
@@ -83,6 +96,7 @@ __all__ = [
     "motor_peak_eta",
     "polar_cache_info",
     "solve_prop_point",
+    "station_stability_report",
     "validate_motor",
     "verify_local_data",
 ]

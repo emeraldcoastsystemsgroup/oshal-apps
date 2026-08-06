@@ -41,6 +41,19 @@ source:
   path: youtube-kids
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/youtube-kids/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # Self-contained: kernel skills only (agent-management BotNodeClient, shared
 # database bootstrap, logger) — no app, tool, or connector dependencies.
 dependencies:
@@ -75,11 +88,29 @@ bots:
 # Compiled-JS route (built from src-routes/ by `oshal-app build`). Serves the
 # upload/brief surface from this package's tools/ and the per-user store API.
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/youtube-kids/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/youtube-kids-routes.js
     factory: createYoutubeKidsRoutes
     mountPath: /api/youtube-kids
     auth: oidc
     requiresContext: true
+
+# The shared kernel scans whole archives safely; this package owns the Google product path and
+# owner-keyed handler. Activation registers the contribution and toggle-off retracts it immediately.
+takeout:
+  - kind: youtube-watch-history
+    label: YouTube watch history
+    pathSuffix: Takeout/YouTube and YouTube Music/history/watch-history.json
+    htmlPathSuffix: Takeout/YouTube and YouTube Music/history/watch-history.html
+    maxBytes: 67108864
+    module: routes/youtube-kids-routes.js
+    handler: ingestTakeoutWatchHistory
 
 # One ribbon tile opens the Kid Lens page (upload step + rendered brief).
 ui:

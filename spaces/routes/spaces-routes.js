@@ -18,6 +18,7 @@
  * 2026-07-20 15:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | Carved out of OSHAL core into the spaces app package (ADR-085, "skill with a surface"). STRUCTURAL adaptation only: the factory drops the `apiDir` parameter for the standard single-arg (ctx) package shape (the mounter calls factory(packageCtx) — manifest-route-mounter.ts D10), and the three surfaces now serve from ctx.appPackageDir/tools via surfaceHtml() (load-time env fallback). Shared framework helpers keep importing via @/ aliases — the reconstruction ENGINE @/features/spatial-mapping (PINNED kernel skill 'spatial-mapping', declared in the manifest `uses:`) and the sim-drone helper @/features/drone (kernel-resident via the drone node-server pin). NOTE: the handler bodies below are a SYNC region — core spaces-routes.ts is being extended concurrently (mobile-ingest endpoint); the orchestrator RE-SYNCS the handler bodies from the final core source and rebuilds routes/spaces-routes.js at integration.
  * 2026-07-20 19:45:00 | roger.murphy@emeraldcoastsystemsgroup.com | Integration sync: grafted the final core /pair mobile-ingest endpoint (+ callerEmail / clampPairingTtlMinutes / requestOrigin helpers + the TTL bounds) onto this packaged surface. Rewrote the insertCliToken import from the core-relative './cli-token-routes' to the '@/app/routes/cli-token-routes' alias — src/app/** is always in dist, so the mounter resolves it against the running framework at mount time (same mechanism as @/features/*). The SYNC region below is now reconciled to the final core source.
  * 2026-07-20 21:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | ADR-111 geometry export: GET /scans/:id/geometry downloads the ACCURATE model a build consumes (the original LiDAR/photogrammetry .ply for an import, the produced .splat for a reconstruction) via the kernel engine's getGeometryPath; GET /scans/:id/dimensions returns the to-scale footprint (getDimensions — metres for LiDAR, labelled relative otherwise). Owner-scoped; turns Spaces from a viewer into a model you can build on.
+ * 2026-08-06 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Declare the package as the maintained Spaces source after the completed carve. Retire the stale core-sync marker and add a source/compiled/surface contract suite that protects the loader's single-argument factory, appPackageDir serving, /pair ingest, inline-script grammar, and deliberate stylesheet boundary.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -703,7 +704,7 @@ function createSpacesRoutes(ctx) {
         }
     });
     // ══════════════════════════════════════════════════════════════════════════
-    // SYNC FROM CORE spaces-routes.ts AT INTEGRATION  (region end)
+    // Package source-of-truth region end. Edit src-routes here, then rebuild routes/*.js.
     // ══════════════════════════════════════════════════════════════════════════
     logger.info('Spaces routes registered (surface + viewer + capture + owner-scoped scan API)');
     return router;

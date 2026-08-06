@@ -8,6 +8,34 @@ movement before ending the turn. The game
 persists the exact result before the DM dramatizes it, archives the campaign, and
 levels the party up.
 
+## v0.19.1 — shared campaigns have a database wall
+
+Released 2026-08-06 America/Chicago by
+maintainer@emeraldcoastsystemsgroup.com.
+
+`migrations/006-owner-rls.sql` backfills a nonempty authoritative `owner_sub`
+on campaigns, encounters, characters, archive entries, player seats, and
+snapshots, then enables and **forces** row-level security on all six tables.
+The caller's exact `oshal.current_sub` sees owned campaigns, joined members see
+their shared campaign rows, private character-library rows remain visible only
+to their exact owner, and the explicit `oshal.is_operator=on` rail retains
+operator access. A database-maintained member ACL avoids recursive policies and
+cannot be rewritten through ordinary campaign updates.
+
+Join codes are not ambient identity or a permanent bypass. The route accepts
+only the six-character hexadecimal format and sets the code as a
+transaction-local `oshal.dnd_join_code` capability before the exact active
+campaign lookup. Admission, seat capacity, membership insertion, and board
+revision commit atomically; rollback clears the capability. Leaving similarly
+uses a trigger-local exact-campaign capability only long enough to remove the
+derived membership, then access disappears immediately.
+
+The dependency-free contract is `tests/dnd-owner-rls.test.js`. The security
+pipeline also runs `scripts/security/run-live-dnd-rls-proof.mjs` against a
+disposable PostgreSQL service as a table-owning `NOSUPERUSER`/`NOBYPASSRLS`
+role, covering migration replay, two owners, members, join/leave, a stranger,
+the operator, and cleanup.
+
 ## v0.19.0 - the lead roll lands on the big shared d20
 
 Released 2026-07-31 America/Chicago by
@@ -666,7 +694,9 @@ The board is no longer tokens on a grid. It's a **painted battle map** with
   starter one-shot, **Ambush on the Coast Road** — playable immediately, no import
   needed.
 - **Per-user campaign persistence + story archive** — every campaign, board, and
-  narrative beat is saved under your account (`migrations/001-dnd.sql`).
+  narrative beat is saved under your account (`migrations/001-dnd.sql`), while
+  `migrations/006-owner-rls.sql` forces the database to enforce exact owner and
+  shared-member access independently of the route filters.
 
 ## Open content
 
@@ -708,6 +738,7 @@ dnd/
   migrations/003-snapshots.sql       # Timeline & Rewind snapshots
   migrations/004-character-library.sql # reusable account-level characters
   migrations/005-roll-events.sql     # exact, idempotent dice payloads for shared playback
+  migrations/006-owner-rls.sql       # owner backfill, member ACL, and forced RLS
 ```
 
 ## Roadmap (next increments)
@@ -755,8 +786,11 @@ Tracked so this stays honest about what is and isn't built:
 9. **Fire TV stick launcher** — the paired-stick APK loads the Jarvis home only;
    add a clickable app chip there (core `tvView()` change) so the board is one
    D-pad click away. Any signed-in TV browser already works via `?mode=tv`.
-10. **RLS hardening** — the schema is per-user by app-layer scoping today; add
-   per-request GUC RLS policies as defense-in-depth.
+10. ~~**RLS hardening.**~~ **Shipped in v0.19.1** — migration 006 backfills
+   authoritative owners, maintains the shared-member ACL in database triggers,
+   forces RLS across all six tenant tables, keeps private character libraries
+   exact-owner only, and bounds join/leave admission with transaction-local
+   capabilities. The disposable PostgreSQL proof runs in the security pipeline.
 11. ~~**Draw the leads on the map.**~~ **Shipped** across v0.17.x–v0.18.0:
    discovered leads are cast as real figures (`lib/dnd-lead-cast.js`), the
    acting hero visibly crosses to them (an authoritative board write, not a

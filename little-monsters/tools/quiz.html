@@ -2,7 +2,10 @@
 <!--
   CHANGE LOG
   -----------------------------------------------------------------------------
-  2026-06-09 | roger.murphy@agenticfederal.us | Little Monsters quiz page — grounded auto-quiz (RAG)
+  SEQ | AUTHOR                                      | DESCRIPTION
+  -----------------------------------------------------------------------------
+  1   | roger.murphy@agenticfederal.us              | Added the grounded auto-quiz page
+  2   | maintainer@emeraldcoastsystemsgroup.com     | Submit answer indexes for one-time server grading instead of trusting browser scores
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -29,6 +32,7 @@
   .opt:hover { border-color:var(--acc); transform:translateY(-1px); }
   .opt.correct { border-color:var(--ok); background:rgba(52,211,153,.16); }
   .opt.wrong { border-color:var(--bad); background:rgba(248,113,113,.16); }
+  .opt.selected { border-color:var(--acc2); background:rgba(95,220,192,.14); }
   .opt:disabled { cursor:default; }
   .explain { margin-top:12px;font-size:14px;color:var(--mut);background:var(--panel2);border-radius:10px;padding:12px 14px;display:none; }
   .next { margin-top:18px;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#0a0e1a;border:0;border-radius:12px;
@@ -74,7 +78,7 @@
 </div>
 <script>
 var classId = new URLSearchParams(location.search).get('classId') || '';
-var questions = [], idx = 0, correct = 0, answered = false, results = [];
+var questions = [], answers = [], idx = 0, answered = false, attemptId = '';
 
 async function start() {
   if (!classId) { document.getElementById('loadMsg').textContent = 'Open a class to take a quiz.'; return; }
@@ -85,6 +89,8 @@ async function start() {
     var data = await resp.json();
     if (!resp.ok || data.error) { document.getElementById('loadMsg').textContent = data.reason || data.error || 'Could not build a quiz.'; return; }
     questions = data.questions || [];
+    attemptId = data.attemptId || '';
+    if (!attemptId || !questions.length) { document.getElementById('loadMsg').textContent = 'The quiz attempt could not be started safely.'; return; }
     document.getElementById('sub').innerHTML = (data.className ? data.className + ' · ' : '') + '<span class="pill"><span class="codicon codicon-book"></span> Grounded in your textbook</span>';
     document.getElementById('loadCard').style.display = 'none';
     document.getElementById('quizCard').style.display = 'block';
@@ -112,14 +118,15 @@ function render() {
 function choose(i, btn) {
   if (answered) return;
   answered = true;
-  var q = questions[idx];
   var buttons = document.querySelectorAll('#opts .opt');
-  buttons.forEach(function(b, bi){ b.disabled = true; if (bi === q.correctIndex) b.classList.add('correct'); });
-  var isRight = i === q.correctIndex;
-  if (!isRight) btn.classList.add('wrong');
-  if (isRight) correct++;
-  results.push({ q: q.question, your: q.options[i], correct: q.options[q.correctIndex], right: isRight, explanation: q.explanation, topic: q.topic });
-  if (q.explanation) { var ex = document.getElementById('explain'); ex.textContent = (isRight ? 'Correct! ' : 'Not quite. ') + q.explanation; ex.style.display = 'block'; }
+  buttons.forEach(function(b){ b.disabled = true; });
+  btn.classList.add('selected');
+  answers[idx] = i;
+  // The answer key stays server-side until the attempt is consumed. This keeps
+  // progress and rewards authoritative without changing the student flow.
+  var ex = document.getElementById('explain');
+  ex.textContent = 'Answer saved. You will see the explanation after the quiz.';
+  ex.style.display = 'block';
   document.getElementById('nextBtn').textContent = idx + 1 < questions.length ? 'Next →' : 'See results →';
   document.getElementById('nextBtn').style.display = 'inline-block';
 }
@@ -131,23 +138,35 @@ function next() {
 
 async function finish() {
   document.getElementById('quizCard').style.display = 'none';
-  var pct = Math.round(correct / questions.length * 100);
+  document.getElementById('resultCard').style.display = 'block';
+  document.getElementById('scoreVal').textContent = '…';
+  document.getElementById('scoreMsg').textContent = 'Checking your answers securely…';
+  try {
+    var resp = await fetch('/api/education/quiz-results', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ attemptId: attemptId, answers: answers })
+    });
+    var data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Quiz grading failed.');
+    showServerGrade(data);
+  } catch (e) {
+    document.getElementById('scoreVal').textContent = '—';
+    document.getElementById('scoreMsg').textContent = 'Your result was not recorded: ' + e.message;
+  }
+}
+
+/** Render the answer key only after the server has consumed the attempt. */
+function showServerGrade(data) {
+  var pct = Number(data.scorePercent || 0);
   document.getElementById('scoreVal').textContent = pct + '%';
-  document.getElementById('scoreMsg').textContent = correct + ' of ' + questions.length + ' correct — ' +
+  document.getElementById('scoreMsg').textContent = data.correctAnswers + ' of ' + data.totalQuestions + ' correct — ' +
     (pct >= 80 ? 'Monster Win! 🎉' : pct >= 50 ? 'Solid effort — review the misses below.' : "Let's review these together.");
-  var rev = document.getElementById('review');
-  rev.innerHTML = results.map(function(r){
-    return '<div class="rev"><div class="badge ' + (r.right?'ok':'bad') + '">' + (r.right?'✓':'✗') + ' ' + escapeHtml(r.q) + '</div>'
-      + (r.right ? '' : '<div class="muted" style="margin-top:4px">Your answer: ' + escapeHtml(r.your) + ' · Correct: ' + escapeHtml(r.correct) + '</div>')
+  document.getElementById('review').innerHTML = (data.review || []).map(function(r, i){
+    var selected = questions[i] && questions[i].options[r.selectedIndex] || 'No answer';
+    return '<div class="rev"><div class="badge ' + (r.correct?'ok':'bad') + '">' + (r.correct?'✓':'✗') + ' ' + escapeHtml(r.question) + '</div>'
+      + (r.correct ? '' : '<div class="muted" style="margin-top:4px">Your answer: ' + escapeHtml(selected) + ' · Correct: ' + escapeHtml(r.correctAnswer) + '</div>')
       + (r.explanation ? '<div class="muted" style="margin-top:4px">' + escapeHtml(r.explanation) + '</div>' : '') + '</div>';
   }).join('');
-  document.getElementById('resultCard').style.display = 'block';
-  try {
-    await fetch('/api/education/quiz-results', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ studentId: null, classId: classId, scorePercent: pct, totalQuestions: questions.length, correctAnswers: correct, topics: [], missedQuestions: results.filter(function(r){return !r.right}).map(function(r){return r.q;}) })
-    });
-  } catch (e) { /* non-fatal */ }
 }
 
 function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }

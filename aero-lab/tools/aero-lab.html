@@ -352,7 +352,7 @@ window.AERO_LAB_DATA = {
       key: 'hybrid80', name: 'Hybrid f = 0.80',
       sub: '2.87 m hull + 2.5 m wing · 79.6 Wh · recorded on an earlier engine',
       needs: 'hybrid',
-      note: 'The FINAL_PRODUCT hybrid (design_snapshot.json): Tier-1 planform under a 3:1 prolate-spheroid hull (2.87 × 0.96 m, 1.369 m³) carrying 80 % of the 1.998 kg all-up weight. Pack 79.6 Wh (0.318 kg). RECORDED on an earlier engine revision: closes at 47.6°N d195 with min SOC 0.050. HONEST WARNING (verified 2026-08-03 against both the vendored snapshot and the live checkout): the engine’s quasi-steady trim no longer converges once a buoyancy element is attached — every buoyant design, including this one and the study’s own HYBRID_common path, now returns a hard TrimConvergenceError. The hybrid capability flag reports that the machinery IMPORTS, not that a buoyant design closes. Press Run to see the engine’s own refusal; the recorded numbers above are history, not a prediction this build can reproduce.',
+      note: 'The FINAL_PRODUCT hybrid (design_snapshot.json): Tier-1 planform under a 3:1 prolate-spheroid hull (2.87 × 0.96 m, 1.369 m³) carrying 80 % of the 1.998 kg all-up weight. Pack 79.6 Wh (0.318 kg). RECORDED on an earlier engine revision: closes at 47.6°N d195 with min SOC 0.050. HONEST WARNING (verified 2026-08-06 on the vendored engine): buoyant trim now converges at the unchanged strict tolerance, including f=0.80 with certified aero. The recorded energy result still uses the ideal propulsion/storage path; integrated BEMT + real-ECM certification remains open, and the live upstream tree may differ. The hybrid capability flag reports that the machinery IMPORTS, not that a proposed design closes. Press Run for the current deterministic verdict.',
       v: { area_m2: 0.52, aspect_ratio: 12.019230769230768, taper_ratio: 1.0, twist_root_deg: 0.0, twist_tip_deg: 0.0,
            extra_CD0: 0.00744, fus_over_floor: 1.0, battery_mass_kg: 0.3182307005178919, pack_Wh_per_kg: 250.0,
            cell_eff: 0.227, pv_density: 0.45, pv_packing: 0.6923076923076923, prop_max_W: 100.0, prop_diameter_m: 0.3,
@@ -381,6 +381,7 @@ window.AERO_LAB_DATA = {
   seriesLight: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948']
 };
 </script>
+<script src="/api/aero-lab/geometry.js"></script>
 <script src="/api/aero-lab/app.js"></script>
 </body>
 </html>

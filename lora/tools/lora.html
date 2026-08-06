@@ -1,4 +1,9 @@
 <!doctype html>
+<!--
+  CHANGE LOG
+  2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | Render every database/callback value as
+  escaped text, bind actions outside inline JavaScript, and allow only parsed HTTP(S) gallery URLs.
+-->
 <html lang="en" data-theme="midnight">
 <head>
 <meta charset="utf-8" />
@@ -97,31 +102,43 @@ const $ = (id) => document.getElementById(id);
 let CHARS = [], SEL = null;
 
 async function api(path, opts){ const r = await fetch('/api/lora'+path, opts); const j = await r.json().catch(()=>({})); return { ok:r.ok, status:r.status, j }; }
-function fmt(n){ return (n==null||n==='')?'—':Number(n).toFixed(2); }
-function showResult(kind, msg){ const e=$('result'); e.className='result '+kind; e.innerHTML=msg; }
+function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmt(n){ const value=Number(n); return Number.isFinite(value)?value.toFixed(2):'—'; }
+function safeInt(n){ const value=Number(n); return Number.isInteger(value)?value:null; }
+function safeStatus(v){ const value=String(v||'unknown'); return ['queued','training','trained','scored','failed'].includes(value)?value:'unknown'; }
+function safeImageUrl(v){
+  if(typeof v!=='string'||v.length>2048) return '';
+  try{ const u=new URL(v); return ((u.protocol==='https:'||u.protocol==='http:')&&!u.username&&!u.password)?u.href:''; }catch(e){ return ''; }
+}
+function empty(id,msg){ $(id).innerHTML='<div class="empty">'+esc(msg)+'</div>'; }
+function showResult(kind, msg){ const e=$('result'); e.className='result '+kind; e.textContent=String(msg||''); }
 
 async function loadChars(){
   const { ok, j } = await api('/characters');
-  if(!ok){ $('chars').innerHTML='<div class="empty">'+(j.error||'Failed to load')+'</div>'; return; }
-  CHARS = j.characters||[];
+  if(!ok){ empty('chars',j.error||'Failed to load'); return; }
+  CHARS = Array.isArray(j.characters)?j.characters:[];
   if(!CHARS.length){ $('chars').innerHTML='<div class="empty">No characters yet.</div>'; return; }
-  $('chars').innerHTML = CHARS.map(c=>`
-    <div class="card ${SEL===c.subject?'sel':''}" onclick="select('${c.subject}')">
+  $('chars').innerHTML = CHARS.map((c,index)=>`
+    <div class="card ${SEL===c.subject?'sel':''}" data-char-index="${index}">
       <div class="ch">
         <div class="avatar">🧿</div>
-        <div><div class="nm">${c.display_name}</div><div class="tg">trigger: <b>${c.trigger_word}</b></div></div>
+        <div><div class="nm">${esc(c.display_name)}</div><div class="tg">trigger: <b>${esc(c.trigger_word)}</b></div></div>
       </div>
       <div class="meta">
-        <span><b>${c.version_count||0}</b> versions</span>
-        <span>latest <b>v${c.latest_version??'—'}</b></span>
-        <span>active <b>v${c.active_version??'—'}</b></span>
+        <span><b>${safeInt(c.version_count)??0}</b> versions</span>
+        <span>latest <b>v${safeInt(c.latest_version)??'—'}</b></span>
+        <span>active <b>v${safeInt(c.active_version)??'—'}</b></span>
         <span>best score <b>${fmt(c.latest_score)}</b></span>
       </div>
     </div>`).join('');
+  $('chars').querySelectorAll('[data-char-index]').forEach((node)=>{
+    node.addEventListener('click',()=>{ const c=CHARS[Number(node.dataset.charIndex)]; if(c) void select(c.subject); });
+  });
 }
 
 async function select(subject){
   SEL = subject; const c = CHARS.find(x=>x.subject===subject);
+  if(!c) return;
   await loadChars();
   $('actions').style.display='block';
   $('actName').textContent = c.display_name;
@@ -134,20 +151,22 @@ async function loadVersions(subject){
   $('verMeta').textContent = '· '+subject;
   $('gallery').innerHTML='';
   const { ok, j } = await api('/models?subject='+encodeURIComponent(subject));
-  if(!ok){ $('vers').innerHTML='<div class="empty">'+(j.error||'Failed')+'</div>'; return; }
-  const models = j.models||[];
+  if(!ok){ empty('vers',j.error||'Failed'); return; }
+  const models = Array.isArray(j.models)?j.models:[];
   const c = CHARS.find(x=>x.subject===subject);
   if(!models.length){ $('vers').innerHTML='<div class="empty">No trained versions yet. Train the first version from the existing dataset to start the loop.</div>'; return; }
-  $('vers').innerHTML = models.map(m=>{
-    const active = c && c.active_version===m.version;
-    const weak = (m.weak_cells||[]).slice(0,3).map(w=>`<span>${w.value}</span>`).join(', ');
+  $('vers').innerHTML = models.map((m,index)=>{
+    const version=safeInt(m.version);
+    const active = c && safeInt(c.active_version)===version;
+    const status=safeStatus(m.status);
+    const weak = (Array.isArray(m.weak_cells)?m.weak_cells:[]).slice(0,3).map(w=>`<span>${esc(w&&w.value)}</span>`).join(', ');
     return `<div class="ver">
       <div class="vh">
-        <span class="vn">v${m.version}</span>
-        <span class="badge ${m.status}">${m.status}</span>
+        <span class="vn">v${version??'—'}</span>
+        <span class="badge ${status}">${esc(m.status)}</span>
         ${active?'<span class="badge active">active</span>':''}
-        ${m.parent_version!=null?`<span class="hint">from v${m.parent_version}</span>`:''}
-        <span class="hint" style="margin-left:auto">${m.network_dim?('rank '+m.network_dim+' · '):''}${m.epochs?(m.epochs+' epochs · '):''}${m.final_loss!=null?('loss '+fmt(m.final_loss)):''}</span>
+        ${safeInt(m.parent_version)!=null?`<span class="hint">from v${safeInt(m.parent_version)}</span>`:''}
+        <span class="hint" style="margin-left:auto">${safeInt(m.network_dim)?('rank '+safeInt(m.network_dim)+' · '):''}${safeInt(m.epochs)?(safeInt(m.epochs)+' epochs · '):''}${m.final_loss!=null?('loss '+fmt(m.final_loss)):''}</span>
       </div>
       ${m.overall!=null?`<div class="scores">
         <div class="score"><div class="n">${fmt(m.overall)}</div><div class="k">overall</div></div>
@@ -157,31 +176,37 @@ async function loadVersions(subject){
       </div>`:'<div class="hint" style="margin-top:8px">Not scored yet.</div>'}
       ${weak?`<div class="weak">weak: ${weak}</div>`:''}
       <div class="bar">
-        ${m.overall!=null?`<button class="btn ghost sm" onclick="event.stopPropagation();gallery('${subject}',${m.version})">View scorecard</button>`:''}
-        ${(m.status==='scored'&&!active)?`<button class="btn sm" onclick="event.stopPropagation();keepBest('${subject}',${m.version})">Keep as active</button>`:''}
+        ${m.overall!=null&&version!=null?`<button class="btn ghost sm" data-gallery-index="${index}">View scorecard</button>`:''}
+        ${(status==='scored'&&!active&&version!=null)?`<button class="btn sm" data-active-index="${index}">Keep as active</button>`:''}
       </div>
     </div>`;
   }).join('');
+  $('vers').querySelectorAll('[data-gallery-index]').forEach((node)=>{
+    node.addEventListener('click',(event)=>{ event.stopPropagation(); const m=models[Number(node.dataset.galleryIndex)]; const v=safeInt(m&&m.version); if(v!=null) void gallery(subject,v); });
+  });
+  $('vers').querySelectorAll('[data-active-index]').forEach((node)=>{
+    node.addEventListener('click',(event)=>{ event.stopPropagation(); const m=models[Number(node.dataset.activeIndex)]; const v=safeInt(m&&m.version); if(v!=null) void keepBest(subject,v); });
+  });
 }
 
 async function gallery(subject, version){
   $('gallery').innerHTML='<div class="spin">Loading scorecard…</div>';
   const { ok, j } = await api('/scorecard?subject='+encodeURIComponent(subject)+'&version='+version);
-  if(!ok){ $('gallery').innerHTML='<div class="empty">'+(j.error||'No scorecard')+'</div>'; return; }
-  const cells = (j.scorecard&&j.scorecard.cells)||[];
+  if(!ok){ empty('gallery',j.error||'No scorecard'); return; }
+  const cells = Array.isArray(j.scorecard&&j.scorecard.cells)?j.scorecard.cells:[];
   $('gallery').innerHTML = `<div class="lbl" style="margin-top:18px">Scorecard · v${version} · ${cells.length} cells</div>
-    <div class="cells">${cells.map(c=>`
+    <div class="cells">${cells.map(c=>{ const image=safeImageUrl(c&&c.image); return `
       <div class="cell">
-        ${(c.image&&/^https?:/.test(c.image))?`<img src="${c.image}" loading="lazy" />`:''}
+        ${image?`<img src="${esc(image)}" loading="lazy" referrerpolicy="no-referrer" />`:''}
         <div class="cs">${fmt(c.score!=null?c.score:(0.6*c.identity+0.4*c.quality))}</div>
-        <div class="cm">${(c.cell||'').replace(/\|/g,' · ')}</div>
+        <div class="cm">${esc(String(c.cell||'').replace(/\|/g,' · '))}</div>
         <div class="cm">id ${fmt(c.identity)} · q ${fmt(c.quality)}</div>
-      </div>`).join('')}</div>`;
+      </div>`;}).join('')}</div>`;
 }
 
 async function keepBest(subject, version){
   const { ok, j } = await api('/characters/'+encodeURIComponent(subject)+'/active', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({version}) });
-  if(ok){ showResult('ok','Set <b>v'+version+'</b> as the active character version.'); await loadChars(); await loadVersions(subject); }
+  if(ok){ showResult('ok','Set v'+version+' as the active character version.'); await loadChars(); await loadVersions(subject); }
   else showResult('err', j.error||'Failed');
 }
 

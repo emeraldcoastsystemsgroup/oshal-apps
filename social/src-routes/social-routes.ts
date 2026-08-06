@@ -24,6 +24,8 @@
  * 2026-06-16 12:55:00 | roger.murphy@agenticfederal.us   | The social feed, organized + flowing: GET /signals/ui (Social Signals surface, in the social app) + POST /signals/organize (the comms bot reads the stored social signals — controller feeds them per ADR-036 — and returns a grouped briefing). This is how the social bot "gets its read" on social media: controller data-access → bot reasoning, no DB creds in the bot, no mesh needed (mesh/selector deferred to the trading-trigger use case).
  * 2026-07-19 20:10:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Carved out of OSHAL core into the social app package (ADR-085 Wave 2, "skill with a surface"). Standard (ctx) factory; the surfaces (workspace/signals/composer/facebook-stream) serve from ctx.appPackageDir/tools (load-time env fallback, D10); shared core helpers (token broker, connectors, inline-bot-execution) import via @/ aliases. The communications-bot + social-writer nodes (containers + registries + personas), the inbox-ingest cron feeding oshal_inbox_messages (category=social — the Signals engine), the linkedin/twitter/meta-business connectors, and the kernel-resident LinkedIn AI Content Assistant (/api/linkedin-assistant — retains its own no-post gate) stay framework-resident per ADR-093.
  *
+ * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: retire the generic connector-credential carrier from comms-bot dispatch. Drafting and signal organization now receive only caller text or controller-fetched signal rows; deterministic publish/profile operations continue resolving the exact connector token at their immediate API boundary.
+ *
  * @module social-routes
  */
 
@@ -33,7 +35,6 @@ import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
 import { BotNodeClient, createRegistryEndpointResolver } from '@/features/agent-management';
 import { getValidAccessToken } from '@/app/routes/connectors-routes';
-import { resolveBotCreds } from '@/app/routes/connector-token-broker';
 import { executeBotOrInline } from '@/app/routes/inline-bot-execution';
 import { confirmationRequiredPayload, hasExplicitWriteConfirmation } from '@/shared/security/explicit-write-confirmation';
 
@@ -64,18 +65,16 @@ function servePage(dir: string, file: string): RequestHandler {
 
 /** Run a reasoning prompt on the comms bot (cost captured there). */
 async function runOnBot(ctx: AppContext, kind: string, sub: string, prompt: string): Promise<string> {
-  // Token broker: hand the bot the caller's short-lived tokens (google + twitter) so it
-  // reads via a provided token rather than needing SESSION_SECRET to decrypt the DB.
-  const creds = await resolveBotCreds(ctx.pool, sub, ['google', 'twitter']);
+  // Credential-free reasoning boundary: connector reads happen in this controller and the
+  // prompt contains only the bounded, presentation-safe rows needed for this request.
   const result = await executeBotOrInline(ctx, botClient, COMMS_BOT_AGENT_ID, {
     text: prompt,
     taskId: `social-${kind}-${sub}`,
     workspaceFolderId: `social-${sub}`,
     agentId: COMMS_BOT_AGENT_ID,
-    agenticMode: true,
+    agenticMode: false,
     direct: true,
     userSub: sub,
-    creds,
   });
   return result.response;
 }

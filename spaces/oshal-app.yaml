@@ -44,7 +44,7 @@ description: >-
   iPhone/LiDAR/drone capture), walk the Gaussian splat in a WebGL viewer, get live
   "walk/pan" guidance while you film, and paint Wi-Fi coverage onto the map.
   Handheld, imported, or sim-drone capture — one 3D space.
-version: 0.5.0
+version: 0.5.1
 status: active
 
 source:
@@ -52,6 +52,19 @@ source:
   url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: spaces
   ref: main
+
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/spaces/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
 
 # No connector allow-list: captures are the user's OWN device output (uploaded
 # video, imported .ply/.splat, phone sensors, the sim drone) — not per-user OAuth
@@ -106,6 +119,13 @@ ui:
 # handler re-derives the caller sub and pins reads to it. OIDC only.)
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/spaces/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/spaces-routes.js
     factory: createSpacesRoutes
     mountPath: /api/spaces

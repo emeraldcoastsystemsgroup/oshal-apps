@@ -3,9 +3,9 @@
  * Travel Routes — Travel Concierge surface API (ADR-059)
  *
  * Backs the Travel surface at /cockpit?app=travel. The framework way:
- *  - FLIGHT SEARCH is REAL via the Duffel air API, run through scripts/oshal-duffel.js with the
- *    traveller's/operator's Duffel token resolved from the connector store (or the
- *    DUFFEL_ACCESS_TOKEN env) — no token hardcoded. Hotels/cars are demo + deep-link handoffs.
+ *  - FLIGHT SEARCH is REAL via the Duffel air API. The controller resolves the
+ *    traveller's/operator's token from the connector store and passes it to the import-safe core
+ *    helper as one request-scoped argument. Hotels/cars are demo + deep-link handoffs.
  *  - BOOKING is a DEEP-LINK HANDOFF (Google Flights / Booking.com / a rental search); Duffel can
  *    book via API later without re-architecting.
  *  - Every search + quote is written ANONYMIZED into travel_observations (the swarm-wide price
@@ -29,6 +29,9 @@
  *            | migrations 050/051, and the travel-concierge node stay framework-resident
  *            | (ADR-093).
  * ---------------------------------------------------------------------------
+ * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove Duffel credentials from generic orchestrator dispatch. Flight search resolves a fixed-server-operation credential only inside the deterministic CLI helper; the model receives bounded offers and price intelligence, never a credential map.
+ * 2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: replace the final credential-bearing Duffel subprocess. Travel operations now call the bounded import-safe provider helper with the current request's explicit token.
+ *
  * @module travel-routes
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
@@ -69,16 +72,15 @@ exports.createTravelRoutes = createTravelRoutes;
 const express_1 = require("express");
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
-const child_process_1 = require("child_process");
 const crypto_1 = require("crypto");
 const logger_1 = require("@/shared/logger");
 const authz_1 = require("@/shared/middleware/authz");
 const connector_token_broker_1 = require("@/app/routes/connector-token-broker");
+const provider_operation_clients_1 = require("@/app/routes/provider-operation-clients");
 const travel_farewatch_1 = require("@/app/routes/travel-farewatch");
 const logger = (0, logger_1.createChildLogger)({ module: 'travel-routes' });
 /** The travel-concierge agent (seeded by migration 051; inline bot run via the orchestrator). */
 const CONCIERGE_AGENT_ID = 'b00c0000-0000-0000-0000-000000000001';
-const DUFFEL_CLI = 'scripts/oshal-duffel.js';
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
 /**
@@ -120,23 +122,10 @@ function resolveViewerSub(req) {
         return 'demo-traveller';
     throw Object.assign(new Error('Not authenticated'), { status: 401 });
 }
-// ── Duffel CLI (broker-resolved token; no keys here) ───────────────────────────
-async function duffelCli(pool, sub, args) {
-    const creds = await (0, connector_token_broker_1.resolveBotCreds)(pool, sub, ['duffel']);
-    return new Promise((resolve) => {
-        const env = { ...process.env, OSHAL_USER_SUB: sub };
-        if (creds.OSHAL_CRED_DUFFEL)
-            env.OSHAL_CRED_DUFFEL = creds.OSHAL_CRED_DUFFEL;
-        (0, child_process_1.execFile)('node', [path.resolve(process.cwd(), DUFFEL_CLI), ...args], { env, timeout: 30000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
-            const text = (stdout || '').trim();
-            try {
-                resolve(JSON.parse(text || '{}'));
-            }
-            catch {
-                resolve({ error: (err && err.message) || 'duffel CLI error', raw: text.slice(0, 300) });
-            }
-        });
-    });
+// ── Duffel provider helper (fixed-operation request token, never model-visible) ─────────
+async function duffelProviderOperation(pool, sub, args) {
+    const creds = await (0, connector_token_broker_1.resolveServerOperationCreds)(pool, sub, ['duffel'], 'fixed-server-operation');
+    return (0, provider_operation_clients_1.runDuffelProviderOperation)(creds.OSHAL_CRED_DUFFEL, args);
 }
 async function loadProfile(pool, sub) {
     const r = await pool.query(`SELECT * FROM travel_profile WHERE user_sub = $1`, [sub]);
@@ -236,7 +225,7 @@ function createTravelRoutes(ctx) {
     router.get('/app', serveFile(appPackageDir, 'travel-app.html'));
     router.get('/chat', serveFile(appPackageDir, 'travel-app.html'));
     router.get('/config', traveller(async (_req, res, sub) => {
-        const st = await duffelCli(pool, sub, ['status']);
+        const st = await duffelProviderOperation(pool, sub, ['status']);
         res.json({ connected: !!st.configured, mode: st.mode || 'demo', live: !!st.live });
     }));
     // ── Flight search (REAL Duffel) + price intelligence ──────────────────────────
@@ -250,7 +239,7 @@ function createTravelRoutes(ctx) {
         if (q.returnDate)
             args.push(q.returnDate);
         args.push(String(q.pax), q.cabin);
-        const r = await duffelCli(pool, sub, args);
+        const r = await duffelProviderOperation(pool, sub, args);
         const items = r.items || [];
         const best = items.length ? Math.min(...items.map((i) => Number(i.price))) : null;
         await (0, travel_farewatch_1.recordObservations)(pool, 'flight', q, items, r.source || 'demo');
@@ -265,7 +254,7 @@ function createTravelRoutes(ctx) {
             res.status(400).json({ error: 'city, checkIn and checkOut are required' });
             return;
         }
-        const r = await duffelCli(pool, sub, ['hotels', q.city, q.checkIn, q.checkOut, String(q.guests)]);
+        const r = await duffelProviderOperation(pool, sub, ['hotels', q.city, q.checkIn, q.checkOut, String(q.guests)]);
         await (0, travel_farewatch_1.recordObservations)(pool, 'hotel', q, r.items || [], r.source || 'demo');
         const routeKey = (0, travel_farewatch_1.routeKeyFor)('hotel', q);
         const best = (r.items || []).length ? Math.min(...r.items.map((i) => Number(i.price))) : null;
@@ -277,7 +266,7 @@ function createTravelRoutes(ctx) {
             res.status(400).json({ error: 'city, pickupDate and dropoffDate are required' });
             return;
         }
-        const r = await duffelCli(pool, sub, ['cars', q.city, q.pickupDate, q.dropoffDate, q.carClass]);
+        const r = await duffelProviderOperation(pool, sub, ['cars', q.city, q.pickupDate, q.dropoffDate, q.carClass]);
         await (0, travel_farewatch_1.recordObservations)(pool, 'car', q, r.items || [], r.source || 'demo');
         const routeKey = (0, travel_farewatch_1.routeKeyFor)('car', q);
         const best = (r.items || []).length ? Math.min(...r.items.map((i) => Number(i.price))) : null;
@@ -359,7 +348,7 @@ function createTravelRoutes(ctx) {
             if (q.returnDate)
                 args.push(q.returnDate);
             args.push(String(q.pax), q.cabin);
-            const r = await duffelCli(pool, sub, args);
+            const r = await duffelProviderOperation(pool, sub, args);
             candidates = r.items || [];
             await (0, travel_farewatch_1.recordObservations)(pool, 'flight', q, candidates, r.source || 'demo');
             const best = candidates.length ? Math.min(...candidates.map((i) => Number(i.price))) : null;
@@ -369,12 +358,11 @@ function createTravelRoutes(ctx) {
         const profile = await loadProfile(pool, sub);
         const notes = (await pool.query(`SELECT note FROM travel_feedback WHERE user_sub = $1 ORDER BY created_at DESC LIMIT 25`, [sub])).rows.map((r) => r.note);
         const prompt = buildConciergePrompt({ message, history, candidates, kind, profile, notes, price });
-        const creds = await (0, connector_token_broker_1.resolveBotCreds)(pool, sub, ['duffel']);
         let raw = '';
         try {
             const orchestrator = ctx.orchestrator;
             const result = await orchestrator.processMessage(`travel-${sub}-${(0, crypto_1.randomUUID)()}`, prompt, {
-                agenticMode: true, autoApprove: false, source: 'travel', agentId: CONCIERGE_AGENT_ID, userSub: sub, creds,
+                agenticMode: false, autoApprove: false, source: 'travel', agentId: CONCIERGE_AGENT_ID, userSub: sub,
             });
             raw = String(result?.response || '').trim();
         }

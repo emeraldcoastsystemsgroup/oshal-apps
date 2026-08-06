@@ -1,3 +1,15 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Release the tenant-safe, cross-process-serialized Career runtime with bounded uploads, durable ingest status, truthful command outcomes, and decomposed routes as version 1.6.1.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Align package comments with the native board and its permanent classic-route redirects.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register explicit manual, worker-reported, verified, and historical-unverified application provenance.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Remove legacy model-authorized Apply profile, queue, email-code, outcome, and trace tools now owned by the staged controller and trusted completion rail.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Release claim leases, ambiguity-safe Apply recovery, monotonic application provenance, explicit submission consent, and read-only mobile startup as version 1.6.2.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Release durable Apply V2 run/token claim binding and ledger-backed manual application assertions as version 1.6.3.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Release strict backend selection, dual-store contract evidence, convergent replay, and stable interview source identity as version 1.6.4.
+# -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — career-hunter (Career Hunter)
 # Carved out of OSHAL core 2026-07-18 (ADR-085 Wave 3 #1 — the biggest carve: the
@@ -19,14 +31,14 @@
 # by all users; every per-user
 # signal (keyword/AI fit, status, resume/cover, lifecycle) is isolated per user_sub.
 # ONE career-hunter agent (inline packaged shape) owns the domain — it calls the framework
-# tools below; the cockpit board wraps the engine's Flask dashboard; an Approvals surface
+# tools below; the native cockpit board is served directly by the package; an Approvals surface
 # (near Settings) drives the human-in-the-loop application ticket queue.
 #
 # Everything reduces to a tool, a CLI, a connector, or a surface:
 #   CLI        bin/oshal-jobhunter.js  (query/draft/score/refresh — engine in engine/)
 #   Tools      the framework `tools:` below ({packageDir} cliCommands, server-side)
 #   Connector  anthropic (click-to-connect)   [firecrawl = a per-user settings field]
-#   Surfaces   board (wrapped dashboard) · approvals · settings
+#   Surfaces   board (native package surface) · approvals · settings
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: career-hunter
@@ -37,7 +49,7 @@ description: >-
   posting against your private career profile, and turns the best fits into a human-in-the-loop
   application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume +
   cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.
-version: 1.6.0
+version: 1.6.4
 status: active
 theme: daylight
 
@@ -54,6 +66,19 @@ source:
   url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: career-hunter
   ref: main
+
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/career-hunter/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
 
 # Guests may browse read-only; every write is gated. (Was hardcoded Tier A in core —
 # the literal left with this carve. Request only; grants come from the operator, D4.)
@@ -88,11 +113,10 @@ bots:
       - resume-tailoring
       - recruiter-outreach
       - career-coaching
-  # NOTE: the apply tools below are OWNED by career-hunter (granted via its persona
-  # authorizations). The dedicated apply-operator worker bot (cb…003, its own persona +
-  # /api/apply-operator route + browser_control MCP) drives the real browser on the desktop;
-  # it is registered in swarm-bot-registry.ts, not listed here, so it doesn't trip the
-  # inline-bot wiring validator (it executes remotely, not inline in the api).
+  # NOTE: Apply submission is a controller-owned, trusted rail rather than a framework tool.
+  # Core selects and claims the job, stages job/profile data, and records the model-hidden
+  # completion through private oshal-apply.js calls. The dedicated apply-operator worker bot
+  # (cb…003) drives only the browser and is registered in the kernel registry, not here.
 
 # Bot tools auto-discovered at load (wrap the CLI verbs + the surface HTML).
 
@@ -169,78 +193,8 @@ tools:
       Call career_score (no arguments) when a ticket or the operator asks to score fresh
       postings. It is bounded to recent in-lane roles; report the counts it prints.
 
-  # ── apply-operator tools: the submission pipeline, per signed-in user (oshal-apply.js) ──
-  - name: career_profile
-    displayName: Apply Profile
-    type: cli
-    description: >-
-      The signed-in user's CANONICAL apply values — contact, phone (E.164), address,
-      work-authorization/sponsorship, citizenship, clearance, EEO — plus their career_db.
-    executor:
-      executorType: cli
-      cliCommand: node /app/scripts/oshal-apply.js profile
-    defaultAuthMode: auto
-    usageInstructions: >-
-      Call career_profile (no arguments) for THIS user's canonical form values. Pull EVERY
-      value you type into an application from here — the generated resume is NOT the source of
-      truth. If a required field is missing, PAUSE and report it; never invent a value.
-  - name: apply_next
-    displayName: Apply — Next
-    type: cli
-    description: >-
-      Get the signed-in user's NEXT approved, US-eligible, packet-ready job to submit.
-    executor:
-      executorType: cli
-      cliCommand: node /app/scripts/oshal-apply.js queue next
-    defaultAuthMode: auto
-    usageInstructions: >-
-      Call apply_next (no arguments) for the next submittable job — returns {item:{posting_id,
-      title, company, url, packet_dir, resume_pdf, cover_pdf}} or {item:null} if none is ready.
-  - name: apply_claim
-    displayName: Apply — Claim
-    type: cli
-    description: Lock a job (apply_active=0) so no other worker double-submits it.
-    executor:
-      executorType: cli
-      cliCommand: node /app/scripts/oshal-apply.js queue claim {input.postingId}
-    defaultAuthMode: auto
-    usageInstructions: >-
-      Call apply_claim with input.postingId (from apply_next) the instant you pick a job, before
-      you start filling — it prevents a second worker from submitting the same posting.
-  - name: apply_record
-    displayName: Apply — Record
-    type: cli
-    description: Record a submission outcome for the signed-in user.
-    executor:
-      executorType: cli
-      cliCommand: node /app/scripts/oshal-apply.js queue record {input.postingId} {input.status}
-    defaultAuthMode: auto
-    usageInstructions: >-
-      Call apply_record with input.postingId and input.status ("applied" | "deferred" |
-      "dismissed") after the outcome. "applied" stamps applied_at; use "deferred" for a blocker.
-  - name: email_code
-    displayName: Email Code
-    type: cli
-    description: The newest ATS security/verification code from the signed-in user's connected Gmail.
-    executor:
-      executorType: cli
-      cliCommand: node /app/scripts/oshal-apply.js email-code
-    defaultAuthMode: auto
-    usageInstructions: >-
-      Call email_code (no arguments) when an application shows a verification-code prompt.
-      Returns {code, from, subject}. A submit that produced a code prompt is NOT a submission —
-      enter the code, resubmit, then confirm.
-  - name: apply_trace
-    displayName: Apply Trace
-    type: cli
-    description: Append one learning line to the signed-in user's apply trace after an outcome.
-    executor:
-      executorType: cli
-      cliCommand: node /app/scripts/oshal-apply.js trace
-    defaultAuthMode: auto
-    usageInstructions: >-
-      Call apply_trace after each submission outcome so the next run learns which fields/ATSes
-      bounce. (Detailed fields are supplied by the runtime via APPLY_* context.)
+  # The kernel's oshal-apply.js profile/queue/trace verbs intentionally are NOT registered here.
+  # They remain controller-private implementation details of staged dispatch and trusted ingest.
   - name: career_refresh
     displayName: Refresh Jobs Database
     type: cli
@@ -276,7 +230,7 @@ tools:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # UI SURFACES
-#   board    (top)    — the wrapped engine dashboard (all existing views)
+#   board    (top)    — the native package job board (classic paths redirect here)
 #   approvals(bottom) — the human-in-the-loop application ticket queue, near Settings
 #   settings (bottom) — Anthropic click-to-connect + Firecrawl API-key field + cron toggles
 # ─────────────────────────────────────────────────────────────────────────────
@@ -349,6 +303,13 @@ ui:
 # ROUTES — mounted conditionally by the loader.
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/career-hunter/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/career-hunter-routes.js
     factory: createCareerHunterRoutes
     mountPath: /api/career-hunter
@@ -399,6 +360,10 @@ migrations:
   # deterministically from the posting itself. Must run AFTER 095 — career_posting_tags
   # carries an FK to career_postings.
   - migrations/099-career-interview-bank.sql
+  - migrations/100-career-application-provenance.sql
+  - migrations/101-career-apply-claim-lease.sql
+  - migrations/102-career-apply-run-binding.sql
+  - migrations/103-career-interview-source-identity.sql
 
 # ─────────────────────────────────────────────────────────────────────────────
 # WORKFLOW — career-application tickets route to the career-hunter worker bot.

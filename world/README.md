@@ -15,7 +15,10 @@ Carved out of OSHAL core 2026-07-20 (ADR-085 Wave 3, "skill with a surface").
   `/api/world` (auth: public — EXACTLY the kernel's mount posture, ADR-085 D2):
   - **Writes are fail-closed** on `WORLD_INGEST_TOKEN` (`POST /contribute`,
     `/seed-outlets`, `/ingest-news`, `/backtest`) — with no token configured every
-    write is rejected; machine feeders post with the bearer token.
+    write is rejected. Machine feeders authenticate through `Authorization: Bearer`
+    (or `X-World-Ingest-Token` for constrained internal clients). URL `?token=`
+    credentials are always rejected so access logs, referrers, and copied URLs cannot retain
+    the secret.
   - **Reads are open by design** (`GET /metric`, `/sentiment`, `/pulls`, `/neighbors`,
     `/entities`) — a shared world feed with no per-user data.
   - `GET /app` — the cockpit World Intelligence dashboard (the kernel slice's

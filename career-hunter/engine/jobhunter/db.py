@@ -1,3 +1,13 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR                                    | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Carry application provenance, task correlation, and claim-lease timestamps through every Career storage backend with monotonic evidence updates.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve non-null evidence on equal-rank replays so a repeated worker or verified update cannot erase its existing task or confirmation reference.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Carry the durable Apply run id and one-time claim token through SQLite, legacy, and PostgreSQL application stores.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Seed PostgreSQL recruiter rows with stable source ids matching their declared composite key.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Make fresh SQLite schemas include every indexed corpus and lifecycle column before indexes and writes use them.
+
 """Storage layer. Two backends, selected by JOBHUNTER_STORE (see config.STORE).
 
   'sqlite'   (DEFAULT) — the legacy single-file `jobs.db`, or the MULTIUSER pair
@@ -13,6 +23,9 @@ Reputation is stored in two layers on `company_reputation`:
   ai_*      -> filled by the AI enricher (flagged, directional)
   manual_*  -> filled by you; ALWAYS wins.
 The `company_view` view COALESCEs manual over ai so readers get the effective value.
+
+Application provenance is monotonic at the storage chokepoint: a later manual status assertion
+cannot replace a worker report or a confirmation-backed record on any supported backend.
 """
 from __future__ import annotations
 import json
@@ -86,8 +99,9 @@ def require_sub() -> str:
     connection whose per-user reads return zero rows and whose per-user writes violate the
     RLS WITH CHECK. Refusing to open it at all turns a silent "the board is empty today"
     into an immediate, obvious error at the point of the mistake."""
-    sub = (config.USER_SUB or "").strip()
-    if sub.lower() in _NON_IDENTITIES:
+    # OIDC subjects are opaque and case/whitespace-sensitive; validate without normalizing.
+    sub = config.USER_SUB or ""
+    if sub in _NON_IDENTITIES:
         raise RuntimeError(
             "JOBHUNTER_STORE=postgres requires a real OSHAL_USER_SUB; got "
             f"{config.USER_SUB!r}. Every per-user table is under FORCE ROW LEVEL SECURITY "
@@ -348,7 +362,10 @@ def read_postings_table() -> str:
 _USER_SIGNAL_COLS = (
     "fit_score", "ai_fit_score", "ai_fit_rationale", "ai_fit_matched", "ai_fit_gaps",
     "ai_scored_at", "ai_model", "status", "resume_path", "cover_path", "generated_at",
-    "promoted_at", "applied_at", "outreach_sent_at", "notes",
+    "promoted_at", "applied_at", "interview_at", "offer_at", "closed_at", "outcome",
+    "outreach_sent_at", "notes", "apply_active", "confirmation_path",
+    "application_source", "application_task_id", "apply_claimed_at",
+    "apply_run_id", "apply_claim_token",
 )
 
 # ── Postgres routing for user_set(): which per-user table owns which column ──
@@ -363,15 +380,71 @@ _PG_SCORE_COLS = frozenset({
 _PG_APP_COLS = frozenset({
     "status", "resume_path", "cover_path", "promoted_at", "generated_at",
     "outreach_sent_at", "applied_at", "interview_at", "offer_at", "closed_at",
-    "outcome", "notes", "apply_active", "confirmation_path",
+    "outcome", "notes", "apply_active", "confirmation_path", "application_source",
+    "application_task_id", "apply_claimed_at", "apply_run_id", "apply_claim_token",
 })
 # Columns that are 0/1 integers in SQLite and real booleans in Postgres.
 _PG_BOOL_COLS = frozenset({"target_role"})
+_PROVENANCE_FIELDS = frozenset({
+    "application_source", "application_task_id", "confirmation_path",
+})
 
 
 def _pg_bool(v):
     """0/1 (or None) -> True/False (or None). Postgres rejects `boolean = integer`."""
     return None if v is None else bool(v)
+
+
+def _provenance_rank_sql(source: str) -> str:
+    """SQL rank shared by SQLite/Postgres upserts; higher evidence never loses to lower."""
+    return (
+        f"CASE {source} WHEN 'verified-submission' THEN 4 "
+        "WHEN 'worker-reported' THEN 3 WHEN 'manual-mark' THEN 2 "
+        "WHEN 'unverified' THEN 1 ELSE 0 END"
+    )
+
+
+def _upsert_updates(current: str, incoming: str, keys: list[str]) -> str:
+    """Build atomic assignments that retain stronger application provenance."""
+    current_rank = _provenance_rank_sql(f"{current}.application_source")
+    incoming_rank = _provenance_rank_sql(f"{incoming}.application_source")
+    assignments = []
+    for key in keys:
+        if "application_source" in keys and key in _PROVENANCE_FIELDS:
+            assignments.append(
+                f"{key}=CASE WHEN {current_rank} > {incoming_rank} THEN {current}.{key} "
+                f"WHEN {current_rank} < {incoming_rank} THEN {incoming}.{key} "
+                f"ELSE COALESCE({incoming}.{key}, {current}.{key}) END"
+            )
+        elif key == "applied_at":
+            assignments.append(f"{key}=COALESCE({current}.{key}, {incoming}.{key})")
+        else:
+            assignments.append(f"{key}={incoming}.{key}")
+    return ", ".join(assignments)
+
+
+def _legacy_update(conn, posting_id, cols: dict) -> None:
+    """Apply the same monotonic evidence rule to the legacy inline-postings backend."""
+    incoming_rank = {
+        "verified-submission": 4, "worker-reported": 3,
+        "manual-mark": 2, "unverified": 1,
+    }.get(cols.get("application_source"), 0)
+    current_rank = _provenance_rank_sql("application_source")
+    sets, values = [], []
+    for key, value in cols.items():
+        if "application_source" in cols and key in _PROVENANCE_FIELDS:
+            sets.append(
+                f"{key}=CASE WHEN {current_rank} > ? THEN {key} "
+                f"WHEN {current_rank} < ? THEN ? ELSE COALESCE(?, {key}) END"
+            )
+            values.extend((incoming_rank, incoming_rank, value, value))
+        elif key == "applied_at":
+            sets.append("applied_at=COALESCE(applied_at, ?)")
+            values.append(value)
+        else:
+            sets.append(f"{key}=?")
+            values.append(value)
+    conn.execute(f"UPDATE postings SET {', '.join(sets)} WHERE id=?", (*values, posting_id))
 
 
 def _pg_user_upsert(conn, table: str, posting_id, cols: dict, touch_updated: bool) -> None:
@@ -383,7 +456,7 @@ def _pg_user_upsert(conn, table: str, posting_id, cols: dict, touch_updated: boo
     keys = list(cols)
     vals = [_pg_bool(cols[k]) if k in _PG_BOOL_COLS else cols[k] for k in keys]
     placeholders = ", ".join(["?"] * len(keys))
-    updates = ", ".join(f"{k}=EXCLUDED.{k}" for k in keys)
+    updates = _upsert_updates(table, "EXCLUDED", keys)
     if touch_updated:
         updates += ", updated_at=NOW()"
     conn.execute(
@@ -421,7 +494,7 @@ def user_set(conn, posting_id, **cols) -> None:
     if config.MULTIUSER:
         keys = list(cols.keys())
         placeholders = ", ".join(["?"] * len(keys))
-        updates = ", ".join(f"{k}=excluded.{k}" for k in keys)
+        updates = _upsert_updates("user_signals", "excluded", keys)
         conn.execute(
             f"INSERT INTO user_signals (posting_id, {', '.join(keys)}) "
             f"VALUES (?, {placeholders}) "
@@ -429,8 +502,7 @@ def user_set(conn, posting_id, **cols) -> None:
             (posting_id, *cols.values()),
         )
     else:
-        sets = ", ".join(f"{k}=?" for k in cols)
-        conn.execute(f"UPDATE postings SET {sets} WHERE id=?", (*cols.values(), posting_id))
+        _legacy_update(conn, posting_id, cols)
 
 
 SCHEMA = """
@@ -462,6 +534,13 @@ CREATE TABLE IF NOT EXISTS postings (
     url           TEXT,            -- direct apply link on the corporate/ATS site
     description   TEXT,
     posted_at     TEXT,
+    posted_date   TEXT,
+    state         TEXT,
+    city          TEXT,
+    lat           REAL,
+    lon           REAL,
+    job_type      TEXT,
+    target_role   INTEGER,
     fit_score     INTEGER,         -- cheap keyword match vs career_db (filled by `match`)
     -- salary (listed from the ATS, or AI-estimated)
     salary_min    REAL,
@@ -483,6 +562,19 @@ CREATE TABLE IF NOT EXISTS postings (
     cover_path    TEXT,
     generated_at  TEXT,
     promoted_at   TEXT,
+    applied_at    TEXT,
+    interview_at  TEXT,
+    offer_at      TEXT,
+    closed_at     TEXT,
+    outcome       TEXT,
+    outreach_sent_at TEXT,
+    apply_active  INTEGER DEFAULT 1,
+    apply_claimed_at INTEGER,
+    confirmation_path TEXT,
+    application_source TEXT,
+    application_task_id TEXT,
+    apply_run_id TEXT,
+    apply_claim_token TEXT,
     notes         TEXT,
     first_seen_at TEXT,
     last_seen_at  TEXT,
@@ -639,9 +731,15 @@ CREATE TABLE IF NOT EXISTS user_signals (
     ai_scored_at  TEXT, ai_model TEXT,
     status        TEXT DEFAULT 'new',
     resume_path   TEXT, cover_path TEXT,
-    generated_at  TEXT, promoted_at TEXT, applied_at TEXT, outreach_sent_at TEXT, notes TEXT,
+    generated_at  TEXT, promoted_at TEXT, applied_at TEXT, interview_at TEXT,
+    offer_at TEXT, closed_at TEXT, outcome TEXT, outreach_sent_at TEXT, notes TEXT,
     apply_active  INTEGER DEFAULT 1,   -- apply-operator claim lock: 1=available, 0=claimed/in-flight
-    confirmation_path TEXT             -- saved submission-confirmation screenshot (set on 'applied')
+    apply_claimed_at INTEGER,          -- epoch-ms lease start; NULL identifies a legacy claim
+    apply_run_id TEXT,                 -- durable core apply_runs correlation, retained after settle
+    apply_claim_token TEXT,            -- one-time exact release/settlement token
+    confirmation_path TEXT,            -- saved submission-confirmation screenshot (set on 'applied')
+    application_source TEXT,           -- manual-mark | worker-reported | verified-submission | unverified
+    application_task_id TEXT           -- exact remote task id when a worker reported the outcome
 );
 CREATE INDEX IF NOT EXISTS idx_user_aifit  ON user_signals(ai_fit_score);
 CREATE INDEX IF NOT EXISTS idx_user_status ON user_signals(status);
@@ -685,7 +783,9 @@ SELECT pc.id, pc.company_id, pc.ats_job_id, pc.title, pc.location, pc.remote, pc
        us.ai_scored_at, us.ai_model,
        COALESCE(us.status, 'new') AS status,
        us.resume_path, us.cover_path, us.generated_at, us.promoted_at, us.applied_at,
-       us.outreach_sent_at, us.notes, us.apply_active, us.confirmation_path
+       us.interview_at, us.offer_at, us.closed_at, us.outcome, us.outreach_sent_at,
+       us.notes, us.apply_active, us.apply_claimed_at, us.confirmation_path,
+       us.application_source, us.application_task_id, us.apply_run_id, us.apply_claim_token
 FROM corpus.postings_corpus pc
 LEFT JOIN user_signals us ON us.posting_id = pc.id;
 """
@@ -697,7 +797,16 @@ _multiuser_inited: set = set()
 # skips a table that already exists, so new columns need an explicit ADD COLUMN).
 _USER_ADDED_COLUMNS = {
     "apply_active": "INTEGER DEFAULT 1",
+    "apply_claimed_at": "INTEGER",
+    "apply_run_id": "TEXT",
+    "apply_claim_token": "TEXT",
+    "interview_at": "TEXT",
+    "offer_at": "TEXT",
+    "closed_at": "TEXT",
+    "outcome": "TEXT",
     "confirmation_path": "TEXT",
+    "application_source": "TEXT",
+    "application_task_id": "TEXT",
 }
 
 
@@ -753,7 +862,11 @@ _POSTING_ADDED_COLUMNS = {
     "ai_fit_score": "INTEGER", "ai_fit_rationale": "TEXT", "ai_fit_matched": "TEXT",
     "ai_fit_gaps": "TEXT", "ai_scored_at": "TEXT", "ai_model": "TEXT",
     "status": "TEXT", "resume_path": "TEXT", "cover_path": "TEXT",
-    "generated_at": "TEXT", "promoted_at": "TEXT", "applied_at": "TEXT", "notes": "TEXT",
+    "generated_at": "TEXT", "promoted_at": "TEXT", "applied_at": "TEXT",
+    "interview_at": "TEXT", "offer_at": "TEXT", "closed_at": "TEXT", "outcome": "TEXT",
+    "notes": "TEXT", "apply_active": "INTEGER DEFAULT 1",
+    "confirmation_path": "TEXT", "application_source": "TEXT", "application_task_id": "TEXT",
+    "apply_claimed_at": "INTEGER", "apply_run_id": "TEXT", "apply_claim_token": "TEXT",
     "outreach_sent_at": "TEXT",  # recruiter intro sent for THIS role (separate from apply status)
     "posted_date": "TEXT",  # normalized YYYY-MM-DD
     "state": "TEXT",         # parsed 2-letter US state (for the geo map / filtering)
@@ -815,12 +928,12 @@ def seed_recruiters(conn) -> int:
             "SELECT COUNT(*) AS c FROM career_user_recruiter_firms").fetchone()["c"]
         if n:
             return 0
-        for firm, bucket, site, order in _RECRUITER_SEED:
+        for source_id, (firm, bucket, site, order) in enumerate(_RECRUITER_SEED, start=1):
             conn.execute(
                 "INSERT INTO career_user_recruiter_firms "
-                "(user_sub, firm, bucket, website, resume_label, status, sort_order, updated_at) "
-                "VALUES (?,?,?,?,?,?,?,?) ON CONFLICT (user_sub, firm) DO NOTHING",
-                (require_sub(), firm, bucket, site, "Headhunter (broad) — PDF",
+                "(user_sub, id, firm, bucket, website, resume_label, status, sort_order, updated_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT (user_sub, id) DO NOTHING",
+                (require_sub(), source_id, firm, bucket, site, "Headhunter (broad) — PDF",
                  "To contact", order, now()))
         return len(_RECRUITER_SEED)
     n = conn.execute("SELECT COUNT(*) c FROM recruiter_firms").fetchone()["c"]
@@ -1065,6 +1178,9 @@ def set_status(conn, posting_id, status, **fields):
         cols["generated_at"] = now()
     if status == "applied":
         cols["applied_at"] = now()
+        # Every interactive/dashboard/confirmed-guide status change is a human assertion. The
+        # remote apply callback supplies its own narrower source through the queue recorder.
+        cols["application_source"] = fields.pop("application_source", "manual-mark")
     cols.update(fields)   # e.g. resume_path, cover_path
     user_set(conn, posting_id, **cols)
 

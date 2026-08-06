@@ -1,4 +1,15 @@
 /**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Add bounded per-user title scoring, editable title profiles, and persistent daily cron cursors.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Seed empty derived profiles even when a cursor-only row exists while preserving explicit user opt-out.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Delegate score admission and global-ceiling ownership to the shared engine runner for one fail-safe lease lifecycle.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Complete exported title-profile data, normalization, persistence, cursor, and registrar documentation.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Complete the cron cursor's explicit return contract for generated API documentation.
+ */
+/**
  * Career title-based scoring — the per-user "title pass" that AI-scores roles whose
  * TITLES match the user's own target list, regardless of keyword prefit.
  *
@@ -19,13 +30,6 @@
  * so --days silently matches ~0 rows (documented at runUserScore). The real bounds are
  * the persistent cursor + `--limit`.
  *
- * CHANGE LOG
- * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                                      | DESCRIPTION
- * -----------------------------------------------------------------------------
- * 2026-07-15 17:28:14 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial title-pass module: per-user title profile (read/seed-from-resume/save), bounded score-titles engine invocation via runCliAwait behind the shared single-flight guard, persistent >20h cursors for both the title pass and the cron/boot-catch-up score, cron batch entry, and settings-surface routes (state/save/run-now). Mirrors career-digest.ts throughout.
- * 2026-07-17 02:05:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Fix resume seeding permanently blocked: markCronScore creates a cursor-only career_score_settings row before any settings visit, and getOrSeedTitleProfile's "seed only when NO row exists" test then never seeded — every user (including the operator) ran with no-title-profile forever. Seed now keys off empty terms + source!='user' (an explicit empty user save stays an opt-out), with the same guard in the upsert.
- *
  * @module career-title-score
  */
 import { type Router, type Request, type Response } from 'express';
@@ -33,7 +37,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
-import { callerSub, userPaths, runCliAwait, tryAcquireRun, releaseRun } from './career-hunter-routes';
+import { callerSub, userPaths } from './career-user-store';
+import { runCareerCliAwait } from './career-engine-dispatch';
 
 const logger = createChildLogger({ module: 'career-title-score' });
 
@@ -44,7 +49,7 @@ const MAX_TERMS = 16;
 /** Per-run posting cap for the daily title pass (env-tunable). */
 const TITLE_PASS_LIMIT = Math.max(1, Number(process.env.CAREER_TITLE_PASS_LIMIT) || 150);
 
-/** A user's stored title-scoring profile (career_score_settings row, or the empty default). */
+/** @description A user's stored title-scoring profile or the safe empty default. */
 export interface TitleProfile {
   titleTerms: string[];
   source: 'unset' | 'derived' | 'user';
@@ -52,7 +57,7 @@ export interface TitleProfile {
   lastCronScoreAt: string | null;
 }
 
-/** Outcome of one user's title pass, for logs and the run-now route. */
+/** @description Outcome of one user's bounded title pass for logs and the run-now route. */
 export interface TitlePassResult {
   ran: boolean;
   scored?: number;
@@ -96,6 +101,11 @@ function stripControlChars(s: string): string {
   return out;
 }
 
+/**
+ * @description Normalizes untrusted title input into bounded, unique, printable search terms.
+ * @param input comma/newline text or an array supplied by the settings surface
+ * @returns at most the configured number of canonical title terms
+ */
 export function normalizeTitleTerms(input: unknown): string[] {
   const raw: string[] = Array.isArray(input)
     ? input.map((t) => String(t))
@@ -245,6 +255,7 @@ export async function getOrSeedTitleProfile(pool: AppContext['pool'], userSub: s
  * @param pool Postgres pool
  * @param userSub the user
  * @param terms already-normalized terms
+ * @returns nothing after the user-owned profile is persisted
  */
 export async function saveTitleProfile(pool: AppContext['pool'], userSub: string, terms: string[]): Promise<void> {
   await pool.query(
@@ -260,6 +271,7 @@ export async function saveTitleProfile(pool: AppContext['pool'], userSub: string
  * lastRun map dies with the process, this cursor does not.
  * @param pool Postgres pool
  * @param userSub the user
+ * @returns nothing after the persistent cursor is advanced
  * @returns true when a cron score is allowed
  */
 export async function dueForCronScore(pool: AppContext['pool'], userSub: string): Promise<boolean> {
@@ -272,6 +284,7 @@ export async function dueForCronScore(pool: AppContext['pool'], userSub: string)
  * (window AND catch-up), so a recreate later the same day skips the user entirely.
  * @param pool Postgres pool
  * @param userSub the user
+ * @returns nothing after the durable score cursor advances
  */
 export async function markCronScore(pool: AppContext['pool'], userSub: string): Promise<void> {
   await pool.query(
@@ -306,14 +319,13 @@ export async function runTitlePassForUser(
   const profile = await readTitleProfile(ctx.pool, userSub);
   if (!profile.titleTerms.length) return { ran: false, reason: 'no-title-profile' };
   if (!opts.force && !dueSince(profile.lastTitlePassAt)) return { ran: false, reason: 'already-ran-today' };
-  const acquired = tryAcquireRun(userSub, 'score');
-  if (acquired !== 'ok') {
-    logger.info({ userSub, acquired }, 'title pass: skipped — score run in flight or box busy');
-    return { ran: false, reason: acquired === 'inflight' ? 'score-in-flight' : 'busy' };
-  }
   try {
     const inv = buildTitlePassInvocation(profile.titleTerms, TITLE_PASS_LIMIT);
-    const r = await runCliAwait(userSub, inv.args, inv.env);
+    const r = await runCareerCliAwait(ctx.pool, userSub, inv.args, inv.env, { slot: 'score' });
+    if (r.limitReason) {
+      logger.info({ userSub, limit: r.limitReason }, 'title pass: skipped - score run in flight or box busy');
+      return { ran: false, reason: r.limitReason === 'inflight' ? 'score-in-flight' : 'busy' };
+    }
     if (!r.ok) {
       logger.error({ userSub, err: r.err.slice(-400) }, 'title pass: engine run failed');
       return { ran: false, reason: 'engine-failed' };
@@ -327,8 +339,6 @@ export async function runTitlePassForUser(
   } catch (err) {
     logger.error({ err, userSub }, 'title pass: failed');
     return { ran: false, reason: 'error' };
-  } finally {
-    releaseRun(userSub, 'score');
   }
 }
 
@@ -338,6 +348,7 @@ export async function runTitlePassForUser(
  * save edited terms, and an explicit bounded run-now.
  * @param router the career-hunter router
  * @param ctx app context
+ * @returns nothing after title-profile routes are mounted
  */
 export function registerCareerTitleScoreRoutes(router: Router, ctx: AppContext): void {
   const pool = ctx.pool;

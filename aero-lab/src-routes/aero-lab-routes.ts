@@ -28,6 +28,10 @@
  *                     |                             | last notch 400'd before the engine ever ran. Widened
  *                     |                             | so the engine's bounds bind, which the live spec now
  *                     |                             | asserts field-by-field against published bounds.
+ * 2026-08-06 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Serve the browser geometry helper as a
+ *                     |                             | first-class package asset so the cockpit and
+ *                     |                             | cross-runtime parity spec execute the exact
+ *                     |                             | same JavaScript implementation.
  */
 
 import * as fs from 'fs';
@@ -273,6 +277,7 @@ export function createAeroLabRoutes(arg: AeroLabRouteOpts | Record<string, unkno
 
   // ── The bundled surface ────────────────────────────────────────────────────
   router.get('/app', serveFile(surfaceHtml(appPackageDir, 'aero-lab.html')));
+  router.get('/geometry.js', serveFile(surfaceHtml(appPackageDir, 'aero-lab-geometry.js')));
   router.get('/app.js', serveFile(surfaceHtml(appPackageDir, 'aero-lab.js')));
 
   /** GET /capabilities — honest presence + per-module flags. 200 even when absent: the

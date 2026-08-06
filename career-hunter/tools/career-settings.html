@@ -1,4 +1,11 @@
 <!doctype html>
+<!--
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  SEQ                 | AUTHOR                                      | DESCRIPTION
+  -----------------------------------------------------------------------------
+  1 | maintainer@emeraldcoastsystemsgroup.com | Document that bulk auto-submit opt-in authorizes employer-site final submission without a per-job click.
+-->
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Career Hunter — Settings</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -69,11 +76,13 @@
     application drafts or queues submissions on its own — the nightly run leaves your queue
     untouched, and everything happens only when you click it. Opting in to <b>auto-generate</b>
     lets the nightly run AI-score fresh matches and add draft applications to your Approvals
-    queue (you still approve each one). <b>Auto-submit</b> additionally allows bulk queueing of
-    ready applications for desktop submission without a per-job click.</p>
+    queue (you still approve each one). <b>Auto-submit</b> is a separate outward-action consent:
+    it authorizes connected desktop workers to fill employer forms and click their final Submit
+    buttons for ready applications in bulk, without a separate per-job click. CAPTCHA and two-factor
+    prompts still pause for you.</p>
     <div class="row">
       <label class="hint" style="margin:0;display:flex;align-items:center;gap:6px"><input type="checkbox" id="autoGenerate"> Auto-generate drafts from the nightly run</label>
-      <label class="hint" style="margin:0;display:flex;align-items:center;gap:6px"><input type="checkbox" id="autoSubmit"> Allow bulk auto-submit of ready applications</label>
+      <label class="hint" style="margin:0;display:flex;align-items:center;gap:6px"><input type="checkbox" id="autoSubmit"> Authorize bulk final submission of ready applications</label>
     </div>
     <div class="row">
       <span id="autoState" class="pill-no">Checking…</span>

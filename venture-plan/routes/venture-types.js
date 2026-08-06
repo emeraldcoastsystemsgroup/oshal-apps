@@ -23,6 +23,8 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial implementation — the closed SourceKind/Confidence/Domain enums, the row DTOs for every stored entity, the provenance literal discriminants, and the run/stage vocabularies the routes and the orchestrator share.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Add immutable FX evidence, preserve original and reporting-currency quote amounts, and replace the last scenario cents field with integer micros.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Add scheduled rebaseline run kind, trigger provenance, UTC idempotency slot, and exact micro-USD cost evidence.
  *
  * @module venture-types
  */
@@ -49,7 +51,7 @@ exports.CONFIDENCES = Object.freeze(['low', 'medium', 'high']);
  * hash, which is the point: a document rendered under the old arithmetic must read
  * as stale rather than as agreeing with a model it no longer matches.
  */
-exports.ENGINE_VERSION = '1.0.0';
+exports.ENGINE_VERSION = '1.1.0';
 /** Every domain, in the order the surface groups them. */
 exports.DOMAINS = Object.freeze([
     'product', 'market', 'channel', 'manufacturing', 'logistics',

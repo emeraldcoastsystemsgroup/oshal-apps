@@ -3,18 +3,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.readAutomationSettings = readAutomationSettings;
 exports.readAutomationSettingsSystem = readAutomationSettingsSystem;
 exports.registerCareerAutomationRoutes = registerCareerAutomationRoutes;
-/**
- * CHANGE LOG
- * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                      | DESCRIPTION
- * -----------------------------------------------------------------------------
- * 2026-07-24 02:35:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Explicit opt-in automation settings (operator directive 2026-07-24: the nightly auto-draft chain generated + queued applications the operator never asked for). Per-user career_automation_settings row (migration 091), DEFAULT OFF — absent row = automation disabled. auto_generate gates the cron's per-user score/title/enqueue; auto_submit is the flag the bulk submit rail must consult. Decision logic lives in lib/automation-gate.js (pure, node:test-guarded); this module adds the DB read (system-identity variant for the cron, which runs outside any request — FORCE-RLS would otherwise starve the read to "absent", which is safe but would also make opt-in impossible from the cron) and the settings routes for the Career Settings card.
- *
- * @module career-automation
- */
 const logger_1 = require("@/shared/logger");
 const request_identity_1 = require("@/shared/services/database/request-identity");
-const caller_sub_1 = require("@/app/routes/caller-sub");
+const career_user_store_1 = require("./career-user-store");
 // Pure default-deny gate, shared with the node:test guard (compiled file lives in
 // routes/, so lib/ is a sibling directory — same resolution the apply-prompt bridge uses).
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -55,7 +46,7 @@ async function readAutomationSettingsSystem(ctx, userSub) {
  */
 function registerCareerAutomationRoutes(router, ctx) {
     router.get('/automation/state', async (req, res) => {
-        const userSub = (0, caller_sub_1.callerSub)(req);
+        const userSub = (0, career_user_store_1.callerSub)(req);
         if (!userSub) {
             res.status(401).json({ error: 'unauthorized' });
             return;
@@ -63,7 +54,7 @@ function registerCareerAutomationRoutes(router, ctx) {
         res.json(await readAutomationSettings(ctx, userSub));
     });
     router.post('/settings/automation', async (req, res) => {
-        const userSub = (0, caller_sub_1.callerSub)(req);
+        const userSub = (0, career_user_store_1.callerSub)(req);
         if (!userSub) {
             res.status(401).json({ error: 'unauthorized' });
             return;
@@ -78,3 +69,4 @@ function registerCareerAutomationRoutes(router, ctx) {
         res.json({ ok: true, autoGenerate, autoSubmit });
     });
 }
+//# sourceMappingURL=career-automation.js.map

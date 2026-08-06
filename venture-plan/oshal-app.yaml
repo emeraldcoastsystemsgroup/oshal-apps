@@ -16,7 +16,7 @@
 #     source and a confidence. They are instructed to do no arithmetic, and the
 #     engine hard-caps a model-authored record at `estimated` confidence on the
 #     way in, so a model cannot certify its own guess as a quote.
-#   - EVERY calculation happens in `routes/venture-*.js` — fourteen pure modules
+#   - EVERY calculation happens in `routes/venture-*.js` — sixteen pure modules
 #     with no clock, no randomness and no network, covered by hand-derived tests
 #     (the golden values are written out in comments and the code was made to
 #     match them, not the reverse).
@@ -24,12 +24,16 @@
 #     confidence anywhere in its chain. A figure resting on an unregistered input
 #     turns `canPublish` false — the document is refused, not footnoted.
 #
+# DEFAULT-DENY AUTOMATION BOUNDARY:
+#
+#   - The hourly manifest job is a first-class deterministic service-route target,
+#     never a bot prompt. Its exact execute=true body authorizes the package worker
+#     to evaluate policy; it does NOT override an owner's enabled=false, dryRun=true,
+#     UTC slot idempotency, or positive integer micro-USD cap. Those gates remain the
+#     spending authority, and every new policy defaults disabled+dry-run.
+#
 # WHAT THIS PACKAGE DELIBERATELY DOES NOT DECLARE:
 #
-#   - No `schedules:`. A recurring re-plan is four paid model calls per venture,
-#     so a package that shipped with a cron enabled would start spending on
-#     install. Re-baselining on a cadence is a real want and belongs behind an
-#     explicit per-user opt-in; it is in the README as the next increment.
 #   - No `connectors:`. Nothing here talks to a third party on the user's behalf.
 #     Every input is either typed by the operator or authored by a bot and
 #     labelled as such.
@@ -66,6 +70,19 @@ source:
   url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: venture-plan
   ref: main
+
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/venture-plan/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
 
 # ─────────────────────────────────────────────────────────────────────────────
 # KERNEL SKILLS this package IMPORTS (ADR-085 §2 / ADR-090 D8). Declared because
@@ -213,12 +230,41 @@ bots:
 # the backstop.
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/venture-plan/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/venture-routes.js
     factory: createVentureRoutes
     mountPath: /api/venture
     auth: oidc
     requiresAuth: true
     requiresContext: true
+
+  - module: routes/venture-rebaseline-routes.js
+    factory: createVentureRebaselineRoutes
+    mountPath: /api/venture-rebaseline
+    auth: service
+    requiresContext: true
+    requiresAi: true
+
+# The kernel binds this named compiled export to the exact auth:service route above and freezes its
+# static body before in-process dispatch. Hourly polling avoids a fragile once-daily instant; the
+# package's UTC nightly/weekly slot owns cadence and idempotency, so repeated ticks reserve at most
+# one run per due venture/slot.
+schedules:
+  - id: rebaseline-policy-tick
+    cron: "7 * * * *"
+    target: service-route
+    route: /api/venture-rebaseline/tick
+    handler: runScheduledRebaselineTick
+    body:
+      execute: true
+    scope: framework
+    description: Evaluate due owner-scoped rebaseline policies through the deterministic package worker.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # DATABASE MIGRATIONS — owned by this package. src-routes/venture-schema.ts
@@ -234,6 +280,8 @@ migrations:
   - migrations/001-venture-core.sql
   - migrations/002-venture-supply-chain.sql
   - migrations/003-venture-outputs.sql
+  - migrations/004-venture-fx.sql
+  - migrations/005-venture-rebaseline.sql
 
 # ─────────────────────────────────────────────────────────────────────────────
 # COCKPIT UI SURFACE — one ribbon icon opens the venture console: the venture

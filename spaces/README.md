@@ -1,5 +1,11 @@
 # Spaces (spaces) — OSHAL app package
 
+<!--
+CHANGE LOG
+1 | maintainer@emeraldcoastsystemsgroup.com | Clarified that this installed package is the sole
+  | Spaces surface source after removal of the unrouted kernel HTML copies and Compose binds.
+-->
+
 Turn a real space into an explorable 3D scene, then reason over it (`?app=spaces`,
 ADR-111). Film a walkthrough clip, **import** a finished capture from an iPhone/iPad
 Pro LiDAR scan / depth sensor / drone photogrammetry app (`.ply`/`.splat`), or fly a
@@ -60,19 +66,27 @@ node scripts/oshal-app.js uninstall spaces
 No migrations — the owner-scoped scan store is created lazily by the spatial-mapping
 service at first use (`runRuntimeSchemaBootstrap` + owner RLS at the chokepoint).
 
-## ⚠️ Surfaces + routes MUST be re-synced from core before the release build
+## Package source of truth
 
-This package was mirrored while core was still being edited. Before the orchestrator's
-final `oshal-app build`, **re-sync from core**:
+The carve was reconciled on 2026-07-20 and the historical unrouted kernel HTML copies and local
+Compose binds have been removed. Routes and surfaces are maintained only in this package:
 
-- **`tools/spaces-capture.html`** — the phone-capture HUD was being modified by a
-  concurrent change at carve time. Re-copy the CURRENT
-  `src/api/spaces-capture.html`. (Also re-copy `spaces.html` + `spaces-viewer.html` if
-  they changed.)
-- **`src-routes/spaces-routes.ts`** (and therefore the built `routes/spaces-routes.js`)
-  — the handler region is marked `// SYNC FROM CORE spaces-routes.ts AT INTEGRATION`.
-  Core `spaces-routes.ts` is being extended with a **mobile-ingest endpoint**; re-sync
-  the handler bodies from the FINAL core source, then rebuild the `.js`.
-  **Keep the packaged adaptations when re-syncing:** the single-arg `createSpacesRoutes(ctx)`
-  factory (the mounter calls `factory(packageCtx)`) and the `surfaceHtml(ctx.appPackageDir, ...)`
-  surface serving — do **not** reintroduce core's `apiDir` parameter.
+- Core has no active Spaces route. `src-routes/spaces-routes.ts` here is the maintained source,
+  including the `/pair` mobile-ingest endpoint.
+- The packaged surfaces include the dimensions and geometry-download work from the completed carve.
+- The packaged single-argument `createSpacesRoutes(ctx)` factory and
+  `surfaceHtml(ctx.appPackageDir, ...)` serving are required by the app loader. The retired
+  two-argument `apiDir` shape must not return.
+
+### Surface stylesheet boundary
+
+The cockpit page follows the deployment theme. The two full-screen embeds intentionally do not:
+
+| Surface | Shared CSS | Design tokens | Reason |
+|---|---|---|---|
+| `tools/spaces.html` | `surface-themes.css` and `surface-glass.css` | yes | cockpit page |
+| `tools/spaces-viewer.html` | none | none | neutral black WebGL rasterizer |
+| `tools/spaces-capture.html` | none | none | low-latency phone camera HUD |
+
+`tests/spaces-surfaces.test.js` protects the source-of-truth boundary in both source and compiled
+routes, parses every inline surface script, and pins this stylesheet split.

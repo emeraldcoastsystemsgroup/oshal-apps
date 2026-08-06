@@ -53,7 +53,8 @@ LLM calls are ~all of the variable cost. Strategies:
 
 ## 5. Throughput & fairness at scale
 
-- **Per-tenant job queues** (the broker decision in [ADR 035](../adr/035-multi-tenant-saas-foundation.md))
+- **Per-tenant job queues** (the broker decision in
+  [ADR 035](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/adr/035-multi-tenant-saas-foundation.md))
   are where fairness lives — one busy school can't starve another's lecture processing, and the
   per-seat cap is enforced here.
 - **Bot concurrency**: lecture processing is the heaviest path; cap concurrent transcript jobs per

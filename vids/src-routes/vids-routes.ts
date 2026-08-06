@@ -1,3 +1,15 @@
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Await durable task enqueue and terminal-result reads so persisted jobs use authoritative task state instead of Promise objects.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Fail persisted jobs when durable enqueue rejects and serialize asynchronous result polling to prevent duplicate settlement.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Bind every browser/service request and deferred settlement to the exact job owner, scope listings by user_sub, and persist/return only sanitized terminal state.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Preserve the generated surface's shared theme integration and phone-width job-table layout in the authoritative TypeScript source.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Bound dispatch fields and HTML-escape every database-derived job cell to close stored-script injection through legacy or crafted queue rows.
+ */
+
 /*
  * CHANGE LOG
  * -----------------------------------------------------------------------------
@@ -21,11 +33,17 @@ import { randomUUID } from 'crypto';
 import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
 import { remoteClientRegistry } from '@/app/routes/remote-client-routes';
+import { getCaller, getTrustedServiceUserSub } from '@/shared/middleware/authz';
+import { requireTrustedServiceUserIdentity } from '@/shared/middleware/trusted-service-user-identity';
+import { runWithRequestIdentity } from '@/shared/services/database/request-identity';
 
 const logger = createChildLogger({ module: 'vids-routes' });
 
 // The Veo-specialist bot seeded by migration 059 — the `fromAgentId` on dispatched tasks.
 const VIDS_BOT_AGENT_ID = 'b00e0000-0000-0000-0000-000000000001';
+const VIDS_ORIENTATIONS = new Set(['Landscape', 'Portrait', 'Square']);
+const VIDS_INSERT_MODES = new Set(['Insert', 'Extend', 'none']);
+const VIDS_STATUSES = new Set(['queued', 'running', 'done', 'failed']);
 
 interface VidsWorkerView {
   clientId: string;
@@ -53,8 +71,10 @@ function findVidsWorker(): VidsWorkerView | null {
 }
 
 function callerSub(req: Request): string | null {
-  const oidc = (req as unknown as { oidc?: { user?: { sub?: string }; sub?: string } }).oidc;
-  return oidc?.user?.sub ?? oidc?.sub ?? null;
+  // An independently authenticated browser/PAT principal stays authoritative when both
+  // credential classes are present. The service header is accepted only behind the exact fleet
+  // secret and is narrowed to non-operator DB identity by requireTrustedServiceUserIdentity.
+  return getCaller(req).sub ?? getTrustedServiceUserSub(req);
 }
 
 /**
@@ -62,44 +82,67 @@ function callerSub(req: Request): string | null {
  * vids_jobs row. The worker posts /complete back to the same registry; this is the
  * direct-enqueuer pull path (getCompletedResult), no loopback HTTP.
  */
-function watchTask(ctx: AppContext, clientId: string, taskId: string, jobId: string): void {
+export function watchTask(
+  ctx: AppContext,
+  clientId: string,
+  taskId: string,
+  jobId: string,
+  userSub: string,
+): void {
   let ticks = 0;
+  let polling = false;
+  let settled = false;
   const timer = setInterval(() => {
+    if (polling || settled) return;
+    polling = true;
     void (async () => {
       ticks += 1;
       try {
-        const result = remoteClientRegistry.getCompletedResult(clientId, taskId);
+        const result = await remoteClientRegistry.getCompletedResult(clientId, taskId);
         if (result) {
+          settled = true;
           clearInterval(timer);
           const ok = result.status === 'completed';
-          const output = (result.output ?? {}) as { finalPrompt?: string };
-          await ctx.pool.query(
+          const output = result.output && typeof result.output === 'object'
+            ? result.output as Record<string, unknown>
+            : {};
+          const finalPrompt = typeof output.finalPrompt === 'string'
+            ? output.finalPrompt.slice(0, 10_000)
+            : null;
+          const terminalStatus = ok ? 'completed' : 'failed';
+          await runWithRequestIdentity({ sub: userSub, isOperator: false }, () => ctx.pool.query(
             `UPDATE vids_jobs
                SET status = $2,
                    final_prompt = COALESCE($3, final_prompt),
                    client_id = $4,
                    outcome = outcome || $5::jsonb,
                    updated_at = now()
-             WHERE job_id = $1`,
+             WHERE job_id = $1 AND user_sub = $6`,
             [
               jobId,
               ok ? 'done' : 'failed',
-              output.finalPrompt ?? null,
+              finalPrompt,
               clientId,
-              JSON.stringify({ result: { status: result.status, error: result.error ?? null, output } }),
+              JSON.stringify({ result: { status: terminalStatus } }),
+              userSub,
             ],
-          );
-          logger.info({ jobId, taskId, status: result.status }, 'Vids job settled');
+          ));
+          logger.info({ jobId, taskId, status: terminalStatus }, 'Vids job settled');
           return;
         }
         if (ticks === 1) {
-          await ctx.pool.query(
-            `UPDATE vids_jobs SET status = 'running', updated_at = now() WHERE job_id = $1 AND status = 'queued'`,
-            [jobId],
-          );
+          await runWithRequestIdentity({ sub: userSub, isOperator: false }, () => ctx.pool.query(
+            `UPDATE vids_jobs
+                SET status = 'running', updated_at = now()
+              WHERE job_id = $1 AND user_sub = $2 AND status = 'queued'`,
+            [jobId, userSub],
+          ));
         }
       } catch (err) {
-        logger.warn({ err: String(err), jobId }, 'Vids job watch error');
+        const errorType = err instanceof Error ? err.name : 'UnknownError';
+        logger.warn({ errorType, jobId }, 'Vids job watch error');
+      } finally {
+        polling = false;
       }
       if (ticks > 360) clearInterval(timer); // ~30 min ceiling at 5s
     })();
@@ -108,26 +151,88 @@ function watchTask(ctx: AppContext, clientId: string, taskId: string, jobId: str
 }
 
 /**
+ * @description Durably enqueue one Vids tool call and fail the already-created job row if the
+ * remote journal rejects it. Provider/registry errors remain in structured logs, never responses.
+ */
+async function enqueueVidsTask(
+  ctx: AppContext,
+  worker: VidsWorkerView,
+  jobId: string,
+  userSub: string,
+  input: { name: string; arguments: Record<string, unknown> },
+  kind: 'clip' | 'story',
+): Promise<string | null> {
+  try {
+    const task = await remoteClientRegistry.enqueueTask(worker.clientId, {
+      taskId: randomUUID(),
+      correlationId: randomUUID(),
+      fromAgentId: VIDS_BOT_AGENT_ID,
+      toAgentId: worker.agentId ?? worker.clientId,
+      userSub,
+      intent: 'mcp.call-tool',
+      input,
+      createdAt: new Date().toISOString(),
+    });
+    return task.taskId;
+  } catch (err) {
+    const errorType = err instanceof Error ? err.name : 'UnknownError';
+    logger.warn({ errorType, jobId, clientId: worker.clientId, kind }, 'Vids task enqueue rejected');
+    await ctx.pool.query(
+      `UPDATE vids_jobs
+          SET status = 'failed', outcome = outcome || $2::jsonb, updated_at = now()
+        WHERE job_id = $1 AND user_sub = $3`,
+      [jobId, JSON.stringify({ error: 'remote task enqueue rejected', kind }), userSub],
+    );
+    return null;
+  }
+}
+
+/**
  * @description Vids Studio routes: dispatch generate-jobs to the remote screen-driving
  * worker and serve the embedded job-queue surface.
  */
 export function createVidsRoutes(ctx: AppContext): Router {
   const router = Router();
+  // Machine authentication proves the caller is an OSHAL process, not which user's rows it may
+  // access. Require the separate exact subject and narrow the ambient DB identity before all route
+  // work. An independently authenticated browser principal remains authoritative.
+  router.use(requireTrustedServiceUserIdentity);
 
   // POST /api/vids/jobs — enqueue a clip generate-job to the registered Vids worker.
   router.post('/jobs', async (req: Request, res: Response) => {
     const body = (req.body ?? {}) as Record<string, unknown>;
-    const idea = String(body.prompt ?? body.idea ?? '').trim();
+    const rawIdea = body.prompt ?? body.idea;
+    const idea = typeof rawIdea === 'string' ? rawIdea.trim() : '';
     if (!idea) {
       res.status(400).json({ error: 'prompt is required' });
       return;
     }
-    const orientation = body.orientation ? String(body.orientation) : null;
-    const insertMode = body.insertMode ? String(body.insertMode) : null;
-    const ingredient = body.ingredient ? String(body.ingredient) : null;
+    if (idea.length > 10_000) {
+      res.status(400).json({ error: 'prompt is too long' });
+      return;
+    }
+    const orientation = typeof body.orientation === 'string' && body.orientation
+      ? body.orientation
+      : null;
+    const insertMode = typeof body.insertMode === 'string' && body.insertMode
+      ? body.insertMode
+      : null;
+    const ingredient = typeof body.ingredient === 'string' && body.ingredient
+      ? body.ingredient.trim()
+      : null;
+    if ((orientation && !VIDS_ORIENTATIONS.has(orientation))
+        || (insertMode && !VIDS_INSERT_MODES.has(insertMode))
+        || (ingredient && ingredient.length > 2_048)) {
+      res.status(400).json({ error: 'invalid Vids job options' });
+      return;
+    }
 
     const worker = findVidsWorker();
     const userSub = callerSub(req);
+    if (!userSub) {
+      res.status(401).json({ error: 'user_identity_required' });
+      return;
+    }
 
     const inserted = (
       await ctx.pool.query(
@@ -140,8 +245,8 @@ export function createVidsRoutes(ctx: AppContext): Router {
 
     if (!worker) {
       await ctx.pool.query(
-        `UPDATE vids_jobs SET outcome = $2::jsonb, updated_at = now() WHERE job_id = $1`,
-        [jobId, JSON.stringify({ error: 'no Vids worker registered' })],
+        `UPDATE vids_jobs SET outcome = $2::jsonb, updated_at = now() WHERE job_id = $1 AND user_sub = $3`,
+        [jobId, JSON.stringify({ error: 'no Vids worker registered' }), userSub],
       );
       res.status(503).json({
         error: 'No Vids worker is registered. Start one on a machine with a screen: `oshal-vids worker`.',
@@ -150,31 +255,28 @@ export function createVidsRoutes(ctx: AppContext): Router {
       return;
     }
 
-    const task = remoteClientRegistry.enqueueTask(worker.clientId, {
-      taskId: randomUUID(),
-      correlationId: randomUUID(),
-      fromAgentId: VIDS_BOT_AGENT_ID,
-      toAgentId: worker.agentId ?? worker.clientId,
-      intent: 'mcp.call-tool',
-      input: {
-        name: 'vids.generate',
-        arguments: {
-          prompt: idea,
-          orientation: orientation ?? undefined,
-          insertMode: insertMode ?? undefined,
-          ingredientPath: ingredient ?? undefined,
-        },
+    const taskId = await enqueueVidsTask(ctx, worker, jobId, userSub, {
+      name: 'vids.generate',
+      arguments: {
+        prompt: idea,
+        orientation: orientation ?? undefined,
+        insertMode: insertMode ?? undefined,
+        ingredientPath: ingredient ?? undefined,
       },
-      createdAt: new Date().toISOString(),
-    });
+    }, 'clip');
+    if (!taskId) {
+      res.status(503).json({ error: 'The Vids worker could not accept the task.', job_id: jobId });
+      return;
+    }
 
     await ctx.pool.query(
-      `UPDATE vids_jobs SET outcome = jsonb_build_object('taskId', $2::text), updated_at = now() WHERE job_id = $1`,
-      [jobId, task.taskId],
+      `UPDATE vids_jobs SET outcome = jsonb_build_object('taskId', $2::text), updated_at = now()
+        WHERE job_id = $1 AND user_sub = $3`,
+      [jobId, taskId, userSub],
     );
-    watchTask(ctx, worker.clientId, task.taskId, jobId);
-    logger.info({ jobId, taskId: task.taskId, clientId: worker.clientId }, 'Vids job dispatched to worker');
-    res.json({ job_id: jobId, taskId: task.taskId, clientId: worker.clientId, status: 'queued' });
+    watchTask(ctx, worker.clientId, taskId, jobId, userSub);
+    logger.info({ jobId, taskId, clientId: worker.clientId }, 'Vids job dispatched to worker');
+    res.json({ job_id: jobId, taskId, clientId: worker.clientId, status: 'queued' });
   });
 
   // POST /api/vids/story — dispatch a multi-scene STORY (Extend chain) to the worker.
@@ -182,11 +284,20 @@ export function createVidsRoutes(ctx: AppContext): Router {
   // otherwise it produces the NEXT unproduced library story (content.next, the cycler).
   router.post('/story', async (req: Request, res: Response) => {
     const body = (req.body ?? {}) as Record<string, unknown>;
-    const storyId = body.storyId ? String(body.storyId) : null;
-    const title = body.title ? String(body.title) : null;
-    const script = body.script ? String(body.script) : null;
-    const orientation = body.orientation ? String(body.orientation) : null;
+    const storyId = typeof body.storyId === 'string' && body.storyId ? body.storyId.trim() : null;
+    const title = typeof body.title === 'string' && body.title ? body.title.trim() : null;
+    const script = typeof body.script === 'string' && body.script ? body.script.trim() : null;
+    const orientation = typeof body.orientation === 'string' && body.orientation ? body.orientation : null;
     const beats = body.beats != null ? Number(body.beats) : undefined;
+
+    if ((storyId && storyId.length > 256)
+        || (title && title.length > 1_000)
+        || (script && script.length > 50_000)
+        || (orientation && !VIDS_ORIENTATIONS.has(orientation))
+        || (beats !== undefined && (!Number.isInteger(beats) || beats < 1 || beats > 100))) {
+      res.status(400).json({ error: 'invalid Vids story options' });
+      return;
+    }
 
     const specific = storyId || (title && script);
     const toolName = specific ? 'content.produce' : 'content.next';
@@ -200,6 +311,10 @@ export function createVidsRoutes(ctx: AppContext): Router {
 
     const worker = findVidsWorker();
     const userSub = callerSub(req);
+    if (!userSub) {
+      res.status(401).json({ error: 'user_identity_required' });
+      return;
+    }
     const inserted = (
       await ctx.pool.query(
         `INSERT INTO vids_jobs (user_sub, client_id, status, idea, orientation, insert_mode, ingredient)
@@ -211,43 +326,64 @@ export function createVidsRoutes(ctx: AppContext): Router {
 
     if (!worker) {
       await ctx.pool.query(
-        `UPDATE vids_jobs SET outcome = $2::jsonb, updated_at = now() WHERE job_id = $1`,
-        [jobId, JSON.stringify({ error: 'no Vids worker registered', kind: 'story' })],
+        `UPDATE vids_jobs SET outcome = $2::jsonb, updated_at = now() WHERE job_id = $1 AND user_sub = $3`,
+        [jobId, JSON.stringify({ error: 'no Vids worker registered', kind: 'story' }), userSub],
       );
       res.status(503).json({ error: 'No Vids worker is registered. Start one on a machine with a screen: `oshal-vids worker`.', job_id: jobId });
       return;
     }
 
-    const task = remoteClientRegistry.enqueueTask(worker.clientId, {
-      taskId: randomUUID(),
-      correlationId: randomUUID(),
-      fromAgentId: VIDS_BOT_AGENT_ID,
-      toAgentId: worker.agentId ?? worker.clientId,
-      intent: 'mcp.call-tool',
-      input: { name: toolName, arguments: args },
-      createdAt: new Date().toISOString(),
-    });
-    await ctx.pool.query(
-      `UPDATE vids_jobs SET outcome = jsonb_build_object('taskId', $2::text, 'kind', 'story', 'tool', $3::text) WHERE job_id = $1`,
-      [jobId, task.taskId, toolName],
+    const taskId = await enqueueVidsTask(
+      ctx,
+      worker,
+      jobId,
+      userSub,
+      { name: toolName, arguments: args },
+      'story',
     );
-    watchTask(ctx, worker.clientId, task.taskId, jobId);
-    logger.info({ jobId, taskId: task.taskId, clientId: worker.clientId, toolName }, 'Vids story dispatched to worker');
-    res.json({ job_id: jobId, taskId: task.taskId, clientId: worker.clientId, tool: toolName, status: 'queued' });
+    if (!taskId) {
+      res.status(503).json({ error: 'The Vids worker could not accept the story task.', job_id: jobId });
+      return;
+    }
+    await ctx.pool.query(
+      `UPDATE vids_jobs
+          SET outcome = jsonb_build_object('taskId', $2::text, 'kind', 'story', 'tool', $3::text)
+        WHERE job_id = $1 AND user_sub = $4`,
+      [jobId, taskId, toolName, userSub],
+    );
+    watchTask(ctx, worker.clientId, taskId, jobId, userSub);
+    logger.info({ jobId, taskId, clientId: worker.clientId, toolName }, 'Vids story dispatched to worker');
+    res.json({ job_id: jobId, taskId, clientId: worker.clientId, tool: toolName, status: 'queued' });
   });
 
   // GET /api/vids/jobs — list jobs + registered worker status.
   router.get('/jobs', async (req: Request, res: Response) => {
-    const limit = Math.min(Number(req.query.limit) || 50, 200);
-    const status = req.query.status ? String(req.query.status) : null;
+    const requestedLimit = Number(req.query.limit);
+    const limit = Number.isInteger(requestedLimit) && requestedLimit > 0
+      ? Math.min(requestedLimit, 200)
+      : 50;
+    const status = typeof req.query.status === 'string' && req.query.status
+      ? req.query.status
+      : null;
+    if (status && !VIDS_STATUSES.has(status)) {
+      res.status(400).json({ error: 'invalid Vids job status' });
+      return;
+    }
+    const userSub = callerSub(req);
+    if (!userSub) {
+      res.status(401).json({ error: 'user_identity_required' });
+      return;
+    }
     const rows = (
       await ctx.pool.query(
-        `SELECT job_id, status, idea, final_prompt, orientation, insert_mode, client_id, outcome, created_at, updated_at
+        `SELECT job_id, status, idea, final_prompt, orientation, insert_mode, client_id,
+                outcome->>'taskId' AS task_id, created_at, updated_at
            FROM vids_jobs
-          ${status ? 'WHERE status = $2' : ''}
+          WHERE user_sub = $1
+            AND ($3::text IS NULL OR status = $3)
           ORDER BY created_at DESC
-          LIMIT $1`,
-        status ? [limit, status] : [limit],
+          LIMIT $2`,
+        [userSub, limit, status],
       )
     ).rows;
     const workers: VidsWorkerView[] = remoteClientRegistry
@@ -278,14 +414,15 @@ export function createVidsRoutes(ctx: AppContext): Router {
 // Self-contained surface: lists jobs, submits a prompt, shows worker presence.
 // Follows the swarm theme by reading the parent document's data-theme when embedded.
 const SURFACE_HTML = `<!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="midnight">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Vids Studio</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
 <style>
-  :root{--bg:#0b1220;--panel:#121a2b;--line:#23304b;--text:#e7eefc;--muted:#9fb0d0;--accent:#10b981;--bad:#f87171;--warn:#fbbf24}
-  html[data-theme="light"]{--bg:#f4f7fc;--panel:#fff;--line:#dbe3f0;--text:#0b1f3a;--muted:#5a6b88;--accent:#0f9d76}
+  :root{--bg:var(--bg-primary,#0b1220);--panel:var(--bg-card,#121a2b);--line:var(--border-color,#23304b);--text:var(--text-primary,#e7eefc);--muted:var(--text-secondary,#9fb0d0);--accent:var(--accent-primary,#10b981);--bad:var(--status-error,#f87171);--warn:var(--status-warning,#fbbf24)}
   *{box-sizing:border-box} body{margin:0;font:14px/1.5 Inter,system-ui,Segoe UI,sans-serif;background:var(--bg);color:var(--text)}
   .wrap{max-width:900px;margin:0 auto;padding:18px}
   h1{font:600 18px Archivo,Inter,sans-serif;margin:0 0 2px} .sub{color:var(--muted);margin:0 0 16px}
@@ -302,6 +439,14 @@ const SURFACE_HTML = `<!doctype html>
   .st.done{color:var(--accent);border-color:var(--accent)} .st.failed{color:var(--bad);border-color:var(--bad)}
   .st.running,.st.queued{color:var(--warn);border-color:var(--warn)} .idea{max-width:380px}
   .empty{color:var(--muted);text-align:center;padding:18px}
+  @media(max-width:640px){
+    .wrap{padding:14px}
+    .card{padding:12px}
+    .row select{flex:1 1 140px;min-width:0}
+    th:nth-child(3),td:nth-child(3),th:nth-child(4),td:nth-child(4){display:none}
+    th,td{padding:8px 4px}
+    .idea{max-width:none;overflow-wrap:anywhere}
+  }
 </style>
 </head>
 <body>
@@ -327,6 +472,8 @@ const SURFACE_HTML = `<!doctype html>
   try { var pt = window.parent && window.parent.document && window.parent.document.documentElement.getAttribute('data-theme'); if (pt) document.documentElement.setAttribute('data-theme', pt); } catch(e){}
   var go = document.getElementById('go');
   function fmt(ts){ try { return new Date(ts).toLocaleTimeString(); } catch(e){ return ts; } }
+  function esc(v){ return String(v == null ? '' : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function statusKey(v){ return ['done','failed','running','queued'].indexOf(v)>=0?v:'unknown'; }
   async function refresh(){
     try{
       var r = await fetch('/api/vids/jobs'); var d = await r.json();
@@ -337,11 +484,12 @@ const SURFACE_HTML = `<!doctype html>
       var tb = document.getElementById('rows');
       if (!d.jobs || !d.jobs.length){ tb.innerHTML='<tr><td colspan="5" class="empty">No jobs yet.</td></tr>'; return; }
       tb.innerHTML = d.jobs.map(function(j){
-        return '<tr><td><span class="st '+j.status+'">'+j.status+'</span></td>'+
-          '<td class="idea">'+(j.idea||'').replace(/[<>&]/g,'')+'</td>'+
-          '<td>'+(j.orientation||'')+'</td>'+
-          '<td>'+(j.client_id||'')+'</td>'+
-          '<td>'+fmt(j.created_at)+'</td></tr>';
+        var status=statusKey(j.status);
+        return '<tr><td><span class="st '+status+'">'+esc(j.status)+'</span></td>'+
+          '<td class="idea">'+esc(j.idea)+'</td>'+
+          '<td>'+esc(j.orientation)+'</td>'+
+          '<td>'+esc(j.client_id)+'</td>'+
+          '<td>'+esc(fmt(j.created_at))+'</td></tr>';
       }).join('');
     }catch(e){}
   }

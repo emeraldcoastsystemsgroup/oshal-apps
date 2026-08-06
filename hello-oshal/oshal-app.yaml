@@ -24,6 +24,19 @@ source:
   path: hello-oshal
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/hello-oshal/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # No bots, no migrations, no dependencies — the smallest possible package.
 dependencies:
   apps: []
@@ -48,6 +61,13 @@ ui:
 # NOTE: this example sets requiresAuth: false so it's trivially reachable in a demo.
 # Real apps should leave requiresAuth on (the default).
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/hello-oshal/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/hello.js
     factory: createHelloRoutes
     mountPath: /api/hello-oshal

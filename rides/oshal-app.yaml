@@ -21,11 +21,15 @@
 # Checkout truth: requesting a ride on a third party's behalf needs Uber for
 # Business; this app's personal path is a UNIVERSAL DEEP LINK the rider confirms
 # and pays in their own Uber app. No payment or rider credentials touch OSHAL.
+#
+# 2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | Canonicalize the public package name as
+# "Get a Ride", matching the marketplace and generated catalog while retaining `rides` as the
+# immutable package id, route namespace, and source directory.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: rides
 suite: ai-home   # ADR-097: primary catalog shelf (tools keep their own category:)
-displayName: Rides
+displayName: Get a Ride
 description: >-
   AI transportation concierge on a real map — set pickup and destination by pin or
   address, see the measured distance, compare Uber ride types, and hand off a ready
@@ -38,6 +42,19 @@ source:
   url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: rides
   ref: main
+
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/rides/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
 
 # uber-rides is the one connector this app uses (optional operator config via broker).
 dependencies:
@@ -126,6 +143,13 @@ ui:
       section: top
 
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/rides/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/rides-routes.js
     factory: createRidesRoutes
     mountPath: /api/rides

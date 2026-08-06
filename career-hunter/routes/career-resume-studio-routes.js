@@ -1,4 +1,17 @@
 "use strict";
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com   | Added structured resume loading, bot-guided edits, persistence, and PDF rerendering.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Routed guide turns through the agentic Career bot execution contract.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Awaited PDF rerenders through the asynchronous engine boundary.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Returned shared admission failures for busy or duplicate rerenders.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Added complete packet and signal-path rollback under the retained user-store lease.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | Split the route registrar into bounded load, guide, and save handlers.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | Moved packet discovery, reads, writes, snapshots, and rollback off synchronous filesystem APIs.
+ */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -34,55 +47,160 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.registerCareerResumeStudio = registerCareerResumeStudio;
+const fs_1 = require("fs");
 const path = __importStar(require("path"));
-const fs = __importStar(require("fs"));
 const logger_1 = require("@/shared/logger");
 const agent_management_1 = require("@/features/agent-management");
 const inline_bot_execution_1 = require("@/app/routes/inline-bot-execution");
-const career_hunter_routes_1 = require("./career-hunter-routes");
+const career_engine_dispatch_1 = require("./career-engine-dispatch");
+const career_engine_response_1 = require("./career-engine-response");
+const career_engine_runner_1 = require("./career-engine-runner");
+const career_file_transaction_1 = require("./career-file-transaction");
+const career_user_store_1 = require("./career-user-store");
 const logger = (0, logger_1.createChildLogger)({ module: 'career-resume-studio-routes' });
-/** The career-hunter agent (the app's ONE bot) edits the resume — cost lands under its agentId. */
 const CAREER_AGENT_ID = 'cb000000-0000-0000-0000-000000000001';
 const botClient = new agent_management_1.BotNodeClient((0, agent_management_1.createRegistryEndpointResolver)());
-/** Resolve a posting's packet directory by its `<...>__<postingId>` name, confined to the
- *  user's store. user_signals.resume_path holds stale pre-migration Windows paths for
- *  imported packets, so we scan the per-user applications dir rather than trust that path. */
-function packetDir(userSub, postingId) {
-    const appsDir = path.join((0, career_hunter_routes_1.userPaths)(userSub).userDir, 'applications');
+const RENDERED_PACKET_FILES = [
+    'application.json',
+    'Resume_ATS.html',
+    'Resume_ATS.pdf',
+    'Resume_Premium.html',
+    'Resume_Premium.pdf',
+    'Resume_1page.html',
+    'Resume_1page.pdf',
+    'CoverLetter.html',
+    'CoverLetter.pdf',
+];
+async function hasApplicationPacket(appsDir, entryName) {
+    try {
+        await fs_1.promises.access(path.join(appsDir, entryName, 'application.json'));
+        return true;
+    }
+    catch (err) {
+        if (err.code !== 'ENOENT') {
+            logger.error({ err, entryName }, 'resume packet accessibility check failed');
+        }
+        return false;
+    }
+}
+async function packetDir(userSub, postingId) {
+    const appsDir = path.join((0, career_user_store_1.userPaths)(userSub).userDir, 'applications');
     const suffix = `__${postingId}`;
     try {
-        const match = fs.readdirSync(appsDir, { withFileTypes: true }).find((d) => d.isDirectory() && d.name.endsWith(suffix) && fs.existsSync(path.join(appsDir, d.name, 'application.json')));
-        return match ? path.join(appsDir, match.name) : null;
+        const entries = await fs_1.promises.readdir(appsDir, { withFileTypes: true });
+        for (const entry of entries) {
+            if (entry.isDirectory()
+                && entry.name.endsWith(suffix)
+                && await hasApplicationPacket(appsDir, entry.name)) {
+                return path.join(appsDir, entry.name);
+            }
+        }
+        return null;
     }
-    catch {
+    catch (err) {
+        logger.error({ err, userSub, postingId }, 'resume packet directory scan failed');
         return null;
     }
 }
-/** Read the structured resume + cover the surface edits. */
-function readDoc(dir) {
-    const data = JSON.parse(fs.readFileSync(path.join(dir, 'application.json'), 'utf8'));
-    const gen = (data.generated || {});
+async function readDoc(dir) {
+    const data = JSON.parse(await fs_1.promises.readFile(path.join(dir, 'application.json'), 'utf8'));
+    const generated = (data.generated || {});
     return {
-        resume: gen.resume || {},
-        cover: gen.cover || {},
-        meta: { postingId: data.posting_id, company: data.company, title: data.title, url: data.url, include_oshal: data.include_oshal },
+        resume: generated.resume || {},
+        cover: generated.cover || {},
+        meta: {
+            postingId: data.posting_id,
+            company: data.company,
+            title: data.title,
+            url: data.url,
+            include_oshal: data.include_oshal,
+        },
     };
 }
-/** Persist edited resume/cover back into application.json.generated (preserving the rest). */
-function writeDoc(dir, resume, cover) {
-    const p = path.join(dir, 'application.json');
-    const data = JSON.parse(fs.readFileSync(p, 'utf8'));
-    const gen = (data.generated || {});
-    data.generated = { ...gen, resume, cover };
-    fs.writeFileSync(p, JSON.stringify(data, null, 2), 'utf8');
+async function writeDoc(dir, resume, cover) {
+    const filePath = path.join(dir, 'application.json');
+    const data = JSON.parse(await fs_1.promises.readFile(filePath, 'utf8'));
+    const generated = (data.generated || {});
+    data.generated = { ...generated, resume, cover };
+    await (0, career_file_transaction_1.writeFileAtomicAsync)(filePath, JSON.stringify(data, null, 2));
 }
-/** Build the bot prompt: current document + the user's turn + a strict output contract. */
+function pointPacketPaths(userSub, postingId, dir) {
+    const db = (0, career_user_store_1.openUserDb)(userSub, false);
+    if (!db)
+        return null;
+    try {
+        const previous = db.prepare('SELECT resume_path, cover_path FROM user_signals WHERE posting_id=?').get(postingId);
+        if (!previous)
+            return null;
+        db.prepare('UPDATE user_signals SET resume_path=?, cover_path=? WHERE posting_id=?')
+            .run(path.join(dir, 'Resume_ATS.pdf'), path.join(dir, 'CoverLetter.pdf'), postingId);
+        return {
+            resumePath: previous.resume_path ?? null,
+            coverPath: previous.cover_path ?? null,
+        };
+    }
+    finally {
+        db.close();
+    }
+}
+function restorePacketPaths(userSub, postingId, previous) {
+    if (!previous)
+        return;
+    const db = (0, career_user_store_1.openUserDb)(userSub, false);
+    if (!db)
+        throw new Error('resume path rollback database unavailable');
+    try {
+        db.prepare('UPDATE user_signals SET resume_path=?, cover_path=? WHERE posting_id=?')
+            .run(previous.resumePath, previous.coverPath, postingId);
+    }
+    finally {
+        db.close();
+    }
+}
+async function rollbackPacket(snapshots, userSub, postingId, previousPaths) {
+    const failures = [];
+    try {
+        await (0, career_file_transaction_1.restoreFilesAsync)(snapshots);
+    }
+    catch (err) {
+        logger.error({ err, postingId }, 'resume file rollback failed');
+        failures.push(err);
+    }
+    try {
+        restorePacketPaths(userSub, postingId, previousPaths);
+    }
+    catch (err) {
+        logger.error({ err, postingId }, 'resume path rollback failed');
+        failures.push(err);
+    }
+    if (failures.length)
+        throw new AggregateError(failures, 'resume packet rollback failed');
+}
+async function saveAndRerenderPacket(ctx, userSub, postingId, dir, resume, cover, lease) {
+    const paths = RENDERED_PACKET_FILES.map((name) => path.join(dir, name));
+    const snapshots = await (0, career_file_transaction_1.snapshotFilesAsync)(paths);
+    let previousPaths = null;
+    let committed = false;
+    try {
+        await writeDoc(dir, resume, cover);
+        previousPaths = pointPacketPaths(userSub, postingId, dir);
+        const result = await (0, career_engine_dispatch_1.runCareerCliAwait)(ctx.pool, userSub, ['rerender'], {
+            CH_JOB: String(postingId),
+        }, { preclaimed: lease });
+        committed = result.ok;
+        return result;
+    }
+    finally {
+        if (!committed)
+            await rollbackPacket(snapshots, userSub, postingId, previousPaths);
+    }
+}
 function guidePrompt(message, resume, cover, meta, history) {
     return [
         'You are editing the candidate\'s tailored RESUME + COVER LETTER for a specific job, in a live editor.',
         `Target role: ${String(meta.title || '')} at ${String(meta.company || '')}.`,
         '',
-        'HARD TRUTH RULES (never violate): edit ONLY the facts already present — NEVER invent or add an',
+        'HARD TRUTH RULES (never violate): edit ONLY the facts already present â€” NEVER invent or add an',
         'employer, title, date, metric, skill, certification, clearance, or claim. You may reorder, sharpen,',
         'reword, and re-emphasize. Real titles only (exactly as they appear in the profile),',
         'never inflated to CTO/VP/Chief unless the profile says so. Player-coach voice ("led the team',
@@ -102,186 +220,200 @@ function guidePrompt(message, resume, cover, meta, history) {
         '- {"op":"set_clearance","text":"exact clearance as already stated"}',
         '- {"op":"set_competencies","items":["8-12 short phrases"]}',
         '- {"op":"set_skills","items":["concise skills"]}',
-        '- {"op":"update_experience","index":1,"bullets":["rewritten bullets"]}   // 1-based; may also set title/org/span',
+        '- {"op":"update_experience","index":1,"bullets":["rewritten bullets"]}',
         '- {"op":"set_cover_paragraphs","items":["exactly 3 tight paragraphs, under ~230 words total"]}',
     ].join('\n');
 }
-/** Whitelist + normalize the bot's proposed actions — never trust raw model output. */
+function toStrings(value, count = 24) {
+    if (!Array.isArray(value))
+        return [];
+    return value
+        .slice(0, count)
+        .map((item) => String(item ?? '').slice(0, 600))
+        .filter(Boolean);
+}
+function experienceAction(raw) {
+    if (Number(raw.index) < 1)
+        return null;
+    const action = {
+        op: 'update_experience',
+        index: Math.floor(Number(raw.index)),
+    };
+    if (raw.title)
+        action.title = String(raw.title).slice(0, 200);
+    if (raw.org)
+        action.org = String(raw.org).slice(0, 200);
+    if (raw.span)
+        action.span = String(raw.span).slice(0, 60);
+    if (raw.bullets)
+        action.bullets = toStrings(raw.bullets, 8);
+    return action;
+}
+function cleanAction(raw) {
+    const op = String(raw.op || '');
+    const text = (max) => String(raw.text ?? '').slice(0, max);
+    if (op === 'set_headline')
+        return { op, text: text(400) };
+    if (op === 'set_summary')
+        return { op, text: text(1600) };
+    if (op === 'set_clearance')
+        return { op, text: text(200) };
+    if (op === 'set_competencies')
+        return { op, items: toStrings(raw.items) };
+    if (op === 'set_skills')
+        return { op, items: toStrings(raw.items) };
+    if (op === 'set_cover_paragraphs')
+        return { op, items: toStrings(raw.items, 6) };
+    if (op === 'update_experience')
+        return experienceAction(raw);
+    return null;
+}
 function cleanActions(raw) {
     if (!Array.isArray(raw))
         return [];
-    const str = (v, max = 4000) => String(v ?? '').slice(0, max);
-    const strs = (v, n = 24) => (Array.isArray(v) ? v.slice(0, n).map((x) => str(x, 600)).filter(Boolean) : []);
-    const out = [];
-    for (const a of raw.slice(0, 12)) {
-        const o = a;
-        const op = String(o.op || '');
-        if (op === 'set_headline')
-            out.push({ op, text: str(o.text, 400) });
-        else if (op === 'set_summary')
-            out.push({ op, text: str(o.text, 1600) });
-        else if (op === 'set_clearance')
-            out.push({ op, text: str(o.text, 200) });
-        else if (op === 'set_competencies')
-            out.push({ op, items: strs(o.items) });
-        else if (op === 'set_skills')
-            out.push({ op, items: strs(o.items) });
-        else if (op === 'set_cover_paragraphs')
-            out.push({ op, items: strs(o.items, 6) });
-        else if (op === 'update_experience' && Number(o.index) >= 1) {
-            const e = { op, index: Math.floor(Number(o.index)) };
-            if (o.title)
-                e.title = str(o.title, 200);
-            if (o.org)
-                e.org = str(o.org, 200);
-            if (o.span)
-                e.span = str(o.span, 60);
-            if (o.bullets)
-                e.bullets = strs(o.bullets, 8);
-            out.push(e);
-        }
+    return raw
+        .slice(0, 12)
+        .map((action) => cleanAction(action))
+        .filter((action) => action !== null);
+}
+function guideHistory(raw) {
+    if (!Array.isArray(raw))
+        return '';
+    return raw.slice(-8).map((entry) => {
+        const speaker = entry.role === 'bot' ? 'Editor' : 'You';
+        return `${speaker}: ${String(entry.text || '').slice(0, 500)}`;
+    }).join('\n');
+}
+function parseGuideResponse(response) {
+    let reply = 'Updated.';
+    let actions = [];
+    const match = String(response || '').match(/\{[\s\S]*\}/);
+    if (!match)
+        return { reply, actions };
+    try {
+        const parsed = JSON.parse(match[0]);
+        reply = String(parsed.reply || reply).slice(0, 1200);
+        actions = cleanActions(parsed.actions);
     }
-    return out;
+    catch (err) {
+        logger.warn({ err }, 'resume guide bot JSON is unparseable');
+    }
+    return { reply, actions };
+}
+async function getResumeDocument(req, res) {
+    const userSub = (0, career_user_store_1.callerSub)(req);
+    if (!userSub) {
+        res.status(401).json({ error: 'unauthorized' });
+        return;
+    }
+    const postingId = Number(req.query.id);
+    if (!Number.isFinite(postingId)) {
+        res.status(400).json({ error: 'id required' });
+        return;
+    }
+    const dir = await packetDir(userSub, postingId);
+    if (!dir) {
+        res.status(404).json({ error: 'no generated packet â€” generate one first' });
+        return;
+    }
+    try {
+        res.json(await readDoc(dir));
+    }
+    catch (err) {
+        logger.error({ err, userSub, postingId }, 'resume document read failed');
+        res.status(500).json({ error: 'read failed' });
+    }
+}
+async function guideResume(ctx, req, res) {
+    const userSub = (0, career_user_store_1.callerSub)(req);
+    if (!userSub) {
+        res.status(401).json({ error: 'unauthorized' });
+        return;
+    }
+    const body = req.body || {};
+    const postingId = Number(body.postingId);
+    const message = String(body.message || '').trim();
+    if (!Number.isFinite(postingId) || !message) {
+        res.status(400).json({ error: 'postingId + message required' });
+        return;
+    }
+    const dir = await packetDir(userSub, postingId);
+    if (!dir) {
+        res.status(404).json({ error: 'no generated packet' });
+        return;
+    }
+    try {
+        const document = await readDoc(dir);
+        const resume = body.resume && typeof body.resume === 'object' ? body.resume : document.resume;
+        const cover = body.cover && typeof body.cover === 'object' ? body.cover : document.cover;
+        const result = await (0, inline_bot_execution_1.executeBotOrInline)(ctx, botClient, CAREER_AGENT_ID, {
+            text: guidePrompt(message, resume, cover, document.meta, guideHistory(body.history)),
+            taskId: `resumeedit-${userSub}`,
+            workspaceFolderId: `resumeedit-${userSub}`,
+            agentId: CAREER_AGENT_ID,
+            agenticMode: true,
+            direct: false,
+            userSub,
+        });
+        const parsed = parseGuideResponse(result.response);
+        logger.info({ userSub, postingId, actions: parsed.actions.length }, 'resume guide turn');
+        res.json(parsed);
+    }
+    catch (err) {
+        logger.error({ err, userSub, postingId }, 'resume guide failed');
+        res.status(500).json({ error: 'guide failed' });
+    }
+}
+async function saveResume(ctx, req, res) {
+    const userSub = (0, career_user_store_1.callerSub)(req);
+    if (!userSub) {
+        res.status(401).json({ error: 'unauthorized' });
+        return;
+    }
+    const body = req.body || {};
+    const postingId = Number(body.postingId);
+    if (!Number.isFinite(postingId) || !body.resume || !body.cover) {
+        res.status(400).json({ error: 'postingId + resume + cover required' });
+        return;
+    }
+    const dir = await packetDir(userSub, postingId);
+    if (!dir) {
+        res.status(404).json({ error: 'no generated packet' });
+        return;
+    }
+    const lease = (0, career_engine_runner_1.tryAcquireRun)(userSub, 'user-store');
+    if ((0, career_engine_response_1.rejectEngineClaim)(res, lease, 'resume rerender'))
+        return;
+    try {
+        const result = await saveAndRerenderPacket(ctx, userSub, postingId, dir, body.resume, body.cover, lease);
+        if (result.limitReason) {
+            (0, career_engine_response_1.rejectEngineStart)(res, { started: false, limitReason: result.limitReason }, 'resume rerender');
+            return;
+        }
+        if (!result.ok) {
+            logger.error({ err: result.err, userSub, postingId }, 'resume rerender failed');
+            res.status(500).json({ ok: false, error: result.err.slice(-400) });
+            return;
+        }
+        res.json({ ok: true });
+    }
+    catch (err) {
+        logger.error({ err, userSub, postingId }, 'resume save failed');
+        res.status(500).json({ error: 'save failed' });
+    }
+    finally {
+        (0, career_engine_runner_1.releaseRun)(lease);
+    }
 }
 /**
- * @description Mount the Resume Studio routes on the career-hunter router.
- * GET /resume/doc?id= (load), POST /resume/guide (bot edits), POST /resume/save (+ rerender).
- * @param router - the career-hunter app router
- * @param ctx - app context (for the bot client / cost capture)
+ * @description Mounts structured resume load, bot guide, and transactional save routes.
+ * @param router - Authenticated Career Hunter router.
+ * @param ctx - Kernel context used for bot execution and brokered packet rerendering.
+ * @returns Nothing.
  */
 function registerCareerResumeStudio(router, ctx) {
-    // Load the structured resume + cover for a generated packet (the live-preview source).
-    router.get('/resume/doc', (req, res) => {
-        const userSub = (0, career_hunter_routes_1.callerSub)(req);
-        if (!userSub) {
-            res.status(401).json({ error: 'unauthorized' });
-            return;
-        }
-        const postingId = Number(req.query.id);
-        if (!Number.isFinite(postingId)) {
-            res.status(400).json({ error: 'id required' });
-            return;
-        }
-        const dir = packetDir(userSub, postingId);
-        if (!dir) {
-            res.status(404).json({ error: 'no generated packet — generate one first' });
-            return;
-        }
-        try {
-            res.json(readDoc(dir));
-        }
-        catch (err) {
-            logger.error({ err, postingId }, 'resume doc read failed');
-            res.status(500).json({ error: 'read failed' });
-        }
-    });
-    // One conversational edit turn: the bot returns { reply, actions } the surface applies.
-    router.post('/resume/guide', async (req, res) => {
-        const userSub = (0, career_hunter_routes_1.callerSub)(req);
-        if (!userSub) {
-            res.status(401).json({ error: 'unauthorized' });
-            return;
-        }
-        const body = req.body || {};
-        const postingId = Number(body.postingId);
-        const message = String(body.message || '').trim();
-        if (!Number.isFinite(postingId) || !message) {
-            res.status(400).json({ error: 'postingId + message required' });
-            return;
-        }
-        const dir = packetDir(userSub, postingId);
-        if (!dir) {
-            res.status(404).json({ error: 'no generated packet' });
-            return;
-        }
-        try {
-            // Prefer the client's in-progress edits (so multi-turn builds on the live preview), else disk.
-            const doc = readDoc(dir);
-            const resume = (body.resume && typeof body.resume === 'object') ? body.resume : doc.resume;
-            const cover = (body.cover && typeof body.cover === 'object') ? body.cover : doc.cover;
-            const history = Array.isArray(body.history)
-                ? body.history.slice(-8).map((h) => `${h.role === 'bot' ? 'Editor' : 'You'}: ${String(h.text || '').slice(0, 500)}`).join('\n')
-                : '';
-            // agenticMode:true (NOT direct/plain-LLM): the career agent runs a CLI harness
-            // (openai-codex), which has no plain-LLM path — agenticMode:false raises
-            // "activeLlm.generateResponse is not a function" and the guide silently no-ops.
-            // The persona keeps this agentic turn light and returns the {reply,actions} JSON.
-            const result = await (0, inline_bot_execution_1.executeBotOrInline)(ctx, botClient, CAREER_AGENT_ID, {
-                text: guidePrompt(message, resume, cover, doc.meta, history),
-                taskId: `resumeedit-${userSub}`, workspaceFolderId: `resumeedit-${userSub}`,
-                agentId: CAREER_AGENT_ID, agenticMode: true, direct: false, userSub,
-            });
-            let reply = 'Updated.';
-            let actions = [];
-            const m = String(result.response || '').match(/\{[\s\S]*\}/);
-            if (m) {
-                try {
-                    const parsed = JSON.parse(m[0]);
-                    reply = String(parsed.reply || reply).slice(0, 1200);
-                    actions = cleanActions(parsed.actions);
-                }
-                catch (err) {
-                    logger.warn({ err: err.message }, 'resume guide: bot JSON unparseable');
-                }
-            }
-            logger.info({ userSub, postingId, actions: actions.length }, 'resume guide turn');
-            res.json({ reply, actions });
-        }
-        catch (err) {
-            logger.error({ err, postingId }, 'resume guide failed');
-            res.status(500).json({ error: 'guide failed' });
-        }
-    });
-    // Persist the edited resume/cover and re-render the PDFs (no LLM — generate.rerender_packet).
-    router.post('/resume/save', (req, res) => {
-        const userSub = (0, career_hunter_routes_1.callerSub)(req);
-        if (!userSub) {
-            res.status(401).json({ error: 'unauthorized' });
-            return;
-        }
-        const body = req.body || {};
-        const postingId = Number(body.postingId);
-        if (!Number.isFinite(postingId) || !body.resume || !body.cover) {
-            res.status(400).json({ error: 'postingId + resume + cover required' });
-            return;
-        }
-        const dir = packetDir(userSub, postingId);
-        if (!dir) {
-            res.status(404).json({ error: 'no generated packet' });
-            return;
-        }
-        try {
-            writeDoc(dir, body.resume, body.cover);
-            // Self-heal the board + PDF-serve paths BEFORE rerender: imported rows hold stale
-            // pre-migration Windows paths, and the engine's rerender_packet derives the packet
-            // dir from resume_path — so point it at the container packet first.
-            try {
-                const sdb = (0, career_hunter_routes_1.openUserDb)(userSub, false);
-                if (sdb) {
-                    try {
-                        sdb.prepare('UPDATE user_signals SET resume_path=?, cover_path=? WHERE posting_id=?')
-                            .run(path.join(dir, 'Resume_ATS.pdf'), path.join(dir, 'CoverLetter.pdf'), postingId);
-                    }
-                    finally {
-                        sdb.close();
-                    }
-                }
-            }
-            catch (e) {
-                logger.warn({ err: e }, 'resume save: path self-heal skipped');
-            }
-            const r = (0, career_hunter_routes_1.runCli)(userSub, ['rerender'], { CH_JOB: String(postingId) });
-            if (!r.ok) {
-                logger.error({ err: r.err }, 'rerender failed');
-                res.status(500).json({ ok: false, error: r.err.slice(-400) });
-                return;
-            }
-            res.json({ ok: true });
-        }
-        catch (err) {
-            logger.error({ err, postingId }, 'resume save failed');
-            res.status(500).json({ error: 'save failed' });
-        }
-    });
+    router.get('/resume/doc', getResumeDocument);
+    router.post('/resume/guide', (req, res) => guideResume(ctx, req, res));
+    router.post('/resume/save', (req, res) => saveResume(ctx, req, res));
 }
 //# sourceMappingURL=career-resume-studio-routes.js.map

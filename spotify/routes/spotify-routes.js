@@ -31,6 +31,8 @@
  *            | (spotify-bot container / registries / personas / spotifyToolKit.js /
  *            | oshal-spotify.js) stays core per ADR-093 interim. Logic unchanged.
  * ---------------------------------------------------------------------------
+ * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove Spotify credentials from generic orchestrator dispatch. Spotify Web API calls stay controller-side through getValidAccessToken and the model receives only bounded profile, track, playlist, and playback records.
+ *
  * @module spotify-routes
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
@@ -77,7 +79,6 @@ const logger_1 = require("@/shared/logger");
 const database_1 = require("@/shared/services/database");
 const authz_1 = require("@/shared/middleware/authz");
 const connectors_routes_1 = require("@/app/routes/connectors-routes");
-const connector_token_broker_1 = require("@/app/routes/connector-token-broker");
 const spotify_client_1 = require("@/app/routes/spotify-client");
 const concierge_envelope_1 = require("@/app/routes/concierge-envelope");
 const concierge_store_1 = require("@/app/routes/concierge-store");
@@ -366,12 +367,11 @@ function createSpotifyRoutes(ctx) {
             store.loadNotes(sub),
         ]);
         const prompt = buildConciergePrompt({ message, history, candidates, topTracks, profile, notes, nowPlaying: nowPlayingRes?.track || null });
-        const creds = await (0, connector_token_broker_1.resolveBotCreds)(pool, sub, ['spotify']);
         let raw = '';
         try {
             const orchestrator = ctx.orchestrator;
             const result = await orchestrator.processMessage(`spotify-${sub}-${(0, crypto_1.randomUUID)()}`, prompt, {
-                agenticMode: true, autoApprove: false, source: 'spotify', agentId: CONCIERGE_AGENT_ID, userSub: sub, creds,
+                agenticMode: false, autoApprove: false, source: 'spotify', agentId: CONCIERGE_AGENT_ID, userSub: sub,
             });
             raw = String(result?.response || '').trim();
         }

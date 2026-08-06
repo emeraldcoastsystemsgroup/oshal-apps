@@ -34,6 +34,22 @@ Skip (or Esc) drops to the studio — the detailed outline editor, syntax refere
 options — and ✨ Walkthrough in the studio header brings the front door back. Guarded by
 `tests/presentations-surface-parse.test.js` (inline-script parse + walkthrough contract).
 
+## Where your file goes (ADR-043 item A)
+
+The action bar carries a save-target chip such as **Saving to Google Drive / Decks**. It tells
+the caller where the next Generate will put the artifact before spending a render. Clicking the
+chip opens Options and focuses the existing **Save to** control; choosing an override refreshes
+the chip immediately and labels the selection **(just this one)**.
+
+`GET /api/presentations/sections/destination` returns
+`{ provider, folder, repo, subfolder, isDefault }` for the authenticated caller. A validated
+`?provider=` previews an override without persisting it, anonymous requests return `401` before
+any preference read, and resolution failure returns `502` rather than a guessed destination.
+Artifacts land beneath the deck-builder bot's `oshal/{bot-id}` subfolder on the resolved target.
+
+`tests/presentations-destination.test.mjs` exercises the compiled route through its framework
+seams and pins the surface-to-endpoint contract, including provider-list parity.
+
 ## Install
 
 ```bash

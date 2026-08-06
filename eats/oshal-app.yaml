@@ -31,6 +31,19 @@ source:
   path: eats
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/eats/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # uber (Uber Eats) is the one connector this app uses (operator affiliate/marketing blob
 # via broker; ordering is a deep-link handoff).
 dependencies:
@@ -159,6 +172,13 @@ ui:
 
 # ROUTES — app-owned API + surface, gated to this app's activation.
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/eats/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/eats-routes.js
     factory: createEatsRoutes
     mountPath: /api/eats

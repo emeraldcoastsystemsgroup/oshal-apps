@@ -1,0 +1,11 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR                                     | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1   | maintainer@emeraldcoastsystemsgroup.com    | Preserve the immutable UIUC
+#     |                                             | source bytes on every checkout.
+
+# MANIFEST.sha256 fingerprints the LF bytes stored in Git. Disabling Windows
+# CRLF conversion here keeps the raw-byte integrity gate platform-independent.
+*.txt text eol=lf
+MANIFEST.sha256 text eol=lf

@@ -39,6 +39,19 @@ source:
   path: feeds
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/feeds/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # Runtime connector allow-list — the mailbox/message platform whose feed this app
 # indexes + views, via the per-user broker.
 dependencies:
@@ -108,6 +121,13 @@ ui:
 # server.ts this was createFeedsRoutes; it now mounts from this package.)
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/feeds/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/feeds-routes.js
     factory: createFeedsRoutes
     mountPath: /api/feeds

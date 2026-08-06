@@ -4,11 +4,13 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-20 22:25:05 | roger.murphy@emeraldcoastsystemsgroup.com  | Initial D&D app schema: per-user campaigns, live encounter board state, characters, and the campaign story archive. Applied idempotently on install (ADR-085 P2 migration runner).
+ * 2026-08-06 02:43:35 | maintainer@emeraldcoastsystemsgroup.com     | Replace the obsolete RLS follow-up note with the shipped migration-006 owner, member, and transaction-local join-capability boundary.
  */
 
--- ISOLATION: every row carries user_sub (NOT NULL) and every route query filters
--- on it (app-layer scoping — the same model little-monsters uses via external_id).
--- RLS hardening (per-request GUC policies) is a tracked follow-up in README.md.
+-- ISOLATION BASELINE: every row carries user_sub (NOT NULL) and every route
+-- query filters on it. Migration 006 adds authoritative owner_sub backfills,
+-- member-safe policies, and ENABLE + FORCE RLS keyed to the request identity
+-- GUCs; join-by-code is limited to a validated transaction-local capability.
 -- -----------------------------------------------------------------------------
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;

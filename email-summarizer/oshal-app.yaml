@@ -45,6 +45,19 @@ source:
   path: email-summarizer
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/email-summarizer/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # Runtime connector allow-list — the mailbox/calendar provider, the M365 + phone
 # legs the bot's broker hands tokens for, and the Social tab's identity read.
 dependencies:
@@ -137,6 +150,13 @@ ui:
       section: top
 
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/email-summarizer/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/email-app-routes.js
     factory: createEmailRoutes
     mountPath: /api/email

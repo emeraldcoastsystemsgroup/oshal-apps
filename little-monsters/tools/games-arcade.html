@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Little Monsters - Monster Arcade</title>
+<!--
+  CHANGE LOG
+  ---------------------------------------------------------------------------
+  DATE           | AUTHOR                                      | DESCRIPTION
+  ---------------------------------------------------------------------------
+  2026-08-05     | maintainer@emeraldcoastsystemsgroup.com     | Document the shipped curriculum-linked warm-up path and its intentional empty-state fallback.
+  ---------------------------------------------------------------------------
+-->
 <script>
 // Follow the parent cockpit theme (data-theme) so the arcade recolors with the swarm.
 (function(){
@@ -98,8 +106,8 @@ var GAMES = [
   { id:'school-dash',     name:'School Dash',     emoji:'🏃' },
   { id:'flashcards',      name:'Flashcard Blitz', emoji:'🃏' },
 ];
-// Warm-up question bank (the study gate). TODO: pull from the student's current
-// class flashcards via /api/education so questions track their real curriculum.
+// Dependency-free fallback bank for students with fewer than four accessible cards.
+// loadCurriculum below replaces it with the student's current flashcards when available.
 var WARMUPS = [
   { q:'What is 7 × 8?', a:'56', opts:['54','56','48','63'] },
   { q:'Which planet is known as the Red Planet?', a:'Mars', opts:['Venus','Mars','Jupiter','Mercury'] },

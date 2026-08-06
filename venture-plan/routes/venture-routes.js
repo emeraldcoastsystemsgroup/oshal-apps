@@ -11,22 +11,25 @@
  * exposes somebody's business plan or spends their money.
  *
  * THE COST BOUNDARY IS A ROUTE-TABLE PROPERTY, NOT A CONVENTION.
- * Exactly two endpoints in this package can spend money: `POST /ventures` (one
- * short scoping call) and `POST /ventures/:id/runs` (the out-of-band authoring
- * run). Everything else — every recompute, every sensitivity sweep, every
- * document read — is pure arithmetic over stored rows. That is deliberate and it
+ * Exactly three endpoints on this interactive router can spend money:
+ * `POST /ventures` (one short scoping call), `POST /ventures/:id/runs` (the
+ * out-of-band authoring run), and explicit `POST /chat`. Everything else — every
+ * recompute, sensitivity sweep, and document read — is pure arithmetic over
+ * stored rows. That is deliberate and it
  * is guarded: `POST /model` never reaching the bot client is what makes "edit an
  * assumption and watch the answer move, for free" a promise the app can keep.
  *
- * LONG WORK NEVER RUNS ON THE REQUEST PATH. A full authoring run is four bot calls
- * across four bots; it answers 202 with a run id and the surface polls
- * `GET /runs/:runId`.
+ * LONG WORK NEVER RUNS ON THE REQUEST PATH. A full authoring run has three analyst
+ * calls plus narration for each requested prose-bearing document. It answers 202
+ * with a run id and the surface polls `GET /runs/:runId`.
  *
  * CHANGE LOG
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial implementation — venture CRUD with a synchronous scoping call, the append-only assumption endpoints, BOM/vendor/quote/scenario CRUD, the free recompute and sensitivity endpoints, the 202 run endpoint, and the concierge chat door. Every handler 401s before any query.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Add owner-scoped immutable FX endpoints, fail-closed foreign-quote errors, and integer-micro scenario inputs.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Add owner-scoped default-deny rebaseline policy management and a mutation-free UTC preview endpoint.
  *
  * @module venture-routes
  */
@@ -83,6 +86,10 @@ const venture_run_1 = require("./venture-run");
 const venture_store_1 = require("./venture-store");
 const venture_store_supply_1 = require("./venture-store-supply");
 const venture_store_outputs_1 = require("./venture-store-outputs");
+const venture_store_fx_1 = require("./venture-store-fx");
+const venture_currency_1 = require("./venture-currency");
+const venture_rebaseline_1 = require("./venture-rebaseline");
+const venture_store_rebaseline_1 = require("./venture-store-rebaseline");
 const venture_doc_catalog_1 = require("./venture-doc-catalog");
 const venture_types_1 = require("./venture-types");
 const log = (0, logger_1.createChildLogger)({ module: 'venture-routes' });
@@ -91,6 +98,26 @@ const botClient = new agent_management_1.BotNodeClient((0, agent_management_1.cr
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
 /** Run kinds a caller may ask for. Anything else is rejected rather than coerced. */
 const RUN_KINDS = ['full', 'bom', 'market', 'ops', 'narrate'];
+/** Answer an expected FX refusal without turning user input into a 500. */
+function replyFxError(res, err) {
+    if (!(err instanceof venture_currency_1.VentureFxError))
+        return false;
+    const notFound = new Set([
+        'fx_assumption_not_found', 'fx_venture_not_found',
+        'quote_vendor_not_found', 'quote_bom_line_not_found',
+    ]);
+    const status = err.code === 'fx_idempotency_conflict' ? 409
+        : notFound.has(err.code) ? 404 : 400;
+    res.status(status).json({ error: err.code, detail: err.message });
+    return true;
+}
+/** Answer a closed rebaseline policy validation error as caller input, not 500. */
+function replyRebaselineError(res, err) {
+    if (!(err instanceof venture_rebaseline_1.RebaselineError))
+        return false;
+    res.status(400).json({ error: err.code, detail: err.message });
+    return true;
+}
 /**
  * @description Resolve the bundled surface directory, captured at FACTORY time.
  *
@@ -158,6 +185,16 @@ function handleCreate(ctx, pool) {
             res.status(400).json({ error: 'describe the idea in at least a sentence' });
             return;
         }
+        const body = req.body;
+        let currency;
+        try {
+            currency = (0, venture_currency_1.normalizeCurrencyCode)(body.currency ?? 'USD');
+        }
+        catch (err) {
+            if (replyFxError(res, err))
+                return;
+            throw err;
+        }
         let scoped = { name: null, spec: {}, openQuestions: [] };
         let scopeError = null;
         try {
@@ -168,12 +205,11 @@ function handleCreate(ctx, pool) {
             log.error({ err, stack: err?.stack, sub }, 'venture scoping call failed');
             scopeError = err?.message || String(err);
         }
-        const body = req.body;
         const venture = await (0, venture_store_1.insertVenture)(pool, sub, {
             name: String(body.name ?? scoped.name ?? idea.slice(0, 80)),
             ideaText: idea,
             spec: scoped.spec,
-            currency: typeof body.currency === 'string' ? body.currency.slice(0, 3) : 'USD',
+            currency,
             targetLaunchDate: typeof body.targetLaunchDate === 'string' ? body.targetLaunchDate : null,
             openQuestions: scoped.openQuestions,
         });
@@ -192,16 +228,17 @@ function handleVentureRead(pool) {
             res.status(404).json({ error: 'not found' });
             return;
         }
-        const [scenarios, assumptions, bom, vendors, quotes, model, run] = await Promise.all([
+        const [scenarios, assumptions, bom, vendors, quotes, fxAssumptions, model, run] = await Promise.all([
             (0, venture_store_1.listScenarios)(pool, sub, id), (0, venture_store_1.liveAssumptions)(pool, sub, id), (0, venture_store_supply_1.listBom)(pool, sub, id),
             (0, venture_store_supply_1.listVendors)(pool, sub, id), (0, venture_store_supply_1.listQuotes)(pool, sub, id),
+            (0, venture_store_fx_1.listFxAssumptions)(pool, sub, id),
             (0, venture_store_outputs_1.latestModel)(pool, sub, id, null), (0, venture_store_1.latestRun)(pool, sub, id),
         ]);
         res.json({
             venture, scenarios,
             counts: {
                 assumptions: assumptions.length, bomLines: bom.length,
-                vendors: vendors.length, quotes: quotes.length,
+                vendors: vendors.length, quotes: quotes.length, fxAssumptions: fxAssumptions.length,
             },
             coverage: (0, venture_store_1.coverageOf)(assumptions),
             latestModel: model ? {
@@ -209,6 +246,7 @@ function handleVentureRead(pool) {
                 canPublish: model.canPublish, warnings: model.warnings.length,
             } : null,
             latestRun: run,
+            fxAssumptions,
             documentCatalog: venture_doc_catalog_1.DOC_CATALOG.map((d) => ({ key: d.key, title: d.title, decision: d.decision })),
         });
     });
@@ -410,6 +448,67 @@ function handleVendors(pool) {
         }),
     };
 }
+/** Immutable FX evidence endpoints. There is deliberately no PATCH or DELETE. */
+function handleFxAssumptions(pool) {
+    return {
+        list: (0, venture_http_1.guarded)('GET /ventures/:id/fx-assumptions', async (req, res) => {
+            const sub = (0, venture_http_1.requireSub)(req, res);
+            if (!sub)
+                return;
+            const id = String(req.params.id);
+            if (!await (0, venture_store_1.getVenture)(pool, sub, id)) {
+                res.status(404).json({ error: 'not found' });
+                return;
+            }
+            res.json({ fxAssumptions: await (0, venture_store_fx_1.listFxAssumptions)(pool, sub, id) });
+        }),
+        read: (0, venture_http_1.guarded)('GET /ventures/:id/fx-assumptions/:fxId', async (req, res) => {
+            const sub = (0, venture_http_1.requireSub)(req, res);
+            if (!sub)
+                return;
+            const fx = await (0, venture_store_fx_1.getFxAssumption)(pool, sub, String(req.params.id), String(req.params.fxId));
+            if (!fx) {
+                res.status(404).json({ error: 'not found' });
+                return;
+            }
+            res.json({ fxAssumption: fx });
+        }),
+        create: (0, venture_http_1.guarded)('POST /ventures/:id/fx-assumptions', async (req, res) => {
+            const sub = (0, venture_http_1.requireSub)(req, res);
+            if (!sub)
+                return;
+            const id = String(req.params.id);
+            const venture = await (0, venture_store_1.getVenture)(pool, sub, id);
+            if (!venture) {
+                res.status(404).json({ error: 'not found' });
+                return;
+            }
+            const body = (req.body ?? {});
+            try {
+                const reportingCurrency = (0, venture_currency_1.normalizeCurrencyCode)(body.reportingCurrency, 'reportingCurrency');
+                if (reportingCurrency !== (0, venture_currency_1.normalizeCurrencyCode)(venture.currency, 'venture currency')) {
+                    throw new venture_currency_1.VentureFxError('fx_reporting_currency_mismatch', 'reportingCurrency must match the venture currency');
+                }
+                const result = await (0, venture_store_fx_1.insertFxAssumption)(pool, sub, id, {
+                    sourceCurrency: String(body.sourceCurrency ?? ''),
+                    reportingCurrency,
+                    rateNanos: body.rateNanos,
+                    sourceKind: String(body.sourceKind ?? 'user-entered'),
+                    sourceRef: String(body.sourceRef ?? ''),
+                    observedAt: String(body.observedAt ?? ''),
+                    idempotencyKey: String(body.idempotencyKey ?? ''),
+                }, `user:${sub}`);
+                res.status(result.inserted ? 201 : 200).json({
+                    fxAssumption: result.assumption, idempotentReplay: !result.inserted,
+                });
+            }
+            catch (err) {
+                if (!replyFxError(res, err))
+                    throw err;
+            }
+        }),
+    };
+}
 /**
  * The quote endpoints. Recording a received quote is the ONE action in this app
  * that can write `vendor-quote` provenance, because it is the one action a human
@@ -439,14 +538,20 @@ function handleQuotes(pool) {
                 return;
             }
             const body = (req.body ?? {});
-            const cost = typeof body.unitCostMicros === 'number' ? body.unitCostMicros : NaN;
-            if (!body.vendorId || !Number.isFinite(cost) || cost < 0) {
-                res.status(400).json({ error: 'vendorId and a non-negative unitCostMicros are required' });
+            const cost = body.unitCostMicros;
+            if (!body.vendorId || typeof cost !== 'number' || !Number.isSafeInteger(cost) || cost < 0) {
+                res.status(400).json({ error: 'vendorId and non-negative integer unitCostMicros are required' });
                 return;
             }
-            const applied = await (0, venture_store_supply_1.applyQuote)(pool, sub, id, {
-                ...body, unitCostMicros: Math.round(cost),
-            });
+            let applied;
+            try {
+                applied = await (0, venture_store_supply_1.applyQuote)(pool, sub, id, body);
+            }
+            catch (err) {
+                if (replyFxError(res, err))
+                    return;
+                throw err;
+            }
             // The quote changed a number, so the model that stood on the old one is
             // stale the moment this returns. Recompute here rather than hoping the
             // surface remembers to ask.
@@ -473,6 +578,19 @@ function summariseModel(r) {
         warnings: r.snapshot.warnings,
         missingAssumptionKeys: r.missingAssumptionKeys,
     };
+}
+/** Refuse the retired cents field and validate the exact scenario micro amount. */
+function scenarioInput(body) {
+    if (Object.prototype.hasOwnProperty.call(body, 'retailPriceCents')) {
+        throw new venture_currency_1.VentureFxError('retail_price_cents_retired', 'retailPriceCents is retired; provide integer retailPriceMicros');
+    }
+    if (body.retailPriceMicros !== undefined && body.retailPriceMicros !== null) {
+        const price = (0, venture_currency_1.assertCurrencyMicros)(body.retailPriceMicros, 'retailPriceMicros');
+        if (price < 0)
+            throw new venture_currency_1.VentureFxError('invalid_currency_amount', 'retailPriceMicros cannot be negative');
+        return { ...body, retailPriceMicros: price };
+    }
+    return body;
 }
 /** The scenario endpoints. Overrides only; the arithmetic lives in the engine. */
 function handleScenarios(pool) {
@@ -502,13 +620,27 @@ function handleScenarios(pool) {
                 res.status(400).json({ error: 'name is required' });
                 return;
             }
-            res.status(201).json({ scenario: await (0, venture_store_1.insertScenario)(pool, sub, id, body) });
+            try {
+                res.status(201).json({ scenario: await (0, venture_store_1.insertScenario)(pool, sub, id, scenarioInput(body)) });
+            }
+            catch (err) {
+                if (!replyFxError(res, err))
+                    throw err;
+            }
         }),
         scenarioPatch: (0, venture_http_1.guarded)('PATCH /ventures/:id/scenarios/:scenarioId', async (req, res) => {
             const sub = (0, venture_http_1.requireSub)(req, res);
             if (!sub)
                 return;
-            const s = await (0, venture_store_1.updateScenario)(pool, sub, String(req.params.id), String(req.params.scenarioId), (req.body ?? {}));
+            let s;
+            try {
+                s = await (0, venture_store_1.updateScenario)(pool, sub, String(req.params.id), String(req.params.scenarioId), scenarioInput((req.body ?? {})));
+            }
+            catch (err) {
+                if (replyFxError(res, err))
+                    return;
+                throw err;
+            }
             if (!s) {
                 res.status(404).json({ error: 'not found' });
                 return;
@@ -687,6 +819,69 @@ function handleSensitivity(pool) {
         });
     };
 }
+/** Owner policy CRUD plus a read-only scheduler preview. */
+function handleRebaselinePolicy(pool) {
+    return {
+        read: (0, venture_http_1.guarded)('GET /ventures/:id/rebaseline-policy', async (req, res) => {
+            const sub = (0, venture_http_1.requireSub)(req, res);
+            if (!sub)
+                return;
+            const ventureId = String(req.params.id);
+            if (!await (0, venture_store_1.getVenture)(pool, sub, ventureId)) {
+                res.status(404).json({ error: 'not found' });
+                return;
+            }
+            res.json({ policy: await (0, venture_store_rebaseline_1.getRebaselinePolicy)(pool, sub, ventureId) });
+        }),
+        update: (0, venture_http_1.guarded)('PUT /ventures/:id/rebaseline-policy', async (req, res) => {
+            const sub = (0, venture_http_1.requireSub)(req, res);
+            if (!sub)
+                return;
+            const ventureId = String(req.params.id);
+            if (!await (0, venture_store_1.getVenture)(pool, sub, ventureId)) {
+                res.status(404).json({ error: 'not found' });
+                return;
+            }
+            try {
+                const current = await (0, venture_store_rebaseline_1.getRebaselinePolicy)(pool, sub, ventureId);
+                const patch = (req.body ?? {});
+                const validated = (0, venture_rebaseline_1.mergeRebaselinePolicy)(current, patch);
+                const stored = await (0, venture_store_rebaseline_1.upsertRebaselinePolicy)(pool, sub, validated);
+                if (!stored) {
+                    res.status(404).json({ error: 'not found' });
+                    return;
+                }
+                res.json({ policy: stored });
+            }
+            catch (err) {
+                if (!replyRebaselineError(res, err))
+                    throw err;
+            }
+        }),
+        preview: (0, venture_http_1.guarded)('POST /ventures/:id/rebaseline-policy/preview', async (req, res) => {
+            const sub = (0, venture_http_1.requireSub)(req, res);
+            if (!sub)
+                return;
+            const ventureId = String(req.params.id);
+            if (!await (0, venture_store_1.getVenture)(pool, sub, ventureId)) {
+                res.status(404).json({ error: 'not found' });
+                return;
+            }
+            const body = (req.body ?? {});
+            const atIso = typeof body.atIso === 'string' ? body.atIso : new Date().toISOString();
+            try {
+                const policy = await (0, venture_store_rebaseline_1.getRebaselinePolicy)(pool, sub, ventureId);
+                // forceDryRun is load-bearing: preview can never reserve a run or reach a bot.
+                const decision = (0, venture_rebaseline_1.evaluateRebaselinePolicy)(policy, atIso, true);
+                res.json({ policy, decision });
+            }
+            catch (err) {
+                if (!replyRebaselineError(res, err))
+                    throw err;
+            }
+        }),
+    };
+}
 /** POST /ventures/:id/runs and the run pollers. */
 function handleRuns(ctx, pool) {
     return {
@@ -785,10 +980,12 @@ function createVentureRoutes(ctx) {
     const assumptions = handleAssumptions(pool);
     const bom = handleBom(pool);
     const vendors = handleVendors(pool);
+    const fx = handleFxAssumptions(pool);
     const quotes = handleQuotes(pool);
     const scenarios = handleScenarios(pool);
     const compute = handleModel(pool);
     const runs = handleRuns(ctx, pool);
+    const rebaseline = handleRebaselinePolicy(pool);
     router.get('/', handleSurface(dir));
     router.get('/app', handleSurface(dir));
     router.get('/ventures', ventures.list);
@@ -799,6 +996,9 @@ function createVentureRoutes(ctx) {
     router.post('/ventures/:id/runs', runs.start);
     router.get('/ventures/:id/runs', runs.list);
     router.get('/runs/:runId', runs.read);
+    router.get('/ventures/:id/rebaseline-policy', rebaseline.read);
+    router.put('/ventures/:id/rebaseline-policy', rebaseline.update);
+    router.post('/ventures/:id/rebaseline-policy/preview', rebaseline.preview);
     router.get('/ventures/:id/assumptions', assumptions.list);
     router.post('/ventures/:id/assumptions', assumptions.create);
     router.patch('/ventures/:id/assumptions/:key', assumptions.update);
@@ -810,6 +1010,9 @@ function createVentureRoutes(ctx) {
     router.get('/ventures/:id/vendors', vendors.vendorList);
     router.post('/ventures/:id/vendors', vendors.vendorCreate);
     router.patch('/ventures/:id/vendors/:vendorId', vendors.vendorPatch);
+    router.get('/ventures/:id/fx-assumptions', fx.list);
+    router.get('/ventures/:id/fx-assumptions/:fxId', fx.read);
+    router.post('/ventures/:id/fx-assumptions', fx.create);
     router.get('/ventures/:id/quotes', quotes.quoteList);
     router.post('/ventures/:id/quotes', quotes.quoteCreate);
     router.get('/ventures/:id/scenarios', scenarios.scenarioList);

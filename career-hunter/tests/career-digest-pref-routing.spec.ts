@@ -1,9 +1,11 @@
 /**
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                                      | DESCRIPTION
+ * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-07-15 18:50:04 | roger.murphy@emeraldcoastsystemsgroup.com   | Review fix: unit-cover the four notification-pref override branches in sendDigestForUser (prefs-none skip, prefs-telegram-unavailable skip, sms pref phone override beating the settings phone, explicit-email pref suppressing the auto text fallback) plus the no-pref contrast proving the legacy auto fallback survives — a future inversion of the wantChannel/phone derivation now fails loudly instead of routing every pref'd digest to the wrong channel.
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Cover notification-preference mute, unavailable-channel, SMS override, explicit-email, and automatic-fallback branches.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Mock the dependency-leaf user-store module after route decomposition so digest fixtures still exercise real routing decisions.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Group routing cases into bounded suites so test callbacks follow the shared function-size rule.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UserNotificationPref } from '../../src/features/notifications';
@@ -22,10 +24,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/features/notifications', () => ({ readUserPref: mocks.readUserPref }));
 vi.mock('@/app/routes/connectors-routes', () => ({ getValidAccessToken: mocks.getValidAccessToken }));
 vi.mock('@/app/routes/email-routes', () => ({ sendGmail: mocks.sendGmail }));
-// career-digest imports its sibling RELATIVELY ('./career-hunter-routes') since the ADR-085
-// carve — mock the resolved module, not the retired '@/app/routes/…' kernel path, or the real
-// module (and its whole kernel import chain) loads and the mock silently misses.
-vi.mock('../src-routes/career-hunter-routes', () => ({
+// career-digest imports the dependency-leaf user store relatively; mock that resolved module so
+// no real SQLite handle or kernel caller path can replace this routing fixture.
+vi.mock('../src-routes/career-user-store', () => ({
   callerSub: vi.fn(),
   listStoreUsers: vi.fn(() => []),
   openUserDb: mocks.openUserDb,
@@ -124,7 +125,9 @@ describe('sendDigestForUser — notification-pref override branches', () => {
     expect(mocks.getValidAccessToken).not.toHaveBeenCalled();
     expect(mocks.spawn).not.toHaveBeenCalled();
   });
+});
 
+describe('sendDigestForUser — SMS preference branches', () => {
   it('an sms pref with its own phone texts THAT phone, not the settings phone, and never tries email', async () => {
     mocks.readUserPref.mockResolvedValue(pref({ channel: 'sms', phone: '+15559990000' }));
     const { pool, calls } = poolFor({
@@ -149,7 +152,9 @@ describe('sendDigestForUser — notification-pref override branches', () => {
     expect(r).toEqual({ sent: true, channel: 'text', hits: HITS.length });
     expect(mocks.spawn.mock.calls[0][1][2]).toBe('+15551110000');
   });
+});
 
+describe('sendDigestForUser — email fallback branches', () => {
   it('an explicit email pref does NOT fall through to text when the email send fails', async () => {
     mocks.readUserPref.mockResolvedValue(pref({ channel: 'email' }));
     mocks.getValidAccessToken.mockResolvedValue(null); // email leg fails cleanly (no token)

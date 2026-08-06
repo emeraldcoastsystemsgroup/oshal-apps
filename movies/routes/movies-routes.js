@@ -22,6 +22,8 @@
  *            | concierge: TMDB discovery, where-to-watch + Fandango ticket handoffs, watchlist,
  *            | brain via the orchestrator. Mirrors the Spotify concierge, screen-shaped.
  * ---------------------------------------------------------------------------
+ * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove TMDB credentials from generic orchestrator dispatch. The controller resolves TMDB only for its bounded catalog call and sends the model sanitized candidate records.
+ *
  * @module movies-routes
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
@@ -67,7 +69,6 @@ const crypto_1 = require("crypto");
 const logger_1 = require("@/shared/logger");
 const database_1 = require("@/shared/services/database");
 const connectors_routes_1 = require("@/app/routes/connectors-routes");
-const connector_token_broker_1 = require("@/app/routes/connector-token-broker");
 const tmdb_client_1 = require("./tmdb-client");
 const concierge_envelope_1 = require("@/app/routes/concierge-envelope");
 const concierge_store_1 = require("@/app/routes/concierge-store");
@@ -362,12 +363,11 @@ function createMoviesRoutes(ctx) {
         const [profile, notes] = await Promise.all([loadProfile(pool, sub), store.loadNotes(sub)]);
         const watchlistTitles = (await pool.query(`SELECT title FROM movies_watchlist WHERE user_sub = $1 ORDER BY created_at DESC LIMIT 20`, [sub])).rows.map((r) => r.title);
         const prompt = buildConciergePrompt({ message, history, candidates, profile, notes, watchlistTitles });
-        const creds = await (0, connector_token_broker_1.resolveBotCreds)(pool, sub, ['tmdb']);
         let raw = '';
         try {
             const orchestrator = ctx.orchestrator;
             const result = await orchestrator.processMessage(`movies-${sub}-${(0, crypto_1.randomUUID)()}`, prompt, {
-                agenticMode: true, autoApprove: false, source: 'movies', agentId: CONCIERGE_AGENT_ID, userSub: sub, creds,
+                agenticMode: false, autoApprove: false, source: 'movies', agentId: CONCIERGE_AGENT_ID, userSub: sub,
             });
             raw = String(result?.response || '').trim();
         }

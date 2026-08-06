@@ -2,7 +2,12 @@
 
 How to install and run **Little Monsters**. Two tracks: a **quick local install** for trying it
 out or developing on it (Docker Desktop on Windows), and a **school production install** with
-real Microsoft sign-in. As-built as of 2026-06-27.
+real Microsoft sign-in.
+
+> **Superseding note (2026-08-05):** the original 2026-06-27 guide installed Little Monsters as
+> part of the core compose topology. Little Monsters now ships only as an app-store package. The
+> `scripts/oshal-app.js` workflow below replaces the historical profile-based procedure; the dated
+> record remains available in repository history.
 
 > Related: [School Deployment Guide](school-deployment.md) (the full production
 > sign-in / enrollment / privacy walkthrough) · [Local Runbook](runbook.md) (day-to-day
@@ -12,10 +17,11 @@ real Microsoft sign-in. As-built as of 2026-06-27.
 
 ## What you're installing
 
-Little Monsters is **not a standalone app** — it's a **swarm application** that runs on the OSHAL
-platform. Installing it means standing up OSHAL with the Little Monsters manifest
-(`swarm-apps/little-monsters.yaml`) active. The manifest declares the six education bots, the
-`/api/education` routes, the cockpit surfaces, and the theme; OSHAL loads it at boot.
+Little Monsters is **not a standalone app** — it is an **oshal app package** that runs on the
+oshal platform. Its package-local [`oshal-app.yaml`](../oshal-app.yaml) declares the education
+bots, `/api/education` routes, migrations, cockpit surfaces, and theme. Installation places the
+whole package under the swarm's shared `deployed-apps/little-monsters` directory; the package
+loader validates and activates that manifest at controller boot.
 
 ### Prerequisites
 
@@ -36,21 +42,17 @@ The stack uses **Postgres** (students, classes, progress), **Redis** (the swarm 
 
 For evaluating or developing. Uses a local mock sign-in, no identity provider required.
 
+First install a local oshal swarm using the
+[current core installer](https://github.com/emeraldcoastsystemsgroup/oshal#install--one-command).
+For a source checkout, bring the stack up in dependency order, then run the package helper inside
+the controller so it writes to the shared workspace volume:
+
 ```bash
-git clone <repo> oshal
-cd oshal
-
-# 1. Build the controller image (needed after TypeScript/dependency changes)
-docker build -f Dockerfile.oshal -t oshal-bot:latest .
-
-# 2. Bring up the base services plus the Little Monsters bots.
-#    The six LM bots sit behind the `little-monsters` compose profile —
-#    without the profile flag they do not start.
-OSHAL_API_PORT=35460 docker compose \
-  -f docker-compose.oshal-local.yml \
-  -f docker-compose.override.yml \
-  --profile build --profile incident --profile little-monsters \
-  up -d
+cd /c/Projects/oshal
+bash scripts/oshal-up.sh
+docker compose -f docker-compose.oshal-local.yml exec oshal-api \
+  node scripts/oshal-app.js install little-monsters
+docker compose -f docker-compose.oshal-local.yml restart oshal-api
 ```
 
 Set your Claude key first (so the AI features work):
@@ -62,16 +64,17 @@ export ANTHROPIC_API_KEY=sk-ant-...
 **Open it:**
 
 ```
-http://localhost:35460/cockpit/?app=little-monsters
+http://localhost:35457/cockpit/?app=little-monsters
 ```
 
 Add `&student=1` for the clean student view (hides the operator chrome):
-`http://localhost:35460/cockpit/?app=little-monsters&student=1`
+`http://localhost:35457/cockpit/?app=little-monsters&student=1`
 
-> The `docker-compose.override.yml` file (dev-only) bind-mounts the student surfaces, so edits to
-> the HTML/CSS/JS under `any-bot/server/services/tools/education/` and `src/pages/` serve on the
-> next request with **no rebuild**. Only changes under `src/**` (the TypeScript routes/services)
-> need a rebuild. See the [Runbook](runbook.md) for the rebuild command.
+> The applications-store checkout is not the runtime copy. For source-route changes, run
+> `node scripts/oshal-app.js build C:/Projects/oshal-apps/little-monsters --framework .`
+> from the core checkout, validate and commit the generated `routes/*.js`, then reinstall the
+> committed package ref and restart the controller. See the [Runbook](runbook.md) for the complete
+> rebuild/reinstall sequence.
 
 ---
 
@@ -80,12 +83,10 @@ Add `&student=1` for the clean student view (hides the operator chrome):
 A scripted install that builds, starts, and self-verifies. Run it on the host that will serve the
 school.
 
-```bash
-git clone <repo> oshal && cd oshal
-bash scripts/install.sh --with-keys      # build → up → self-verify
-```
-
-Set your Claude key before `--with-keys` so the verify step can exercise the AI endpoints.
+Install oshal using the current installer and include Little Monsters in the resolved bundle, or
+install the package afterward with `node scripts/oshal-app.js install little-monsters`. Production
+rollout must use a pinned, reviewed store ref and the platform deployment procedure; do not copy
+the package into the kernel repository.
 
 ### Connect Microsoft sign-in (Entra ID)
 
@@ -112,13 +113,12 @@ are created by a teacher/admin (via the cockpit or the `/api/education` endpoint
 ## Verify the install
 
 ```bash
-# 15-point health check (checks 11–15 are the Little Monsters ones:
-# app active, education UI served, tutor reply, flashcard + quiz generators)
-OSHAL_BASE=http://localhost:35460 bash scripts/oshal-local-checks.sh   # expect 15/15
+# Core service and app-store separation checks.
+OSHAL_BASE=http://localhost:35457 bash scripts/oshal-local-checks.sh   # expect 11/11
 
-# Access-control end-to-end test (the privacy guarantees)
-# plus the Little Monsters unit/integration suite
-npm run test:unit
+# Dependency-free Little Monsters package contracts.
+cd /c/Projects/oshal-apps/little-monsters
+node --test "tests/*.test.cjs"
 ```
 
 Then open the student view, hard-refresh (Ctrl+Shift+R), and confirm the home page, the tutor

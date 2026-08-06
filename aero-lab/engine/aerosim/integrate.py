@@ -151,6 +151,32 @@ SEQ                 | AUTHOR                      | DESCRIPTION
   |                                           | tests/test_usable_ledger.py (synthetic-tape unit
   |                                           | identity + case-A bus-conservation identity,
   |                                           | both red under the old accounting).
+7 | maintainer@emeraldcoastsystemsgroup.com   | ACCEPTED-STATE FIX: force/RK4 trial evaluations
+  |                                           | no longer advance buoyancy thermal, permeation
+  |                                           | or UV state. Battery thermal and buoyancy slow
+  |                                           | states advance exactly once after each accepted
+  |                                           | integrator step, at the accepted midpoint
+  |                                           | environment. Buoyant cruise re-trims every 900 s
+  |                                           | so force follows those accepted state changes.
+  |                                           | This closes the measured moving-target trim
+  |                                           | defect without weakening the 1e-8 force-balance
+  |                                           | tolerance. Electrical storage remains owned by
+  |                                           | the integrator; no real-ECM electrical closure
+  |                                           | is claimed by this change.
+8 | maintainer@emeraldcoastsystemsgroup.com   | REAL STORAGE AUTHORITY: a single real-chemistry
+  |                                           | BatteryElement now receives each accepted bus
+  |                                           | interval exactly once through BatteryElement.step
+  |                                           | -> PackEcm.step_power. Its SOC, I2R loss, rate
+  |                                           | limits, cold-charge spill, throughput and aging
+  |                                           | are therefore the integrated result; the legacy
+  |                                           | flat-efficiency replay remains only for explicitly
+  |                                           | ideal storage. Thermal state advances immediately
+  |                                           | after the electrical step so the accepted I2R heat
+  |                                           | enters the same physical timeline.
+9 | maintainer@emeraldcoastsystemsgroup.com   | Align the public integrator documentation with
+  |                                           | the dual storage contract: limit-cycle replay is
+  |                                           | ideal-only; real ECM state is advanced once per
+  |                                           | accepted Simpson/RK4 bus interval and observed.
 -------------------------------------------------------------------------------
 
 aerosim.integrate -- two-timescale trajectory / energy integrator.
@@ -233,7 +259,9 @@ OBJECTION 3 -- Who integrates the battery?
     the integrator reads capacity_J / initial_soc / eta_charge / eta_discharge / soc_min /
     soc_max off them and does the RK4 itself.  A BatteryElement that also mutates itself will
     not corrupt this integrator, but its internal soc will be meaningless -- read
-    SimResult.soc instead.
+    SimResult.soc instead. A real pack's separate thermal state is advanced once per
+    ACCEPTED step, never during RK4 stages or trim probes; that makes temperature and heater
+    commands live without giving the element a second electrical integrator.
 
 OBJECTION 4 -- There is no turbine ForceElement in the vehicle module's element list.
     The element kinds are AeroSurface / BuoyancyVolume / Tether / Thruster / PVArray /
@@ -306,13 +334,18 @@ _TRIM_REL_TOL: float = 1e-8
 _TRIM_V_MIN_MS: float = 0.0
 _TRIM_V_MAX_MS: float = 300.0
 
-# Re-trim gates for the slow loop.  Level cruise at constant altitude in a constant wind
-# has an algebraically constant trim, so this collapses a 24 h run to a single trim solve
-# and is what makes the "< 1.0 s for 24 h" runtime budget attainable with a real
-# NeuralFoil-backed AeroSurface.  Any change beyond these tolerances forces a re-solve.
+# Re-trim gates for the slow loop. Non-buoyant level cruise at constant altitude in a
+# constant wind has an algebraically constant trim, so this collapses a 24 h run to a
+# single solve and makes the runtime budget attainable with a NeuralFoil-backed surface.
+# Altitude/mass/wind changes re-solve immediately; accepted buoyancy-state evolution uses
+# the explicit time cadence below.
 _RETRIM_DALT_M: float = 1.0          # m
 _RETRIM_DMASS_KG: float = 1e-6       # kg
 _RETRIM_DWIND_MS: float = 0.01       # m/s
+#: Maximum time, s, a buoyant trim may be reused while its accepted thermal / gas-loss
+#: state evolves. This matches mission.runner's documented H-R2 boundary resolution:
+#: the states vary over hours, while 900 s keeps the expensive polar solve bounded.
+_RETRIM_STATE_INTERVAL_S: float = 900.0
 
 _EPS = 1e-12
 
@@ -454,7 +487,9 @@ class SimResult:
     @param power_in_W        [N]     W, electrical generation (PV + turbine + regen), >= 0
     @param power_out_W       [N]     W, electrical consumption (propulsion + payload), >= 0
     @param battery_energy_J  [N]     J
-    @param closed            True iff soc never fell below the battery's soc_min
+    @param closed            True iff the selected closure authority serves demand,
+                             respects storage rails/certification, and preserves charge
+                             over its persistence window.
     @param min_soc           dimensionless
     @param mean_cruise_Re    dimensionless, mean over the run of rho*V_air*c_mac/mu; NaN if
                              the vehicle carries no aerodynamic surface
@@ -1192,6 +1227,58 @@ def _make_bodies(vehicle: Any, pos_m: np.ndarray, vel_ms: np.ndarray) -> list[An
     return out
 
 
+def _advance_accepted_element_states(
+    vehicle: Any,
+    env: EnvBundle,
+    pos_m: np.ndarray,
+    vel_ms: np.ndarray,
+    t_s: float,
+    dt_s: float,
+) -> int:
+    """
+    @description Advance slow element-owned state exactly once for an ACCEPTED integrator
+                 step. Force/RK4 trial evaluations must be referentially stable: advancing
+                 helium temperature/permeation on every root-solver probe made the trim target
+                 move underneath the solver, while skipping storage elements entirely left a
+                 real pack's temperature and heater command frozen forever. This commit point
+                 samples each stateful element at the accepted midpoint environment and ignores
+                 its returned force/power; those outputs belong to the next force/bus evaluation.
+                 Electrical battery state remains integrator-owned (OBJECTION 3).
+    @param pos_m [n_bodies,3] m, accepted midpoint positions.
+    @param vel_ms [n_bodies,3] m/s, accepted midpoint velocities.
+    @param t_s s, accepted midpoint time. @param dt_s s, accepted step duration.
+    @returns Number of stateful element instances advanced.
+    """
+    if dt_s <= 0.0:
+        return 0
+    bodies = _make_bodies(vehicle, pos_m, vel_ms)
+    cache = _EnvCache(env, t_s)
+    advanced = 0
+    for el in list(getattr(vehicle, "elements", []) or []):
+        kind = _classify(el)
+        if kind not in (KIND_BATTERY, KIND_BUOYANCY):
+            continue
+        evaluate = getattr(el, "evaluate", None)
+        if not callable(evaluate):
+            # Duck-typed storage may expose capacity_J without implementing the optional
+            # ForceElement hook. Its electrical state is still integrated above; there is
+            # simply no separate slow state to commit here.
+            continue
+        bi = _body_index(el)
+        p_el = pos_m[bi] + _offset_m(el)
+        tilt_deg, az_deg = _panel_orientation(el)
+        evaluate(
+            bodies,
+            cache.atmo(p_el[2]),
+            cache.wind(p_el),
+            cache.solar(p_el[2], tilt_deg, az_deg),
+            t_s,
+            dt_s,
+        )
+        advanced += 1
+    return advanced
+
+
 def _evaluate(
     vehicle: Any,
     env: EnvBundle,
@@ -1206,7 +1293,9 @@ def _evaluate(
                  each element's OWN position (see OBJECTION 1), and run the integrator-owned
                  autothrottle so thrust balances the along-track force deficit.
     @param pos_m [n_bodies,3] m ENU.  @param vel_ms [n_bodies,3] m/s ENU (ground-relative).
-    @param t_s s.  @param dt_s s, passed through to elements that need a rate.
+    @param t_s s. @param dt_s s, passed through to stateless elements that need a rate.
+                        Buoyancy's thermal/permeation state receives 0 here because this is a
+                        trial evaluation; _advance_accepted_element_states owns its commit.
     @param autothrottle If True, thrusters are commanded to hold the current airspeed
                         (thrust = along-track deficit, i.e. drag in level flight).  If False,
                         thrusters are commanded to zero (glide / free flight).
@@ -1295,13 +1384,18 @@ def _evaluate(
         p_el = pos_m[bi] + _offset_m(el)
         tilt_deg, az_deg = _panel_orientation(el)
         sol_el = cache.solar(p_el[2], tilt_deg, az_deg)
+        # A root-solver/RK stage is a numerical PROBE, not elapsed physical time. Passing
+        # dt_s through to BuoyancyVolume used to consume one thermal/permeation interval for
+        # every rejected trim guess (roughly two hours of chemistry in one accepted minute),
+        # so the lift target moved and the strict trim could never converge.
+        trial_dt_s = 0.0 if kind == KIND_BUOYANCY else dt_s
         res = el.evaluate(
             bodies,
             cache.atmo(p_el[2]),
             cache.wind(p_el),
             sol_el,
             t_s,
-            dt_s,
+            trial_dt_s,
         )
         # ROUND-4 layer 3: did this aero element CONSUME an uncertified polar point?
         # Duck-typed on the shipped AeroSurface diagnostics: last_valid False with
@@ -1386,6 +1480,12 @@ def _evaluate(
         )
         f = np.asarray(res.force_N, dtype=float).reshape(3)
         p_W = float(res.power_elec_W)
+        # Real BEMT points can converge numerically while consuming too much
+        # uncertified sectional-polar support. Carry that verdict into the same
+        # certification counter as a wing polar; a trim probe may explore it,
+        # but an accepted flight result may not call it certified.
+        if hasattr(el, "last_point_valid") and not bool(el.last_point_valid):
+            n_invalid_aero += 1
 
         if T_req_N > 1e-9 and float(np.linalg.norm(f)) < 1e-9:
             # The element ignored the command -> integrator-owned fallback (OBJECTION 2).
@@ -1663,7 +1763,12 @@ def _trim_airspeed(
 
 @dataclass
 class _BatterySpec:
-    """@description Battery parameters read off the vehicle's storage element(s). All SI."""
+    """@description Battery parameters and the optional real storage authority. All SI.
+
+    `authority` is set only for exactly one real-chemistry element exposing
+    `step(power_W, dt_s)`.  The flat fields remain the explicit ideal model;
+    they are never consulted on the real path.
+    """
 
     capacity_J: float = 0.0
     initial_soc: float = 1.0
@@ -1671,6 +1776,8 @@ class _BatterySpec:
     eta_discharge: float = ETA_DISCHARGE_DEFAULT
     soc_min: float = SOC_MIN_DEFAULT
     soc_max: float = SOC_MAX_DEFAULT
+    authority: Any = None
+    model: str = "flat-efficiency"
 
 
 #: Attribute names, in priority order, through which a storage element may declare the
@@ -1724,10 +1831,12 @@ def _battery_spec(vehicle: Any) -> _BatterySpec:
     """
     spec = _BatterySpec(capacity_J=0.0)
     found = False
+    storage_elements: list[Any] = []
     soc0_weighted_J = 0.0
     for el in getattr(vehicle, "elements", []) or []:
         if _classify(el) != KIND_BATTERY:
             continue
+        storage_elements.append(el)
         cap_J = float(getattr(el, "capacity_J", 0.0))
         soc0 = _declared_initial_soc(el)
         spec.capacity_J += cap_J
@@ -1742,6 +1851,27 @@ def _battery_spec(vehicle: Any) -> _BatterySpec:
                 "it must be a finite non-negative energy."
             )
         found = True
+    real_elements = [
+        el for el in storage_elements
+        if str(getattr(el, "chemistry", "ideal")) != "ideal"
+    ]
+    if real_elements:
+        if len(storage_elements) != 1:
+            raise ValueError(
+                "a real electrochemical mission requires exactly ONE storage "
+                f"authority, found {len(storage_elements)} storage elements. "
+                "Splitting nonlinear ECM current between packs is a controller "
+                "decision; integrate refuses to invent it."
+            )
+        authority = real_elements[0]
+        if not callable(getattr(authority, "step", None)):
+            raise ValueError(
+                f"real storage element {type(authority).__name__!r} does not "
+                "expose step(power_W, dt_s); PackEcm cannot be the electrical "
+                "authority through a flat-efficiency fallback"
+            )
+        spec.authority = authority
+        spec.model = "real-ecm"
     if found and spec.capacity_J > 0.0:
         spec.initial_soc = soc0_weighted_J / spec.capacity_J
     if found:
@@ -1769,6 +1899,82 @@ def _battery_spec(vehicle: Any) -> _BatterySpec:
                 "rail; that is free stored energy (second wall)."
             )
     return spec
+
+
+def _prepare_real_storage(spec: _BatterySpec) -> None:
+    """
+    @description Align the one real pack's live electrical state with the declared
+                 integration seed without resetting temperature or accumulated aging.
+                 Mission chunking updates `initial_soc` at a physical boundary; this is
+                 the single place that seed enters PackEcm.
+    @param spec Extracted battery specification.
+    @returns None.
+    @raises ValueError When the real authority does not expose the frozen ECM/state shape.
+    """
+    pack = spec.authority
+    if pack is None:
+        return
+    ecm = getattr(pack, "ecm", None)
+    if ecm is None:
+        raise ValueError(
+            f"real storage authority {type(pack).__name__!r} has no ecm state; "
+            "a chemistry label without PackEcm would silently fall back to an ideal bucket"
+        )
+    ecm.soc = float(spec.initial_soc)
+    ecm.soc_min = float(spec.soc_min)
+    ecm.soc_max = float(spec.soc_max)
+    state = getattr(pack, "state", None)
+    if state is not None and hasattr(state, "energy_J") and hasattr(state, "soc"):
+        pack.state = type(state)(
+            energy_J=float(spec.initial_soc) * float(spec.capacity_J),
+            soc=float(spec.initial_soc),
+        )
+    if hasattr(pack, "min_soc_seen"):
+        pack.min_soc_seen = min(float(pack.min_soc_seen), float(spec.initial_soc))
+
+
+def _step_real_storage(
+    spec: _BatterySpec, p_net_W: float, dt_s: float
+) -> tuple[float, float, float]:
+    """
+    @description Commit one accepted bus interval through the real pack authority.
+                 Positive bus power charges; negative power discharges. PackEcm returns
+                 unserved BUS power, so spill and shortfall stay in the same units as the
+                 generation/load ledgers and are never reconstructed from a flat eta.
+    @param spec Real battery specification. @param p_net_W Net bus power, W.
+    @param dt_s Accepted interval, s.
+    @returns (energy_J, unabsorbed_surplus_J, unserved_shortfall_J).
+    @raises ValueError On a non-finite result or a sign-inconsistent authority response.
+    """
+    pack = spec.authority
+    if pack is None:
+        raise ValueError("_step_real_storage requires spec.authority")
+    unserved_W = float(pack.step(float(p_net_W), float(dt_s)))
+    if not math.isfinite(unserved_W):
+        raise ValueError(
+            f"storage authority returned non-finite unserved power {unserved_W!r}"
+        )
+    tol_W = 1.0e-9 * max(1.0, abs(float(p_net_W)))
+    if p_net_W > 0.0 and unserved_W < -tol_W:
+        raise ValueError(
+            f"storage authority returned discharge shortfall {unserved_W:g} W "
+            f"for a charging bus interval {p_net_W:g} W"
+        )
+    if p_net_W < 0.0 and unserved_W > tol_W:
+        raise ValueError(
+            f"storage authority returned charge spill {unserved_W:g} W "
+            f"for a discharging bus interval {p_net_W:g} W"
+        )
+    energy_J = float(getattr(pack, "energy_J"))
+    if not math.isfinite(energy_J):
+        raise ValueError(
+            f"storage authority returned non-finite stored energy {energy_J!r}"
+        )
+    return (
+        energy_J,
+        max(0.0, unserved_W) * float(dt_s),
+        max(0.0, -unserved_W) * float(dt_s),
+    )
 
 
 def _dEdt_J_per_s(p_net_W: float, spec: _BatterySpec) -> float:
@@ -1989,14 +2195,17 @@ def integrate_energy(
     """
     @description Slow energy loop.  Each step the vehicle is trimmed quasi-steadily (airspeed
                  solved so vertical force balances, thrust set to the along-track deficit) and
-                 the stored energy is advanced with RK4 on
+                 the bus energy is integrated with RK4/Simpson quadrature. Explicitly
+                 ideal storage advances the flat-efficiency energy state on
 
                      dE/dt = f( P_gen(t) - P_load(t) )
 
-                 The load term is algebraically constant during a 60 s step of level cruise,
-                 so it is evaluated once at the step midpoint; the generation term (solar,
-                 which is what actually varies over a day) is evaluated at all four RK4
-                 stages.  That makes the step a Simpson quadrature of the solar profile.
+                 A real-chemistry BatteryElement instead receives the equivalent accepted
+                 interval once through BatteryElement.step -> PackEcm.step_power. Trial
+                 stages never mutate electrochemistry; SOC, I2R heat, rate refusal,
+                 throughput and aging therefore have one authority. The load term is
+                 algebraically constant during level cruise while generation is evaluated
+                 at all four stages, making each accepted interval a Simpson quadrature.
 
                  A vehicle with NO lifting support (a bare point mass) has no trim, so it is
                  integrated ballistically with the same RK4 used by integrate_dynamic -- which
@@ -2011,20 +2220,21 @@ def integrate_energy(
                  own drag, and a thruster past its max_electrical_power_W stops being a free
                  pass.
 
-                 CLOSURE IS A LIMIT-CYCLE TEST (FATAL 2).  `min_soc` and `closed` describe the
-                 PERIODIC state the design settles into, not the one window it was seeded
-                 with.  `closed` requires all of: a sustainable periodic state exists, its
-                 floor clears soc_min, the state of charge returns to where it started, no
-                 demand went unserved, and no uncommanded forward force appeared.  The window
-                 energy margin and both unabsorbed terms are surfaced in `detail` so a sweep
-                 can never rank on a single-window min_soc.
+                 CLOSURE HAS ONE STORAGE AUTHORITY (FATAL 2). Explicit ideal storage is
+                 replayed to a periodic fixed point. A real ECM is stateful and nonlinear,
+                 so its accepted physical trajectory is observed without a fabricated
+                 flat-efficiency replay. Both paths require charge preservation, rail
+                 compliance, zero unserved demand and no uncommanded forward force. The
+                 window energy margin and both unabsorbed terms remain surfaced in `detail`
+                 so a sweep can never rank on min_soc alone.
 
                  FREE ENERGY RAISES (FATAL 3).  The element-local generation-reaction rule and
                  the vehicle-level generation budget are asserted EVERY step and raise
                  FreeEnergyError on the spot.  There is no flag to turn this off.
     @param t0_s, t_end_s s.  @param dt_s s, nominally 60.
-    @returns SimResult.  `soc` / `battery_energy_J` / `min_soc` are the LIMIT-CYCLE series;
-             the as-seeded first-window series is in detail["soc_as_seeded"].
+    @returns SimResult. For ideal storage, `soc` is the limit-cycle series and the declared-
+             seed series is detail["soc_as_seeded"]. For real storage, both name the same
+             accepted ECM trajectory and detail["closure_mode"] is "accepted-real-ecm".
     @raises FreeEnergyError as soon as a step manufactures energy.
     @raises ValueError when a storage element does not declare its starting state of charge.
     """
@@ -2050,6 +2260,7 @@ def integrate_energy(
     heading_hat = (h / hn) if hn > 1e-9 else np.array([1.0, 0.0, 0.0])
 
     spec = _battery_spec(vehicle)
+    _prepare_real_storage(spec)
     E_J = spec.capacity_J * spec.initial_soc
     E_min_J = spec.capacity_J * spec.soc_min
     E_max_J = spec.capacity_J * spec.soc_max
@@ -2073,12 +2284,23 @@ def integrate_energy(
 
     # Trim reuse gate (see _RETRIM_* constants)
     trim_V_ms = 12.0
-    last_trim_key: Optional[tuple[float, float, float]] = None
+    has_buoyancy_state = any(
+        _classify(el) == KIND_BUOYANCY
+        for el in (getattr(vehicle, "elements", []) or [])
+    )
+    last_trim_key: Optional[tuple[float, float, float, int]] = None
     ev_trim: Optional[_Eval] = None
     p_load_W = 0.0
     n_trims = 0
+    accepted_state_advances = 0
 
     unabsorbed_J = 0.0
+    real_surplus_J = 0.0
+    real_shortfall_J = 0.0
+    real_cold_spill_start_J = (
+        float(getattr(spec.authority, "cold_charge_spill_J", 0.0))
+        if spec.authority is not None else 0.0
+    )
     max_gen_violation_W = 0.0
     t = float(t0_s)
 
@@ -2111,9 +2333,14 @@ def integrate_energy(
         wind0 = _wind_vec(env.wind.sample(float(pos[0, 0]), float(pos[0, 1]),
                                           float(pos[0, 2]), t))
         mass_kg = sum(float(b.mass_kg) for b in vehicle.bodies)
+        state_epoch = (
+            int(math.floor(max(0.0, t - t0_s) / _RETRIM_STATE_INTERVAL_S))
+            if has_buoyancy_state else 0
+        )
         key = (round(pos[0, 2] / _RETRIM_DALT_M),
                round(mass_kg / _RETRIM_DMASS_KG),
-               round(float(np.linalg.norm(wind0)) / _RETRIM_DWIND_MS))
+               round(float(np.linalg.norm(wind0)) / _RETRIM_DWIND_MS),
+               state_epoch)
         if key != last_trim_key or ev_trim is None:
             trim_V_ms, ev_trim = _trim_airspeed(
                 vehicle, env, pos, heading_hat, t, max(step_dt, dt_s), trim_V_ms
@@ -2226,21 +2453,34 @@ def integrate_energy(
         unmet_propulsion_J += p_unmet_W * h_s
         n_tape += 1
 
-        k1 = _dEdt_J_per_s(g1 - l1, spec)
-        k2 = _dEdt_J_per_s(g2 - l2, spec)
-        k3 = _dEdt_J_per_s(g3 - l3, spec)
-        k4 = _dEdt_J_per_s(g4 - l4, spec)
-        dE_J = (h_s / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+        if spec.authority is not None:
+            # The BEMT/PV/load evaluations above are numerical probes. Collapse their
+            # Simpson quadrature to the interval's equivalent BUS power, then commit the
+            # nonlinear ECM exactly once. This is the only electrical state mutation on
+            # the real path; the thermal commit below consumes this step's I2R heat.
+            p_net_W = (
+                (g1 - l1) + 2.0 * (g2 - l2) + 2.0 * (g3 - l3) + (g4 - l4)
+            ) / 6.0
+            E_new_J, spill_J, short_J = _step_real_storage(spec, p_net_W, h_s)
+            real_surplus_J += spill_J
+            real_shortfall_J += short_J
+            unabsorbed_J += spill_J - short_J
+        else:
+            k1 = _dEdt_J_per_s(g1 - l1, spec)
+            k2 = _dEdt_J_per_s(g2 - l2, spec)
+            k3 = _dEdt_J_per_s(g3 - l3, spec)
+            k4 = _dEdt_J_per_s(g4 - l4, spec)
+            dE_J = (h_s / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
 
-        E_new_J = E_J + dE_J
-        if spec.capacity_J > 0.0:
-            if E_new_J > E_max_J:
-                unabsorbed_J += E_new_J - E_max_J
-                E_new_J = E_max_J
-            elif E_new_J < E_min_J:
-                # Undelivered demand: the bus could not be served.  Reported, not hidden.
-                unabsorbed_J -= (E_min_J - E_new_J)
-                E_new_J = E_min_J
+            E_new_J = E_J + dE_J
+            if spec.capacity_J > 0.0:
+                if E_new_J > E_max_J:
+                    unabsorbed_J += E_new_J - E_max_J
+                    E_new_J = E_max_J
+                elif E_new_J < E_min_J:
+                    # Undelivered demand: the bus could not be served. Reported, not hidden.
+                    unabsorbed_J -= (E_min_J - E_new_J)
+                    E_new_J = E_min_J
         E_J = E_new_J
 
         # ---- work integrals -------------------------------------------------------------
@@ -2250,8 +2490,19 @@ def integrate_energy(
             W_grav_J += float(np.dot(ev_trim.grav_N[i], vel[i])) * h_s
             W_nongrav_J += float(np.dot(ev_trim.forces_N[i], vel[i])) * h_s
 
-        # ---- advance position (level cruise: ground velocity = airspeed + wind) ---------
-        pos = pos + vel * h_s
+        # ---- commit slow states + advance position --------------------------------------
+        # All root/RK probes above were pure with respect to buoyancy and pack thermal
+        # state. Commit elapsed physical time ONCE, at the accepted midpoint environment.
+        pos_new = pos + vel * h_s
+        accepted_state_advances += _advance_accepted_element_states(
+            vehicle,
+            env,
+            0.5 * (pos + pos_new),
+            vel,
+            t + 0.5 * h_s,
+            h_s,
+        )
+        pos = pos_new
 
     used = np.arange(n_pts)
     finite_re = re_hist[np.isfinite(re_hist)]
@@ -2310,7 +2561,38 @@ def integrate_energy(
         reasons.append(window_reason)
 
     soc_as_seeded = soc_hist[used].copy()
-    if spec.capacity_J > 0.0 and n_tape > 0:
+    if spec.capacity_J > 0.0 and n_tape > 0 and spec.authority is not None:
+        # A real ECM is path-dependent: resistance, current limits, I2R heat and aging all
+        # depend on the accepted SOC/temperature history. Replaying its bus tape through a
+        # flat eta (or repeatedly through one mutable PackEcm while seeking a fixed point)
+        # would create a second authority. Score the one accepted physical trajectory; a
+        # multi-day mission establishes persistence observationally at mission level.
+        soc0_star = float(soc_hist[0])
+        min_soc = float(np.min(soc_hist[used]))
+        soc_start = float(soc_hist[0])
+        soc_end = float(soc_hist[n_pts - 1])
+        surplus_lc_J = real_surplus_J
+        shortfall_lc_J = real_shortfall_J
+        sustainable = bool(
+            shortfall_lc_J <= 1.0e-6 and soc_end >= soc_start - 1.0e-9
+        )
+        if min_soc <= spec.soc_min + 1e-9:
+            reasons.append(
+                f"accepted real-ECM floor {min_soc:.4f} does not clear "
+                f"soc_min {spec.soc_min:.4f}"
+            )
+        if shortfall_lc_J > 1.0e-6:
+            reasons.append(
+                f"{shortfall_lc_J / 3600.0:.1f} Wh of demand was refused by "
+                "the real electrochemical pack"
+            )
+        if soc_end < soc_start - 1.0e-9:
+            reasons.append(
+                f"accepted real-ECM state of charge does not return: "
+                f"{soc_start:.4f} -> {soc_end:.4f}"
+            )
+        unabsorbed_J = surplus_lc_J - shortfall_lc_J
+    elif spec.capacity_J > 0.0 and n_tape > 0:
         tape = _StorageTape(h_s=tape_h_s[:n_tape], gen_W=tape_gen_W[:n_tape],
                             load_W=tape_load_W[:n_tape])
         soc0_star, soc_lc, surplus_lc_J, shortfall_lc_J, sustainable = _solve_limit_cycle(
@@ -2379,6 +2661,7 @@ def integrate_energy(
             "vel_all_ms": vel_hist[used],
             "trim_V_ms": trim_V_ms,
             "n_trims": n_trims,
+            "accepted_state_advances": accepted_state_advances,
             "masses_kg": np.array([float(b.mass_kg) for b in vehicle.bodies]),
             "work_by_wind_J": W_wind_J,
             "work_by_tether_J": W_tether_J,
@@ -2400,7 +2683,13 @@ def integrate_energy(
             "uncertified_aero_steps": uncertified_aero_steps,
             "worst_trim_residual_N": worst_trim_residual_N,
             # ---- FATAL 2 -------------------------------------------------------------
-            "closure_mode": "limit-cycle",
+            "closure_mode": (
+                "accepted-real-ecm" if spec.authority is not None else "limit-cycle"
+            ),
+            "storage_authority": (
+                "BatteryElement.step->PackEcm.step_power"
+                if spec.authority is not None else "integrator-flat-efficiency"
+            ),
             "closed_reasons": reasons,
             "limit_cycle_soc0": soc0_star,
             "limit_cycle_sustainable": bool(sustainable),
@@ -2412,6 +2701,14 @@ def integrate_energy(
             "energy_margin_J": energy_in_J - energy_out_J,
             "unabsorbed_surplus_J": surplus_lc_J,
             "unabsorbed_shortfall_J": shortfall_lc_J,
+            "cold_charge_spill_bus_J": (
+                max(
+                    0.0,
+                    float(getattr(spec.authority, "cold_charge_spill_J", 0.0))
+                    - real_cold_spill_start_J,
+                )
+                if spec.authority is not None else 0.0
+            ),
         },
     )
 
@@ -2435,7 +2732,10 @@ def integrate_dynamic(
 
                  with tether forces coupling the bodies inside a single derivative
                  evaluation (so an equal-and-opposite pair is never split across a step).
-                 Battery energy rides along as an extra RK4 state.
+                 Explicit ideal battery energy rides along as an extra RK4 state. A real
+                 PackEcm remains pure during all derivative probes; the four staged bus
+                 powers are collapsed to one Simpson-equivalent accepted interval and
+                 BatteryElement.step is called exactly once.
 
                  RK4 integrates a quadratic trajectory EXACTLY, so a body under constant
                  gravity alone conserves energy to machine precision at ANY step size -- that
@@ -2458,6 +2758,7 @@ def integrate_dynamic(
     masses = np.array([float(b.mass_kg) for b in vehicle.bodies])
 
     spec = _battery_spec(vehicle)          # re-validates SOC rails + eta bounds (2nd wall)
+    _prepare_real_storage(spec)
     _thruster_billing_spec(vehicle)        # re-validates FM / eta / disk area (2nd wall)
     E_J = spec.capacity_J * spec.initial_soc
     E_min_J = spec.capacity_J * spec.soc_min
@@ -2492,6 +2793,7 @@ def integrate_dynamic(
     # dynamic-soaring trajectory at post-stall incidence used to be scored on
     # fictitious attached-flow numbers with only a discarded last_valid diagnostic.
     invalid_aero_evals = 0
+    accepted_state_advances = 0
 
     def deriv(p: np.ndarray, v: np.ndarray, E: float, time_s: float
               ) -> tuple[np.ndarray, np.ndarray, float, Optional[_Eval]]:
@@ -2514,7 +2816,12 @@ def integrate_dynamic(
                                   ev.gen_violation_W, tol_W, time_s, "integrate_dynamic")
         acc = (ev.forces_N + ev.grav_N) / masses[:, None]
         p_net_W = ev.power_gen_W - ev.power_load_W
-        dE = _dEdt_J_per_s(p_net_W, spec)
+        # A real pack is committed once after RK4 accepts the trajectory step. Returning
+        # zero here keeps the four trial stages state-pure; the equivalent Simpson bus
+        # power is routed through PackEcm below. Explicitly ideal storage retains its
+        # linear ODE here.
+        dE = (0.0 if spec.authority is not None
+              else _dEdt_J_per_s(p_net_W, spec))
         # Hard-clip the storage rate at the SOC rails so RK4 cannot integrate through them.
         if spec.capacity_J > 0.0:
             if E >= E_max_J - _EPS and dE > 0.0:
@@ -2550,18 +2857,38 @@ def integrate_dynamic(
             break
         h_s = step_dt
 
-        dp2, dv2, dE2, _ = deriv(pos + 0.5 * h_s * dp1, vel + 0.5 * h_s * dv1,
-                                 E_J + 0.5 * h_s * dE1, t + 0.5 * h_s)
-        dp3, dv3, dE3, _ = deriv(pos + 0.5 * h_s * dp2, vel + 0.5 * h_s * dv2,
-                                 E_J + 0.5 * h_s * dE2, t + 0.5 * h_s)
-        dp4, dv4, dE4, _ = deriv(pos + h_s * dp3, vel + h_s * dv3,
-                                 E_J + h_s * dE3, t + h_s)
+        dp2, dv2, dE2, ev2 = deriv(
+            pos + 0.5 * h_s * dp1, vel + 0.5 * h_s * dv1,
+            E_J + 0.5 * h_s * dE1, t + 0.5 * h_s)
+        dp3, dv3, dE3, ev3 = deriv(
+            pos + 0.5 * h_s * dp2, vel + 0.5 * h_s * dv2,
+            E_J + 0.5 * h_s * dE2, t + 0.5 * h_s)
+        dp4, dv4, dE4, ev4 = deriv(
+            pos + h_s * dp3, vel + h_s * dv3,
+            E_J + h_s * dE3, t + h_s)
 
         pos_new = pos + (h_s / 6.0) * (dp1 + 2.0 * dp2 + 2.0 * dp3 + dp4)
         vel_new = vel + (h_s / 6.0) * (dv1 + 2.0 * dv2 + 2.0 * dv3 + dv4)
         E_new_J = E_J + (h_s / 6.0) * (dE1 + 2.0 * dE2 + 2.0 * dE3 + dE4)
 
-        if spec.capacity_J > 0.0:
+        if spec.authority is not None:
+            def _stage_bus_power(stage_ev: Optional[_Eval]) -> float:
+                """@description Net bus power of one RK stage, W."""
+                if stage_ev is None:
+                    return 0.0
+                return float(stage_ev.power_gen_W - stage_ev.power_load_W)
+
+            p_net_W = (
+                _stage_bus_power(ev)
+                + 2.0 * _stage_bus_power(ev2)
+                + 2.0 * _stage_bus_power(ev3)
+                + _stage_bus_power(ev4)
+            ) / 6.0
+            E_new_J, spill_J, short_J = _step_real_storage(spec, p_net_W, h_s)
+            surplus_J += spill_J
+            shortfall_J += short_J
+            unabsorbed_J += spill_J - short_J
+        elif spec.capacity_J > 0.0:
             if E_new_J > E_max_J:
                 unabsorbed_J += E_new_J - E_max_J
                 # BUS-side spill, same conversion as _replay_storage (change log #6);
@@ -2584,6 +2911,16 @@ def integrate_dynamic(
         for i in range(nb):
             W_grav_J += -masses[i] * G0_MS2 * (pos_new[i, 2] - pos[i, 2])
 
+        # RK4 stages are numerical probes. Commit element-owned thermal/chemistry state
+        # once, after this trajectory step is accepted, at its midpoint environment.
+        accepted_state_advances += _advance_accepted_element_states(
+            vehicle,
+            env,
+            0.5 * (pos + pos_new),
+            0.5 * (vel + vel_new),
+            t + 0.5 * h_s,
+            h_s,
+        )
         pos, vel, E_J = pos_new, vel_new, E_new_J
 
     min_soc = float(np.min(soc_hist)) if spec.capacity_J > 0.0 else 1.0
@@ -2662,7 +2999,13 @@ def integrate_dynamic(
             "max_gen_violation_W": max_gen_violation_W,
             "max_gen_surplus_W": max_gen_surplus_W,
             "thruster_mode": "fallback-disk" if fallback_seen else "element",
-            "closure_mode": "single-window",
+            "closure_mode": (
+                "accepted-real-ecm" if spec.authority is not None else "single-window"
+            ),
+            "storage_authority": (
+                "BatteryElement.step->PackEcm.step_power"
+                if spec.authority is not None else "integrator-flat-efficiency"
+            ),
             "closed_reasons": reasons,
             "initial_soc_declared": spec.initial_soc,
             "min_soc_as_seeded": min_soc,
@@ -2676,6 +3019,7 @@ def integrate_dynamic(
             "max_excess_thrust_N": 0.0,     # pinned-velocity constraint force to bill
             # ---- ROUND 4: the certification contract ---------------------------------
             "invalid_aero_evals": invalid_aero_evals,
+            "accepted_state_advances": accepted_state_advances,
         },
     )
 

@@ -32,6 +32,7 @@
 # 2026-07-27 23:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.17.2: every lead attempt walks the acting hero across the map in the authoritative write, discovery and chapter art generate server-side, and a stale tab is told to refresh after a mid-session deploy.
 # 2026-07-28 00:20:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.17.3 from the adversarial verify pass: serve leads.js (client nomination/walk was dead in production without it), keep figures off walls and spawn seats, log soft illustrator outages, and dedupe raced attempts on found clues.
 # 2026-07-31 23:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.19.0 (roadmap #13): a lead attempt opens the big SHARED d20 — the request carries the lead contract and true skill modifier, the die lands via the same /roll route as every check, and the exploration commit applies discovery-or-miss while resolving the die in one write. Lead crits ride the shared die; the DM narration path refuses lead rolls.
+# 2026-08-06 02:43:35 | maintainer@emeraldcoastsystemsgroup.com     | Release v0.19.1 with FORCE RLS on all six tenant tables, derived owner columns, member-safe shared-table policies, and transaction-local join-code admission.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL App Package — Dungeon Master (AI D&D at the table)
@@ -62,7 +63,7 @@ description: >-
   inventory, abilities, and spells. You control only your claimed hero; clearly
   labeled AI companions run empty seats. Choose a bundled SRD hero or import
   your own PDF/JSON character sheet. Rules run on the open CC-BY D&D SRD 5.1.
-version: 0.19.0
+version: 0.19.1
 status: active
 theme: black
 
@@ -79,6 +80,19 @@ source:
   url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: dnd
   ref: main
+
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/dnd/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
 
 # ── ADR-090 D8: kernel SKILLS this app calls ────────────────────────────────
 # The DM bot uses the shared LLM/harness access (tool-registry) for reasoning and
@@ -130,6 +144,13 @@ ui:
 # except for the framework AppContext it receives (pool, botNodeClient).
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/dnd/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - { module: routes/dnd-routes.js, factory: createDndRoutes, mountPath: /api/dnd, requiresAuth: true, requiresContext: true }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -142,6 +163,7 @@ migrations:
   - migrations/003-snapshots.sql
   - migrations/004-character-library.sql
   - migrations/005-roll-events.sql
+  - migrations/006-owner-rls.sql
 
 # Read-the-story-aloud requires the configured natural server provider; the game
 # reports narration unavailable instead of falling back to a robotic browser voice.

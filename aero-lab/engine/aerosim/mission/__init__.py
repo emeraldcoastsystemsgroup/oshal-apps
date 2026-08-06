@@ -7,15 +7,21 @@ SEQ                 | AUTHOR                      | DESCRIPTION
   |                                           | realistic end-to-end flight (profile,
   |                                           | runner, ledger report). Self-test:
   |                                           | python -m aerosim.mission.report
+2 | maintainer@emeraldcoastsystemsgroup.com   | Corrected the barrel description after
+  |                                           | accepted-state integration landed; the
+  |                                           | runner is no longer described as wrapping
+  |                                           | a frozen/dead state path, and real-ECM
+  |                                           | electrical authority remains explicit.
 -------------------------------------------------------------------------------
 
-aerosim.mission -- fly a validated design through REAL air on the REAL chain.
+aerosim.mission -- fly a validated design through profile-driven air with an explicit ledger.
 
     MissionProfile   what to fly: site, season, altitude, wind, turbulence,
                      and the SPEC_materials section-3 gust placard.
-    fly_mission      the flight: shear + Dryden + day/night + cold pack +
-                     diode PV/MPPT/harness + BEMT propulsion + He/UV decay,
-                     integrated through the frozen integrate_energy.
+    fly_mission      the flight: shear + Dryden + day/night + accepted cold-pack
+                     and He/UV state, plus the mission ledger. BEMT and real-ECM
+                     electrical authority remain certification work, not a
+                     capability implied by this package barrel.
     MissionResult    the outcome, with the frozen per-debit Wh ledger.
     mission_report   the outcome, printable.
 """

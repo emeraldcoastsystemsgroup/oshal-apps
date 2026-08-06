@@ -2,9 +2,10 @@
  * Eats Routes — Uber Eats Concierge surface API
  *
  * Backs the Eats surface at /cockpit?app=eats. The framework way:
- *  - RESTAURANTS/DISHES come from the connector CLI (scripts/oshal-uber.js), which resolves
- *    the operator's OPTIONAL Uber Eats config from the connector store via the token broker —
- *    NO keys in env/compose. Uber has no consumer search/order API, so the catalog is curated
+ *  - RESTAURANTS/DISHES come from the core Uber Eats provider helper. The controller resolves
+ *    the operator's OPTIONAL config for one fixed server operation and passes it as an explicit
+ *    request-scoped argument; no child environment or model sees it. Uber has no consumer
+ *    search/order API, so the catalog is curated
  *    and ORDERING is a DEEP-LINK HANDOFF the diner completes on their own Uber login + payment.
  *  - The BRAIN runs on the eats-concierge bot via ctx.orchestrator (the caller's configured
  *    provider/model), NOT a hardcoded LLM call here.
@@ -27,19 +28,22 @@
  *            | route both shell it). The eats-concierge REAL bot-node (eats-bot container /
  *            | registries / personas / uberToolKit.js) stays core per ADR-093 interim. Logic unchanged.
  * ---------------------------------------------------------------------------
+ * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove Uber Eats credentials from generic bot dispatch. Catalog/deep-link access resolves a fixed-server-operation credential only inside the deterministic CLI helper; the model receives bounded menu records and never a credential map.
+ * 2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove the final credential-bearing subprocess. Catalog/menu/handoff calls now use the import-safe core helper with the current request's explicit credential value.
+ *
  * @module eats-routes
  */
 
 import { Router, type Request, type Response, type RequestHandler } from 'express';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
-import { execFile } from 'child_process';
 import { createChildLogger } from '@/shared/logger';
 import { buildOwnerRlsPolicyStatements, runRuntimeSchemaBootstrap } from '@/shared/services/database';
 import type { AppContext } from '@/app/composition/app-context';
 import type { Pool } from 'pg';
 import { getTrustedServiceUserSub } from '@/shared/middleware/authz';
-import { resolveBotCreds } from '@/app/routes/connector-token-broker';
+import { resolveServerOperationCreds } from '@/app/routes/connector-token-broker';
+import { runUberEatsProviderOperation } from '@/app/routes/provider-operation-clients';
 import { ConciergeStore } from '@/app/routes/concierge-store';
 import { cleanConciergeReply } from '@/app/routes/concierge-reply';
 import { BotNodeClient, createRegistryEndpointResolver } from '@/features/agent-management';
@@ -47,11 +51,9 @@ import { executeBotOrInline } from '@/app/routes/inline-bot-execution';
 
 const logger = createChildLogger({ module: 'eats-routes' });
 
-/** The eats-concierge agent — now a REAL bot-node (its own eats-bot container, codex, shells out to
- *  oshal-uber.js). Reached the framework way via BotNodeClient → http://eats-bot:5000/api/swarm-execute,
- *  the same path the build queue uses, so the surface and Jarvis's tickets hit one traceable bot. */
+/** The eats-concierge reasoning agent. Reached through BotNodeClient so cost/audit remain attributable;
+ *  provider tools are disabled here and the controller performs bounded catalog/deep-link operations. */
 const CONCIERGE_AGENT_ID = 'b0080000-0000-0000-0000-000000000001';
-const UBER_CLI = 'scripts/oshal-uber.js';
 const botClient = new BotNodeClient(createRegistryEndpointResolver());
 
 /** Serve a static surface file from the package tools dir (ctx.appPackageDir — D10). */
@@ -82,22 +84,17 @@ function resolveDinerSub(req: Request): string {
 }
 
 /**
- * Run the Uber Eats connector CLI with the caller's brokered credential. The controller
- * decrypts the operator's optional Uber config (token broker) and hands it to the CLI as
- * OSHAL_CRED_UBER — no key ever lives in env/compose. Returns the CLI's JSON, or {error}.
+ * Run one deterministic Uber Eats operation with the caller's request-scoped credential.
+ * The import-safe helper receives the value directly and cannot read a child environment.
  */
-async function uberCli(pool: Pool, sub: string, args: string[]): Promise<any> {
-  const creds = await resolveBotCreds(pool as unknown as never, sub, ['uber']);
-  return new Promise((resolve) => {
-    const env: NodeJS.ProcessEnv = { ...process.env, OSHAL_USER_SUB: sub };
-    if (creds.OSHAL_CRED_UBER) env.OSHAL_CRED_UBER = creds.OSHAL_CRED_UBER;
-    execFile('node', [path.resolve(process.cwd(), UBER_CLI), ...args],
-      { env, timeout: 30000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
-        const text = (stdout || '').trim();
-        try { resolve(JSON.parse(text || '{}')); }
-        catch { resolve({ error: (err && err.message) || 'uber CLI error', raw: text.slice(0, 300) }); }
-      });
-  });
+async function uberEatsProviderOperation(pool: Pool, sub: string, args: string[]): Promise<any> {
+  const creds = await resolveServerOperationCreds(
+    pool as unknown as never,
+    sub,
+    ['uber'],
+    'fixed-server-operation',
+  );
+  return runUberEatsProviderOperation(creds.OSHAL_CRED_UBER, args);
 }
 
 // ── Schema ───────────────────────────────────────────────────────────────────
@@ -218,7 +215,7 @@ async function addToCart(pool: Pool, sub: string, prod: any, qty: number): Promi
 async function buildOrder(pool: Pool, sub: string): Promise<{ checkoutUrl: string | null; total: number; store: string | null }> {
   const { cart, items, total } = await loadCart(pool, sub);
   if (!items.length || !cart.store_id) return { checkoutUrl: null, total: 0, store: null };
-  const r = await uberCli(pool, sub, ['order', String(cart.store_id)]);
+  const r = await uberEatsProviderOperation(pool, sub, ['order', String(cart.store_id)]);
   const url = r.checkoutUrl || null;
   await pool.query(
     `INSERT INTO eats_orders (user_sub, store_id, store_name, items, total, handoff_url)
@@ -320,17 +317,17 @@ export function createEatsRoutes(ctx: AppContext): Router {
     res.json({ uberConnected: !!r.rowCount });
   }));
 
-  // ── Catalog (via the connector CLI) ─────────────────────────────────────────
+  // ── Catalog (via the request-scoped provider helper) ────────────────────────
   router.get('/search', diner(async (req, res, sub) => {
     const q = String(req.query.q || req.query.query || '');
-    const r = await uberCli(pool, sub, ['search', q, String(Number(req.query.limit) || 8)]);
+    const r = await uberEatsProviderOperation(pool, sub, ['search', q, String(Number(req.query.limit) || 8)]);
     res.json({ items: r.items || [], source: r.source || (r.error ? 'error' : 'catalog'), error: r.error });
   }));
 
   router.get('/menu', diner(async (req, res, sub) => {
     const storeId = String(req.query.storeId || req.query.store || '');
     if (!storeId) { res.status(400).json({ error: 'storeId is required' }); return; }
-    const r = await uberCli(pool, sub, ['menu', storeId]);
+    const r = await uberEatsProviderOperation(pool, sub, ['menu', storeId]);
     res.json({ store: r.store || null, storeId, items: r.items || [], error: r.error });
   }));
 
@@ -417,18 +414,17 @@ export function createEatsRoutes(ctx: AppContext): Router {
     await store.addMessage(conversationId, sub, 'user', message);
     const history = await store.loadHistory(conversationId);
     const [profile, notes, currentCart] = await Promise.all([loadProfile(pool, sub), store.loadNotes(sub), loadCart(pool, sub)]);
-    const searchRes = await uberCli(pool, sub, ['search', message, '6']);
+    const searchRes = await uberEatsProviderOperation(pool, sub, ['search', message, '6']);
     const restaurants: any[] = searchRes.items || [];
     const menus = await Promise.all(restaurants.slice(0, 3).map(async (restaurant) => {
       if (!restaurant?.productId) return [];
-      const menu = await uberCli(pool, sub, ['menu', String(restaurant.productId)]);
+      const menu = await uberEatsProviderOperation(pool, sub, ['menu', String(restaurant.productId)]);
       return menu.items || [];
     }));
     const candidates: any[] = menus.flat().slice(0, 12);
     const candById = new Map<string, any>(candidates.map((item) => [String(item.productId), item]));
 
     const prompt = buildConciergePrompt({ message, history, candidates, cart: currentCart.items, profile, notes });
-    const creds = await resolveBotCreds(pool as unknown as never, sub, ['uber']);
     let raw = '';
     try {
       const result = await executeBotOrInline(ctx, botClient, CONCIERGE_AGENT_ID, {
@@ -436,10 +432,9 @@ export function createEatsRoutes(ctx: AppContext): Router {
         taskId: `eats-${sub}-${randomUUID()}`,
         workspaceFolderId: `eats-${sub}`,
         agentId: CONCIERGE_AGENT_ID,
-        agenticMode: true,
+        agenticMode: false,
         direct: true,
         userSub: sub,
-        creds,
       });
       raw = String(result?.response || '').trim();
     } catch (e) { logger.error({ e }, 'eats concierge dispatch failed'); }

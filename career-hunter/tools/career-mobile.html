@@ -11,17 +11,25 @@
 
     2. Ready     — the drafted, packet-ready queue (GET /jobs?status=generated). Tap a
                    role to REVIEW its posting + resume + cover, then "Auto-apply on my
-                   desktop" -> POST /api/apply-operator/submit {postingId}. Assist mode:
-                   the desktop worker fills the real form; you finish the final Submit there.
+                   desktop" -> POST /api/apply-operator/submit {postingId}. That click grants a
+                   one-task capability to fill and click the employer's final Submit button.
 
     3. Status    — the auto-apply board, four lanes:
                      Ready       GET /jobs?status=generated
-                     Queued      GET /api/apply-operator/inflight   (submissions in flight)
+                     Queued      GET /api/apply-operator/queue      (owner-scoped durable truth)
+                     Failed      GET /api/apply-operator/queue      (stopped or review-required)
                      Needs you   GET /jobs?status=deferred          (blocked -> apply on web, links + resume)
-                     Applied     GET /jobs?status=applied
+                     Application records  GET /jobs?status=applied
 
   No new data endpoints — this is a view over what already exists. Self-contained (works when
   opened directly on a phone at /api/career-hunter/mobile); dark-default, prefers-color-scheme aware.
+
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  SEQ                 | AUTHOR                                      | DESCRIPTION
+  -----------------------------------------------------------------------------
+  1 | maintainer@emeraldcoastsystemsgroup.com | Render explicit, redacted application provenance and stop presenting every recorded outcome as confirmation-backed.
+  2 | maintainer@emeraldcoastsystemsgroup.com | Require an explicit pull-more action before enqueueing drafts, render owner-scoped durable apply state, and state final-submit consent accurately.
 -->
 <html lang="en">
 <head>
@@ -158,9 +166,17 @@ main{flex:1 1 auto;position:relative;overflow:hidden}
 .lane h3 .n{color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:1px 8px;font-size:.72rem}
 .lane .dot{width:9px;height:9px;border-radius:50%}
 .lane.ready .dot{background:var(--blue)} .lane.queued .dot{background:var(--amber)}
-.lane.needs .dot{background:var(--red)} .lane.applied .dot{background:var(--green)}
+.lane.failed .dot{background:var(--red)}
+.lane.needs .dot{background:var(--red)} .lane.applied .dot{background:var(--muted)}
 .blk{color:var(--red);font-size:.8rem;margin-top:6px}
 .tsub{color:var(--muted);font-size:.76rem}
+.application-proof{margin-top:7px;padding:6px 8px;border:1px solid var(--line);border-radius:9px;
+  color:var(--muted);font-size:.74rem;line-height:1.35;white-space:normal}
+.application-proof b{display:block;color:var(--ink)}
+.application-proof.proof-manual{border-color:rgba(79,131,230,.42)}
+.application-proof.proof-worker{border-color:rgba(224,165,75,.48)}
+.application-proof.proof-confirmation{border-color:rgba(78,163,99,.52)}
+.application-proof.proof-unverified{border-color:rgba(224,87,76,.42)}
 
 /* ---------- Bottom nav ---------- */
 nav{flex:0 0 auto;display:flex;border-top:1px solid var(--line);background:var(--card);
@@ -242,7 +258,42 @@ nav button .badge{position:absolute;top:4px;left:calc(50% + 8px);min-width:16px;
 const CH='/api/career-hunter', AP='/api/apply-operator';
 const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+// APPLICATION_PROVENANCE_START
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const APPLICATION_PROVENANCE=Object.freeze({
+  'manual-mark':{tone:'manual',label:'Marked applied manually',detail:'An operator recorded this status; no automated submission confirmation is claimed.'},
+  'worker-reported':{tone:'worker',label:'Worker reported submitted',detail:'A worker reported completion; employer receipt is not confirmed.'},
+  'verified-submission':{tone:'confirmation',label:'Confirmation file present',detail:'A retained confirmation artifact exists; this does not prove employer acceptance.'},
+  unverified:{tone:'unverified',label:'Historical applied — unverified',detail:'No source and retained confirmation jointly establish this historical status.'},
+});
+/** Reduce a worker task id to a non-sensitive diagnostic suffix, never the full identifier. */
+function applicationTaskReference(value){
+  if(typeof value!=='string') return '';
+  const raw=value.trim(); if(!raw) return '';
+  if(raw.length<=8) return 'Worker task recorded';
+  const tail=raw.replace(/[^A-Za-z0-9]/g,'').slice(-6);
+  return tail.length===6?`Worker task …${tail}`:'Worker task recorded';
+}
+/** Resolve the exact allowlisted source; missing and future values deliberately fail closed. */
+function applicationProvenance(record){
+  const raw=record&&typeof record.application_source==='string'?record.application_source:'';
+  let source=Object.prototype.hasOwnProperty.call(APPLICATION_PROVENANCE,raw)?raw:'unverified';
+  const hasConfirmation=record&&typeof record.confirmation_path==='string'&&record.confirmation_path.trim();
+  if(source==='verified-submission'&&!hasConfirmation) source='unverified';
+  const base=APPLICATION_PROVENANCE[source]; let detail=base.detail;
+  if(source==='worker-reported'){
+    const ref=applicationTaskReference(record.application_task_id); detail=(ref?ref+'. ':'')+detail;
+  }
+  return {source,tone:base.tone,label:base.label,detail};
+}
+/** Render only escaped summary text; raw task ids and confirmation paths never enter the DOM. */
+function applicationProofHtml(record){
+  const summarized=record&&typeof record.tone==='string'&&typeof record.label==='string';
+  if(!record||(!summarized&&record.status!=='applied')) return '';
+  const proof=summarized?record:applicationProvenance(record);
+  return `<div class="application-proof proof-${esc(proof.tone)}"><b>${esc(proof.label)}</b><span>${esc(proof.detail)}</span></div>`;
+}
+// APPLICATION_PROVENANCE_END
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2600);}
 async function jget(u){const r=await fetch(u,{headers:{Accept:'application/json'}});if(!r.ok)throw Object.assign(new Error('HTTP '+r.status),{status:r.status});return r.json();}
 async function jpost(u,b){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});let j={};try{j=await r.json();}catch{}return{status:r.status,ok:r.ok,body:j};}
@@ -270,7 +321,7 @@ async function loadDeck(topUp){
   try{
     let apps=(await jget(CH+'/applications').catch(()=>({applications:[]}))).applications||[];
     let pending=apps.filter(a=>a.status==='approval_required');
-    if(topUp||pending.length<3){
+    if(topUp===true){
       await jpost(CH+'/enqueue-drafts',{limit:20});
       apps=(await jget(CH+'/applications').catch(()=>({applications:[]}))).applications||[];
       pending=apps.filter(a=>a.status==='approval_required');
@@ -400,17 +451,19 @@ async function loadReady(){
   if(!el.dataset.loaded) el.innerHTML='<div class="empty"><span class="spin"></span> loading…</div>';
   try{
     // Three sources: the ticketed approval table (drafting/error transient states after a swipe),
-    // the generated packet-ready list (what you review), and the in-flight submissions (to exclude
-    // jobs already sent to the desktop so they don't look re-submittable here).
-    const [appsR,jobsR,flightR]=await Promise.all([
+    // the generated packet-ready list (what you review), and the durable apply queue (to exclude
+    // jobs already queued or assigned so they do not look re-submittable here).
+    const [appsR,jobsR,queueR]=await Promise.all([
       jget(CH+'/applications').catch(()=>({applications:[]})),
       jget(CH+'/jobs?status=generated&sort=generated&per=100&lane=all').catch(()=>({jobs:[]})),
-      jget(AP+'/inflight').catch(()=>({inflight:[]})),
+      jget(AP+'/queue').catch(()=>({items:[]})),
     ]);
     const apps=appsR.applications||[];
     const draftingRows=apps.filter(a=>a.status==='drafting');
     const erroredRows =apps.filter(a=>a.status==='error');
-    const flying=new Set((flightR.inflight||[]).map(f=>Number(f.postingId)));
+    const flying=new Set((queueR.items||[])
+      .filter(item=>item.lane==='queued'||item.lane==='submitting')
+      .map(item=>Number(item.postingId)));
     const ready=(jobsR.jobs||[]).filter(j=>!flying.has(Number(j.id)));
     ready.forEach(j=>jobCache.set(j.id,{title:j.title,company:j.company}));
 
@@ -479,7 +532,7 @@ async function openReview(id){
 
 function renderReviewFoot(job){
   $('#revFoot').innerHTML=`
-    <p class="hint disclaimer"><b>How auto-apply works.</b> It drives a real web browser on a connected <b>desktop worker node</b> — a separate machine you set up for this, not OSHAL's servers. Using your résumé packet, it fills the employer's application form <b>on your behalf</b> in <b>assist mode</b>: <b>you review the filled form and click the final Submit yourself</b>, so nothing is ever sent without you. Your résumé and cover letter are AI-assisted from the profile you provided — read them before applying.</p>
+    <p class="hint disclaimer"><b>How auto-apply works.</b> Auto-apply is an outward action on a connected <b>desktop worker node</b>. Clicking below authorizes this one exact task to fill the employer form and click its final Submit button. Bulk auto-submit requires a separate Settings opt-in. Watch the target machine: CAPTCHA or two-factor prompts pause for you. Your résumé and cover letter are AI-assisted from the profile you provided — review them before applying.</p>
     <button class="btn primary block" id="doApply">⚡ Auto-apply on a desktop worker</button>`;
   $('#doApply').onclick=()=>doApply(job);
 }
@@ -503,10 +556,10 @@ async function doApply(job){
           ${job.url?`<a class="btn small" href="${esc(job.url)}" target="_blank" rel="noopener">Open posting ↗</a>`:''}
           ${job.has_resume?`<a class="btn small" href="${CH}/resume?id=${reviewId}" target="_blank">Résumé ↓</a>`:''}
           ${job.has_cover?`<a class="btn small" href="${CH}/resume?id=${reviewId}&kind=cover" target="_blank">Cover ↓</a>`:''}
-          <button class="btn small primary" id="markApplied">I applied it ✓</button>
+          <button class="btn small primary" id="markApplied">I applied it manually ✓</button>
         </div>
       </div>`);
-    $('#markApplied').onclick=async()=>{ await jpost(CH+'/jobs/'+reviewId+'/status',{status:'applied'}); toast('Marked applied'); closeReview(); loadReady(); refreshBadges(); };
+    $('#markApplied').onclick=async()=>{ await jpost(CH+'/jobs/'+reviewId+'/status',{status:'applied'}); toast('Marked applied manually'); closeReview(); loadReady(); refreshBadges(); };
   }
 }
 
@@ -559,24 +612,29 @@ function stopStatusPoll(){ if(statusTimer){clearInterval(statusTimer);statusTime
 async function loadStatus(){
   const el=$('#statusBoard');
   try{
-    const [ready,deferred,applied,inflight]=await Promise.all([
+    const [ready,deferred,applied,queue]=await Promise.all([
       jget(CH+'/jobs?status=generated&sort=generated&per=100&lane=all').catch(()=>({jobs:[]})),
       jget(CH+'/jobs?status=deferred&per=100&lane=all').catch(()=>({jobs:[]})),
       jget(CH+'/jobs?status=applied&sort=applied&per=100&lane=all').catch(()=>({jobs:[]})),
-      jget(AP+'/inflight').catch(()=>({inflight:[]})),
+      jget(AP+'/queue').catch(()=>({items:[]})),
     ]);
     [ready.jobs,deferred.jobs,applied.jobs].forEach(a=>(a||[]).forEach(j=>jobCache.set(j.id,{title:j.title,company:j.company})));
-    const queued=inflight.inflight||[];
+    const queueItems=queue.items||[];
+    const queued=queueItems.filter(q=>q.lane==='queued'||q.lane==='submitting');
+    const failed=queueItems.filter(q=>q.lane==='failed'||q.lane==='needs_you');
+    const queuedIds=new Set(queued.map(q=>Number(q.postingId)));
+    const reviewIds=new Set(failed.map(q=>Number(q.postingId)));
+    const readyJobs=(ready.jobs||[]).filter(j=>!queuedIds.has(Number(j.id)));
+    const deferredJobs=(deferred.jobs||[]).filter(j=>!reviewIds.has(Number(j.id)));
     el.innerHTML=
-      lane('ready','Ready to auto-apply',ready.jobs,j=>lineJob(j,'Review','open'))+
-      lane('queued','Queued — applying',queued,q=>lineInflight(q))+
-      lane('needs','Needs you — apply on web',deferred.jobs,j=>lineNeeds(j))+
-      lane('applied','Applied',applied.jobs,j=>lineApplied(j));
+      lane('ready','Ready to auto-apply',readyJobs,j=>lineJob(j,'Review','open'))+
+      lane('queued','Queued / running',queued,q=>lineApplyQueue(q))+
+      lane('failed','Stopped / review required',failed,q=>lineApplyQueue(q))+
+      lane('needs','Needs you — apply on web',deferredJobs,j=>lineNeeds(j))+
+      lane('applied','Application records',applied.jobs,j=>lineApplied(j));
     $$('[data-open]',el).forEach(b=>b.onclick=()=>{show('ready');setTimeout(()=>openReview(Number(b.dataset.open)),60);});
-    $$('[data-applied]',el).forEach(b=>b.onclick=async()=>{await jpost(CH+'/jobs/'+b.dataset.applied+'/status',{status:'applied'});toast('Marked applied');loadStatus();refreshBadges();});
-    // lazily fill inflight titles we don't know yet
-    queued.forEach(q=>{ if(!jobCache.has(q.postingId)) jget(CH+'/jobs/'+q.postingId).then(({job})=>{jobCache.set(q.postingId,{title:job.title,company:job.company});}).catch(()=>{}); });
-    refreshBadges(ready.jobs.length,deferred.jobs.length);
+    $$('[data-applied]',el).forEach(b=>b.onclick=async()=>{await jpost(CH+'/jobs/'+b.dataset.applied+'/status',{status:'applied'});toast('Marked applied manually');loadStatus();refreshBadges();});
+    refreshBadges(readyJobs.length,deferredJobs.length+failed.length);
   }catch(e){ el.innerHTML='<div class="empty">Could not load status. '+esc(e.message)+'</div>'; }
 }
 function lane(k,label,items,row){
@@ -587,10 +645,12 @@ function lineJob(j,btn,act){
   return `<div class="row"><div class="rmeta"><div class="rt">${esc(j.title)}</div><div class="rc">${esc(j.company)}</div></div>
     <button class="btn small primary" data-${act}="${j.id}">${btn}</button></div>`;
 }
-function lineInflight(q){
-  const c=jobCache.get(q.postingId)||{}; const mins=Math.max(1,Math.round((q.ageMs||0)/60000));
-  return `<div class="row"><div class="rmeta"><div class="rt">${esc(c.title||('Posting #'+q.postingId))}</div>
-    <div class="rc">${esc(c.company||'')} · <span style="color:var(--amber)"><span class="spin"></span> filling · ${mins}m</span></div></div></div>`;
+function lineApplyQueue(q){
+  const live=q.executionState==='working';
+  const worker=q.assignedHostname||q.assignedClientId||q.targetHostname||q.targetClientId||'';
+  const workerText=worker?` · ${q.assignedClientId?'assigned':'target'} ${worker}`:'';
+  return `<div class="row"><div class="rmeta"><div class="rt">${esc(q.title||('Posting #'+q.postingId))}</div>
+    <div class="rc">${esc(q.company||'')}${live?' · <span class="spin"></span>':''} · ${esc(q.executionDetail||q.executionState||'Status unavailable')}${esc(workerText)}</div></div></div>`;
 }
 function lineNeeds(j){
   return `<div class="row" style="flex-wrap:wrap"><div class="rmeta"><div class="rt">${esc(j.title)}</div><div class="rc">${esc(j.company)}</div>
@@ -598,13 +658,13 @@ function lineNeeds(j){
     <div style="display:flex;gap:6px;flex-wrap:wrap;width:100%;margin-top:4px">
       ${j.url?`<a class="btn small" href="${esc(j.url)}" target="_blank" rel="noopener">Open posting ↗</a>`:''}
       ${j.has_resume?`<a class="btn small" href="${CH}/resume?id=${j.id}" target="_blank">Résumé ↓</a>`:''}
-      <button class="btn small primary" data-applied="${j.id}">I applied it ✓</button>
+      <button class="btn small primary" data-applied="${j.id}">I applied it manually ✓</button>
     </div></div>`;
 }
 function lineApplied(j){
   const when=j.applied_at?String(j.applied_at).slice(0,10):'';
-  return `<div class="row"><div class="rmeta"><div class="rt">${esc(j.title)}</div><div class="rc">${esc(j.company)}${when?' · '+when:''}</div></div>
-    <div class="rfit" style="color:var(--green)">✓</div></div>`;
+  return `<div class="row"><div class="rmeta"><div class="rt">${esc(j.title)}</div><div class="rc">${esc(j.company)}${when?' · '+esc(when):''}</div>
+    ${applicationProofHtml(j)}</div></div>`;
 }
 
 /* ============================ badges ============================ */

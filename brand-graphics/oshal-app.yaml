@@ -33,6 +33,27 @@ source:
   path: brand-graphics
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/brand-graphics/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/brand-graphics/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # Runtime dependency on the vids app: the brand_graphic CLI enqueues jobs through
 # the LOCAL /api/vids API, and the render runs on the vids-operator worker. vids is
 # still framework-resident (Wave 2), so the resolver satisfies this from core; when

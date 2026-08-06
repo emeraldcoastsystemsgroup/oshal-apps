@@ -26,6 +26,10 @@
  *                     |                             | inside the package. resolveEngineDir() now falls
  *                     |                             | through to engine/ when the documented default is
  *                     |                             | absent; the documented default still wins when present.
+ * 2026-08-06 12:30:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: isolate the
+ *                     |                             | numerical worker from controller credentials by
+ *                     |                             | forwarding only OS/runtime process essentials and
+ *                     |                             | disabling Python user-site imports.
  */
 
 import * as fs from 'fs';
@@ -104,6 +108,29 @@ const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
 const IDLE_TIMEOUT_MS = 10 * 60_000;
 const QUEUE_CAP = 4;
 const CAPS_CACHE_TTL_MS = 60_000;
+const WORKER_ENV_ALLOWLIST = [
+  'PATH', 'SystemRoot', 'WINDIR', 'ComSpec', 'PATHEXT',
+  'TEMP', 'TMP', 'TMPDIR', 'LANG', 'LC_ALL', 'TZ',
+] as const;
+
+/** Build the numerical worker's minimal environment without controller/application secrets. */
+export function buildAeroWorkerEnv(
+  engineDir: string,
+  parent: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const key of WORKER_ENV_ALLOWLIST) {
+    const value = parent[key];
+    if (value !== undefined) env[key] = value;
+  }
+  return {
+    ...env,
+    AERO_LAB_ENGINE_DIR: engineDir,
+    PYTHONNOUSERSITE: '1',
+    PYTHONDONTWRITEBYTECODE: '1',
+    PYTHONUNBUFFERED: '1',
+  };
+}
 
 /** Constructor options — everything injectable so specs drive a protocol double. */
 export interface AeroEngineAdapterOptions {
@@ -366,7 +393,7 @@ export class AeroEngineAdapter {
     try {
       proc = spawn(status.python, [status.workerPath], {
         cwd: this.engineDir,
-        env: { ...process.env, PYTHONUNBUFFERED: '1', AERO_LAB_ENGINE_DIR: this.engineDir },
+        env: buildAeroWorkerEnv(this.engineDir),
         stdio: ['pipe', 'pipe', 'pipe'],
       });
     } catch (err) {

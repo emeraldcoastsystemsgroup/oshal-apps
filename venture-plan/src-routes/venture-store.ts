@@ -26,6 +26,8 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial implementation — owner-scoped venture CRUD, the transactional supersede-not-overwrite ledger write, bulk bot-authored assumption insertion, coverage roll-up, scenarios, and the run log the out-of-band orchestrator drives.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Persist non-negative scenario prices as integer micros and expose the transactional assumption primitive compound quote writes require.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Bind run creation and progress updates to venture plus owner, and expose scheduled trigger/cost evidence without floating-point conversion.
  *
  * @module venture-store
  */
@@ -37,6 +39,7 @@ import type {
   Scenario, SourceKind, Venture, VentureSpec, VentureStage,
 } from './venture-types';
 import { CONFIDENCES, SOURCE_KINDS } from './venture-types';
+import { assertCurrencyMicros, VentureFxError } from './venture-currency';
 
 const log = createChildLogger({ module: 'venture-store' });
 
@@ -297,26 +300,15 @@ export async function upsertAssumption(
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    // Clear the live flag FIRST: the partial unique index forbids two live rows for
-    // one key, so inserting before superseding aborts the transaction.
-    const prior = await client.query(
-      `UPDATE venture_assumptions SET superseded_by = id
-       WHERE venture_id = $1 AND owner_sub = $2 AND key = $3 AND superseded_by IS NULL
-       RETURNING id`,
-      [ventureId, ownerSub, a.key],
+    const written = await upsertAssumptionOnClient(
+      client, ownerSub, ventureId, a, authoredBy, runId,
     );
-    const created = await insertRevision(client, ownerSub, ventureId, a, authoredBy, runId);
-    const supersededId = prior.rows.length ? String(prior.rows[0].id) : null;
-    if (supersededId) {
-      // Point the retired row at its successor rather than at itself.
-      await client.query(
-        'UPDATE venture_assumptions SET superseded_by = $2 WHERE id = $1 AND owner_sub = $3',
-        [supersededId, created.id, ownerSub],
-      );
-    }
     await client.query('COMMIT');
-    log.info({ ownerSub, ventureId, key: a.key, supersededId, sourceKind: a.sourceKind }, 'assumption revision written');
-    return { assumption: created, supersededId };
+    log.info({
+      ownerSub, ventureId, key: a.key, supersededId: written.supersededId,
+      sourceKind: a.sourceKind,
+    }, 'assumption revision written');
+    return written;
   } catch (err: any) {
     await client.query('ROLLBACK').catch(() => undefined);
     log.error({ err, stack: err?.stack, ownerSub, ventureId, key: a.key }, 'assumption write failed');
@@ -324,6 +316,47 @@ export async function upsertAssumption(
   } finally {
     client.release();
   }
+}
+
+/**
+ * @description Write one assumption revision on an already-open transaction.
+ *
+ * This is the shared atomic primitive for compound writes such as `applyQuote`.
+ * It never begins, commits or rolls back: the caller owns the wider unit of work.
+ *
+ * @param client - Open transaction client.
+ * @param ownerSub - Authenticated venture owner.
+ * @param ventureId - Venture id.
+ * @param a - New immutable revision.
+ * @param authoredBy - Accountable human or bot author.
+ * @param runId - Authoring run, when applicable.
+ * @returns The new revision and the id it superseded.
+ */
+export async function upsertAssumptionOnClient(
+  client: PoolClient,
+  ownerSub: string,
+  ventureId: string,
+  a: AssumptionInput,
+  authoredBy: string,
+  runId: string | null = null,
+): Promise<{ assumption: Assumption; supersededId: string | null }> {
+  // Clear the live flag FIRST: the partial unique index forbids two live rows for
+  // one key, so inserting before superseding aborts the transaction.
+  const prior = await client.query(
+    `UPDATE venture_assumptions SET superseded_by = id
+     WHERE venture_id = $1 AND owner_sub = $2 AND key = $3 AND superseded_by IS NULL
+     RETURNING id`,
+    [ventureId, ownerSub, a.key],
+  );
+  const created = await insertRevision(client, ownerSub, ventureId, a, authoredBy, runId);
+  const supersededId = prior.rows.length ? String(prior.rows[0].id) : null;
+  if (supersededId) {
+    await client.query(
+      'UPDATE venture_assumptions SET superseded_by = $2 WHERE id = $1 AND owner_sub = $3',
+      [supersededId, created.id, ownerSub],
+    );
+  }
+  return { assumption: created, supersededId };
 }
 
 /**
@@ -383,17 +416,30 @@ export function coverageOf(assumptions: readonly Assumption[]): Coverage {
 
 /** Map a scenarios row to the API shape. */
 function toScenario(r: Record<string, any>): Scenario {
+  const price = r.retail_price_micros === null || r.retail_price_micros === undefined
+    ? (r.retail_price_cents === null || r.retail_price_cents === undefined
+      ? null : Number(r.retail_price_cents) * 10_000)
+    : Number(r.retail_price_micros);
   return {
     id: String(r.id),
     ventureId: String(r.venture_id),
     name: String(r.name),
     overrides: (r.overrides ?? {}) as Record<string, number>,
     volumeUnits: r.volume_units === null ? null : Number(r.volume_units),
-    retailPriceCents: r.retail_price_cents === null ? null : Number(r.retail_price_cents),
+    retailPriceMicros: price,
     channelMix: (r.channel_mix ?? {}) as Record<string, number>,
     isBase: r.is_base === true,
     createdAt: new Date(r.created_at).toISOString(),
   };
+}
+
+/** Validate a persisted retail price at the store boundary, not only the route. */
+function scenarioRetailPrice(value: number): number {
+  const micros = assertCurrencyMicros(value, 'retailPriceMicros');
+  if (micros < 0) {
+    throw new VentureFxError('invalid_currency_amount', 'retailPriceMicros cannot be negative');
+  }
+  return micros;
 }
 
 /**
@@ -441,14 +487,16 @@ export async function getScenario(
 export async function insertScenario(
   pool: Pool, ownerSub: string, ventureId: string,
   s: { name: string; overrides?: Record<string, number>; volumeUnits?: number | null;
-    retailPriceCents?: number | null; channelMix?: Record<string, number>; isBase?: boolean },
+    retailPriceMicros?: number | null; channelMix?: Record<string, number>; isBase?: boolean },
 ): Promise<Scenario> {
   const { rows } = await pool.query(
     `INSERT INTO venture_scenarios (venture_id, owner_sub, name, overrides, volume_units,
-       retail_price_cents, channel_mix, is_base)
+       retail_price_micros, channel_mix, is_base)
      VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7::jsonb,$8) RETURNING *`,
     [ventureId, ownerSub, s.name, JSON.stringify(s.overrides ?? {}),
-      s.volumeUnits ?? null, s.retailPriceCents ?? null,
+      s.volumeUnits ?? null,
+      s.retailPriceMicros === null || s.retailPriceMicros === undefined
+        ? null : scenarioRetailPrice(s.retailPriceMicros),
       JSON.stringify(s.channelMix ?? {}), s.isBase === true],
   );
   return toScenario(rows[0]);
@@ -466,19 +514,21 @@ export async function insertScenario(
 export async function updateScenario(
   pool: Pool, ownerSub: string, ventureId: string, scenarioId: string,
   patch: { name?: string; overrides?: Record<string, number>; volumeUnits?: number | null;
-    retailPriceCents?: number | null; channelMix?: Record<string, number> },
+    retailPriceMicros?: number | null; channelMix?: Record<string, number> },
 ): Promise<Scenario | null> {
   const { rows } = await pool.query(
     `UPDATE venture_scenarios SET
        name = COALESCE($4, name),
        overrides = COALESCE($5::jsonb, overrides),
        volume_units = COALESCE($6, volume_units),
-       retail_price_cents = COALESCE($7, retail_price_cents),
+       retail_price_micros = COALESCE($7, retail_price_micros),
        channel_mix = COALESCE($8::jsonb, channel_mix)
      WHERE id = $1 AND venture_id = $2 AND owner_sub = $3 RETURNING *`,
     [scenarioId, ventureId, ownerSub, patch.name ?? null,
       patch.overrides === undefined ? null : JSON.stringify(patch.overrides),
-      patch.volumeUnits ?? null, patch.retailPriceCents ?? null,
+      patch.volumeUnits ?? null,
+      patch.retailPriceMicros === null || patch.retailPriceMicros === undefined
+        ? null : scenarioRetailPrice(patch.retailPriceMicros),
       patch.channelMix === undefined ? null : JSON.stringify(patch.channelMix)],
   );
   return rows.length ? toScenario(rows[0]) : null;
@@ -486,6 +536,14 @@ export async function updateScenario(
 
 /** Map a runs row to the API shape. */
 function toRun(r: Record<string, any>): RunSummary {
+  const costCapMicros = r.cost_cap_micros === null || r.cost_cap_micros === undefined
+    ? null : Number(r.cost_cap_micros);
+  const costSpentMicros = r.cost_spent_micros === null || r.cost_spent_micros === undefined
+    ? 0 : Number(r.cost_spent_micros);
+  if ((costCapMicros !== null && !Number.isSafeInteger(costCapMicros))
+      || !Number.isSafeInteger(costSpentMicros)) {
+    throw new Error('stored run cost evidence exceeds the exact integer boundary');
+  }
   return {
     id: String(r.id),
     ventureId: String(r.venture_id),
@@ -495,6 +553,11 @@ function toRun(r: Record<string, any>): RunSummary {
     phases: Array.isArray(r.phases) ? (r.phases as RunPhase[]) : [],
     botsRequested: Number(r.bots_requested),
     botsCompleted: Number(r.bots_completed),
+    triggerKind: (r.trigger_kind ?? 'manual') as RunSummary['triggerKind'],
+    scheduleSlot: r.schedule_slot ?? null,
+    costCapMicros,
+    costSpentMicros,
+    costStatus: (r.cost_status ?? 'not-capped') as RunSummary['costStatus'],
     error: r.error ?? null,
     startedAt: new Date(r.started_at).toISOString(),
     finishedAt: r.finished_at ? new Date(r.finished_at).toISOString() : null,
@@ -520,16 +583,21 @@ export async function openRun(
 ): Promise<string> {
   const { rows } = await pool.query(
     `INSERT INTO venture_runs (venture_id, owner_sub, kind, status, phases, bots_requested)
-     VALUES ($1,$2,$3,'running',$4::jsonb,$5) RETURNING id`,
+     SELECT v.id,v.owner_sub,$3,'running',$4::jsonb,$5
+       FROM venture_ventures v WHERE v.id = $1 AND v.owner_sub = $2
+     RETURNING id`,
     [ventureId, ownerSub, kind, JSON.stringify(phases),
       phases.filter((p) => p.agentId !== null).length],
   );
+  if (!rows.length) throw new Error('venture not found for run owner');
   return String(rows[0].id);
 }
 
 /**
  * @description Record progress on a run: which phase it is in and the phase list.
  * @param pool - Shared pool.
+ * @param ownerSub - The authenticated caller or scheduled policy owner's sub.
+ * @param ventureId - The run's owned venture id.
  * @param runId - Run id.
  * @param phase - The phase now executing.
  * @param phases - The full phase list with updated statuses.
@@ -537,17 +605,22 @@ export async function openRun(
  * @returns Nothing.
  */
 export async function advanceRun(
-  pool: Pool, runId: string, phase: string, phases: RunPhase[], botsCompleted: number,
+  pool: Pool, ownerSub: string, ventureId: string, runId: string,
+  phase: string, phases: RunPhase[], botsCompleted: number,
 ): Promise<void> {
-  await pool.query(
-    'UPDATE venture_runs SET phase = $2, phases = $3::jsonb, bots_completed = $4 WHERE id = $1',
-    [runId, phase, JSON.stringify(phases), botsCompleted],
+  const { rows } = await pool.query(
+    `UPDATE venture_runs SET phase = $4, phases = $5::jsonb, bots_completed = $6
+      WHERE id = $1 AND venture_id = $2 AND owner_sub = $3 RETURNING id`,
+    [runId, ventureId, ownerSub, phase, JSON.stringify(phases), botsCompleted],
   );
+  if (!rows.length) throw new Error('run progress target is missing or owned by another account');
 }
 
 /**
  * @description Close a run as done or failed.
  * @param pool - Shared pool.
+ * @param ownerSub - The authenticated caller or scheduled policy owner's sub.
+ * @param ventureId - The run's owned venture id.
  * @param runId - Run id.
  * @param status - Terminal status.
  * @param phases - The final phase list.
@@ -555,13 +628,16 @@ export async function advanceRun(
  * @returns Nothing.
  */
 export async function closeRun(
-  pool: Pool, runId: string, status: 'done' | 'failed', phases: RunPhase[], error?: string | null,
+  pool: Pool, ownerSub: string, ventureId: string, runId: string,
+  status: 'done' | 'failed', phases: RunPhase[], error?: string | null,
 ): Promise<void> {
-  await pool.query(
-    `UPDATE venture_runs SET status = $2, phases = $3::jsonb, error = $4, phase = NULL,
-       finished_at = NOW() WHERE id = $1`,
-    [runId, status, JSON.stringify(phases), error ?? null],
+  const { rows } = await pool.query(
+    `UPDATE venture_runs SET status = $4, phases = $5::jsonb, error = $6, phase = NULL,
+       finished_at = NOW()
+      WHERE id = $1 AND venture_id = $2 AND owner_sub = $3 RETURNING id`,
+    [runId, ventureId, ownerSub, status, JSON.stringify(phases), error ?? null],
   );
+  if (!rows.length) throw new Error('run close target is missing or owned by another account');
 }
 
 /**

@@ -35,6 +35,19 @@ source:
   path: social
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/social/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # Runtime connector allow-list — the platforms this app publishes to + the mailbox
 # whose Social category feeds the Signals view, all via the per-user broker.
 dependencies:
@@ -131,6 +144,13 @@ ui:
       section: bottom
 
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/social/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/social-routes.js
     factory: createSocialRoutes
     mountPath: /api/social

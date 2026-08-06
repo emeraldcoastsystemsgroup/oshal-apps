@@ -9,6 +9,7 @@
  * 2026-07-21 22:16:54 | roger.murphy@emeraldcoastsystemsgroup.com  | Prove a newly admitted seat invalidates stale concurrent starts without bumping idempotent rejoins.
  * 2026-07-21 22:36:06 | roger.murphy@emeraldcoastsystemsgroup.com  | Prove claim changes lock the lobby and invalidate a concurrent Start revision without revision churn on retries.
  * 2026-07-22 01:15:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Keep multiple active and archived campaigns in the account library for explicit Resume or Playback.
+ * 2026-08-06 02:43:35 | maintainer@emeraldcoastsystemsgroup.com     | Prove shared-table admission binds only a validated join code as a transaction-local RLS capability before campaign reads.
  */
 
 'use strict';
@@ -274,6 +275,7 @@ class JoinClient {
   async query(sql, params) {
     this.pool.queries.push({ sql, params });
     if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(sql)) return rows([]);
+    if (/set_config\('oshal\.dnd_join_code'/.test(sql)) return rows([{ set_config: params[0] }]);
     if (/JOIN dnd_encounters/.test(sql)) {
       const tokens = ['bram', 'della', 'pip', 'fenwick'].map((id) => ({ id, kind: 'pc' }));
       return params[0] === 'ABC123'
@@ -295,12 +297,22 @@ class JoinClient {
   release() { this.pool.released = true; }
 }
 
+test('malformed join codes fail before a transaction or campaign lookup', async () => {
+  const pool = new JoinPool('setup', []);
+  const result = await request(pool, 'alice', 'POST', '/join', { code: "ABC123' OR TRUE" });
+  assert.equal(result.body.code, 'GAME_NOT_FOUND');
+  assert.equal(pool.queries.length, 0);
+});
+
 test('joining is locked to an open four-person setup lobby', async (t) => {
   await t.test('combat rejects a late join before adding a player', async () => {
     const pool = new JoinPool('combat', []);
     const result = await request(pool, 'alice', 'POST', '/join', { code: 'abc123' });
     assert.equal(result.body.code, 'QUEST_IN_PROGRESS');
     assert.equal(pool.players.length, 0);
+    assert.deepEqual(pool.queries[1], {
+      sql: "SELECT set_config('oshal.dnd_join_code', $1, true)", params: ['ABC123'],
+    });
     assert.match(pool.queries.find((query) => /JOIN dnd_encounters/.test(query.sql)).sql, /FOR UPDATE OF c, e/);
   });
   await t.test('the fifth distinct participant is rejected', async () => {

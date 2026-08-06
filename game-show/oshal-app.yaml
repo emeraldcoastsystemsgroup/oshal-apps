@@ -63,6 +63,19 @@ source:
   path: game-show
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/game-show/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # ── ADR-090 D8: kernel SKILLS this app calls ────────────────────────────────
 # The host bot uses shared LLM/harness access (tool-registry) to generate surveys,
 # judge answers, and interview players; the pluggable voice layer reads the show
@@ -134,6 +147,13 @@ ui:
 # except for the framework AppContext it receives (pool, orchestrator, logger).
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/game-show/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - { module: routes/game-show-routes.js, factory: createGameShowRoutes, mountPath: /api/game-show, requiresAuth: true, requiresContext: true }
 
 # ─────────────────────────────────────────────────────────────────────────────

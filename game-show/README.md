@@ -223,21 +223,29 @@ node tests/cutaways.test.js           # 14 — catalog, state selection, media a
 `tests/npc.test.js` plays full NPC-vs-NPC Feud, Wheel, and Whammy rounds in-process, so
 "solo night actually finishes a game" is a guard, not a hope.
 
-**The browser playthrough** (the P0 that used to need a human, a TV and two phones):
+**The browser playthroughs** (the P0 that used to need a human, a TV and two phones):
 
 ```bash
-# Against the local stack (live auth): mint a PAT, then
+# Against the local stack (live auth): mint a PAT, then run all four shows
 GS_PAT=oshal_pat_... npm run test:browser
-# Against a MOCK_OIDC dev server: just
+# Against a MOCK_OIDC dev server: run all four, or one named scenario
 GS_BASE_URL=http://localhost:35457 npm run test:browser
+GS_BASE_URL=http://localhost:35457 npm run test:browser:jeopardy
 # Watch it play: GS_HEADED=1
 ```
 
-It opens the real tv / host / two pinned clickers / audience pages, plays a full Feud
-round deterministically (manual survey + exact answers → localJudge; a miss via the
-host's "move it along"), asserts the reveals, the celebration, the reaction broadcast,
-and the $0.00 cost chip, and screenshots the rehearsal grid. Playwright resolves from
-the core repo checkout (or `PLAYWRIGHT_MODULE`).
+The Feud scenario opens the real tv / host / two pinned clickers / audience pages, plays
+a full round deterministically (manual survey + exact answers → localJudge; a miss via
+the host's "move it along"), asserts the reveals, celebration, reaction broadcast and
+$0.00 cost chip, then screenshots the rehearsal grid.
+
+The APP-05 scenarios reuse the same authenticated package routes and real Chromium
+surfaces: Jeopardy locates the server-randomized Daily Double after a normal ring-in;
+Wheel follows live turn ownership through random wheel outcomes before calling a
+present consonant and solving; Whammy presses the rendered board until it observes a
+visible server-owned Whammy. No scenario injects an outcome or invokes an LLM.
+Playwright resolves from the core repo checkout (or `PLAYWRIGHT_MODULE`). An unreachable
+or unauthenticated server is reported as **BLOCKED**, never as a passing browser run.
 
 Random content (Daily Double slots, wheel segments, whammy stops) is **located, never
 assumed** — keep that habit in new specs.
@@ -316,12 +324,14 @@ reproduced — confirm the shot before you spend a fix on it.
 
 ## P2 — test coverage and operability
 
-8. **Only Feud has a browser spec.** `tests/browser-playthrough.test.js` plays a full
-   Feud round on real surfaces; Jeopardy, Wheel, and Whammy are covered by unit suites and
-   by *screenshots*, which assert nothing.
-   Done when: one browser spec per show drives its signature beat end to end (Jeopardy: a
-   ring-in and a Daily Double wager; Wheel: a spin, a consonant, a solve; Whammy: a press
-   and a whammy), reusing the deterministic manual-content rail.
+8. **Record the other-three-shows browser run.** The fail-closed Playwright scenarios now
+   exist and are wired into `npm run test:browser`: Jeopardy drives a ring-in plus a
+   located Daily Double wager; Wheel drives a live spin, present consonant and solve;
+   Whammy presses until the server produces a visible Whammy. The 2026-08-06 local run
+   could not reach either `localhost:35457` or `127.0.0.1:35457`, so this stays open
+   rather than treating unavailable infrastructure as a pass.
+   Done when: all three named scenarios pass against a reachable authenticated local
+   server and the result is recorded alongside the commit SHA.
 
 10. **Push and install via the sanctioned path.** Currently installed by `docker cp`.
     Done when: the package is pushed and installed via `scripts/oshal-app.js install

@@ -1,35 +1,33 @@
-# Little Monsters — Ship / Review Package
+# Little Monsters — ship/review package
 
 A single-page summary for a reviewer picking up **Little Monsters** before it goes out for
 external review. It states what the app is, what is built and deployed, how enrollment and
 access control work, what the test suite covers and how to run it, the security review and its
-fixes, and what is known-open. As-built as of 2026-06-27.
+fixes, and what remains open. As-built as of 2026-08-06 (package 1.0.9).
 
-Companion docs:
-- [adr/075-little-monsters-onboarding-and-enhancements.md](../adr/075-little-monsters-onboarding-and-enhancements.md) — the full enhancement spec + change-impact analysis
+Companion package artifacts:
+- [BUILD.md](../BUILD.md) — reproducible route build and artifact counts
 - [runbook.md](runbook.md) — start / open / verify / debug
 - [school-deployment.md](school-deployment.md) — sign-in, enrollment, privacy model
-- [architecture/little-monsters-on-oshal-plan.md](../architecture/little-monsters-on-oshal-plan.md) — architecture + sprint history
-- [../swarm-apps/little-monsters.yaml](../../swarm-apps/little-monsters.yaml) — the manifest (single source of truth)
+- [support.md](support.md) — operator-visible failure modes and status codes
+- [oshal-app.yaml](../oshal-app.yaml) — package manifest and migration order (single source of truth)
 
 ---
 
 ## 1. What it is
 
-Little Monsters is a **dyslexia-first K-12 study companion**, delivered as an OSHAL **swarm
-application** — a declarative manifest (`swarm-apps/little-monsters.yaml`) that adds education
-bots, the `/api/education` routes, and a set of cockpit surfaces on top of the platform. It was
-built to a hard constraint: **negligible core-platform change** — new behavior lives in the
-manifest, the `education-*` route modules, and bind-mounted student surfaces, not in framework
-code (see ADR-075's change-impact section).
+Little Monsters is a voice-first, ADHD/dyslexia-friendly K-12 study companion delivered as an
+oshal app package. Its declarative `oshal-app.yaml` registers six education bots, the
+`/api/education` routes, migrations, tools, and cockpit surfaces. Domain behavior stays in this
+store package; the framework supplies only the declared kernel skills.
 
 Students reach it at `/cockpit/?app=little-monsters&student=1` (student mode hides the operator
-chrome). The build is deployed on the local Docker stack and the `oshal.agenticfederal.us`
-tunnel.
+chrome). This review covers the store artifact; it does not claim that any particular host or
+public tunnel currently has version 1.0.9 deployed.
 
 ---
 
-## 2. What is built and deployed
+## 2. What is built and release-validated
 
 | Area | State |
 |---|---|
@@ -42,103 +40,108 @@ tunnel.
 | **Rewards** | Earning a level grants a **mystery box**. Opening is pick-1-of-3 → a server-authoritative roll yields a new monster skin or an accessory. Items are kept in **My Monsters**, equippable on the avatar, with a "monster tricks" animation hook. Boxes are **earned only** — no free welcome boxes. |
 | **Concierge** | A floating "Little Monster Expert" that replaces the operator right-rail chat in student mode and wears the student's equipped monster. |
 | **Theme** | The real pink-monster palette (magenta body, blue horns, deep-purple world) with the canonical character art. |
+| **Identity and tenancy** | Exact OIDC `(iss, sub)` account binding, fail-closed domain-to-tenant mapping, tenant-scoped roles, same-tenant enrollment database constraints, and collision-resistant RAG namespaces. |
+| **Authorization audit** | Roster provisioning, enrollment, and removal append actor/student/class/action/database-time facts atomically. Migration 037 rejects update, delete, and truncate; the runtime role is append-only. |
+| **Materials and RAG** | 10 MiB/request and 50 MiB/student/24-hour upload bounds, content-byte classification, contained random storage, per-material RAG collections, teacher moderation, and exact collection/file deletion. |
+| **Quizzes and XP** | Public quiz questions contain no answer key; 30-minute server-side attempts are tenant-bound, single-use, and server-graded. XP uses server allowlists, cooldown buckets, and idempotency keys. |
+| **External calendar** | The internal class/personal calendar is active. Google status/push/pull deliberately return HTTP 410 until school credentials and remote calendar ids are tenant-bound. |
 
-Deployment mechanics (front-end is bind-mounted/hot; baked TS needs an api rebuild; Cloudflare
-caches `/api/education/*.js` so script `src` is cache-busted with `?v=N`) are documented in the
-runbook.
+The release artifact contains 36 TypeScript source modules, 36 corresponding compiled JavaScript
+modules, and 17 ordered install migrations. Rebuild mechanics are documented in
+[BUILD.md](../BUILD.md); runtime operations are in the [runbook](runbook.md).
 
 ---
 
-## 3. Enrollment and access model
+## 3. Identity, tenant, and access model
 
-Two sign-in paths, plus a manual roster, all converging on one authorization invariant.
+Sign-in and a manual roster converge on one fail-closed principal model:
 
-1. **School account → public/shared tenant.** A student signs in with their school account and
-   auto-joins the shared tenant, where standard classes and their materials are published.
-2. **School-tenant OIDC.** A district runs its own tenant; students sign in via the school's
-   OIDC and stay inside that tenant's boundary.
-3. **Manual roster (teacher).** A teacher enrolls a student by email; a placeholder record
-   attaches to the real identity on first sign-in.
+1. **Verified OIDC principal.** Production sessions must supply both `iss` and `sub`. The exact
+   pair is the account key; the same subject string from another issuer is another principal.
+2. **Tenant resolution.** A case-normalized school email domain maps to one tenant. Once any
+   explicit domain mapping exists, an unmapped domain is denied rather than assigned to the
+   default tenant. Duplicate mappings fail activation.
+3. **Manual roster placeholder.** An owning teacher or same-tenant admin enrolls by email through
+   `POST /classes/:classId/students`. First sign-in can claim only an unbound same-tenant
+   placeholder (or one-time compatible legacy row), under ordered advisory locks.
+4. **Current relationship at use time.** Access-sensitive queries include tenant, role, class
+   ownership, enrollment, and active/archive state. High-risk mutations repeat those relationships
+   in final SQL and use transactions/row locks so a preliminary authorization check cannot go
+   stale before the write.
 
-The data model is **shared-vs-private** (full table in the school-deployment guide): class
-materials are visible to enrolled students; XP, level, streak, and progress are private to the
-student. The invariant that makes this safe is the same across all three paths:
-
-> Every write and every by-id read is pinned to the **authenticated** student — never a
-> client-supplied id. A student not enrolled in a class gets HTTP 403 on that class's endpoints
-> and never sees the class in their list.
-
-This invariant is what the security tests lock down (Section 4).
+Class records are shared only with current members/owners/admins in that tenant. Student progress,
+private study sets, quiz attempts, personal calendar rows, and unapproved material remain private.
+Teacher dashboard access is limited to students in active classes they own; tenant admins remain
+inside their tenant. Unauthorized by-id dashboard requests use the same 404 as a missing id.
 
 ---
 
 ## 4. Test suite
 
-Location: [../tests/unit/little-monsters/](../../tests/unit/little-monsters/). Runner: vitest.
-**Run with `npm run test:unit`** (the Playwright config ignores `tests/unit/`, so these run as
-fast unit/integration tests). They mount the real route modules against a mock pg pool and a
-mocked auth layer, then drive them over `fetch` — no live database or network required, so they
-run in CI. **Current result: 21 passed (21).**
+Package-local release guards live under `tests/`. They use built-in `node:test`, need no package
+install, and mix compiled-runtime execution with source structural guards where final SQL shape is
+the security contract. Store CI runs the complete glob:
+
+```bash
+node --test "tests/*.test.cjs"
+```
 
 | File | Tests | Category | Covers |
 |---|---|---|---|
-| `lm-logic.spec.ts` | 8 | Functional | The XP→level curve (`levelFromXP`, `XP_TABLE`), reward-catalog integrity (well-formed items, unique ids, default monster present), and the rarity-weighted `rollItem`. |
-| `lm-rewards-routes.spec.ts` | 6 | Transactional | `GET /rewards` state + catalog; the **atomic** box-open (`UPDATE … WHERE boxes > 0 RETURNING`) including 0-boxes → 400, duplicate roll → +5 XP sparkle with no new item, `boxesLeft` decrement; equip authorization. |
-| `lm-flashcards-security.spec.ts` | 7 | Security | The IDOR fixes: editing / deleting / reading a card or set in a class you are not enrolled in → 403; missing → 404; a private (null-class) self-study set correctly skips the class check; empty input → 400; equipping an un-owned or non-catalog item rejected. |
+| `lm-authz.test.cjs` | 16 | Compiled integration | Two-tenant dashboard/teacher aggregate/roster matrix; locked class/material cleanup and rollback; class-bank and tutor denial; legacy endpoint retirement; tenant identity/domain invariants; package-local Presentations metadata. |
+| `lm-identity-security.test.cjs` | 9 | Compiled + invariant | Issuer/subject separation, takeover resistance, serialized placeholder and legacy adoption, required claims, fail-closed default tenant, observable rollback, RAG hash entropy, migration/schema contract. |
+| `lm-lecture-security.test.cjs` | 14 | Compiled integration | Tenant-bound teacher/admin writes and enrolled reads; zero-side-effect denials; content sniffing; random exclusive contained artifacts; no path disclosure; protected route composition. |
+| `lm-study-authz.test.cjs` | 8 | Compiled integration | Class-set teacher writes/student reads, private-set ownership, zero-side-effect foreign-class denial, server-held quiz answers, caller-scoped SM-2 writes, fail-closed historical ownership. |
+| `lm-calendar-material-progress-security.test.cjs` | 7 | Executed source seam | Notification/reminder scope, Google 410/no profile leakage, personal-calendar privacy, material storage/lifecycle controls, XP cooldowns, and single-use server quiz grading. |
+| `lm-toctou-authz.test.cjs` | 6 | Structural SQL/transaction guard | Final relationship predicates for roster, catalog, assignment, and dashboard plus lock/transaction placement around class deletion and material lifecycle side effects. |
+| `lm-doc-contract.test.cjs` | 4 | Documentation contract | Package-relative links, current install/build guidance, retired guidance removal, and shipped inline-help behavior. |
+| `lm-roster-audit.test.cjs` | 4 | Audit + mounted-proof contract | Migration immutability, atomic roster writes, zero wildcard projections, retired generic writes, and enforced disposable-PostgreSQL gate wiring. |
+| **Total** | **68** | Release gate | All rows above must pass; the glob must not be narrowed to one security area. |
 
-To keep the route modules testable, `levelFromXP` + `XP_TABLE` (education-routes) and `rollItem`
-+ `REWARD_CATALOG` (education-rewards-routes) were exported. These are export-only changes with
-no runtime effect.
-
-> **Scope note.** This is the unit/integration layer — it proves the route logic and the access
-> invariant in isolation. The live full-stack walkthrough (sign-in → study → game → reward
-> through a real server, DB, and OIDC) belongs in the Playwright `tests/*.spec.ts` layer; see
-> `tests/education-access-control.spec.ts` for the existing end-to-end access-control test.
+The official 2026-08-06 package build completed before this suite and all **68/68** tests passed.
+Store CI also mounts the compiled manifest entrypoint in real Express against disposable PostgreSQL
+as a LOGIN `NOSUPERUSER`/`NOBYPASSRLS` application role. Browser coverage remains under
+`tests/*.spec.ts`; those specs require a running oshal stack.
 
 ---
 
-## 5. Security review and fixes
+## 5. Security review closure
 
-A two-agent best-practices/security pass over the LM route modules produced the following
-fixes, all landed:
+The 1.0.9 hardening pass closed the release-blocking findings below:
 
 | Finding | Fix |
 |---|---|
-| **IDOR** on flashcard cards/sets — by-id endpoints did not re-check enrollment | Resolve the owning `class_id` (`classIdForCard` / `classIdForSet`) and `assertClassAccess` before any read/write; a null `class_id` is a private self-study set and is allowed. Locked down by `lm-flashcards-security.spec.ts`. |
-| **Reward double-spend** — box-open read-then-wrote boxes | Atomic `UPDATE lm_rewards SET boxes = boxes - 1 … WHERE boxes > 0 RETURNING`; 0 rows → 400. |
-| **Tutor crash** on image-only messages | Guarded `(message ?? '').length`; image blocks sent via a direct SDK call. |
-| **XSS** in flashcard hub and tutor read button | Replaced inline `onclick` with data-attributes; attribute-safe `esc()`. |
-| **Cross-frame message spoofing** in the arcade | Listener checks `e.source === frame.contentWindow`. |
-| **Information disclosure** | Generic client-facing error messages. |
-| **Tutor XP** not awarded | Tutor questions resolve the authenticated student and award XP. |
-
-**Known-open** (pre-existing, captured in the ADR-075 security section — not introduced by this
-work):
-- `GET /student/:id/dashboard` does not yet verify the caller is the student or their teacher (teacher-view IDOR).
-- `POST /enroll` and the students listing are not yet auth-gated.
-
-These are flagged for the next hardening pass; they sit on teacher/admin endpoints, not the
-student data path.
+| **OIDC subject collision / email takeover** | Bind by exact `(external_issuer, external_id)`; permit email adoption only for an unbound same-tenant placeholder or compatible legacy row under ordered transaction locks. Missing issuer/subject fails closed outside explicit mock mode. |
+| **Tenant ambiguity and cross-school enrollment** | Case-normalized domain uniqueness, fail-closed unmapped-domain behavior, tenant columns on enrollments/quiz attempts, composite foreign keys, and tenant-binding triggers. Migration 035 refuses historical cross-tenant enrollments. |
+| **Dashboard, roster, analytics, and tutor IDOR** | Complete student/teacher/admin role matrices, same-tenant final SQL, active-class owner checks, non-oracular dashboard denial, class-scoped roster writes, and retired global ID-based writes. |
+| **Mutable/missing roster audit** | Migration 037 stores actor, student, class, action, and database time without cascading foreign keys. Add/remove operations write audit and roster state atomically; update, delete, and truncate fail even for the table owner. |
+| **Overbroad SQL projection** | Identity, class, assignment, calendar, notification, material, and quiz-attempt reads use explicit reviewed fields; source and compiled route gates reject `SELECT *`, alias wildcards, and `RETURNING *`. |
+| **TOCTOU between authorization and mutation** | Roster, catalog, assignments, class metadata/deletion, calendar, materials, and analytics re-evaluate current relationships in final SQL; multi-row operations lock and transact. Material share/delete locks the class, live actor, material, and same-tenant uploader before any grounding or cleanup side effect. |
+| **Lecture filesystem overwrite / path disclosure** | Teacher/admin authorization before side effects, byte-derived audio type, random no-clobber writes, lexical and real-path containment, bounded artifact reads, and path-free API projections. |
+| **Study-set poisoning / quiz answer trust** | Only class owner/admin may mutate class sets; private sets have explicit owners. Quiz answers remain server-side in a 30-minute, single-use attempt and the server derives the score/XP. |
+| **RAG contamination and stale sharing** | One exact collection per successfully grounded material; tutor search selects uploader-owned or currently approved rows under class/row locks. Denial removes classmates' lookup immediately. Material/class deletion removes exact collections and contained files before SQL pointers; external failure aborts relational deletion and retains pointers for retry. |
+| **Upload abuse and type spoofing** | 10 MiB request limit, 50 MiB/student/24-hour serialized quota, random exclusive storage/OCR temp names, bounded PDF OCR, content-byte MIME classification, containment, `nosniff`, and attachment fallback for unsafe types. |
+| **Calendar/notification cross-tenant access** | Caller-visible events only, locked idempotent reminders, self/same-tenant-admin/owned-class teacher targeting, and final access predicates. The unsafe shared Google credential bridge is retired with 410. |
+| **Client-authored XP / replay** | Public XP endpoint accepts a fixed activity allowlist with server-time cooldown keys. Quiz and tutor rewards use deterministic idempotency keys in the XP ledger. |
 
 ---
 
 ## 6. How to verify locally
 
-```bash
-cd /c/Projects/open-shal-swarm-harness-agent-llm
+```powershell
+# From the oshal core checkout: regenerate the runtime bytes from package sources.
+node scripts/oshal-app.js build C:\Projects\oshal-apps\little-monsters --framework .
 
-# Unit/integration tests (includes the LM suite)
-npm run test:unit
-
-# Just the LM suite
-npx vitest run --config vite.config.ts tests/unit/little-monsters/
+# From the applications checkout: execute every package security guard.
+Set-Location C:\Projects\oshal-apps\little-monsters
+node --test "tests/*.test.cjs"
 ```
 
-Then open the student view (`/cockpit/?app=little-monsters&student=1`), hard-refresh
-(Ctrl+Shift+R) to clear the cached game/surface JS, and spot-check: play a game to a game-over
-screen and confirm **Play again** / **I'm done**; earn a level and confirm the home-page
-confetti + box prompt on the next home visit; open a box in My Monsters and confirm the item is
-kept and equippable. Rebuild/redeploy steps are in the runbook.
+Expected package result: **68 tests, 68 pass, 0 fail**. Then, on a deployed test swarm, run the
+Playwright specs and spot-check the student/teacher role flows. The manual security spot-checks
+are: cross-tenant class ids reveal no data; a generated quiz response has no answer key and cannot
+be submitted twice; denied material disappears from a classmate's tutor context; and every Google
+Calendar bridge operation returns the documented authenticated 410.
 
 ---
 
@@ -146,9 +149,10 @@ kept and equippable. Rebuild/redeploy steps are in the runbook.
 
 | Concern | Path |
 |---|---|
-| Manifest | [../swarm-apps/little-monsters.yaml](../../swarm-apps/little-monsters.yaml) |
-| Routes | `src/app/routes/education-routes.ts`, `education-study-routes.ts`, `education-rewards-routes.ts`, `education-access.ts` |
-| Student surfaces | `any-bot/server/services/tools/education/` (dashboard, games-arcade, flashcard-hub, my-monsters, the six `games/*/index.html`) |
-| Cockpit integration | `src/pages/cockpit/js/` (RibbonNav student mode, lm-concierge) and `src/pages/welcome/welcome.js` (onboarding) |
-| Theme | `src/pages/cockpit/css/themes/little-monsters.css` |
-| Tests | [../tests/unit/little-monsters/](../../tests/unit/little-monsters/) |
+| Manifest | [`../oshal-app.yaml`](../oshal-app.yaml) |
+| Developer source of truth | `../src-routes/*.ts` (36 modules) |
+| Runtime route artifact | `../routes/*.js` (36 modules; generated by the official builder) |
+| Database upgrades | `../migrations/*.sql` (17 install migrations plus opt-in `uninstall.sql`) |
+| Student surfaces | `../tools/` plus the two stylesheets in `../ui/`; the floating tutor is declarative `ui.assistant`, not package JavaScript running in the cockpit origin |
+| Personas | `../personas/` (six education bots plus shared foundation) |
+| Security and browser tests | `../tests/*.test.cjs` and `../tests/*.spec.ts` |

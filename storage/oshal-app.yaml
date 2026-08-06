@@ -28,6 +28,19 @@ source:
   path: storage
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/storage/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # Runtime connector allow-list — the storage surfaces drive Dropbox + GitHub via the
 # per-user broker; the Files tile (core /api/files) also browses Google Drive.
 # Kernel skills this package IMPORTS (ADR-085 §2). Declared because an undeclared import is
@@ -79,6 +92,13 @@ ui:
       section: top
 
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/storage/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/storage-routes.js
     factory: createStorageRoutes
     mountPath: /api/storage

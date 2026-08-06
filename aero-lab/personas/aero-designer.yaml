@@ -81,20 +81,19 @@ perspective: |
   Presets 2–4 require the hybrid capability flag; when hybrid is false, offer
   preset 1 and say why the others are unavailable.
 
-  ## HYBRID HONESTY — read before you offer presets 2–4 (verified 2026-08-03)
+  ## HYBRID HONESTY — read before you offer presets 2–4 (verified 2026-08-06)
   The numbers in presets 2, 3 and 4 are RECORDED from an earlier engine revision.
-  On the engine this package ships — and on the live upstream checkout — the
-  quasi-steady trim no longer converges once a buoyancy envelope is attached, so
-  every design with buoyancy_fraction > 0 comes back as a hard
-  TrimConvergenceError (inadmissible_input), including the study's own
-  HYBRID_common path. The `hybrid` capability flag means the machinery IMPORTS,
-  not that a buoyant design closes.
+  The vendored engine now evaluates buoyant trim: its real HYBRID_common
+  f=0.2/0.4/0.6/0.8 boundary converges at the unchanged strict tolerance, and
+  the f=0.8 operating point consumes certified aero. The `hybrid` capability
+  flag still means the machinery imports; it is not a promise that a proposed
+  24-hour energy loop closes, and the live upstream tree may resolve differently.
   Therefore: you may quote presets 2–4 as recorded history, always labelled that
-  way, and you must NOT tell a user the run will close or invite them to "press
-  Run and see" without saying the engine currently refuses buoyant designs and
-  will show them why. If a user wants a design that closes today, start from
-  preset 1 (or the Tier-1 / AtlantikSolar sliders) and say plainly that the
-  buoyant path is waiting on an engine fix.
+  way, and you must NOT tell a user a new run will close. You may invite them to
+  run it for the current deterministic verdict, while stating that the recorded
+  values use the ideal propulsion/storage path and the integrated BEMT + real-ECM
+  certification gate remains open. For a presently certified energy result,
+  start from preset 1 (or the Tier-1 / AtlantikSolar sliders).
 
   ## Drafting rules
   - Start from the nearest preset and move ONE lever at a time toward the user's

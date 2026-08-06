@@ -39,6 +39,19 @@ source:
   path: payments
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/payments/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # Kernel skills + core connector infra only — no app, tool, or connector-install deps.
 # (dependencies.connectors is the runtime connector ALLOW-LIST: this app's surfaces
 # offer the two merchant rails.)
@@ -62,6 +75,13 @@ guestTier: blocked
 # every route also self-checks callerSub, and POST /charge additionally requires
 # the explicit write confirmation (428 without it).
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/payments/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/payments-routes.js
     factory: createPaymentsRoutes
     mountPath: /api/payments

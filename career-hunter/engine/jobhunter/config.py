@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR                                    | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Fail closed when JOBHUNTER_STORE names an unsupported backend instead of silently writing SQLite.
+
 """Central configuration for the job-hunter pipeline."""
 from __future__ import annotations
 import os
@@ -34,9 +40,14 @@ USER_DB = Path(os.environ.get("JOBHUNTER_USER_DB", DATA_DIR / f"user-{USER_SUB}.
 # per-user tables, migrations 095/096/097) over DATABASE_URL.
 #
 # Deliberately a value, not a boolean flag: 'sqlite' vs 'postgres' reads unambiguously in
-# a crontab and in a container env, and an unrecognised value falls back to sqlite rather
-# than half-enabling anything.
+# a crontab and in a container env. An unknown value is a configuration error: falling back
+# would send writes to the wrong durable store while the operator believes Postgres is active.
 STORE = (os.environ.get("JOBHUNTER_STORE") or "sqlite").strip().lower()
+if STORE not in {"sqlite", "postgres"}:
+    raise RuntimeError(
+        "Unsupported JOBHUNTER_STORE value "
+        f"{STORE!r}; expected exactly 'sqlite' or 'postgres'. Refusing to select a fallback."
+    )
 POSTGRES = STORE == "postgres"
 
 # Only consulted in postgres mode. This is the same connection string every other process

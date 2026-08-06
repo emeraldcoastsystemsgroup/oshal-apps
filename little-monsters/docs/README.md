@@ -18,7 +18,7 @@ This is the index to all of its documentation. Start with the row that matches y
 | **School administrator** | [Installation](installation.md) → [School Deployment Guide](school-deployment.md) (sign-in, enrollment, privacy/compliance). |
 | **Operator** (running the server) | [Installation](installation.md) → [Runbook](runbook.md) → [Support & Troubleshooting](support.md). |
 | **Reviewer** (evaluating before release) | [Ship / Review Package](ship-review.md) — what's built, tested, and known-open, on one page. |
-| **Developer** | [ADR-075](../adr/075-little-monsters-onboarding-and-enhancements.md) and [Architecture plan](../architecture/little-monsters-on-oshal-plan.md), then the manifest [`swarm-apps/little-monsters.yaml`](../../swarm-apps/little-monsters.yaml). |
+| **Developer** | [ADR-075](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/adr/075-little-monsters-onboarding-and-enhancements.md) and the [architecture plan](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/architecture/little-monsters-on-oshal-plan.md), then the package manifest [`oshal-app.yaml`](../oshal-app.yaml). |
 | **Anyone stuck** | [Support, FAQ & Troubleshooting](support.md). |
 
 ---
@@ -37,10 +37,10 @@ This is the index to all of its documentation. Start with the row that matches y
 
 ### Evaluating & building it
 - **[Ship / Review Package](ship-review.md)** — one-page summary for a reviewer: features, enrollment/access model, the test suite and results, the security review and fixes, and known-open items.
-- **[ADR-075 — Onboarding & Enhancements](../adr/075-little-monsters-onboarding-and-enhancements.md)** — the enhancement spec, change-impact analysis, and security review.
-- **[Architecture on OSHAL](../architecture/little-monsters-on-oshal-plan.md)** — architecture and sprint history.
-- **[Education content sources](../backlog/education-content-sources.md)** — backlog for content/material sources.
-- **[Manifest — `swarm-apps/little-monsters.yaml`](../../swarm-apps/little-monsters.yaml)** — the single source of truth: bots, routes, surfaces, theme.
+- **[ADR-075 — Onboarding & Enhancements](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/adr/075-little-monsters-onboarding-and-enhancements.md)** — the enhancement spec, change-impact analysis, and security review.
+- **[Architecture on oshal](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/architecture/little-monsters-on-oshal-plan.md)** — architecture and sprint history.
+- **[Education content sources](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/backlog/education-content-sources.md)** — backlog for content/material sources.
+- **[Package manifest — `oshal-app.yaml`](../oshal-app.yaml)** — the single source of truth: bots, routes, surfaces, theme.
 
 ---
 

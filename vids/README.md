@@ -12,10 +12,14 @@ Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface"):
 
 - **In this package:** the `/api/vids` routes (job/story dispatch + the embedded
   job-queue surface, `auth: service-or-oidc` — the same posture core server.ts
-  mounted, so the in-container `vids_generate` / `creative_*` CLI tools keep
-  reaching it with X-Service-Secret), the `vids_generate` tool, the manifest
+  mounted). Browser requests use their authenticated subject. In-container
+  `vids_generate` / `creative_*` calls must send both `X-Service-Secret` and the
+  canonical base64url `X-Oshal-User-Sub-B64` owner assertion; machine
+  authentication alone never grants access to a user's queue. The package also
+  contains the `vids_generate` tool, the manifest
   (ticketType `vids` + the studio pipeline), a package copy of the vids-operator
-  persona for the registrar, and a `migrations/` copy of 059 for fresh installs.
+  persona for the registrar, migration 059 for fresh installs, and migration 100
+  for owner/RLS upgrades on existing installs.
 - **Stays in the OSHAL kernel:** the SHARED **vids-operator remote-client desktop
   worker** (`packages/oshal-vids-operator`) with its registry entries in BOTH
   `swarm-bot-registry` blocks — all four vids-family apps (vids, creative-studio,
@@ -33,6 +37,12 @@ Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface"):
 The `creative-studio` store app declares this app as a dependency and tiles the
 same surface (story jobs land in `vids_jobs` too).
 
+Every job and deferred worker settlement is bound to the initiating subject.
+`vids_jobs` uses forced row-level security, list responses expose only that
+owner's rows, and terminal worker payloads are reduced to bounded prompt/status
+fields rather than persisting arbitrary remote output or error content. Dispatch
+options are allowlisted and every job-table cell is HTML-escaped before rendering.
+
 ## Install
 
 ```bash
@@ -49,3 +59,7 @@ npx oshal-vids worker             # register with the swarm + poll for jobs
 
 Without a registered worker, `POST /api/vids/jobs` returns 503 and the surface
 shows "no worker registered".
+
+Kernel CLI calls also require a non-empty `OSHAL_USER_SUB`; the CLI encodes it
+into `X-Oshal-User-Sub-B64` and fails closed before making a request when the
+identity or service secret is absent.

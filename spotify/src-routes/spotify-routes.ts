@@ -30,6 +30,8 @@
  *            | (spotify-bot container / registries / personas / spotifyToolKit.js /
  *            | oshal-spotify.js) stays core per ADR-093 interim. Logic unchanged.
  * ---------------------------------------------------------------------------
+ * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove Spotify credentials from generic orchestrator dispatch. Spotify Web API calls stay controller-side through getValidAccessToken and the model receives only bounded profile, track, playlist, and playback records.
+ *
  * @module spotify-routes
  */
 
@@ -42,7 +44,6 @@ import type { AppContext } from '@/app/composition/app-context';
 import type { Pool } from 'pg';
 import { getTrustedServiceUserSub } from '@/shared/middleware/authz';
 import { getValidAccessToken } from '@/app/routes/connectors-routes';
-import { resolveBotCreds } from '@/app/routes/connector-token-broker';
 import {
   spotifyMe, spotifySearchTracks, spotifyNowPlaying, spotifyMyPlaylists,
   spotifyTopTracks, spotifyCreatePlaylist, type SpotifyTrack,
@@ -320,12 +321,11 @@ export function createSpotifyRoutes(ctx: AppContext): Router {
     ]);
 
     const prompt = buildConciergePrompt({ message, history, candidates, topTracks, profile, notes, nowPlaying: nowPlayingRes?.track || null });
-    const creds = await resolveBotCreds(pool as unknown as never, sub, ['spotify']);
     let raw = '';
     try {
       const orchestrator = (ctx as any).orchestrator;
       const result = await orchestrator.processMessage(`spotify-${sub}-${randomUUID()}`, prompt, {
-        agenticMode: true, autoApprove: false, source: 'spotify', agentId: CONCIERGE_AGENT_ID, userSub: sub, creds,
+        agenticMode: false, autoApprove: false, source: 'spotify', agentId: CONCIERGE_AGENT_ID, userSub: sub,
       });
       raw = String(result?.response || '').trim();
     } catch (e) { logger.error({ e }, 'spotify concierge orchestrate failed'); }

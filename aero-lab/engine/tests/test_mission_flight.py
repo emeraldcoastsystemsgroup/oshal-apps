@@ -14,6 +14,10 @@ SEQ                 | AUTHOR                      | DESCRIPTION
   |                                           | REQUIRE modules 1-4 on disk -- they
   |                                           | fail loudly, they do not skip, once
   |                                           | the integration flag file exists).
+2 | maintainer@emeraldcoastsystemsgroup.com   | Test-harness isolation for the production
+  |                                           | free-RAM throttle: mission tests bypass only
+  |                                           | its up-to-180 s wait, never mission physics,
+  |                                           | so low-memory CI can complete the suite.
 -------------------------------------------------------------------------------
 """
 
@@ -47,6 +51,23 @@ _REAL = all(
     for m in ("aerosim.electrical", "aerosim.prop",
               "aerosim.vehicle.electrochem")
 )
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _disable_operator_memory_wait():
+    """Do not turn a production resource throttle into 540 s of test-suite idle time.
+
+    The guard changes process priority and waits while host RAM is scarce; neither effect is
+    mission physics. Tests still execute the complete profile, integrator, state and ledger paths.
+    """
+    from aerosim.mission import runner
+
+    original = runner._footprint_guard
+    runner._footprint_guard = lambda: None
+    try:
+        yield
+    finally:
+        runner._footprint_guard = original
 
 
 # ---------------------------------------------------------------------------

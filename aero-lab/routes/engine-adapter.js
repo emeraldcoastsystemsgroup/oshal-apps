@@ -27,6 +27,10 @@
  *                     |                             | inside the package. resolveEngineDir() now falls
  *                     |                             | through to engine/ when the documented default is
  *                     |                             | absent; the documented default still wins when present.
+ * 2026-08-06 12:30:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: isolate the
+ *                     |                             | numerical worker from controller credentials by
+ *                     |                             | forwarding only OS/runtime process essentials and
+ *                     |                             | disabling Python user-site imports.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -63,6 +67,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AeroEngineAdapter = exports.DEFAULT_ENGINE_DIR = exports.COMMAND_TIMEOUTS_MS = exports.AeroEngineError = void 0;
+exports.buildAeroWorkerEnv = buildAeroWorkerEnv;
 const fs = __importStar(require("fs"));
 const os = __importStar(require("os"));
 const path = __importStar(require("path"));
@@ -103,6 +108,26 @@ const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
 const IDLE_TIMEOUT_MS = 10 * 60_000;
 const QUEUE_CAP = 4;
 const CAPS_CACHE_TTL_MS = 60_000;
+const WORKER_ENV_ALLOWLIST = [
+    'PATH', 'SystemRoot', 'WINDIR', 'ComSpec', 'PATHEXT',
+    'TEMP', 'TMP', 'TMPDIR', 'LANG', 'LC_ALL', 'TZ',
+];
+/** Build the numerical worker's minimal environment without controller/application secrets. */
+function buildAeroWorkerEnv(engineDir, parent = process.env) {
+    const env = {};
+    for (const key of WORKER_ENV_ALLOWLIST) {
+        const value = parent[key];
+        if (value !== undefined)
+            env[key] = value;
+    }
+    return {
+        ...env,
+        AERO_LAB_ENGINE_DIR: engineDir,
+        PYTHONNOUSERSITE: '1',
+        PYTHONDONTWRITEBYTECODE: '1',
+        PYTHONUNBUFFERED: '1',
+    };
+}
 /**
  * @description Resolve the venv interpreter for an engine dir. STRICT: env override,
  * else the dedicated venv (win32 then posix layout). A missing venv resolves to the
@@ -341,7 +366,7 @@ class AeroEngineAdapter {
         try {
             proc = (0, child_process_1.spawn)(status.python, [status.workerPath], {
                 cwd: this.engineDir,
-                env: { ...process.env, PYTHONUNBUFFERED: '1', AERO_LAB_ENGINE_DIR: this.engineDir },
+                env: buildAeroWorkerEnv(this.engineDir),
                 stdio: ['pipe', 'pipe', 'pipe'],
             });
         }

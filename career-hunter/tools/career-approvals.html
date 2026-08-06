@@ -1,10 +1,26 @@
 <!doctype html>
+<!--
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  SEQ                 | AUTHOR                                      | DESCRIPTION
+  -----------------------------------------------------------------------------
+  1 | maintainer@emeraldcoastsystemsgroup.com | Render truthful, redacted application provenance and keep manual or worker-reported outcomes distinct from confirmation-backed records.
+  2 | maintainer@emeraldcoastsystemsgroup.com | State that each explicit auto-apply action authorizes the connected worker to click the employer's final Submit button.
+-->
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Career Hunter — Approvals</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
 <script src="/shared/ui/js/surface-theme.js"></script>
 <link rel="stylesheet" href="/api/career-hunter/static/career-hunter.css">
 <style>
+.application-proof { margin:7px 0 0; padding:6px 8px; border:1px solid var(--line); border-radius:7px;
+  color:var(--muted); font-size:12px; line-height:1.4; }
+.application-proof b { display:block; color:var(--text); }
+.application-proof.proof-manual { border-color:rgba(124,108,255,.42); }
+.application-proof.proof-worker { border-color:rgba(255,180,84,.48); }
+.application-proof.proof-confirmation { border-color:rgba(0,211,167,.52); }
+.application-proof.proof-unverified { border-color:rgba(255,107,107,.42); }
+.badge.b-applied { color:var(--muted); background:transparent; }
 @media (max-width: 640px) {
   .wrap { padding: 12px 12px 48px; }
   /* Header row: stack top area so button doesn't overflow */
@@ -37,7 +53,7 @@
 </head><body>
 <div class="wrap">
   <h1>Application Approvals</h1>
-  <p class="lede">Your top-scored roles, queued for a decision. <b>Approve</b> writes a standard résumé + cover; <b>Approve + OSHAL</b> adds your open-source / agentic section; <b>Deny</b> dismisses the role. Nothing is written or sent without your click. Résumés and cover letters are AI-assisted from the profile you provided — review them before applying, and note that submitting a role runs a browser on a connected desktop worker node on your behalf (you click the final Submit).</p>
+  <p class="lede">Your top-scored roles, queued for a decision. <b>Approve</b> writes a standard résumé + cover; <b>Approve + OSHAL</b> adds your open-source / agentic section; <b>Deny</b> dismisses the role. Nothing is written or sent without your click. Résumés and cover letters are AI-assisted from the profile you provided — review them before applying. Each later Auto-apply click authorizes one exact task on your connected desktop worker to fill the employer form and click its final Submit button.</p>
 
   <div class="card">
     <div class="row" style="justify-content:space-between">
@@ -77,23 +93,64 @@ function render(apps){
       acts.push(`<button class="btn primary" data-act="approve-oshal" data-id="${a.posting_id}">Approve + OSHAL</button>`);
       acts.push(`<button class="btn danger" data-act="deny" data-id="${a.posting_id}">Deny</button>`);
     } else if(st === 'drafted'){
-      acts.push(`<button class="btn primary" data-act="applied" data-id="${a.posting_id}">Mark applied</button>`);
+      acts.push(`<button class="btn primary" data-act="applied" data-id="${a.posting_id}">Mark applied manually</button>`);
       acts.push(`<button class="btn danger" data-act="deny" data-id="${a.posting_id}">Deny</button>`);
     }
     return `<div class="app">
       <div class="meta">
         <div class="title">${esc(a.title||'(role)')} ${a.include_oshal?'<span class="badge b-drafted">OSHAL</span>':''}</div>
         <div class="co">${esc(a.company||'')}</div>
+        ${applicationProofHtml(a.application_proof||a)}
       </div>
-      <div class="acts"><span class="badge b-${st}">${st.replace(/_/g,' ')}</span>${acts.join('')}</div>
+      <div class="acts"><span class="badge b-${esc(st)}">${esc(st==='applied'?'application recorded':st.replace(/_/g,' '))}</span>${acts.join('')}</div>
     </div>`;
   }).join('');
 }
+// APPLICATION_PROVENANCE_START
 function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
+const APPLICATION_PROVENANCE=Object.freeze({
+  'manual-mark':{tone:'manual',label:'Marked applied manually',detail:'An operator recorded this status; no automated submission confirmation is claimed.'},
+  'worker-reported':{tone:'worker',label:'Worker reported submitted',detail:'A worker reported completion; employer receipt is not confirmed.'},
+  'verified-submission':{tone:'confirmation',label:'Confirmation file present',detail:'A retained confirmation artifact exists; this does not prove employer acceptance.'},
+  unverified:{tone:'unverified',label:'Historical applied — unverified',detail:'No source and retained confirmation jointly establish this historical status.'},
+});
+/** Reduce a worker task id to a non-sensitive diagnostic suffix, never the full identifier. */
+function applicationTaskReference(value){
+  if(typeof value!=='string') return '';
+  const raw=value.trim(); if(!raw) return '';
+  if(raw.length<=8) return 'Worker task recorded';
+  const tail=raw.replace(/[^A-Za-z0-9]/g,'').slice(-6);
+  return tail.length===6?`Worker task …${tail}`:'Worker task recorded';
+}
+/** Resolve the exact allowlisted source; missing and future values deliberately fail closed. */
+function applicationProvenance(record){
+  const raw=record&&typeof record.application_source==='string'?record.application_source:'';
+  let source=Object.prototype.hasOwnProperty.call(APPLICATION_PROVENANCE,raw)?raw:'unverified';
+  const hasConfirmation=record&&typeof record.confirmation_path==='string'&&record.confirmation_path.trim();
+  if(source==='verified-submission'&&!hasConfirmation) source='unverified';
+  const base=APPLICATION_PROVENANCE[source]; let detail=base.detail;
+  if(source==='worker-reported'){
+    const ref=applicationTaskReference(record.application_task_id); detail=(ref?ref+'. ':'')+detail;
+  }
+  return {source,tone:base.tone,label:base.label,detail};
+}
+/** Render only escaped summary text; raw task ids and confirmation paths never enter the DOM. */
+function applicationProofHtml(record){
+  const summarized=record&&typeof record.tone==='string'&&typeof record.label==='string';
+  if(!record||(!summarized&&record.status!=='applied')) return '';
+  const proof=summarized?record:applicationProvenance(record);
+  return `<div class="application-proof proof-${esc(proof.tone)}"><b>${esc(proof.label)}</b><span>${esc(proof.detail)}</span></div>`;
+}
+// APPLICATION_PROVENANCE_END
+
 async function load(){
-  const r = await fetch(API+'/applications').then(r=>r.json()).catch(()=>({applications:[]}));
-  render((r.applications||[]).filter(a=>true));
+  const [r,evidence]=await Promise.all([
+    fetch(API+'/applications').then(r=>r.json()).catch(()=>({applications:[]})),
+    fetch(API+'/jobs?status=applied&sort=applied&per=150&lane=all').then(r=>r.json()).catch(()=>({jobs:[]})),
+  ]);
+  const proofs=new Map((evidence.jobs||[]).map(job=>[Number(job.id),applicationProvenance(job)]));
+  render((r.applications||[]).map(a=>({...a,application_proof:proofs.get(Number(a.posting_id))})));
 }
 $('#enqueue').onclick = async () => {
   $('#enqueue').disabled = true; $('#enqueue').innerHTML='<span class="spin"></span> Pulling…';
@@ -111,7 +168,7 @@ $('#list').addEventListener('click', async (e) => {
   else if(act==='approve-oshal') r = await jpost(`${API}/applications/${id}/approve`, { oshal:true });
   else if(act==='applied')   r = await jpost(`${API}/applications/${id}/applied`, {});
   else if(act==='deny')      r = await jpost(`${API}/applications/${id}/deny`, {});
-  if(r && r.ok!==false) toast(act==='deny'?'Denied':act==='applied'?'Marked applied':'Drafted résumé + cover');
+  if(r && r.ok!==false) toast(act==='deny'?'Denied':act==='applied'?'Marked applied manually':'Drafted résumé + cover');
   else toast('Failed: '+((r&&r.error)||'error'));
   load();
 });

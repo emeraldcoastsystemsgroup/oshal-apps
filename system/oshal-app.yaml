@@ -24,6 +24,27 @@ source:
   path: system
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/system/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/system/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # Installing this launcher also resolves every sibling (games-launcher precedent) —
 # npm-style dependency resolution, fail-closed.
 dependencies:

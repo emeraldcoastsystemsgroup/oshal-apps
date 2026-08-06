@@ -6,6 +6,7 @@
  * 2026-07-21 20:09:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Guard executable-line caps and exact Roger-authored Change Log headers for the modular character importer, multiplayer guard, migrations, personas, and D&D test suite.
  * 2026-07-21 20:12:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Extend the header contract to every production module, every test, and the package manifest after concurrent ownership ended.
  * 2026-07-21 22:43:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Enforce the repository-wide 800-line decomposition threshold and sub-50-line function rule for every D&D JavaScript module and regression guard.
+ * 2026-08-06 02:43:35 | maintainer@emeraldcoastsystemsgroup.com     | Keep historical Roger-authored entries valid while requiring every new automation-owned change to use the approved project maintainer identity.
  */
 
 'use strict';
@@ -16,7 +17,10 @@ const path = require('node:path');
 const test = require('node:test');
 
 const ROOT = path.join(__dirname, '..');
-const AUTHOR = 'roger.murphy@emeraldcoastsystemsgroup.com';
+const AUTHORS = new Set([
+  'roger.murphy@emeraldcoastsystemsgroup.com',
+  'maintainer@emeraldcoastsystemsgroup.com',
+]);
 /** @description Read one package-relative UTF-8 source with normalized newlines. */
 function sourceOf(relativePath) {
   return fs.readFileSync(path.join(ROOT, relativePath), 'utf8').replace(/\r\n/g, '\n');
@@ -87,7 +91,7 @@ function assertBlockHeader(relativePath) {
   assert.match(source, /^\/\*\*\n \* CHANGE LOG\n \* -{77}\n \* DATE\/TIME\s+\| AUTHOR\s+\| DESCRIPTION\n \* -{77}/, relativePath);
   const entries = [...header.matchAll(/^ \* \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \| ([^|]+?)\s+\|/gm)];
   assert.ok(entries.length, `${relativePath} needs a dated Change Log entry`);
-  for (const entry of entries) assert.equal(entry[1].trim(), AUTHOR, relativePath);
+  for (const entry of entries) assert.ok(AUTHORS.has(entry[1].trim()), relativePath);
   assert.doesNotMatch(header, /OpenAI Codex|Claude|System\s+\|/, relativePath);
 }
 
@@ -97,7 +101,7 @@ function assertYamlHeader(relativePath) {
   assert.match(source, /^# CHANGE LOG\n# -{77}\n# DATE\/TIME\s+\| AUTHOR\s+\| DESCRIPTION\n# -{77}/, relativePath);
   const entries = [...source.matchAll(/^# \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \| ([^|]+?)\s+\|/gm)];
   assert.ok(entries.length, `${relativePath} needs a dated Change Log entry`);
-  for (const entry of entries) assert.equal(entry[1].trim(), AUTHOR, relativePath);
+  for (const entry of entries) assert.ok(AUTHORS.has(entry[1].trim()), relativePath);
 }
 
 test('all D&D JavaScript stays below the 800 executable-line decomposition threshold', () => {

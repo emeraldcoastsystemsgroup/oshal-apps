@@ -13,6 +13,7 @@
  * 2026-07-22 01:05:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Retain archived campaigns in My Games and mark terminal persisted boards archived without deleting membership, characters, state, or history.
  * 2026-07-23 01:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Persist an exact permanent checkpoint in the same transaction that advances into every combat round.
  * 2026-07-23 12:35:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Create new tables from an allowlisted adventure while preserving the selected story identity in encounter state.
+ * 2026-08-06 02:43:35 | maintainer@emeraldcoastsystemsgroup.com     | Arm join-code admission as a validated transaction-local database capability before any RLS-protected campaign lookup.
  */
 
 'use strict';
@@ -463,6 +464,10 @@ function participantCount(campaign, seats) {
 
 /** @description Join one setup lobby while its campaign row serializes capacity decisions. */
 async function joinCampaignRows(_deps, db, transactional, sub, name, code) {
+  if (!transactional) {
+    return { ok: false, code: 'JOIN_TRANSACTION_REQUIRED', error: 'Joining a shared table requires an atomic database transaction.' };
+  }
+  await db.query("SELECT set_config('oshal.dnd_join_code', $1, true)", [code]);
   const locked = await db.query(
     `SELECT c.campaign_id, c.user_sub, e.state FROM dnd_campaigns c
        JOIN dnd_encounters e ON e.campaign_id=c.campaign_id
@@ -500,6 +505,9 @@ async function joinCampaignRows(_deps, db, transactional, sub, name, code) {
 /** @description Join one active setup campaign atomically by its share code. */
 async function joinCampaign(deps, sub, name, body) {
   const code = String((body && body.code) || '').trim().toUpperCase();
+  if (!/^[A-F0-9]{6}$/.test(code)) {
+    return { ok: false, code: 'GAME_NOT_FOUND', error: 'No game found with that code.' };
+  }
   return withTransaction(deps.pool,
     (db, transactional) => joinCampaignRows(deps, db, transactional, sub, name, code));
 }

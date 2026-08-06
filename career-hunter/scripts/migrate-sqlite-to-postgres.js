@@ -4,6 +4,11 @@
  * SEQ | AUTHOR                                    | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com | Bulk-load the SQLite stores (shared corpus + every per-user db) into the Postgres schema from migrations 095/096, so per-user isolation is enforced by FORCE RLS instead of by separate files on a volume.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Round-trip application provenance and task correlation without erasing an existing Postgres value when an older SQLite store has no provenance.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Carry apply-claim lease timestamps and make conflict replay monotonic: weaker SQLite evidence cannot replace stronger Postgres provenance or an existing applied timestamp.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Preserve durable Apply run correlation while refusing to migrate live one-time claim tokens from an offline SQLite snapshot.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Make every corpus and per-user dataset converge on replay, including stable interview source ids; retain loud natural-key conflicts.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Refuse source postings without required titles instead of manufacturing an apparently valid corpus row.
  */
 
 // Moves the career-hunter store from SQLite to Postgres.
@@ -102,6 +107,38 @@ async function insertBatched(pg, table, cols, rows, conflict) {
 const bool = (v) => (v === null || v === undefined ? null : !!v);
 const int = (v) => (v === null || v === undefined ? null : Number(v));
 
+/** Rank explicit application evidence; higher numbers are strictly stronger. */
+function applicationProvenanceRank(expr) {
+  return `(CASE ${expr} WHEN 'verified-submission' THEN 4 WHEN 'worker-reported' THEN 3 ` +
+    `WHEN 'manual-mark' THEN 2 WHEN 'unverified' THEN 1 ELSE 0 END)`;
+}
+
+/** Select an evidence field from whichever row has stronger provenance, retaining same-rank data. */
+function monotonicEvidenceAssignment(field, incomingRank, currentRank) {
+  return `${field} = CASE WHEN ${incomingRank} > ${currentRank} THEN EXCLUDED.${field} ` +
+    `WHEN ${incomingRank} < ${currentRank} THEN career_user_applications.${field} ` +
+    `ELSE COALESCE(EXCLUDED.${field}, career_user_applications.${field}) END`;
+}
+
+/** Conflict clause for a resumable loader that cannot downgrade application evidence. */
+function applicationConflictSql() {
+  const incomingRank = applicationProvenanceRank('EXCLUDED.application_source');
+  const currentRank = applicationProvenanceRank('career_user_applications.application_source');
+  const evidence = ['confirmation_path', 'application_source', 'application_task_id']
+    .map((field) => monotonicEvidenceAssignment(field, incomingRank, currentRank)).join(', ');
+  return 'ON CONFLICT (user_sub, posting_id) DO UPDATE SET ' +
+    "status = CASE WHEN career_user_applications.status = 'applied' THEN 'applied' ELSE EXCLUDED.status END, " +
+    'resume_path = EXCLUDED.resume_path, cover_path = EXCLUDED.cover_path, ' +
+    'promoted_at = EXCLUDED.promoted_at, generated_at = EXCLUDED.generated_at, ' +
+    'outreach_sent_at = EXCLUDED.outreach_sent_at, ' +
+    'applied_at = COALESCE(career_user_applications.applied_at, EXCLUDED.applied_at), ' +
+    'notes = EXCLUDED.notes, apply_active = EXCLUDED.apply_active, ' +
+    'apply_claimed_at = EXCLUDED.apply_claimed_at, ' +
+    'apply_run_id = COALESCE(career_user_applications.apply_run_id, EXCLUDED.apply_run_id), ' +
+    'apply_claim_token = career_user_applications.apply_claim_token, ' +
+    `${evidence}`;
+}
+
 
 /** Pass through text that is already a JSON array; wrap a real array; else NULL.
  *  Guards the double-encoding bug described at the call site. */
@@ -176,11 +213,27 @@ async function main() {
         gsearched: bool(c.gsearched), referral: int(c.referral) || 0,
         source_lists: c.source_lists || null, last_scraped_at: ts(c.last_scraped_at),
       })),
-      'ON CONFLICT (id) DO NOTHING',
+      'ON CONFLICT (id) DO UPDATE SET ' +
+        'name=EXCLUDED.name, ticker=EXCLUDED.ticker, domain=EXCLUDED.domain, ' +
+        'homepage=EXCLUDED.homepage, careers_url=EXCLUDED.careers_url, ' +
+        'ats_type=EXCLUDED.ats_type, ats_token=EXCLUDED.ats_token, industry=EXCLUDED.industry, ' +
+        'hq=EXCLUDED.hq, discover_status=EXCLUDED.discover_status, ' +
+        'gsearched=EXCLUDED.gsearched, referral=EXCLUDED.referral, ' +
+        'source_lists=EXCLUDED.source_lists, last_scraped_at=EXCLUDED.last_scraped_at, ' +
+        'updated_at=NOW()',
     );
   }
 
   const nPost = probe.prepare('SELECT COUNT(*) n FROM corpus.postings_corpus').get().n;
+  const missingPostTitles = probe.prepare(
+    "SELECT COUNT(*) n FROM corpus.postings_corpus WHERE title IS NULL OR trim(title) = ''",
+  ).get().n;
+  if (missingPostTitles) {
+    throw new Error(
+      `${missingPostTitles} source posting(s) have no title; repair or explicitly quarantine ` +
+      'them before migration. The PostgreSQL title is NOT NULL and the loader will not invent one.',
+    );
+  }
   log(`postings: ${nPost}`);
   if (!DRY) {
     const stmt = probe.prepare('SELECT * FROM corpus.postings_corpus LIMIT ? OFFSET ?');
@@ -194,7 +247,7 @@ async function main() {
           'posted_date', 'first_seen_at', 'last_seen_at', 'active'],
         rows.map((p) => ({
           id: p.id, company_id: p.company_id, ats_job_id: String(p.ats_job_id ?? ''),
-          title: p.title || '(untitled)', description: p.description, url: p.url,
+          title: p.title, description: p.description, url: p.url,
           location: p.location, city: p.city, state: p.state, lat: p.lat, lon: p.lon,
           remote: bool(p.remote), department: p.department, job_type: p.job_type,
           salary_min: p.salary_min, salary_max: p.salary_max, salary_currency: p.salary_currency,
@@ -203,7 +256,18 @@ async function main() {
           first_seen_at: ts(p.first_seen_at), last_seen_at: ts(p.last_seen_at),
           active: bool(p.active),
         })),
-        'ON CONFLICT (id) DO NOTHING',
+        'ON CONFLICT (id) DO UPDATE SET ' +
+          'company_id=EXCLUDED.company_id, ats_job_id=EXCLUDED.ats_job_id, ' +
+          'title=EXCLUDED.title, description=EXCLUDED.description, url=EXCLUDED.url, ' +
+          'location=EXCLUDED.location, city=EXCLUDED.city, state=EXCLUDED.state, ' +
+          'lat=EXCLUDED.lat, lon=EXCLUDED.lon, remote=EXCLUDED.remote, ' +
+          'department=EXCLUDED.department, job_type=EXCLUDED.job_type, ' +
+          'salary_min=EXCLUDED.salary_min, salary_max=EXCLUDED.salary_max, ' +
+          'salary_currency=EXCLUDED.salary_currency, salary_period=EXCLUDED.salary_period, ' +
+          'salary_raw=EXCLUDED.salary_raw, salary_source=EXCLUDED.salary_source, ' +
+          'posted_at=EXCLUDED.posted_at, posted_date=EXCLUDED.posted_date, ' +
+          'first_seen_at=EXCLUDED.first_seen_at, last_seen_at=EXCLUDED.last_seen_at, ' +
+          'active=EXCLUDED.active',
       );
       log(`  postings ${Math.min(off + 20000, nPost)}/${nPost}`);
     }
@@ -279,29 +343,33 @@ async function main() {
         const appRows = rows.filter(
           (s) => (s.status && s.status !== 'new') || s.applied_at || s.resume_path ||
                  s.cover_path || s.generated_at || s.promoted_at || s.outreach_sent_at ||
-                 s.confirmation_path || s.notes,
+                 s.apply_claimed_at || s.confirmation_path || s.application_source ||
+                 s.application_task_id || s.apply_run_id || s.notes,
         );
         apps += await insertBatched(
           pg, 'career_user_applications',
           ['user_sub', 'posting_id', 'status', 'resume_path', 'cover_path', 'promoted_at',
             'generated_at', 'outreach_sent_at', 'applied_at', 'notes', 'apply_active',
-            'confirmation_path'],
+            'apply_claimed_at', 'apply_run_id', 'apply_claim_token', 'confirmation_path',
+            'application_source', 'application_task_id'],
           appRows.map((s) => ({
             user_sub: sub, posting_id: s.posting_id, status: s.status || 'new',
             resume_path: s.resume_path, cover_path: s.cover_path, promoted_at: ts(s.promoted_at),
             generated_at: ts(s.generated_at), outreach_sent_at: ts(s.outreach_sent_at),
             applied_at: ts(s.applied_at), notes: s.notes,
             apply_active: s.apply_active === null || s.apply_active === undefined ? 1 : int(s.apply_active),
+            apply_claimed_at: int(s.apply_claimed_at),
+            apply_run_id: s.apply_run_id || null,
+            // Offline snapshots cannot prove that a token still owns a live claim. Importing one
+            // would let stale backup state compete with the authoritative controller ledger.
+            apply_claim_token: null,
             confirmation_path: s.confirmation_path,
+            application_source: s.application_source,
+            application_task_id: s.application_task_id,
           })),
-          // Same reasoning as the scores upsert above: status and the lifecycle timestamps
-          // change on rows that already exist.
-          'ON CONFLICT (user_sub, posting_id) DO UPDATE SET ' +
-            'status = EXCLUDED.status, resume_path = EXCLUDED.resume_path, ' +
-            'cover_path = EXCLUDED.cover_path, promoted_at = EXCLUDED.promoted_at, ' +
-            'generated_at = EXCLUDED.generated_at, outreach_sent_at = EXCLUDED.outreach_sent_at, ' +
-            'applied_at = EXCLUDED.applied_at, notes = EXCLUDED.notes, ' +
-            'apply_active = EXCLUDED.apply_active, confirmation_path = EXCLUDED.confirmation_path',
+          // Replays update ordinary lifecycle fields but never erase an applied timestamp or replace
+          // stronger evidence with a weaker/older SQLite source.
+          applicationConflictSql(),
         );
       }
     }
@@ -322,7 +390,14 @@ async function main() {
           next_action: r.next_action ?? null, notes: r.notes ?? null,
           sort_order: int(r.sort_order),
         })),
-        'ON CONFLICT (user_sub, id) DO NOTHING',
+        'ON CONFLICT (user_sub, id) DO UPDATE SET ' +
+          'firm=EXCLUDED.firm, bucket=EXCLUDED.bucket, website=EXCLUDED.website, ' +
+          'contact_name=EXCLUDED.contact_name, contact_role=EXCLUDED.contact_role, ' +
+          'contact_link=EXCLUDED.contact_link, resume_label=EXCLUDED.resume_label, ' +
+          'channel=EXCLUDED.channel, status=EXCLUDED.status, ' +
+          'date_contacted=EXCLUDED.date_contacted, followup_date=EXCLUDED.followup_date, ' +
+          'next_action=EXCLUDED.next_action, notes=EXCLUDED.notes, ' +
+          'sort_order=EXCLUDED.sort_order, updated_at=NOW()',
       );
     }
 
@@ -336,7 +411,10 @@ async function main() {
           sample_gaps: g.sample_gaps ?? null, status: g.status ?? null,
           response: g.response ?? null, answered_at: ts(g.answered_at),
         })),
-        'ON CONFLICT (user_sub, key) DO NOTHING',
+        'ON CONFLICT (user_sub, key) DO UPDATE SET ' +
+          'n_jobs=EXCLUDED.n_jobs, avg_fit=EXCLUDED.avg_fit, ' +
+          'sample_gaps=EXCLUDED.sample_gaps, status=EXCLUDED.status, ' +
+          'response=EXCLUDED.response, answered_at=EXCLUDED.answered_at, updated_at=NOW()',
       );
     }
 
@@ -344,13 +422,17 @@ async function main() {
     if (!DRY && ia.length) {
       await insertBatched(
         pg, 'career_user_interview_assessments',
-        ['user_sub', 'at', 'company', 'role', 'transcript', 'answers', 'result', 'finalized'],
+        ['user_sub', 'source_id', 'at', 'company', 'role', 'transcript', 'answers', 'result', 'finalized'],
         ia.map((a) => ({
-          user_sub: sub, at: ts(a.at), company: a.company ?? null, role: a.role ?? null,
+          user_sub: sub, source_id: int(a.id), at: ts(a.at),
+          company: a.company ?? null, role: a.role ?? null,
           transcript: a.transcript ?? null, answers: a.answers ?? null,
           result: a.result ?? null, finalized: int(a.finalized) || 0,
         })),
-        'ON CONFLICT DO NOTHING',
+        'ON CONFLICT (user_sub, source_id) WHERE source_id IS NOT NULL DO UPDATE SET ' +
+          'at=EXCLUDED.at, company=EXCLUDED.company, role=EXCLUDED.role, ' +
+          'transcript=EXCLUDED.transcript, answers=EXCLUDED.answers, ' +
+          'result=EXCLUDED.result, finalized=EXCLUDED.finalized',
       );
     }
 

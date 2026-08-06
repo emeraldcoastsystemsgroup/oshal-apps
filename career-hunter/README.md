@@ -1,87 +1,139 @@
-# Career Hunter — OSHAL app package
+# Career Hunter — oshal app package
 
-The job-hunting application, carved out of OSHAL core 2026-07-18 (**ADR-085 Wave 3 #1 —
-the largest carve**: ~5,300 LOC of app code ships here; the engine chain stays
-framework-resident).
+The job-hunting application carved out of the oshal kernel under ADR-085. Its TypeScript routes,
+Node CLI wrapper, Python `jobhunter` engine, persona, migrations, and browser surfaces ship in this
+package. The kernel supplies shared runtime capabilities and mounts the package; it does not own
+Career Hunter domain code.
 
-Nightly shared scrape over ~1,240 companies → per-user keyword match → AI scoring →
-title pass → approval queue → apply pipeline handoff; morning digest (Gmail/Twilio,
-opt-out); native board / recruiters / strengthen / insights / approvals / settings /
-resume-studio / profile-studio / mobile swipe surfaces; jobs knowledge graph.
+The workflow is: shared employer ATS scrape → per-user keyword match → AI scoring → title pass →
+approval queue → apply-pipeline handoff. It also provides the morning digest, native board,
+recruiters, strengthen, insights, approvals, settings, Resume Studio, Profile Studio, mobile swipe,
+submissions, and the jobs knowledge graph.
 
 ## Shape
 
-- `oshal-app.yaml` — manifest: TWO route mounts (`/api/career-hunter` service-or-oidc —
-  data routes still resolve OIDC and 401 service callers, only `/run/refresh` honors the
-  trusted service sub re-checked against career-admin; `/api/career-hunter/graph` oidc),
-  the single `career-hunter` bot (registrar-registered at activate;
-  `chatBot: career-hunter` drives the cockpit chat panel), the 12 CLI tools
-  (`career_database` … `career_refresh_status`), 10 ribbon tiles, ticketType
-  `career-application` + workflow, `guestTier: readonly` request.
-- `src-routes/` — the 12 route modules (compiled to `routes/` by `oshal-app build`):
-  the hub (`career-hunter-routes`), the cron (`career-hunter-cron` — 18:00 CT scrape +
-  07:00 CT digest + boot catch-up, gated by `CAREER_HUNTER_CRON`, started at mount),
-  digest, title-score, resume-studio, profile-studio, artifacts, job-guide, the
-  jobs graph, plus the two the board leans on — `career-board-feed` (the feed's query
-  planner) and `career-resume-preview` (the in-surface packet preview). Surfaces serve
-  from this package's `tools/` (`__dirname`-relative).
-- `tools/` — 11 surfaces + `career-hunter.css` (loaded via `/api/career-hunter/static/`).
-- `migrations/` — idempotent copies of 031/077/082 + **new `090-career-rls.sql`**
-  (closes the audit-found gap: digest + score settings shipped without owner RLS).
-- `tests/` — 8 app-owned suites: the vitest specs (resume alias, digest ×2, title-score,
-  board dismiss filter, graph ingestion) and the dependency-free `node --test` suites the
-  `career-hunter` store-ci job runs against the COMPILED modules (`board-feed-plan`,
-  `board-surface`, `resume-preview`, `migration-index-names`).
-- `scripts/` — the graph + insights smoke scripts.
+- `oshal-app.yaml` declares the service-or-OIDC `/api/career-hunter` mount, OIDC graph mount,
+  package bot, CLI tools, ribbon surfaces, `career-application` workflow, migrations, and requested
+  guest tier. Data routes still derive their subject from OIDC; only the admin refresh accepts a
+  trusted service subject and then rechecks Career administration.
+- `src-routes/` contains small route-family registrars plus dependency leaves for user-store paths,
+  brokered engine dispatch, process leases, transactional files, cron, feeds, scoring, studios,
+  artifacts, job guide, graph, and onboarding. The canonical `oshal-app build` compiles every
+  source module into `routes/`; package-relative imports must resolve inside that generated tree.
+- `bin/oshal-jobhunter.js` and `engine/` are the package-owned CLI and Python domain engine.
+  Mounted routes broker only the authenticated caller's provider credentials into finite
+  asynchronous children; direct manifest tools enter the same user-store concurrency boundary.
+- `tools/` contains the package surfaces and `career-hunter.css`, served from this package.
+- `migrations/` contains the idempotent Career schema, RLS, corpus, compatibility-view, and
+  interview-bank migrations.
+- `tests/` contains Vitest and dependency-free `node --test` guards covering source and compiled
+  runtime behavior, tenant paths, engine leases, bounded extraction, upload rollback, board
+  planning, digest routing, graph ingestion, and resume preview behavior.
+- `scripts/` contains graph and insights smoke checks.
 
-## Two things about the board that are not obvious from the code
+## Two board details that are not obvious from the code
 
-**The feed is planned, not joined** (`career-board-feed`). The obvious query — join the corpus,
-LEFT JOIN the user's signals, sort — took **50 seconds** on the live store (1.45M postings /
-2.0GB `corpus.db`, of which **1.1GB is `description` text**, so every posting row SQLite touches
-drags ~2.6KB the board never renders through the page cache). The feed instead drives from
-`user_signals` through `idx_user_scored` in sort-key order, bounded by a candidate pool, and
-reaches the corpus only for that bounded set; signal-side predicates are pushed INTO the pool so
-the index walk is range-bounded. Same 150 rows, same order — **37ms**. Two rules that keep it
-that way: predicates stay **sargable** (`p.target_role = 1`, never `COALESCE(p.target_role,0) = 1`
-— equivalent, but no index can serve the second), and the board's SELECT never grows to include
-`p.description`. The board indexes + `ANALYZE` live in `engine/jobhunter/db.py`'s schema, so a
-fresh install gets them; if a board is slow on a new box, check `sqlite_stat1` exists first.
+**The feed is planned, not joined** (`career-board-feed`). Joining the full corpus to user signals
+made the live multi-gigabyte corpus drag description text through the page cache even though the
+board never renders it. The feed instead drives from `user_signals` through `idx_user_scored` in
+sort-key order, bounds the candidate pool, and reaches the corpus only for that set. Signal-side
+predicates remain inside the bounded pool. Keep predicates sargable (`p.target_role = 1`, not a
+`COALESCE` wrapper), and do not add `p.description` to the board select. The supporting indexes and
+`ANALYZE` setup live in `engine/jobhunter/db.py`; check `sqlite_stat1` first on a slow new install.
 
-**The packet preview serves HTML, not the PDF** (`career-resume-preview`, `?as=html`). No mobile
-browser renders a PDF in an `<iframe>` — iOS has no in-page PDF renderer at all and only hands
-PDFs to its native viewer on *top-level* navigations, so the frame keeps its full CSS box and
-paints nothing, while `load` still fires so the page cannot detect it. It renders fine on every
-desktop, which is why the blank preview was reported more than once before it was found. The
-generator writes the HTML *first* and prints the PDF from it, so a byte-exact source of every
-packet is already on disk beside it; the preview serves that sibling with an appended
-`@media screen` stylesheet (the templates are laid out for 8.5in). A missing sibling **404s and
-must never fall back to the PDF** — a silent fallback restores the invisible preview with no way
-to tell. The PDF stays the artifact of record and every surface keeps a link to open it.
+**The packet preview serves HTML, not the PDF** (`career-resume-preview`, `?as=html`). Mobile
+browsers do not reliably render a PDF inside an iframe. The generator already writes the HTML
+source beside the PDF, so preview serves that sibling with screen-only responsive CSS. A missing
+HTML sibling returns 404 and must not silently fall back to an invisible embedded PDF. The PDF
+remains the byte-identical artifact of record and every surface retains a top-level link to it.
 
-## What deliberately stays in the framework (ADR-093 interim)
+## Runtime ownership and shared kernel rails
 
-- **The engine chain:** `apps/career-hunter/` (the 8.5k-LOC Python `jobhunter` engine +
-  templates + seeds), `scripts/oshal-jobhunter.js` (the wrapper this package's routes and
-  the bots BOTH shell at `/app`), `careerHunterTool.js` / `applyOperatorTools.js` (bot
-  toolkits), python3 in the image.
-- **The bot's runtime:** inline packaged shape on the api (no dedicated containers, no kernel registry
-  blocks, personas at `/app/ai-lab/bot-personas/`, migration 041-equivalent seed (031's
-  agents rows).
-- **The data:** the 9.8 GB SQLite store (shared `corpus.db` + per-user dbs) on the
-  `api-output` volume at `/app/output/career-hunter-data` — `JOBHUNTER_STORE_ROOT`
-  unchanged; Postgres `career_*` tables stay in place (backup
-  `oshal-career-backup-verified-2026-07-18.sql` taken at carve).
-- **Cross-app rails:** the apply pipeline (`job-apply` app, `oshal-apply.js`,
-  apply-operator + linkedin-profile-operator remote bots), the Profile Studio feature
-  slice + `/api/profile-studio` ingest callback, Portrait Studio.
-- **The morning brief** consumes this app's hits through the kernel's
-  `career-brief-bridge` (skip-if-absent — the brief survives the app being uninstalled).
+- **Package-owned:** the Python engine, templates, seeds, wrapper, routes, persona, migrations,
+  and Career-specific browser assets in this directory.
+- **Kernel-owned runtime:** the package loader, authenticated route mount, inline bot execution,
+  connector-token cryptography, graph and notification skills, and the Python/Node interpreters.
+  Career code reaches these through declared package imports and context rather than copying
+  kernel implementations.
+- **Data:** the shared corpus and per-user SQLite stores remain on the configured persistent
+  Career data volume as the default backend; the staged PostgreSQL backend uses a shared corpus
+  plus FORCE-RLS owner tables. `JOBHUNTER_STORE` accepts exactly `sqlite` or `postgres` and fails
+  closed on every other value. Raw OIDC subjects remain the database/RLS identity; filesystem names use the
+  package's reversible, contained user-segment mapper. An exact direct-child legacy raw-subject
+  directory (for example Linux `auth0|abc`) remains an in-place compatibility alias, including its
+  existing `user-<raw-sub>.db` basename, so database bytes and absolute artifact paths are not
+  silently relocated. New unsafe identities use identity-marked encoded directories.
+- **Cross-app rails:** the apply pipeline, apply operator, LinkedIn profile operator, Portrait
+  Studio, and Profile Studio ingest callback remain shared integrations.
+- **Morning brief:** the kernel's `career-brief-bridge` consumes this package's hits and skips them
+  cleanly when the package is absent.
 
-## Engine-in-package follow-up
+<!-- 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | Document fail-closed credential recovery after removal of the public encryption-key fallback. -->
+<!-- 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | Document the canonical framework build and dependency-free versus framework-backed Career validation commands. -->
+<!-- 2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | Document exact engine pins, the required dual-backend contract, convergence evidence, and the gated cutover runbook. -->
 
-Plan §6's end-state ("engines ship IN the package, python3 on the node") waits on the
-D1 container-placement decision; until then the ADR-093 interim disposition above is
-deliberate. Moving the engine means: package `engine/`, `pip install -r requirements.txt`
-in the node runtime (note: the CURRENT image never pip-installs — Flask/bs4/playwright
-presence is inherited, an audit finding for the D1 work), and a dedicated data volume.
+## Build and validation
+
+Compile route sources only through the framework builder, from the OSHAL kernel checkout:
+
+```powershell
+node scripts/oshal-app.js build ..\oshal-apps\career-hunter --framework .
+```
+
+The store release gate remains dependency-free and runs every `tests/*.test.mjs` file from the
+package directory:
+
+```powershell
+node --test "tests/*.test.mjs"
+```
+
+`engine/requirements.txt` pins every Python engine dependency, including the PostgreSQL driver.
+Store CI installs those exact pins and requires the same ATS/storage/nightly contract to pass on a
+real temporary SQLite database and a disposable non-superuser PostgreSQL database. A developer
+without PostgreSQL can run the SQLite half locally; CI is intentionally unable to skip the
+PostgreSQL half.
+
+Two multipart integration checks use the real framework-owned Multer/Busboy boundary. They run
+automatically when a sibling kernel checkout exists; set `OSHAL_CORE_DIR` to an alternate kernel
+checkout when the repositories are elsewhere. Dependency-free store CI reports those checks as
+unavailable rather than substituting a fake parser.
+
+## Storage promotion
+
+[BACKEND-CUTOVER.md](BACKEND-CUTOVER.md) is the current promotion/rollback specification. The
+loader is repeatable across corpus and per-user datasets, and
+`engine/sync/report_convergence.py --require-convergence` produces count, canonical SHA-256, and
+key-query evidence. PostgreSQL user/cron writes must not be enabled until the documented reverse
+projector is implemented, fault-tested, and caught up; this repository does not claim a live
+cutover, backup, or seven-day observation.
+
+## `SESSION_SECRET` credential recovery
+
+Mounted routes decrypt current kernel `v2:` connector values through the authenticated token
+broker and stage only that caller's plaintext in the child environment. The CLI deliberately
+rejects `v2:` database ciphertext when invoked without that broker. A real deployment
+`SESSION_SECRET` is needed only to read an older unversioned AES-GCM envelope through the legacy
+database fallback. Credentials written under the retired public fallback cannot be safely
+recovered: reconnect Anthropic or Firecrawl under the real deployment secret. Never paste
+ciphertext into an API-key field or restore the fallback.
+
+<!-- 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | Document raw-subject compatibility aliases and collision recovery. -->
+
+## User-store path upgrade
+
+Back up the Career data volume before upgrading. Existing unsafe raw-subject directories remain
+available only when their exact case-sensitive directory entry and legacy database/profile
+signature prove ownership; case-folded, trailing-dot, device-name, symlink, and encoded-prefix
+aliases fail closed. If both raw and encoded directories (or both legacy and canonical database
+basenames) exist, startup fails closed instead of choosing one. Stop Career workers, preserve both
+directories, determine the encoded target from the package root with the mapper command below,
+reconcile the newer store from backup, and restart.
+
+```text
+node -e "console.log(require('./lib/user-store-path').userStoreSegment(process.argv[1]))" -- "<raw-subject>"
+```
+
+Legacy paths containing `/` or `\\`, and raw names in the reserved `~sub-` namespace, are never
+adopted automatically because ownership is ambiguous. Move those stores into a freshly resolved,
+identity-marked encoded directory only while every Career process is stopped, then rewrite any
+stored absolute artifact paths to the new prefix before restart.

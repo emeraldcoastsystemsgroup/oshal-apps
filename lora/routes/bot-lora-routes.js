@@ -1,21 +1,12 @@
 "use strict";
 /**
- * Bot LoRA routes — the LoRA Studio (?app=lora) API. The lora-director bot reasons over the
- * pipeline; the heavy work runs off the api: dataset generation + validation over the GPU box's
- * ComfyUI HTTP API (free), and kohya training on the box ONLY via a queue-manager ticket + the
- * worker node's gated shell.exec (ADR-070 privilege rule). The controller stores the authoritative
- * version + score metadata (oshal_lora_*); the box keeps the .safetensors / datasets / samples.
- *
- * Phases on disk: P0/P1 here = the data spine (characters, versions, scorecards, the box→controller
- * /ingest callback, the studio surface). Box-dependent training dispatch (/train, /validate,
- * /improve) is wired in P3 (lora-train-dispatch) and returns `box_required` until then.
- *
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                      | DESCRIPTION
+ * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-06-24 00:00:00 | roger.murphy@emeraldcoastsystemsgroup.com | Initial LoRA Studio routes — P0 skeleton + P1 scorecard ingest/read (data spine, box-independent).
- * 2026-07-17 19:05:00 | roger.murphy@emeraldcoastsystemsgroup.com | ADR-085 carve-out into the lora store package. Studio factory is the standard (ctx) shape — the surface serves from this package's tools/ (ctx.appPackageDir, portrait-studio pattern). The ingest router's internal paths move to '/' because the package mounts it at /api/lora/ingest (the loader-sanctioned split-mountPath shape for mixed auth: ingest = auth public + self-guard, studio = auth oidc) — the external URL the box calls is unchanged. scorecard + lora-train-dispatch are vendored package siblings (relative imports); shared core helpers stay @/ aliases (resolved by the loader at runtime).
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Await durable GPU task enqueue before returning task identity or reporting box availability.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Make character/model/score access owner-bound at both route and FORCE-RLS layers, narrow box callbacks to a separate exact owner identity, and give each caller an isolated starter character.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Keep system seed creation in install migrations only so lazy runtime schema validation cannot attempt a cross-owner insert after FORCE RLS is active.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -55,11 +46,30 @@ exports.LORA_DIRECTOR_AGENT_ID = void 0;
 exports.ensureLoraSchema = ensureLoraSchema;
 exports.createBotLoraRoutes = createBotLoraRoutes;
 exports.createLoraIngestRoutes = createLoraIngestRoutes;
+/**
+ * Bot LoRA routes — the LoRA Studio (?app=lora) API. The lora-director bot reasons over the
+ * pipeline; the heavy work runs off the api: dataset generation + validation over the GPU box's
+ * ComfyUI HTTP API (free), and kohya training on the box ONLY via a queue-manager ticket + the
+ * worker node's gated shell.exec (ADR-070 privilege rule). The controller stores the authoritative
+ * version + score metadata (oshal_lora_*); the box keeps the .safetensors / datasets / samples.
+ *
+ * Phases on disk: P0/P1 here = the data spine (characters, versions, scorecards, the box→controller
+ * /ingest callback, the studio surface). Box-dependent training dispatch (/train, /validate,
+ * /improve) is wired in P3 (lora-train-dispatch) and returns `box_required` until then.
+ *
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * DATE/TIME           | AUTHOR                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 2026-06-24 00:00:00 | roger.murphy@emeraldcoastsystemsgroup.com | Initial LoRA Studio routes — P0 skeleton + P1 scorecard ingest/read (data spine, box-independent).
+ * 2026-07-17 19:05:00 | roger.murphy@emeraldcoastsystemsgroup.com | ADR-085 carve-out into the lora store package. Studio factory is the standard (ctx) shape — the surface serves from this package's tools/ (ctx.appPackageDir, portrait-studio pattern). The ingest router's internal paths move to '/' because the package mounts it at /api/lora/ingest (the loader-sanctioned split-mountPath shape for mixed auth: ingest = auth public + self-guard, studio = auth oidc) — the external URL the box calls is unchanged. scorecard + lora-train-dispatch are vendored package siblings (relative imports); shared core helpers stay @/ aliases (resolved by the loader at runtime).
+ */
 const express_1 = require("express");
 const path = __importStar(require("path"));
 const logger_1 = require("@/shared/logger");
 const database_1 = require("@/shared/services/database");
 const authz_1 = require("@/shared/middleware/authz");
+const trusted_service_user_identity_1 = require("@/shared/middleware/trusted-service-user-identity");
 const scorecard_1 = require("./scorecard");
 const lora_train_dispatch_1 = require("./lora-train-dispatch");
 const logger = (0, logger_1.createChildLogger)({ module: 'bot-lora-routes' });
@@ -70,8 +80,10 @@ const LORA_DIRECTOR_AGENT_ID = 'a0000000-0000-0000-0000-000000000049';
 exports.LORA_DIRECTOR_AGENT_ID = LORA_DIRECTOR_AGENT_ID;
 /** Signed-in caller's OIDC sub. */
 function callerSub(req) {
-    const u = req.oidc?.user;
-    return u?.sub ? String(u.sub) : null;
+    // Independently authenticated browser/PAT identity wins over compatibility machine headers.
+    // A service assertion is accepted only behind the configured secret and is narrowed to a
+    // non-operator DB identity before the ingest handler runs.
+    return (0, authz_1.getCaller)(req).sub ?? (0, authz_1.getTrustedServiceUserSub)(req);
 }
 /** LoRA Studio schema: characters + their trained versions + each version's validation score. */
 async function ensureLoraSchema(pool) {
@@ -81,7 +93,7 @@ async function ensureLoraSchema(pool) {
         statements: [
             `CREATE TABLE IF NOT EXISTS oshal_lora_characters (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        subject TEXT NOT NULL UNIQUE,
+        subject TEXT NOT NULL,
         display_name TEXT NOT NULL,
         trigger_word TEXT NOT NULL,
         hero_image TEXT,
@@ -91,8 +103,9 @@ async function ensureLoraSchema(pool) {
         max_hours NUMERIC(5,2) NOT NULL DEFAULT 9,
         plateau_epsilon NUMERIC(6,4) NOT NULL DEFAULT 0.0050,
         active_version INTEGER,
-        owner_sub TEXT,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        owner_sub TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (owner_sub, subject)
       )`,
             `CREATE TABLE IF NOT EXISTS oshal_lora_models (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -128,11 +141,46 @@ async function ensureLoraSchema(pool) {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         UNIQUE (character_id, version)
       )`,
-            `INSERT INTO oshal_lora_characters (subject, display_name, trigger_word, hero_image, base_model, ident_prompt)
-       VALUES ('oshbrainrot', 'Cyclops (oshbrainrot)', 'oshbrainrot', 'hero_brainrot_00002_.png',
-         'v1-5-pruned-emaonly-fp16.safetensors',
-         'a one-eyed leathery orange-red screaming cyclops creature, big single eye, wide toothy mouth, stubby clawed legs, long thin arms, glossy 3d render, italian brainrot meme style')
-       ON CONFLICT (subject) DO NOTHING`,
+            'ALTER TABLE oshal_lora_characters ADD COLUMN IF NOT EXISTS owner_sub TEXT',
+            "UPDATE oshal_lora_characters SET owner_sub = 'system:legacy:lora' WHERE owner_sub IS NULL OR btrim(owner_sub) = ''",
+            'ALTER TABLE oshal_lora_characters ALTER COLUMN owner_sub SET NOT NULL',
+            'ALTER TABLE oshal_lora_characters DROP CONSTRAINT IF EXISTS oshal_lora_characters_subject_key',
+            'CREATE UNIQUE INDEX IF NOT EXISTS idx_lora_characters_owner_subject ON oshal_lora_characters(owner_sub, subject)',
+            // The package migration owns the optional system seed. Runtime bootstrap can run after FORCE
+            // RLS is already active and must never try to insert a row outside the current user's scope.
+            // ensureOwnerStarterCharacter below creates the only starter row an ordinary request needs.
+            'ALTER TABLE oshal_lora_characters ENABLE ROW LEVEL SECURITY',
+            'ALTER TABLE oshal_lora_characters FORCE ROW LEVEL SECURITY',
+            'DROP POLICY IF EXISTS oshal_lora_characters_owner_policy ON oshal_lora_characters',
+            `CREATE POLICY oshal_lora_characters_owner_policy ON oshal_lora_characters
+         USING (owner_sub = current_setting('oshal.current_sub', true)
+                OR current_setting('oshal.is_operator', true) = 'on')
+         WITH CHECK (owner_sub = current_setting('oshal.current_sub', true)
+                     OR current_setting('oshal.is_operator', true) = 'on')`,
+            'ALTER TABLE oshal_lora_models ENABLE ROW LEVEL SECURITY',
+            'ALTER TABLE oshal_lora_models FORCE ROW LEVEL SECURITY',
+            'DROP POLICY IF EXISTS oshal_lora_models_owner_policy ON oshal_lora_models',
+            `CREATE POLICY oshal_lora_models_owner_policy ON oshal_lora_models
+         USING (EXISTS (SELECT 1 FROM oshal_lora_characters c
+                         WHERE c.id = oshal_lora_models.character_id
+                           AND (c.owner_sub = current_setting('oshal.current_sub', true)
+                                OR current_setting('oshal.is_operator', true) = 'on')))
+         WITH CHECK (EXISTS (SELECT 1 FROM oshal_lora_characters c
+                             WHERE c.id = oshal_lora_models.character_id
+                               AND (c.owner_sub = current_setting('oshal.current_sub', true)
+                                    OR current_setting('oshal.is_operator', true) = 'on')))`,
+            'ALTER TABLE oshal_lora_scores ENABLE ROW LEVEL SECURITY',
+            'ALTER TABLE oshal_lora_scores FORCE ROW LEVEL SECURITY',
+            'DROP POLICY IF EXISTS oshal_lora_scores_owner_policy ON oshal_lora_scores',
+            `CREATE POLICY oshal_lora_scores_owner_policy ON oshal_lora_scores
+         USING (EXISTS (SELECT 1 FROM oshal_lora_characters c
+                         WHERE c.id = oshal_lora_scores.character_id
+                           AND (c.owner_sub = current_setting('oshal.current_sub', true)
+                                OR current_setting('oshal.is_operator', true) = 'on')))
+         WITH CHECK (EXISTS (SELECT 1 FROM oshal_lora_characters c
+                             WHERE c.id = oshal_lora_scores.character_id
+                               AND (c.owner_sub = current_setting('oshal.current_sub', true)
+                                    OR current_setting('oshal.is_operator', true) = 'on')))`,
         ],
         requirements: [
             { table: 'oshal_lora_characters', columns: ['id', 'subject', 'display_name', 'trigger_word', 'hero_image', 'base_model', 'ident_prompt', 'autonomous', 'max_hours', 'plateau_epsilon', 'active_version', 'owner_sub', 'created_at'] },
@@ -142,9 +190,19 @@ async function ensureLoraSchema(pool) {
     });
 }
 /** Resolve a character row id from its subject slug. */
-async function characterId(ctx, subject) {
-    const r = (await ctx.pool.query('SELECT id FROM oshal_lora_characters WHERE subject = $1', [subject])).rows[0];
+async function characterId(ctx, subject, ownerSub) {
+    const r = (await ctx.pool.query('SELECT id FROM oshal_lora_characters WHERE subject = $1 AND owner_sub = $2', [subject, ownerSub])).rows[0];
     return r?.id ?? null;
+}
+/** Give each authenticated caller an independent copy of the starter character configuration. */
+async function ensureOwnerStarterCharacter(ctx, ownerSub) {
+    await ctx.pool.query(`INSERT INTO oshal_lora_characters
+       (subject, display_name, trigger_word, hero_image, base_model, ident_prompt, owner_sub)
+     VALUES ('oshbrainrot', 'Cyclops (oshbrainrot)', 'oshbrainrot', 'hero_brainrot_00002_.png',
+       'v1-5-pruned-emaonly-fp16.safetensors',
+       'a one-eyed leathery orange-red screaming cyclops creature, big single eye, wide toothy mouth, stubby clawed legs, long thin arms, glossy 3d render, italian brainrot meme style',
+       $1)
+     ON CONFLICT (owner_sub, subject) DO NOTHING`, [ownerSub]);
 }
 /**
  * @description Creates the gated LoRA Studio routes (mounted behind requiresAuth). Read/data routes
@@ -169,17 +227,21 @@ function createBotLoraRoutes(ctx) {
     });
     /** GET /characters — every character with its latest version + latest overall score. */
     router.get('/characters', async (req, res) => {
-        if (!callerSub(req)) {
+        const sub = callerSub(req);
+        if (!sub) {
             res.status(401).json({ error: 'not_authenticated' });
             return;
         }
         try {
+            await ensureOwnerStarterCharacter(ctx, sub);
             const rows = (await ctx.pool.query(`SELECT c.subject, c.display_name, c.trigger_word, c.hero_image, c.base_model, c.ident_prompt,
                 c.autonomous, c.max_hours, c.plateau_epsilon, c.active_version, c.created_at,
                 (SELECT max(version) FROM oshal_lora_models m WHERE m.character_id = c.id) AS latest_version,
                 (SELECT count(*) FROM oshal_lora_models m WHERE m.character_id = c.id) AS version_count,
                 (SELECT s.overall FROM oshal_lora_scores s WHERE s.character_id = c.id ORDER BY s.version DESC LIMIT 1) AS latest_score
-         FROM oshal_lora_characters c ORDER BY c.created_at ASC`)).rows;
+         FROM oshal_lora_characters c
+         WHERE c.owner_sub = $1
+         ORDER BY c.created_at ASC`, [sub])).rows;
             res.json({ characters: rows });
         }
         catch (err) {
@@ -189,7 +251,8 @@ function createBotLoraRoutes(ctx) {
     });
     /** GET /models?subject= — the version timeline (each version joined with its score). */
     router.get('/models', async (req, res) => {
-        if (!callerSub(req)) {
+        const sub = callerSub(req);
+        if (!sub) {
             res.status(401).json({ error: 'not_authenticated' });
             return;
         }
@@ -199,7 +262,7 @@ function createBotLoraRoutes(ctx) {
             return;
         }
         try {
-            const id = await characterId(ctx, subject);
+            const id = await characterId(ctx, subject, sub);
             if (!id) {
                 res.status(404).json({ error: 'character not found' });
                 return;
@@ -219,7 +282,8 @@ function createBotLoraRoutes(ctx) {
     });
     /** GET /scorecard?subject=&version= — the per-cell scores for one version (drives the gallery). */
     router.get('/scorecard', async (req, res) => {
-        if (!callerSub(req)) {
+        const sub = callerSub(req);
+        if (!sub) {
             res.status(401).json({ error: 'not_authenticated' });
             return;
         }
@@ -230,7 +294,7 @@ function createBotLoraRoutes(ctx) {
             return;
         }
         try {
-            const id = await characterId(ctx, subject);
+            const id = await characterId(ctx, subject, sub);
             if (!id) {
                 res.status(404).json({ error: 'character not found' });
                 return;
@@ -250,7 +314,8 @@ function createBotLoraRoutes(ctx) {
     });
     /** POST /characters/:subject/autonomous — toggle the opt-in improve-overnight mode (controller-only). */
     router.post('/characters/:subject/autonomous', async (req, res) => {
-        if (!callerSub(req)) {
+        const sub = callerSub(req);
+        if (!sub) {
             res.status(401).json({ error: 'not_authenticated' });
             return;
         }
@@ -261,9 +326,10 @@ function createBotLoraRoutes(ctx) {
          SET autonomous = COALESCE($2, autonomous),
              max_hours = COALESCE($3, max_hours),
              plateau_epsilon = COALESCE($4, plateau_epsilon)
-         WHERE subject = $1 RETURNING autonomous, max_hours, plateau_epsilon`, [subject, typeof body.enabled === 'boolean' ? body.enabled : null,
+         WHERE subject = $1 AND owner_sub = $5
+         RETURNING autonomous, max_hours, plateau_epsilon`, [subject, typeof body.enabled === 'boolean' ? body.enabled : null,
                 Number.isFinite(body.maxHours) ? body.maxHours : null,
-                Number.isFinite(body.plateauEpsilon) ? body.plateauEpsilon : null]);
+                Number.isFinite(body.plateauEpsilon) ? body.plateauEpsilon : null, sub]);
             if (!r.rowCount) {
                 res.status(404).json({ error: 'character not found' });
                 return;
@@ -277,7 +343,8 @@ function createBotLoraRoutes(ctx) {
     });
     /** POST /characters/:subject/active — keep-best: set the active version (the human decision). */
     router.post('/characters/:subject/active', async (req, res) => {
-        if (!callerSub(req)) {
+        const sub = callerSub(req);
+        if (!sub) {
             res.status(401).json({ error: 'not_authenticated' });
             return;
         }
@@ -288,7 +355,7 @@ function createBotLoraRoutes(ctx) {
             return;
         }
         try {
-            const id = await characterId(ctx, subject);
+            const id = await characterId(ctx, subject, sub);
             if (!id) {
                 res.status(404).json({ error: 'character not found' });
                 return;
@@ -298,7 +365,7 @@ function createBotLoraRoutes(ctx) {
                 res.status(404).json({ error: 'no such version' });
                 return;
             }
-            await ctx.pool.query('UPDATE oshal_lora_characters SET active_version = $2 WHERE id = $1', [id, version]);
+            await ctx.pool.query('UPDATE oshal_lora_characters SET active_version = $2 WHERE id = $1 AND owner_sub = $3', [id, version, sub]);
             res.json({ ok: true, subject, activeVersion: version });
         }
         catch (err) {
@@ -315,7 +382,7 @@ function createBotLoraRoutes(ctx) {
         }
         const subject = String(req.body.subject || '').trim();
         try {
-            const char = (await ctx.pool.query('SELECT id FROM oshal_lora_characters WHERE subject = $1', [subject])).rows[0];
+            const char = (await ctx.pool.query('SELECT id FROM oshal_lora_characters WHERE subject = $1 AND owner_sub = $2', [subject, sub])).rows[0];
             if (!char) {
                 res.status(404).json({ error: 'character not found' });
                 return;
@@ -340,7 +407,7 @@ function createBotLoraRoutes(ctx) {
             await ctx.pool.query(`INSERT INTO oshal_lora_models (character_id, version, status, base_model, ticket_id)
          VALUES ($1, $2, 'training', (SELECT base_model FROM oshal_lora_characters WHERE id = $1), $3)
          ON CONFLICT (character_id, version) DO UPDATE SET status = 'training', ticket_id = EXCLUDED.ticket_id`, [char.id, version, ticket.ticketId]);
-            const d = (0, lora_train_dispatch_1.dispatchBoxCommand)((0, lora_train_dispatch_1.buildTrainCommand)(subject, version, null), ticket.ticketId);
+            const d = await (0, lora_train_dispatch_1.dispatchBoxCommand)((0, lora_train_dispatch_1.buildTrainCommand)(subject, version, null, sub), ticket.ticketId);
             if (!d.ok) {
                 await ctx.pool.query(`UPDATE oshal_lora_models SET status = 'failed' WHERE character_id = $1 AND version = $2`, [char.id, version]);
                 res.status(503).json({ ok: false, status: 'box_required', version, ticketId: ticket.ticketId, message: d.error });
@@ -364,7 +431,7 @@ function createBotLoraRoutes(ctx) {
         const subject = String(req.body.subject || '').trim();
         const asked = Number(req.body.version);
         try {
-            const char = (await ctx.pool.query('SELECT id FROM oshal_lora_characters WHERE subject = $1', [subject])).rows[0];
+            const char = (await ctx.pool.query('SELECT id FROM oshal_lora_characters WHERE subject = $1 AND owner_sub = $2', [subject, sub])).rows[0];
             if (!char) {
                 res.status(404).json({ error: 'character not found' });
                 return;
@@ -390,7 +457,7 @@ function createBotLoraRoutes(ctx) {
                 ownerSub: sub,
                 metadata: { app: 'lora', character: subject, version, action: 'validate' },
             });
-            const d = (0, lora_train_dispatch_1.dispatchBoxCommand)((0, lora_train_dispatch_1.buildValidateCommand)(subject, version), ticket.ticketId);
+            const d = await (0, lora_train_dispatch_1.dispatchBoxCommand)((0, lora_train_dispatch_1.buildValidateCommand)(subject, version, sub), ticket.ticketId);
             if (!d.ok) {
                 res.status(503).json({ ok: false, status: 'box_required', version, ticketId: ticket.ticketId, message: d.error });
                 return;
@@ -412,7 +479,7 @@ function createBotLoraRoutes(ctx) {
         }
         const subject = String(req.body.subject || '').trim();
         try {
-            const char = (await ctx.pool.query('SELECT id FROM oshal_lora_characters WHERE subject = $1', [subject])).rows[0];
+            const char = (await ctx.pool.query('SELECT id FROM oshal_lora_characters WHERE subject = $1 AND owner_sub = $2', [subject, sub])).rows[0];
             if (!char) {
                 res.status(404).json({ error: 'character not found' });
                 return;
@@ -447,7 +514,7 @@ function createBotLoraRoutes(ctx) {
             await ctx.pool.query(`INSERT INTO oshal_lora_models (character_id, version, status, base_model, parent_version, ticket_id)
          VALUES ($1, $2, 'training', (SELECT base_model FROM oshal_lora_characters WHERE id = $1), $3, $4)
          ON CONFLICT (character_id, version) DO UPDATE SET status = 'training', parent_version = EXCLUDED.parent_version, ticket_id = EXCLUDED.ticket_id`, [char.id, version, parentVersion, ticket.ticketId]);
-            const d = (0, lora_train_dispatch_1.dispatchBoxCommand)((0, lora_train_dispatch_1.buildImproveCommand)(subject, version, parentVersion, weakValues), ticket.ticketId);
+            const d = await (0, lora_train_dispatch_1.dispatchBoxCommand)((0, lora_train_dispatch_1.buildImproveCommand)(subject, version, parentVersion, weakValues, sub), ticket.ticketId);
             if (!d.ok) {
                 await ctx.pool.query(`UPDATE oshal_lora_models SET status = 'failed' WHERE character_id = $1 AND version = $2`, [char.id, version]);
                 res.status(503).json({ ok: false, status: 'box_required', version, ticketId: ticket.ticketId, message: d.error });
@@ -470,7 +537,9 @@ function createBotLoraRoutes(ctx) {
         }
         const subject = String(req.body.subject || '').trim();
         try {
-            const char = (await ctx.pool.query('SELECT id, autonomous, max_hours, plateau_epsilon FROM oshal_lora_characters WHERE subject = $1', [subject])).rows[0];
+            const char = (await ctx.pool.query(`SELECT id, autonomous, max_hours, plateau_epsilon
+           FROM oshal_lora_characters
+          WHERE subject = $1 AND owner_sub = $2`, [subject, sub])).rows[0];
             if (!char) {
                 res.status(404).json({ error: 'character not found' });
                 return;
@@ -500,7 +569,7 @@ function createBotLoraRoutes(ctx) {
                 ownerSub: sub,
                 metadata: { app: 'lora', character: subject, action: 'improve-overnight', startVersion },
             });
-            const d = (0, lora_train_dispatch_1.dispatchBoxCommand)((0, lora_train_dispatch_1.buildOvernightCommand)(subject, startVersion, Number(char.max_hours) || 9, Number(char.plateau_epsilon) || 0.005), ticket.ticketId);
+            const d = await (0, lora_train_dispatch_1.dispatchBoxCommand)((0, lora_train_dispatch_1.buildOvernightCommand)(subject, startVersion, Number(char.max_hours) || 9, Number(char.plateau_epsilon) || 0.005, sub), ticket.ticketId);
             if (!d.ok) {
                 res.status(503).json({ ok: false, status: 'box_required', ticketId: ticket.ticketId, message: d.error });
                 return;
@@ -516,29 +585,34 @@ function createBotLoraRoutes(ctx) {
     return router;
 }
 /**
- * @description Creates the PUBLIC LoRA ingest route — the box→controller callback. Authenticated by
- * the shared service secret (x-service-secret), NOT a user session, so the GPU box trainer/validator
- * can report metrics + scorecards back. The package manifest mounts this at /api/lora/ingest with
- * auth: public (self-guarded) — the loader-sanctioned split-mountPath shape — so the internal paths
+ * @description Creates the PUBLIC LoRA ingest mount. GET is a health-only probe. POST accepts a
+ * GPU-box callback only when the shared service secret and a separately encoded exact owner are
+ * both valid, then narrows database work to that non-operator owner. The package manifest mounts
+ * this at /api/lora/ingest using the loader-sanctioned split-mountPath shape, so the internal paths
  * here are '/': the external URL the box calls stays /api/lora/ingest, unchanged from core.
  * @param ctx - app context (pool)
  */
 function createLoraIngestRoutes(ctx) {
     const router = (0, express_1.Router)();
     /**
-     * GET / — public reachability probe. The ingest endpoint is intentionally OUTSIDE the OIDC
-     * wall (it authenticates with the shared service secret, not a user session). This responder makes
-     * that reachability verifiable: a probe gets a clear 200 here instead of falling through to the
+     * GET / — public health-only reachability probe. The write endpoint is intentionally OUTSIDE the
+     * OIDC wall but independently requires a service secret and exact owner. This responder makes
+     * mount reachability verifiable: a probe gets a clear 200 here instead of falling through to the
      * downstream `/api` catch-all, whose `requiresAuth` would otherwise answer with an OIDC `loginPath`
      * 401 and make the public route look gated. The real write path is POST / below.
      */
     router.get('/', (_req, res) => {
-        res.json({ ok: true, route: 'lora-ingest', method: 'POST', auth: 'x-service-secret' });
+        res.json({ ok: true, route: 'lora-ingest', method: 'POST', auth: 'service-secret+owner' });
     });
     /** POST / — box reports a training result (kind:'training') or a scorecard (kind:'score'). */
-    router.post('/', async (req, res) => {
+    router.post('/', trusted_service_user_identity_1.requireTrustedServiceUserIdentity, async (req, res) => {
         if (!(0, authz_1.hasValidServiceSecret)(req)) {
             res.status(401).json({ error: 'service_secret_required' });
+            return;
+        }
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(403).json({ error: 'trusted_service_user_sub_required' });
             return;
         }
         const b = (req.body || {});
@@ -546,7 +620,7 @@ function createLoraIngestRoutes(ctx) {
         const version = Number(b.version);
         const kind = String(b.kind || '').trim();
         try {
-            const id = await characterId(ctx, subject);
+            const id = await characterId(ctx, subject, sub);
             if (!subject || !id) {
                 res.status(404).json({ error: 'character not found' });
                 return;
@@ -568,7 +642,7 @@ function createLoraIngestRoutes(ctx) {
                     externalProvider: null,
                     externalId: null,
                     externalUrl: null,
-                    ownerSub: null,
+                    ownerSub: sub,
                     metadata: { app: 'lora', character: subject, action: 'review', bestVersion, overall: Number(b.overall) || null },
                 });
                 logger.info({ subject, bestVersion }, 'lora overnight review ticket parked');

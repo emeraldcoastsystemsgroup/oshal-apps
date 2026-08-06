@@ -31,6 +31,19 @@ source:
   path: portrait-studio
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/portrait-studio/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # ── Kernel skills this app calls (ADR-090 D8) — derived from actual imports ──
 #   @/features/video-generation → media-generation (storyboard image providers:
 #                                 the vendor-abstracted image-to-image engine)
@@ -78,6 +91,13 @@ ui:
 # (Jarvis / operator tools / smoke tests) pass X-Service-Secret + X-OSHAL-User-Sub,
 # which the mounter resolves into the caller sub (same pattern as eats/rides/spotify).
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/portrait-studio/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/portrait-studio-routes.js
     factory: createPortraitStudioRoutes
     mountPath: /api/portrait-studio

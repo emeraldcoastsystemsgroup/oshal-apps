@@ -18,16 +18,14 @@ const crypto_1 = __importDefault(require("crypto"));
 const logger_1 = require("@/shared/logger");
 const logger = (0, logger_1.createChildLogger)({ module: 'pumpkin-rooms' });
 /** Room drops off the list this long after its last heartbeat (a healthy projector beats every 30s). */
-const ROOM_TTL_MS = 90 * 1000;
-exports.ROOM_TTL_MS = ROOM_TTL_MS;
+exports.ROOM_TTL_MS = 90 * 1000;
 /**
  * Hard idle ceiling. A room whose owner stopped heartbeating for this long is evicted REGARDLESS of
  * listener count. The TTL path alone cannot reclaim a room pinned by a half-open socket (the listener
  * set is non-empty forever), which leaked the room AND its pairing token for the process lifetime.
  * 15 minutes against a 30-second heartbeat is a 30x margin, so a live projector can never reach it.
  */
-const ROOM_MAX_IDLE_MS = 15 * 60 * 1000;
-exports.ROOM_MAX_IDLE_MS = ROOM_MAX_IDLE_MS;
+exports.ROOM_MAX_IDLE_MS = 15 * 60 * 1000;
 /** How often the background sweep runs; sweep() used to fire only from register()/list(). */
 const SWEEP_INTERVAL_MS = 30 * 1000;
 /**
@@ -111,11 +109,11 @@ class PumpkinRoomRegistry {
         const now = Date.now();
         for (const [k, v] of this.rooms) {
             const idle = now - v.lastSeen;
-            if (idle > ROOM_TTL_MS && v.listeners.size === 0) {
+            if (idle > exports.ROOM_TTL_MS && v.listeners.size === 0) {
                 this.rooms.delete(k);
                 continue;
             }
-            if (idle > ROOM_MAX_IDLE_MS)
+            if (idle > exports.ROOM_MAX_IDLE_MS)
                 this.evict(k, v);
         }
     }
@@ -198,7 +196,7 @@ class PumpkinRoomRegistry {
         for (const v of this.rooms.values()) {
             if (v.sub !== sub)
                 continue;
-            out.push({ room: v.room, label: v.label, live: now - v.lastSeen <= ROOM_TTL_MS, listeners: v.listeners.size });
+            out.push({ room: v.room, label: v.label, live: now - v.lastSeen <= exports.ROOM_TTL_MS, listeners: v.listeners.size });
         }
         return out;
     }

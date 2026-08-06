@@ -1,11 +1,16 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR                                    | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Give SQLite and PostgreSQL the same first-seen fallback so deterministic nightly indexing cannot omit undated ATS rows.
+
 """Score each posting against the user's career_db.json.
 
 A lightweight keyword/skill overlap — enough to triage which corporate postings are
 worth a tailored application. Not a substitute for reading the JD.
 
 DUAL BACKEND (JOBHUNTER_STORE, see config.STORE). The scoring itself is pure Python and
-identical in both modes; only the two SELECTs that feed it are dialect-aware, and the
-SQLite text they emit is byte-for-byte what it has always been (see _active_true() and
+identical in both modes; only the two SELECTs that feed it are dialect-aware (see
 _recent_where()). Writes go through db.user_set() in both modes — it is the single
 chokepoint that knows which physical table owns a per-user column, and in Postgres it is
 what stamps user_sub so the RLS WITH CHECK can vet the row.
@@ -55,8 +60,8 @@ def score_text(title: str, description: str, terms: set[str]) -> int:
 
 # ═════════════════════════════════════════════════════════════════════════════
 # DIALECT — the only part of this module that differs between the two backends.
-# Both helpers return the ORIGINAL SQLite text unchanged when config.POSTGRES is
-# false, so the nightly scrape's query is character-identical to what it was.
+# Both helpers preserve one storage contract while spelling booleans and date arithmetic
+# in the native dialect.
 # ═════════════════════════════════════════════════════════════════════════════
 
 def _active_true() -> str:
@@ -72,7 +77,8 @@ def _active_true() -> str:
 def _recent_where(days: int) -> tuple[str, tuple]:
     """"Posted in the last N days" predicate + its bind parameters, per backend.
 
-    SQLITE (unchanged): `posted_date >= date('now', '-N days')`. SQLite's 'now' is UTC.
+    SQLITE: use the employer date when present, otherwise the first-seen date. SQLite's
+    `now` is UTC. This mirrors PostgreSQL and keeps undated ATS rows in the nightly index.
 
     POSTGRES: `date('now', ?)` has no equivalent, and neither does passing '-14 days' as
     a string — the translation is a date literal computed by the server:
@@ -80,8 +86,8 @@ def _recent_where(days: int) -> tuple[str, tuple]:
     (this cluster's TimeZone is UTC anyway, but pinning it means a session that sets
     another zone cannot shift the window by a day).
 
-    WHY COALESCE(posted_date, first_seen_at) IN POSTGRES — a deliberate, measured widening
-    -------------------------------------------------------------------------------------
+    WHY COALESCE(posted_date, first_seen_at) IN BOTH BACKENDS
+    --------------------------------------------------------
     posted_date is derived from whatever the employer's ATS published, and a quarter of
     the corpus has none: 367,727 of 1,427,675 rows are NULL, and among ACTIVE rows it is
     177,327 of 629,417 (28%). `posted_date >= cutoff` is NULL for every one of them, so
@@ -94,15 +100,15 @@ def _recent_where(days: int) -> tuple[str, tuple]:
         posted_date only ................ 113,348
         COALESCE(posted_date, seen) ..... 157,207   (+43,859)
         first_seen_at only .............. 155,935   (drops 2,755 that posted_date catches)
-    The COALESCE form is a STRICT SUPERSET of the SQLite predicate: where posted_date is
-    present it behaves identically, and it only ever ADDS rows we first saw inside the
+    The COALESCE form is a strict superset of a posted-date-only predicate: where posted_date is
+    present it behaves identically, and it only ever adds rows we first saw inside the
     window. It cannot skip a posting SQLite would have scored, and re-scoring is
     idempotent (score_text is a pure function of title+description), so the widening
     cannot corrupt an existing score. Keying on first_seen_at ALONE was rejected for the
     opposite reason — it silently drops the 2,755 rows above.
 
-    This is a semantic divergence from SQLite mode and is called out as one; it is not a
-    silent behaviour change, and it is confined to the Postgres branch.
+    Applying that rule in both modes is load-bearing: changing JOBHUNTER_STORE must not
+    change which fresh postings enter the nightly keyword index.
 
     SARGABILITY. Wrapping the column in COALESCE defeats an index, but there is no index
     on career_postings.posted_date to defeat: the only freshness index is
@@ -115,7 +121,10 @@ def _recent_where(days: int) -> tuple[str, tuple]:
             ">= ((now() AT TIME ZONE 'UTC')::date - ?::int)",
             (int(days),),
         )
-    return "posted_date >= date('now', ?)", (f"-{int(days)} days",)
+    return (
+        "COALESCE(posted_date, date(first_seen_at)) >= date('now', ?)",
+        (f"-{int(days)} days",),
+    )
 
 
 # Distinct portal name per scan; two nested scans on one connection would otherwise

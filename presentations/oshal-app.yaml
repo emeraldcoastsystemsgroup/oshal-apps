@@ -25,7 +25,7 @@ description: >-
   Phone-friendly: dictate instead of typing, resume recent files in one tap, and drive
   edits with tap chips. My files is a real file browser - click a file for
   download, open-in-provider, or edit-and-regenerate. Saves to Dropbox, Google Drive, OneDrive, or OSHAL local.
-version: 2.4.0
+version: 2.5.0
 status: active
 
 source:
@@ -33,6 +33,19 @@ source:
   url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: presentations
   ref: main
+
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/presentations/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
 
 # Kernel skills this app CALLS (D8 contract — resolved from the framework dist):
 # deck-generation = the whole render/import engine; storage = the ADR-041 target layer
@@ -91,6 +104,13 @@ surface:
   ops: [set_field, set_content, custom]
 
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/presentations/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/bot-presentation-routes.js
     factory: createBotPresentationRoutes
     mountPath: /api/presentations/sections

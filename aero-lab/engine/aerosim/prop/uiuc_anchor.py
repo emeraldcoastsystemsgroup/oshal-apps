@@ -10,6 +10,10 @@ SEQ                 | AUTHOR                      | DESCRIPTION
     manifest below), the acceptance bands, and the anchor evaluation the pytest
     suite and the __main__ self-test both run. Tables are EMBEDDED so the gate
     runs offline; the on-disk copies in aerosim/data/uiuc/ are checksum-locked.
+2 | maintainer@emeraldcoastsystemsgroup.com   | Make the command-line anchor fail
+    closed on a missing or mismatched vendored file and reject pre-existing
+    drift in the optional fetch helper. The dataset now carries an LF checkout
+    rule so its raw-byte fingerprints remain stable on every platform.
 
 DATA PROVENANCE
 ---------------
@@ -257,9 +261,9 @@ def verify_local_data(data_dir: str | None = None) -> dict[str, bool]:
 def fetch_uiuc_data(dest_dir: str | None = None) -> None:
     """
     @description One-time download of the anchor files from the UIUC site,
-        checksum-verified against the manifest (a fetched file that does not
-        match is DELETED and raises -- silent corruption cannot enter the
-        tree). The offline gate never needs this: tables are embedded above.
+        checksum-verified against the manifest. A mismatched existing file is
+        rejected without overwriting it; a mismatched new download is deleted.
+        The offline gate never needs this: tables are embedded above.
     @param dest_dir Target directory; defaults to aerosim/data/uiuc.
     @returns None. Raises RuntimeError on any checksum mismatch.
     """
@@ -270,6 +274,13 @@ def fetch_uiuc_data(dest_dir: str | None = None) -> None:
     for fname, want in UIUC_MANIFEST_SHA256.items():
         path = os.path.join(d, fname)
         if os.path.isfile(path):
+            with open(path, "rb") as fh:
+                got = hashlib.sha256(fh.read()).hexdigest()
+            if got != want:
+                raise RuntimeError(
+                    f"fetch_uiuc_data: existing {fname} sha256 {got} != "
+                    f"manifest {want}; refusing to overwrite drifted data."
+                )
             continue
         urllib.request.urlretrieve(_UIUC_BASE_URL + fname, path)
         with open(path, "rb") as fh:
@@ -376,14 +387,15 @@ def _selftest() -> int:
     @description Full anchor acceptance run, printing actual values per band.
     @returns 0 when every band holds, 1 otherwise.
     """
-    ok_all = True
     print("=" * 79)
     print("aerosim.prop.uiuc_anchor -- UIUC ANCHOR ACCEPTANCE (n_crit=9, ISA SL)")
     print("=" * 79)
     checks = dict(verify_local_data())
+    integrity_ok = bool(checks) and all(checks.values())
+    ok_all = integrity_ok
     print(f"on-disk checksum manifest: "
           f"{sum(checks.values())}/{len(checks)} files verified "
-          f"({'OK' if all(checks.values()) else 'MISSING/DRIFTED: ' + str([k for k, v in checks.items() if not v])})")
+          f"({'OK' if integrity_ok else 'MISSING/DRIFTED: ' + str([k for k, v in checks.items() if not v])})")
     for key, case in ANCHOR_CASES.items():
         rep = anchor_report(key)
         print(f"--- {key} @ {case['dynamic_rpm']:.0f} RPM ---")

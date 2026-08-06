@@ -1,9 +1,11 @@
 /**
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                                      | DESCRIPTION
+ * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-07-19 17:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Guard for the package-side ADR-045 jobs→graph call (kernel 85931d2a left the ingestJobsForPerson CALL to this carved package). Pins: the row→JobGraphRecord mapping + first_seen bound reach the kernel service keyed by the OWNING sub; fail-open contract (no store / sqlite error / throwing service NEVER rejects — the write chain must not be blockable by graph availability); db.close() always runs; and the cron evening chain actually fires the mirror at the jobs-write seam (source pin, trading-surface-live-gate precedent).
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the package-side ADR-045 jobs-to-graph mapping, tenant key, freshness bound, fail-open behavior, and database cleanup.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Pin graph ingestion and score-cursor advancement beneath their respective successful engine outcomes.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Prove graph database lookup delegates traversal and case-sensitive subjects unchanged to the canonical mapper.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -17,7 +19,7 @@ vi.mock('@/features/graph', () => ({
   getGraphIngestionService: () => ({ ingestJobsForPerson }),
 }));
 
-import { ingestJobsGraphForUser } from '../src-routes/career-graph-routes';
+import { dbPaths, ingestJobsGraphForUser } from '../src-routes/career-graph-routes';
 
 type Row = { id: number; title: string; company: string; location: string | null; url: string | null };
 
@@ -100,7 +102,24 @@ describe('the cron evening chain fires the mirror at the jobs-write seam (source
   it('mirrors the scrape-invoking user after a SUCCESSFUL shared pull', () => {
     expect(cron).toContain('if (r.ok) void ingestJobsGraphForUser(users[0])');
   });
-  it('mirrors every other user right after their match step', () => {
-    expect(cron).toContain('void ingestJobsGraphForUser(users[i])');
+  it('mirrors every other user only after a successful match step', () => {
+    expect(cron).toContain('if (match.ok) void ingestJobsGraphForUser(users[i])');
+  });
+  it('advances the cron score cursor only after a successful score step', () => {
+    expect(cron).toContain('if (scoreResult.ok) await markCronScore(ctx.pool, userSub)');
+  });
+});
+
+describe('graph SQLite path resolution', () => {
+  it.each(['../victim', 'Victim', 'victim'])('delegates the exact raw subject to userPaths: %s', (sub) => {
+    const resolver = vi.fn((raw: string) => ({
+      userDir: `contained:${raw}`,
+      userDb: `contained:${raw}:user`,
+      corpusDb: 'contained:corpus',
+    }));
+    expect(dbPaths(sub, resolver as never)).toEqual({
+      userPath: `contained:${sub}:user`, corpusPath: 'contained:corpus',
+    });
+    expect(resolver).toHaveBeenCalledWith(sub);
   });
 });

@@ -7,6 +7,7 @@
  * 2026-06-19 00:00:00 | roger.murphy@agenticfederal.us   | ADR-058 Layer B: /api/world — feed the shared world graph + series
  * 2026-07-20 05:10:00 | roger.murphy@emeraldcoastsystemsgroup.com | Carved out of OSHAL core into the world app package (ADR-085 Wave 3, "skill with a surface"). The route body is byte-identical to the kernel original — same WORLD_INGEST_TOKEN fail-closed write guard, same open reads, same ENABLE_WORLD_INTELLIGENCE 503 gating, same WORLD_APP_HTML surface. The Layer-B ENGINE (@/features/world-data: service, schemas, outlet ratings, news fetcher, the surface HTML module) stays framework-resident — it keeps kernel importers (jarvis brief, the trading dispatch family, world-schedule-dispatch) — and is imported back via the preserved @/ aliases (D8 verified NOT orphaned).
  * 2026-07-19 16:20:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Surface HTML bundled INTO the package (./world-app-html): the deep module @/features/world-data/world-app-html lost its only importer at the carve and tsc pruned it from dist independently of the (well-anchored) rest of the slice - the packaged route failed at mount. Deep modules prune per-file; surface content rides with the surface (pumpkin f0e4ed1 doctrine).
+ * 2026-08-05 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Retired URL query-token authentication for every World machine write; accept bearer/dedicated headers with constant-time comparison and log only credential-source booleans
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createWorldRoutes = createWorldRoutes;
@@ -19,6 +20,7 @@ exports.createWorldRoutes = createWorldRoutes;
  * factory (ENABLE_WORLD_INTELLIGENCE) → 503 when disabled.
  */
 const express_1 = require("express");
+const node_crypto_1 = require("node:crypto");
 const logger_1 = require("@/shared/logger");
 const world_intelligence_service_1 = require("@/features/world-data/world-intelligence-service");
 const world_types_1 = require("@/features/world-data/world-types");
@@ -26,6 +28,20 @@ const outlet_ratings_1 = require("@/features/world-data/outlet-ratings");
 const news_fetcher_1 = require("@/features/world-data/news-fetcher");
 const world_app_html_1 = require("./world-app-html");
 const logger = (0, logger_1.createChildLogger)({ module: 'world-routes' });
+const WORLD_TOKEN_HEADER = 'x-world-ingest-token';
+/** Compare credentials without a content-dependent equality branch. */
+function tokenMatches(candidate, expected) {
+    const candidateBytes = Buffer.from(candidate, 'utf8');
+    const expectedBytes = Buffer.from(expected, 'utf8');
+    return candidateBytes.length === expectedBytes.length
+        && (0, node_crypto_1.timingSafeEqual)(candidateBytes, expectedBytes);
+}
+/** Read only credential headers; query parameters are never an authentication source. */
+function readWriteCredentials(req) {
+    const auth = req.header('authorization') || '';
+    const bearer = /^Bearer\s+(.+)$/i.exec(auth)?.[1]?.trim() || '';
+    return { bearer, dedicated: (req.header(WORLD_TOKEN_HEADER) || '').trim() };
+}
 function createWorldRoutes() {
     const router = (0, express_1.Router)();
     const svc = (0, world_intelligence_service_1.createWorldIntelligenceService)();
@@ -50,17 +66,27 @@ function createWorldRoutes() {
         return true;
     };
     const guard = (req, res, next) => {
+        if (Object.prototype.hasOwnProperty.call(req.query, 'token')) {
+            logger.warn({ method: req.method, path: req.path, queryTokenPresent: true }, 'World ingest rejected: URL query credentials are prohibited');
+            res.status(401).json({ error: 'query_token_not_allowed' });
+            return;
+        }
         if (!token) {
             logger.warn('World ingest rejected: WORLD_INGEST_TOKEN is not configured');
             res.status(401).json({ error: 'world ingest token not configured' });
             return;
         }
-        const auth = req.header('authorization') || '';
-        const bearer = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-        if (bearer === token || req.query.token === token) {
+        const credentials = readWriteCredentials(req);
+        if ([credentials.bearer, credentials.dedicated].some((value) => tokenMatches(value, token))) {
             next();
             return;
         }
+        logger.warn({
+            method: req.method,
+            path: req.path,
+            bearerPresent: credentials.bearer.length > 0,
+            dedicatedHeaderPresent: credentials.dedicated.length > 0,
+        }, 'World ingest authentication rejected');
         res.status(401).json({ error: 'unauthorized' });
     };
     /** POST /api/world/contribute — a WorldContribution → upsert graph + append series. */

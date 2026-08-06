@@ -4,6 +4,12 @@
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-08-03 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Initial creation — Aero Lab cockpit surface script: design-vector form with engine-bounds sync, four proven presets, run flows against the frozen /api/aero-lab routes (polar / evaluate / screen / mission / export / chat), hand-rolled themed SVG plots (SOC limit cycle with night shading + min-SOC marker, polar small-multiples, drag-buildup bars, mass-ledger donut), capability-flag honesty chips, and the verdict card that never renders a number the engine did not return.
+ * 2026-08-06 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Route the input-only span,
+ *                     |                             | mean-chord and pack readouts through the
+ *                     |                             | separately testable geometry helper. This
+ *                     |                             | closes the browser/server 79.9 m span-cap
+ *                     |                             | drift without making the browser a source
+ *                     |                             | of performance claims.
  */
 /* Served by the package route as /api/aero-lab/app.js next to /app (the HTML).
    All data flows from the routes in BUILD_CONTRACT §2a; the only client-side
@@ -13,6 +19,10 @@
 
 (function () {
   const D = window.AERO_LAB_DATA;
+  const GEOMETRY = window.AERO_LAB_GEOMETRY;
+  if (!GEOMETRY || typeof GEOMETRY.deriveDesignReadouts !== 'function') {
+    throw new Error('Aero Lab geometry helper did not load before app.js');
+  }
   const $ = (id) => document.getElementById(id);
   const FIELD_BY_KEY = Object.fromEntries(D.fields.map((f) => [f.k, f]));
 
@@ -206,9 +216,10 @@
    */
   function updateDerived() {
     const d = state.design;
-    const span = Math.sqrt((d.aspect_ratio || 0) * (d.area_m2 || 0));
-    const chord = span > 0 ? d.area_m2 / span : NaN;
-    const wh = (d.battery_mass_kg || 0) * (d.pack_Wh_per_kg || 0);
+    const derived = GEOMETRY.deriveDesignReadouts(d);
+    const span = derived.span_m;
+    const chord = derived.mean_chord_m;
+    const wh = derived.pack_Wh;
     $('derived').innerHTML =
       'span <b>' + fmt(span, 2) + ' m</b> · mean chord <b>' + fmt(chord, 3) + ' m</b> · pack <b>' + fmt(wh, 1) + ' Wh</b>' +
       '<div class="note">(derived from your inputs — performance numbers only come from engine runs)</div>';

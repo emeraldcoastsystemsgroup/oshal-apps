@@ -1,0 +1,17 @@
+{
+  "profileVersion": 1,
+  "app": "portrait-studio",
+  "version": "1.3.0",
+  "sourceSha": "0000000000000000000000000000000000000000",
+  "status": "pending",
+  "auditedAt": null,
+  "controls": {
+    "manifest": "pending",
+    "authz": "pending",
+    "rls": "pending",
+    "dependencies": "pending",
+    "installLifecycle": "pending",
+    "surface": "pending"
+  },
+  "evidence": []
+}

@@ -52,6 +52,19 @@ source:
   path: identity
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/identity/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # No connector allow-list of its own: the hub is a launcher over EVERY provider the
 # user has connected at /utilities — the catalog comes from /api/connect/list at
 # request time, never from a static list here.
@@ -107,6 +120,13 @@ ui:
 # from this package.)
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/identity/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/identity-routes.js
     factory: createIdentityRoutes
     mountPath: /api/identity

@@ -9,62 +9,29 @@ this file is the engineering detail behind it.
 
 ---
 
-## A. The real-drive certification gate is RED
+## A. Promote a passing real-drive validation candidate
 
-The engine has two propulsion chains. On the **ideal** chain the gate is green and reproduces the
-recorded numbers bit-for-bit. On the **real** (BEMT + motor + ESC) chain, five defects below keep
-it red.
+The assembly/authority implementation is no longer in this queue. `build_solar_cruise` now has an
+explicit `chain="ideal"|"real"` seam; the real choice composes diode PV/MPPT/harness, BEMT,
+motor/ESC/harness, one catalogued-cell `PackEcm`, and its billed auxiliary loads. Accepted bus
+intervals reach that pack exactly once through `BatteryElement.step -> PackEcm.step_power` in both
+integrators and the mission runner observes that trajectory without flat-efficiency replay.
+Executable evidence and the measured commands moved to `engine/TEST_STATUS.md` and
+`engine/tests/test_real_drive_authority.py`.
 
-**The isolating proof, which is what makes this tractable:** flipping one line —
-`build_solar_cruise`'s chain default to `"ideal"` — reproduces the pre-upgrade gate *bit-identically*
-(case A 1.0446 / B 1.0548 / C 0.2773 / D 0.3636, `GATE_EXIT=0`). Chemistry, electrical, materials
-and mission are therefore **clean**. The entire regression is the real drive plus two certification
-envelopes calibrated for wings rather than buoyant ships.
+What remains open is candidate promotion and validation:
 
-### A1 — BEMT certification envelope is too tight
-At V = 12.00 m/s (top of the trim-probe bracket) a lightly loaded propeller reaches high advance
-ratio and **98% of the thrust integrand falls outside aeropolar's gates**. Swirl tolerance is
-`1e-8` against a measured `2.17e-3` residual — five orders tighter than the physics warrants.
+- The public/default validation and service paths deliberately remain `chain="ideal"` so the
+  recorded FINAL_PRODUCT numbers are not silently relabelled as real-chain results.
+- The measured 72 h DESIGN_A real-chain run is aerodynamically certified with 432 accepted storage
+  steps and zero unmet thrust, but it does **not** close: SOC is `1.0000 -> 0.9307` (minimum
+  `0.0920`). That candidate must be re-sized or replaced; the failing verdict must not be hidden.
+- Validation cases A-D and the realistic 72 h mission still need to pass with the selected real
+  candidate before the default can move and the reference outputs can be regenerated.
 
-*Effect:* refuses validation case A and every real-drive flight.
-**Done when:** the swirl tolerance is justified from convergence behaviour rather than inherited,
-case A passes on the real chain, and a guard test pins the chosen tolerance so it cannot drift.
-
-### A2 — Buoyant trim cannot converge (blocks the flagship)
-Vertical residual `0.000550251 N` against a tolerance of `1.47557e-07 N` on a `14.7557 N` weight —
-`3.7e-5` relative, physically meaningless and numerically fatal. An independent sweep of
-f = 0.2 / 0.4 / 0.6 / 0.8 on a design that is fine at f = 0 shows **all four refuse, with the
-residual scaling with f**.
-
-*Root cause:* the tolerance is ~`1e-8` relative to **gross** weight, but the wing only controls the
-`(1 − f)` residual. On a buoyant ship most of the weight is carried by gas the wing never trims.
-
-*Effect:* **the certified Floater cannot be evaluated by the main engine at all.**
-**Done when:** the tolerance is defined against the aerodynamically-trimmed fraction, the f-sweep
-passes at all four points, and a regression test covers f = 0.8.
-
-### A3 — Uncertified aero at buoyant trim speed
-Both chains refuse the aero solution at roughly 4.4–4.5 m/s. Chord 0.208 m at 4.4 m/s gives
-Re ≈ 59,000, comfortably above the 30,000 floor — so the refusal is **alpha-span or NeuralFoil
-confidence, not Reynolds**.
-
-**Done when:** the refusal is attributed precisely (which gate, which bound) before anything is
-changed. No widening a band to make a number appear.
-
-### A4 — Pack thermal model is dead
-Over a 72 h mission `pack_T_min == pack_T_max == 288.15 K` exactly and `heater_Wh == 0.0` exactly.
-288.15 K is `PackEcm.pack_temp_K`'s initialiser (`ecm.py:483`, sea-level ISA); ambient at 500 m is
-284.9 K. **The thermal ODE is never stepped from the mission.**
-
-*Effect:* silently deletes the cold-night physics the electrochemistry upgrade existed to add.
-**Done when:** pack temperature tracks ambient across a 72 h run, heater energy is non-zero on a
-cold night, and a guard asserts the pack temperature is not constant.
-
-### A5 — Four verification anchors never evaluated
-Harness import-name errors, not code defects: Fan 2003 cold usable/R_int ratios; C60 STC worst-bin
-MPP; helium permeation through 38 µm LLDPE; mission ledger reconciliation.
-
-**Done when:** all four run and pass or fail on their merits, and the suite completes end-to-end.
+**Done when:** a real candidate passes cases A-D and the 72 h mission with certified aero, zero
+unserved bus demand, SOC persistence and all mass/technology bounds; then make that validated real
+chain the default and regenerate the recorded outputs with explicit provenance.
 
 ---
 
@@ -111,11 +78,6 @@ These gate anyone actually building the craft the exporter emits.
 
 ## D. Smaller items
 
-- **Two physics implementations, no parity test.** The browser console mirrors the server models and
-  nothing asserts they agree on a single number. **Done when:** one shared case is asserted equal
-  across both to a stated tolerance.
-- **The mesh validator does not check self-intersection.** Topology is verified closed and manifold;
-  a sufficiently twisted loft could pass every check and still be unprintable.
 - **The design-space sweep must be re-run on real physics.** The paused 30k sweep was scored on the
   ideal chain and is not a valid ranking once section A closes.
 - **`node scripts/check-store-separation.mjs .` fails repo-wide** on a top-level `_walkthrough-shots/`

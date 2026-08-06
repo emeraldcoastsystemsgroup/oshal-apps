@@ -6,6 +6,12 @@ SEQ                 | AUTHOR                      | DESCRIPTION
 1 | maintainer@emeraldcoastsystemsgroup.com   | Reflection-based guard for the round-3 CLASS: every numeric constructor parameter on every element exported from aerosim.vehicle must be range-checked (declared in PARAM_BOUNDS and enforced) or explicitly ledgered. Walks the export list, pushes every declared parameter out of range (zero, negative, 2x max, +/-inf, nan) and asserts each raises; proves the walker itself goes red on an unchecked element; pins the measured round-2 exploits (FM=5.0 thruster, soc_max=3.0 / eta=2.0 battery, negative film mass, Betz-busting cp) and the FROZEN non_mechanical_source opt-in contract.
 2 | maintainer@emeraldcoastsystemsgroup.com   | ROUND 4 regressions. AeroSurface grew a PARAM_BOUNDS table (extra_CD0, n_crit), so its two ledger entries are DELETED per the stale-entry rule and it joins the baseline/mutation walk. New pinned exploits, each measured by R4_probe_bypass / R4_probe_boundary before the fix: (a) DERIVED-MASS CONSISTENCY -- capacity_J x3 on a live pack (723 Wh/kg effective) and area_m2 x2 on a live PVArray both passed recheck on stale bills; now recheck raises. (b) TECHNOLOGY CATALOGUE -- 0.4999 cell efficiency at 0.15 kg/m2 and a 499.9 Wh/kg pack, each inside its scalar band, jointly uncatalogued; construction and recheck refuse both, while the catalogued frontier points (0.24@0.20 thin film, 445.5 Wh/kg pack) still construct. (c) BuoyancyVolume film floor -- zero film raises, derived film clears the 0.018 kg/m2 areal floor, and a live cell whose volume is inflated past its film is caught at recheck.
 3 | maintainer@emeraldcoastsystemsgroup.com   | ROUND 5 (cleanup): AeroSurface declared incidence_deg [-90, 90] and re_bins_per_decade [6, 24] int, so their DOCUMENTED_GAPS entries are deleted per the stale-entry rule -- both carried factually-wrong rationales the audit quoted ("not a physics knob": bins=1 moved the answer 0.8% and 0/-3 crashed raw; "angle command": nan incidence constructed and poisoned every coefficient). The joint-PV-pair probe drops packing 0.99 -> 0.9 so it keeps testing the FRONTIER, not the new 0.92 packing cap (which tests/test_floors.py owns).
+4 | maintainer@emeraldcoastsystemsgroup.com   | Register the real-chain public elements with
+  |                                           | the reflection guard: BEMTThruster,
+  |                                           | PVArrayDiode and PackHeaterLoad now receive
+  |                                           | the same hostile-bound construction sweep as
+  |                                           | every shipped element. Solar exemption remains
+  |                                           | restricted to the PVArray class lineage.
 
 WHAT THIS FILE GUARDS (the CLASS, not the instances)
 ----------------------------------------------------
@@ -45,14 +51,19 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import aerosim.vehicle as vehicle_pkg
+from aerosim.electrical import MPPTConverter
+from aerosim.prop import EscParams, MOTOR_CATALOGUE, PROP_CATALOGUE
 from aerosim.vehicle import (
     AeroSurface,
     BatteryElement,
+    BEMTThruster,
     Bounds,
     BuoyancyVolume,
     INDEX_PARAMS,
+    PackHeaterLoad,
     ParamBoundsError,
     PVArray,
+    PVArrayDiode,
     Thruster,
     WindTurbine,
     declared_bounds,
@@ -64,6 +75,11 @@ from aerosim.vehicle import (
 #: Shared planform for AeroSurface baselines (the case-A NACA 2412 geometry).
 _BASE_GEOMETRY = naca4_geometry("2412", span_m=5.65, area_m2=1.72,
                                 taper_ratio=0.7)
+_BASE_IDEAL_PACK = BatteryElement(
+    capacity_J=703.0 * 3600.0,
+    specific_energy_Wh_per_kg=241.0,
+    chemistry="ideal",
+)
 
 # --------------------------------------------------------------------------- #
 # Known-good constructor kwargs for every shipped element that declares bounds. #
@@ -73,12 +89,29 @@ _BASE_GEOMETRY = naca4_geometry("2412", span_m=5.65, area_m2=1.72,
 
 BASELINE_KWARGS: dict[str, dict] = {
     "Thruster": dict(diameter_m=0.36, max_electrical_power_W=120.0),
+    "BEMTThruster": dict(
+        geom=PROP_CATALOGUE["apcsf_11x47"],
+        motor=MOTOR_CATALOGUE["axi_2212_26"],
+        esc=EscParams(),
+        v_bus_V=21.6,
+        r_harness_ohm=0.020,
+    ),
     "WindTurbine": dict(swept_area_m2=1.0, generator_rated_power_W=600.0),
     "BatteryElement": dict(capacity_J=703.0 * 3600.0,
                            specific_energy_Wh_per_kg=241.0),
     "PVArray": dict(area_m2=1.72, cell_efficiency_stc=0.237,
                     packing_factor=0.802, areal_density_kg_m2=0.4),
+    "PVArrayDiode": dict(
+        area_m2=1.72,
+        cell_efficiency_stc=0.237,
+        packing_factor=0.802,
+        areal_density_kg_m2=0.4,
+        pv_model="c60-single-diode",
+        n_series_cells=44,
+        mppt=MPPTConverter(p_rated_W=350.0, v_bus_V=21.6),
+    ),
     "PayloadLoad": dict(power_W=5.8, mass_kg=0.150),
+    "PackHeaterLoad": dict(pack=_BASE_IDEAL_PACK, mass_kg=0.150),
     "BuoyancyVolume": dict(volume_m3=4.003, gas="helium", film_mass_kg=0.5),
     "Tether": dict(body_a=0, body_b=1, rest_length_m=100.0, EA_N=1.0e4,
                    damping_Ns_per_m=2.0, diameter_m=0.002),
@@ -428,13 +461,15 @@ def test_non_mechanical_source_is_an_explicit_declared_opt_in() -> None:
         "an inherited or instance-patched flag is not a declared opt-in"
     )
     assert PVArray.non_mechanical_source is True
-    # No other shipped element quietly claims the exemption.
+    # No non-PV shipped element quietly claims the exemption. Real diode arrays
+    # inherit the explicit PVArray declaration and retain its irradiance/area cap.
     for cls in _element_classes():
-        if cls is PVArray:
+        if issubclass(cls, PVArray):
+            assert getattr(cls, "non_mechanical_source", False) is True
             continue
         assert not getattr(cls, "non_mechanical_source", False), (
             f"{cls.__name__} claims the non-mechanical-source exemption; only "
-            f"PVArray converts non-mechanical energy today"
+            f"the PVArray class lineage converts non-mechanical energy today"
         )
     # And the old attribute-name inference must be insufficient by design:
     # an imitator exposing packing_factor / cell_efficiency_stc but NOT the

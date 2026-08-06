@@ -64,6 +64,19 @@ source:
   path: trading
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/intelligent-trades/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 dependencies:
   apps: []
   tools: []
@@ -252,6 +265,13 @@ tools:
 # /api/trading exactly like the original BEFORE-ordering in server.ts.
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/intelligent-trades/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/trading-autopilot-routes.js
     factory: createTradingAutopilotRoutes
     mountPath: /api/trading/autopilot

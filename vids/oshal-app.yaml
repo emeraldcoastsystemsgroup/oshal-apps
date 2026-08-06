@@ -30,7 +30,7 @@ description: >-
   Turn an idea into generated video. The Veo specialist drives Google Vids by
   clicking — describes the shot, generates the clip, places it on the timeline —
   on a remote operator machine, and learns what works over time.
-version: 1.1.0
+version: 1.1.1
 status: active
 
 theme: midnight
@@ -40,6 +40,19 @@ source:
   url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: vids
   ref: main
+
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/vids/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
 
 dependencies:
   apps: []
@@ -93,10 +106,18 @@ tools:
 # ─────────────────────────────────────────────────────────────────────────────
 # ROUTES — the packaged surface router, mounted /api/vids on activation. (In core
 # server.ts this was createVidsRoutes behind serviceSecretOr(requiresAuth); the
-# same posture here so the in-container vids_generate / creative_* CLI tools keep
-# reaching it with X-Service-Secret while browsers hit the OIDC wall — ADR-085 D2.)
+# same posture here so browsers use OIDC while in-container vids_generate / creative_*
+# callers present BOTH X-Service-Secret and the canonical X-Oshal-User-Sub-B64 owner
+# assertion. Fleet authentication alone never selects a user's queue — ADR-085 D2.)
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/vids/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/vids-routes.js
     factory: createVidsRoutes
     mountPath: /api/vids
@@ -125,10 +146,12 @@ ui:
       iframeUrl: /api/vids/app
       section: top
 
-# The vids_jobs ledger + worker-bot seed. COPY of the kernel-owned 059 so fresh
-# installs create the table; idempotent.
+# The vids_jobs ledger + worker-bot seed. COPY of the kernel-owned 059 creates fresh
+# installs; 100 upgrades installations that already recorded 059. Both make ownership
+# mandatory and enforce owner/operator access with FORCE RLS.
 migrations:
   - migrations/059-vids-platform.sql
+  - migrations/100-vids-owner-rls.sql
 
 # Tickets of type 'vids' route to the operator bot.
 ticketType: vids

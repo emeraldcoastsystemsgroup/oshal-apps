@@ -48,3 +48,12 @@ node scripts/oshal-app.js install finance     # from an OSHAL checkout
 
 Ships `status: active` (parity with core). The three `oshal_finance_*` tables stay in
 place across the carve (lazy-DDL, tier-1 owner RLS at the chokepoint).
+
+<!-- 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | Document fail-closed Plaid-token recovery after removal of the public encryption-key fallback. -->
+
+## `SESSION_SECRET` Plaid recovery
+
+Set a nonblank `SESSION_SECRET` before linking or syncing accounts. Plaid access tokens encrypted
+under the retired public fallback cannot be authenticated with a new secret; reconnect each linked
+institution through Plaid Link. Existing aggregates and payment audit rows remain, but no ciphertext
+should be copied into a token or configuration field.

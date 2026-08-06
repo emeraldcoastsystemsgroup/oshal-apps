@@ -10,6 +10,11 @@ SEQ                 | AUTHOR                      | DESCRIPTION
 5 | maintainer@emeraldcoastsystemsgroup.com   | Export the parameter-bounds layer (vehicle/param_bounds.py): ParamBoundsError, Bounds, require_in_range, validate_declared, declared_bounds, recheck_element_params, PARAM_BOUNDS_ATTR, INDEX_PARAMS. Round-3 class fix: every numeric constructor parameter on every shipped element is now range-checked or billed, and the integrator can re-check a live instance at spec extraction.
 6 | maintainer@emeraldcoastsystemsgroup.com   | ROUND 4: export the technology catalogue (vehicle/tech_catalogue.py -- joint frontiers for coupled parameters), the fuselage/boom/tail remainder floor (structure.min_fuselage_boom_tail_mass_kg), the balloon film areal-density constants, and the battery eta ceilings. Self-test buoyancy checks updated for the derived (non-zero) film: the agreed table values are GROSS lift, so they are now checked as force + film weight, same physics, film billed.
 7 | maintainer@emeraldcoastsystemsgroup.com   | ROUND 5 (cleanup): export min_extra_CD0 (structure.py's shell/slender-body parasite-drag floor, replacing the screen's vacuous solid-sphere bound) and MAX_PV_PACKING_FACTOR (tech_catalogue.py's 0.92 packing ceiling, now PVArray's declared bound).
+8 | maintainer@emeraldcoastsystemsgroup.com   | Export BEMTThruster, PVArrayDiode,
+  |                                           | PackHeaterLoad and PackThermalSpec lazily.
+  |                                           | Lazy loading keeps electrical/prop imports
+  |                                           | cold-order safe while making the real chain
+  |                                           | part of the public shipped-element catalogue.
 
 MODULE: aerosim.vehicle -- a vehicle IS a set of force-producing elements in a
 moving fluid field.
@@ -171,7 +176,8 @@ __all__ = [
     "MAX_ETA_CHARGE", "MAX_ETA_DISCHARGE",
     # elements
     "AeroSurface", "BuoyancyVolume", "Tether", "Thruster", "PVArray",
-    "BatteryElement", "WindTurbine", "PayloadLoad",
+    "BatteryElement", "WindTurbine", "PayloadLoad", "PackHeaterLoad",
+    "PVArrayDiode", "BEMTThruster", "PackThermalSpec",
     "GENERATOR_SPECIFIC_POWER_W_PER_KG", "RECTIFIER_SPECIFIC_POWER_W_PER_KG",
     # parameter bounds (vehicle/param_bounds.py) -- the round-3 class guard
     "ParamBoundsError", "Bounds", "require_in_range", "validate_declared",
@@ -197,6 +203,34 @@ __all__ = [
     "PV_LAMINATED_FLEXIBLE_KG_M2", "PV_MODULE_WITH_MPPT_KG_M2",
     "PV_THIN_FILM_BLANKET_KG_M2", "DYNEEMA_SK75_DENSITY_KG_M3",
 ]
+
+
+# Heavy real-chain wrappers import electrical/prop modules which themselves use the
+# leaf `vehicle.param_bounds` module. Eager barrel imports would create an order-dependent
+# cycle, so these public names resolve on first access (PEP 562) and are then cached.
+_LAZY_EXPORTS: dict[str, tuple[str, str]] = {
+    "BEMTThruster": (".bemt_thruster", "BEMTThruster"),
+    "PVArrayDiode": (".pv_real", "PVArrayDiode"),
+    "PackHeaterLoad": (".energy", "PackHeaterLoad"),
+    "PackThermalSpec": (".electrochem", "PackThermalSpec"),
+}
+
+
+def __getattr__(name: str):
+    """
+    @description Resolve a public real-chain type without imposing import order.
+    @param name Exported attribute name. @returns The resolved class.
+    @raises AttributeError For names outside the public lazy map.
+    """
+    target = _LAZY_EXPORTS.get(name)
+    if target is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    from importlib import import_module
+
+    module = import_module(target[0], __name__)
+    value = getattr(module, target[1])
+    globals()[name] = value
+    return value
 
 
 # ===========================================================================

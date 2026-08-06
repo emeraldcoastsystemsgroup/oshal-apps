@@ -1,0 +1,26 @@
+# Store-repository gitleaks policy. Extends the maintained default rules and excludes only generated
+# dependency trees. Tests and example files remain scanned: a credential pasted into either is still
+# a credential, and synthetic values must use one of the exact self-identifying placeholders below.
+#
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Scan every example and fixture path; allow only exact synthetic placeholder values.
+title = "oshal application-store gitleaks policy"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Generated dependency trees and exact synthetic placeholder values"
+paths = [
+  '''node_modules/.*''',
+  '''(^|/)\.venv/.*''',
+  '''(^|/)venv/.*'''
+]
+regexes = [
+  '''AKIAIOSFODNN7EXAMPLE''',
+  '''replace-with-[a-z0-9-]+''',
+  '''SESSION_SECRET=\s*$'''
+]

@@ -13,12 +13,19 @@ DATE/TIME           | AUTHOR                      | DESCRIPTION
                     |                             | hardcoded f=0.80 Tier-1 case. Every mass
                     |                             | and dimension comes from the engine's own
                     |                             | evaluation ledger, never hand-typed.
+2026-08-06 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Extend STL validation beyond edge
+                    |                             | counts: broad-phase AABBs plus exact
+                    |                             | triangle separating-axis tests now reject
+                    |                             | non-topological self-intersections before
+                    |                             | any invalid target STL is written. Reports
+                    |                             | retain the exact count and a bounded pair
+                    |                             | sample for diagnosis.
 
 export_build_files -- physical build package for an evaluated aero-lab design.
 
 generate(vector, design, evaluation, out_dir) writes:
   design_snapshot.json                the full-precision provenance record
-  wing.stl / wing_panel_*.stl         binary STL, MILLIMETRES, welded + manifold-checked
+  wing.stl / wing_panel_*.stl         binary STL, mm, welded + topology/intersection-checked
   airfoil.dat                         Selig-format section (the exact CST weights evaluated)
   airfoil_template.dxf                root-chord section outline + spar mark (DXF R12)
   ribs.dxf                            8 stations at LOCAL chord (taper honoured)
@@ -49,6 +56,11 @@ N_RIBS_PER_PANEL = 8       # FP_03 station count
 N_GORES = 10               # FP_04 gore count
 SEAM_ALLOW_MM = 15.0       # FP_04 seam allowance
 STL_CHORDWISE_RES = 72     # FP_02 mesh resolution
+SELF_INTERSECTION_SAMPLE_LIMIT = 20
+
+
+class MeshValidationError(ValueError):
+    """Raised when an exported STL fails a closed/manifold/intersection check."""
 
 
 # ---------------------------------------------------------------------------
@@ -207,10 +219,150 @@ def _write_stl(path: str, pts_mm: np.ndarray, faces: np.ndarray) -> None:
         fh.write(rec.tobytes())
 
 
+def _axis_separates(a: np.ndarray, b: np.ndarray, axis: np.ndarray,
+                    eps_mm: float) -> bool:
+    """@description Test one separating axis for two triangles.
+    @param a @param b Triangle vertices, shape (3, 3), mm.
+    @param axis Candidate 3-D axis (need not be normalized).
+    @param eps_mm Contact tolerance in mm.
+    @returns True only when the projected intervals are disjoint.
+
+    Near-zero cross products mean parallel edges and therefore provide no axis;
+    they are skipped. Normalising first keeps `eps_mm` a physical length rather
+    than silently changing it with triangle size.
+    """
+    norm = float(np.linalg.norm(axis))
+    if norm <= np.finfo(float).eps:
+        return False
+    unit = axis / norm
+    pa = a @ unit
+    pb = b @ unit
+    return bool(pa.max() < pb.min() - eps_mm
+                or pb.max() < pa.min() - eps_mm)
+
+
+def _coplanar_triangles_intersect(a: np.ndarray, b: np.ndarray,
+                                  normal: np.ndarray,
+                                  eps_mm: float) -> bool:
+    """@description Exact 2-D SAT after projecting coplanar triangles onto
+        their numerically strongest coordinate plane.
+    @returns True for overlap or contact; either is invalid for unrelated faces.
+
+    The usual 3-D triangle axes collapse to the common plane normal for coplanar
+    faces. Projecting and testing all six in-plane edge normals is therefore not
+    optional: without it, two disjoint coplanar triangles would be false positives.
+    """
+    drop = int(np.argmax(np.abs(normal)))
+    a2 = np.delete(a, drop, axis=1)
+    b2 = np.delete(b, drop, axis=1)
+    for tri in (a2, b2):
+        edges = np.roll(tri, -1, axis=0) - tri
+        for edge in edges:
+            axis = np.array([-edge[1], edge[0]], dtype=float)
+            norm = float(np.linalg.norm(axis))
+            if norm <= np.finfo(float).eps:
+                continue
+            unit = axis / norm
+            pa = a2 @ unit
+            pb = b2 @ unit
+            if pa.max() < pb.min() - eps_mm or pb.max() < pa.min() - eps_mm:
+                return False
+    return True
+
+
+def _triangles_intersect(a: np.ndarray, b: np.ndarray,
+                         eps_mm: float) -> bool:
+    """@description Triangle/triangle intersection by the separating-axis
+        theorem, with a dedicated coplanar projection.
+    @param a @param b Triangle vertices, shape (3, 3), mm.
+    @param eps_mm Physical contact tolerance, mm.
+    @returns True when the closed triangles overlap or touch.
+
+    For non-coplanar triangles the complete candidate set is both face normals
+    plus all nine edge-edge cross products. Degenerate triangles are reported by
+    `_check_mesh` and do not participate in this secondary diagnostic.
+    """
+    edges_a = np.roll(a, -1, axis=0) - a
+    edges_b = np.roll(b, -1, axis=0) - b
+    normal_a = np.cross(edges_a[0], edges_a[1])
+    normal_b = np.cross(edges_b[0], edges_b[1])
+    norm_a = float(np.linalg.norm(normal_a))
+    norm_b = float(np.linalg.norm(normal_b))
+    if norm_a <= np.finfo(float).eps or norm_b <= np.finfo(float).eps:
+        return False
+
+    unit_a = normal_a / norm_a
+    unit_b = normal_b / norm_b
+    b_from_a_plane = (b - a[0]) @ unit_a
+    a_from_b_plane = (a - b[0]) @ unit_b
+    if (np.all(b_from_a_plane > eps_mm)
+            or np.all(b_from_a_plane < -eps_mm)
+            or np.all(a_from_b_plane > eps_mm)
+            or np.all(a_from_b_plane < -eps_mm)):
+        return False
+
+    coplanar = (float(np.max(np.abs(b_from_a_plane))) <= eps_mm
+                and float(np.max(np.abs(a_from_b_plane))) <= eps_mm)
+    if coplanar:
+        return _coplanar_triangles_intersect(a, b, normal_a, eps_mm)
+
+    axes = [normal_a, normal_b]
+    axes.extend(np.cross(edge_a, edge_b)
+                for edge_a in edges_a for edge_b in edges_b)
+    return not any(_axis_separates(a, b, axis, eps_mm) for axis in axes)
+
+
+def _self_intersection_report(pts_mm: np.ndarray,
+                              faces: np.ndarray) -> tuple[int, list[list[int]], float]:
+    """@description Count intersections between non-topological face pairs.
+    @param pts_mm Vertex coordinates, mm. @param faces Triangle indices.
+    @returns (exact pair count, bounded [[face_i, face_j], ...] sample, tolerance_mm).
+
+    An AABB broad phase removes the overwhelming majority of O(n^2) pairs before
+    exact SAT. Pairs sharing a vertex are intentionally topological neighbours:
+    their legal shared edge/vertex is not mesh self-intersection. A fold-through
+    is still exposed by the surrounding non-neighbour face pairs.
+    """
+    triangles = pts_mm[faces]
+    mesh_scale_mm = float(np.linalg.norm(pts_mm.max(axis=0) - pts_mm.min(axis=0)))
+    eps_mm = max(1e-9, mesh_scale_mm * 1e-10)
+    lo = triangles.min(axis=1)
+    hi = triangles.max(axis=1)
+    count = 0
+    sample: list[list[int]] = []
+    for i in range(len(faces) - 1):
+        rest = np.arange(i + 1, len(faces), dtype=np.int64)
+        overlaps = np.all(lo[i] <= hi[rest] + eps_mm, axis=1)
+        overlaps &= np.all(lo[rest] <= hi[i] + eps_mm, axis=1)
+        for j in rest[overlaps]:
+            # Do not call ordinary mesh adjacency an intersection. The primary
+            # edge-count check separately catches broken or over-used edges.
+            if np.any(faces[i][:, None] == faces[j][None, :]):
+                continue
+            if _triangles_intersect(triangles[i], triangles[j], eps_mm):
+                count += 1
+                if len(sample) < SELF_INTERSECTION_SAMPLE_LIMIT:
+                    sample.append([int(i), int(j)])
+    return count, sample, eps_mm
+
+
 def _check_mesh(pts_mm: np.ndarray, faces: np.ndarray) -> dict:
-    """@description Mesh verification: bbox, degenerate faces, edge-manifoldness
-        (every edge on exactly 2 triangles) -- FP_02 verbatim.
+    """@description Mesh verification: finite indexed triangles, bbox,
+        degeneracy, edge-manifoldness and geometric self-intersection.
     @returns The check report dict."""
+    pts_mm = np.asarray(pts_mm, dtype=float)
+    faces = np.asarray(faces, dtype=np.int64)
+    if pts_mm.ndim != 2 or pts_mm.shape[1:] != (3,) or len(pts_mm) < 4:
+        raise MeshValidationError(
+            f"mesh points must have shape (n>=4, 3), got {pts_mm.shape}")
+    if faces.ndim != 2 or faces.shape[1:] != (3,) or len(faces) < 4:
+        raise MeshValidationError(
+            f"mesh faces must have shape (n>=4, 3), got {faces.shape}")
+    if not np.all(np.isfinite(pts_mm)):
+        raise MeshValidationError("mesh contains non-finite vertex coordinates")
+    if int(faces.min()) < 0 or int(faces.max()) >= len(pts_mm):
+        raise MeshValidationError("mesh face index lies outside the vertex array")
+
     lo, hi = pts_mm.min(axis=0), pts_mm.max(axis=0)
     v0, v1, v2 = (pts_mm[faces[:, k]] for k in range(3))
     areas = 0.5 * np.linalg.norm(np.cross(v1 - v0, v2 - v0), axis=1)
@@ -219,14 +371,42 @@ def _check_mesh(pts_mm: np.ndarray, faces: np.ndarray) -> dict:
                               np.concatenate([f[:, 1], f[:, 2], f[:, 0]])],
                              axis=1), axis=1)
     _, counts = np.unique(edges, axis=0, return_counts=True)
+    degenerate_faces = int(np.sum(areas < 1e-9))
+    manifold = bool(np.all(counts == 2))
+    intersections, pair_sample, eps_mm = _self_intersection_report(pts_mm, faces)
     return {"triangles": int(len(faces)),
             "bbox_mm": [[round(float(a), 2) for a in lo],
                         [round(float(b), 2) for b in hi]],
             "size_mm": [round(float(b - a), 2) for a, b in zip(lo, hi)],
-            "degenerate_faces": int(np.sum(areas < 1e-9)),
+            "degenerate_faces": degenerate_faces,
             "edges_on_1_tri": int(np.sum(counts == 1)),
             "edges_on_3plus": int(np.sum(counts >= 3)),
-            "manifold": bool(np.all(counts == 2))}
+            "manifold": manifold,
+            "self_intersections": intersections,
+            "self_intersection_pairs_sample": pair_sample,
+            "self_intersection_tolerance_mm": eps_mm,
+            "self_intersection_free": intersections == 0,
+            "valid": bool(degenerate_faces == 0 and manifold
+                          and intersections == 0)}
+
+
+def _write_validated_stl(path: str, pts_mm: np.ndarray,
+                         faces: np.ndarray) -> dict:
+    """@description Validate a mesh and write it only when every gate passes.
+    @param path Target STL path. @param pts_mm @param faces Mesh arrays.
+    @returns The retained validation report.
+    @raises MeshValidationError Before opening the target when invalid.
+    """
+    report = _check_mesh(pts_mm, faces)
+    if not report["valid"]:
+        raise MeshValidationError(
+            f"{os.path.basename(path)} failed mesh validation: "
+            f"degenerate_faces={report['degenerate_faces']}, "
+            f"edges_on_1_tri={report['edges_on_1_tri']}, "
+            f"edges_on_3plus={report['edges_on_3plus']}, "
+            f"self_intersections={report['self_intersections']}")
+    _write_stl(path, pts_mm, faces)
+    return report
 
 
 def _wing_stls(af, design, out_dir: str) -> tuple[list[str], dict]:
@@ -242,8 +422,8 @@ def _wing_stls(af, design, out_dir: str) -> tuple[list[str], dict]:
             method="tri", chordwise_resolution=STL_CHORDWISE_RES)
         pts_mm, faces = _weld(np.asarray(pts, dtype=float) * 1000.0,
                               np.asarray(faces, dtype=np.int64))
-        _write_stl(os.path.join(out_dir, name), pts_mm, faces)
-        report[name] = _check_mesh(pts_mm, faces)
+        report[name] = _write_validated_stl(
+            os.path.join(out_dir, name), pts_mm, faces)
         files.append(name)
         if name == "wing_panel_right.stl":
             right_mesh = (pts_mm, faces)
@@ -251,8 +431,8 @@ def _wing_stls(af, design, out_dir: str) -> tuple[list[str], dict]:
     pts_l = pts_l.copy()
     pts_l[:, 1] *= -1.0
     faces_l = faces_r[:, ::-1].copy()
-    _write_stl(os.path.join(out_dir, "wing_panel_left.stl"), pts_l, faces_l)
-    report["wing_panel_left.stl"] = _check_mesh(pts_l, faces_l)
+    report["wing_panel_left.stl"] = _write_validated_stl(
+        os.path.join(out_dir, "wing_panel_left.stl"), pts_l, faces_l)
     files.append("wing_panel_left.stl")
     c_root, c_tip = _chords_m(design)
     report["expected_dims_mm"] = {

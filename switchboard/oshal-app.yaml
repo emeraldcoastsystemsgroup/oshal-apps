@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com   | Register the service-auth package smoke and the encrypted confirmed-reply outbox migration/capability without changing the parent OIDC route boundary.
+
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — switchboard (the merged comms + social command center)
 #
@@ -9,7 +15,7 @@
 # This package is being built pane-by-pane. SHIPPED here: the **Today** pane (the
 # single prioritized stream), the portal sections (Inbox / Calendar / Compose), the
 # **Threads** pane (one chronological timeline per counterpart over the ingested
-# inbox store, read-only), and the **Stage** pane (broadcast fan-out composer —
+# inbox store plus a confirm-gated Gmail reply outbox), and the **Stage** pane (broadcast fan-out composer —
 # compose once, confirm once per send, fan out through the same publish path
 # Compose uses). The retire/carve of the three predecessor packages (social,
 # email-summarizer, feeds) happens once the panes are signed off.
@@ -43,6 +49,19 @@ source:
   path: switchboard
   ref: main
 
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/switchboard/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
 # Runtime connector allow-list — the mailbox/calendar the board reads, the phone leg,
 # and the social platforms whose inbox-fed notifications feed the stream. All via the
 # per-user broker; the board never holds raw creds.
@@ -51,6 +70,7 @@ source:
 # MOUNT time, not at compile time. See docs/apps/kernel-skills.md.
 uses:
   - media-generation # switchboard-compose-routes.js generates post imagery
+  - memory           # reply outbox content is owner-key encrypted through personal-data
 
 dependencies:
   apps: []
@@ -105,7 +125,8 @@ ui:
       iframeUrl: /api/switchboard/inbox
       section: top
     # Threads (ADR-113 next slice, shipped): one chronological timeline per counterpart
-    # over the already-ingested inbox store — read-only, existing identity model.
+    # over the already-ingested inbox store. Gmail rows can enter the encrypted,
+    # idempotent reply outbox only after an explicit per-reply confirmation.
     - toolName: switchboard-threads
       label: Threads
       icon: codicon codicon-comment-discussion
@@ -145,6 +166,13 @@ ui:
       section: bottom
 
 routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/switchboard/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/switchboard-routes.js
     factory: createSwitchboardRoutes
     mountPath: /api/switchboard
@@ -152,9 +180,11 @@ routes:
     requiresAuth: true
     requiresContext: true
 
-# No migrations: the Today board reads the shared oshal_inbox_messages store (filled by
-# the framework inbox-ingest cron) plus the caller's live Gmail/Calendar — no app-owned
-# Postgres tables in this slice.
+# Checked-in equivalent of the reply route's lazy-DDL chokepoint. The outbox keeps
+# recipient/subject/body/source encrypted, is unique by owner + idempotency key, and
+# enforces owner FORCE RLS. Workspace and calendar tables remain lazy-DDL as before.
+migrations:
+  - migrations/001-switchboard-reply-outbox.sql
 
 # When /cockpit?app=switchboard is requested, show this app's board and hide the generic
 # framework tabs (settings stays reachable). defaultView is the Today board.

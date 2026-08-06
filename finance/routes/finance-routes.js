@@ -28,6 +28,8 @@
  * 2026-07-05 19:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | Tier-1 RLS at the lazy-DDL chokepoint (A1.2 follow-up): ensureFinanceSchema now appends buildOwnerRlsPolicyStatements for oshal_finance_items/data/payments so a fresh database is never left policy-less between table creation and a migration-060 re-run.
  * 2026-07-17 21:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | ADR-085 carve-out into the finance store package (Wave 1 finale). Factory is the standard (ctx) shape — surface serves from this package's tools/ (ctx.appPackageDir). Core-remaining relative imports rewritten to @/app/routes aliases (inline-bot-execution, free-tier-rotation — LM pattern); finance-plaid vendors as a package sibling; @/features/payments now imports through the KERNEL-SKILL contract (pinned in core kernel-skills registry this same carve — it was anchored only by this file). The finance-analyst REAL bot-node (container/echo-registry/persona/oshal-plaid.js) stays core as the ADR-093 interim operator fragment. Logic unchanged.
  *
+ * 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: replace the public SESSION_SECRET fallback with package-local fail-closed encryption helpers while retaining the established encrypted envelope for stored Plaid tokens.
+ *
  * @module finance-routes
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
@@ -68,7 +70,6 @@ exports.ensureFinanceSchema = ensureFinanceSchema;
 exports.createFinanceRoutes = createFinanceRoutes;
 const express_1 = require("express");
 const path = __importStar(require("path"));
-const crypto = __importStar(require("crypto"));
 const logger_1 = require("@/shared/logger");
 const database_1 = require("@/shared/services/database");
 const agent_management_1 = require("@/features/agent-management");
@@ -77,6 +78,7 @@ const inline_bot_execution_1 = require("@/app/routes/inline-bot-execution");
 const free_tier_rotation_1 = require("@/app/routes/free-tier-rotation");
 const explicit_write_confirmation_1 = require("@/shared/security/explicit-write-confirmation");
 const finance_plaid_1 = require("./finance-plaid");
+const session_crypto_1 = require("./session-crypto");
 const logger = (0, logger_1.createChildLogger)({ module: 'finance-routes' });
 /** Package install dir — set by the loader on the context; env fallback for tool-style callers. */
 let packageDir = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -101,24 +103,6 @@ function servePage(surfaceDir, file) {
             }
         });
     };
-}
-/** AES-256-GCM key = SHA256(SESSION_SECRET) — same scheme the connector tokens use. */
-function aesKey() {
-    return crypto.createHash('sha256').update(process.env.SESSION_SECRET || 'oshal-dev-secret').digest();
-}
-/** Encrypt a UTF-8 string to the connectors' `iv:tag:enc` base64 envelope. */
-function encrypt(plain) {
-    const iv = crypto.randomBytes(12);
-    const c = crypto.createCipheriv('aes-256-gcm', aesKey(), iv);
-    const enc = Buffer.concat([c.update(plain, 'utf8'), c.final()]);
-    return [iv.toString('base64'), c.getAuthTag().toString('base64'), enc.toString('base64')].join(':');
-}
-/** Decrypt an `iv:tag:enc` envelope back to UTF-8. */
-function decrypt(blob) {
-    const [iv, tag, enc] = String(blob).split(':');
-    const d = crypto.createDecipheriv('aes-256-gcm', aesKey(), Buffer.from(iv, 'base64'));
-    d.setAuthTag(Buffer.from(tag, 'base64'));
-    return Buffer.concat([d.update(Buffer.from(enc, 'base64')), d.final()]).toString('utf8');
 }
 /** Create or validate the finance-owned stores: linked items, aggregate, and payments. */
 async function ensureFinanceSchema(pool) {
@@ -191,12 +175,12 @@ async function ensureFinanceSchema(pool) {
 async function storeItem(pool, sub, item) {
     await pool.query(`INSERT INTO oshal_finance_items (item_id, user_sub, institution, access_token)
        VALUES ($1, $2, $3, $4)
-     ON CONFLICT (item_id) DO UPDATE SET institution = EXCLUDED.institution, access_token = EXCLUDED.access_token`, [item.itemId, sub, item.institution, encrypt(item.accessToken)]);
+     ON CONFLICT (item_id) DO UPDATE SET institution = EXCLUDED.institution, access_token = EXCLUDED.access_token`, [item.itemId, sub, item.institution, (0, session_crypto_1.encryptSessionValue)(item.accessToken)]);
 }
 /** Load + decrypt the caller's linked items for a Plaid fetch. */
 async function loadItems(pool, sub) {
     const rows = (await pool.query('SELECT institution, access_token FROM oshal_finance_items WHERE user_sub = $1', [sub])).rows;
-    return rows.map((r) => ({ institution: r.institution || 'Linked institution', accessToken: decrypt(r.access_token) }));
+    return rows.map((r) => ({ institution: r.institution || 'Linked institution', accessToken: (0, session_crypto_1.decryptSessionValue)(r.access_token) }));
 }
 /**
  * @description Builds the self-contained finance-analyst prompt. The full output contract

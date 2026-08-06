@@ -1,0 +1,113 @@
+/**
+ * Assignment routes for Little Monsters.
+ *
+ * CHANGE LOG
+ * ---------------------------------------------------------------------------
+ * SEQ | AUTHOR                                      | DESCRIPTION
+ * ---------------------------------------------------------------------------
+ * 1   | maintainer@emeraldcoastsystemsgroup.com     | Extracted assignment reads and teacher-authorized writes from the route aggregator
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | Rebind assignment reads and writes to the actor's current tenant, role, enrollment, and class ownership in their final SQL statements
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | Replace wildcard assignment reads with the reviewed client response fields
+ * ---------------------------------------------------------------------------
+ *
+ * @module education-assignment-routes
+ */
+
+import { Router, type Request, type Response } from 'express';
+import { createChildLogger } from '@/shared/logger';
+import type { AppContext } from '@/app/composition/app-context';
+import {
+  assertClassAccess,
+  assertTeacherOfClass,
+  EducationAccessError,
+  resolveAuthedStudent,
+} from './education-access';
+
+const logger = createChildLogger({ module: 'education-assignment-routes' });
+
+function sendAccessError(res: Response, err: unknown): boolean {
+  if (!(err instanceof EducationAccessError)) return false;
+  res.status(err.status).json({ error: err.message });
+  return true;
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : 'Unexpected assignment error';
+}
+
+async function listAssignments(ctx: AppContext, req: Request, res: Response): Promise<void> {
+  try {
+    const actor = await resolveAuthedStudent(req, ctx.pool);
+    const params: unknown[] = [actor.studentId];
+    let sql = `SELECT a.assignment_id, a.class_id, a.title, a.description,
+        a.assignment_type, a.due_date, a.source_lecture_date, a.resources,
+        a.status, a.created_at, c.name as class_name
+      FROM lm_assignments a
+      JOIN lm_classes c ON a.class_id = c.class_id
+      JOIN lm_students viewer ON viewer.student_id = $1 AND viewer.tenant_id = c.tenant_id
+      WHERE (viewer.role = 'admin'
+        OR (viewer.role = 'teacher' AND c.teacher_student_id = viewer.student_id)
+        OR EXISTS (
+        SELECT 1 FROM lm_enrollments membership
+         WHERE membership.class_id = c.class_id
+           AND membership.student_id = viewer.student_id
+           AND membership.tenant_id = c.tenant_id
+      ))`;
+    if (req.query.classId) {
+      const classId = String(req.query.classId);
+      await assertClassAccess(ctx.pool, actor, classId);
+      params.push(classId);
+      sql += ` AND a.class_id = $${params.length}`;
+    }
+    if (req.query.status) {
+      params.push(req.query.status);
+      sql += ` AND a.status = $${params.length}`;
+    }
+    const result = await ctx.pool.query(`${sql} ORDER BY a.due_date ASC NULLS LAST`, params);
+    res.json({ assignments: result.rows });
+  } catch (err) {
+    if (sendAccessError(res, err)) return;
+    logger.error({ err }, 'Failed to list assignments');
+    res.status(500).json({ error: errorMessage(err) });
+  }
+}
+
+async function createAssignment(ctx: AppContext, req: Request, res: Response): Promise<void> {
+  try {
+    const { classId, title, description, assignmentType, dueDate, resources } = req.body;
+    if (!classId || !title) {
+      res.status(400).json({ error: 'classId and title are required' });
+      return;
+    }
+    const teacher = await resolveAuthedStudent(req, ctx.pool);
+    await assertTeacherOfClass(ctx.pool, teacher, String(classId));
+    const result = await ctx.pool.query(
+      `INSERT INTO lm_assignments
+         (class_id, title, description, assignment_type, due_date, resources)
+       SELECT c.class_id, $2, $3, $4, $5, $6
+         FROM lm_classes c
+         JOIN lm_students a ON a.student_id = $7 AND a.tenant_id = c.tenant_id
+        WHERE c.class_id = $1
+          AND (a.role = 'admin' OR (a.role = 'teacher' AND c.teacher_student_id = a.student_id))
+       RETURNING assignment_id`,
+      [classId, title, description || '', assignmentType || 'homework', dueDate || null,
+        JSON.stringify(resources || []), teacher.studentId],
+    );
+    if (result.rows.length === 0) {
+      throw new EducationAccessError('You do not teach this class', 403);
+    }
+    res.status(201).json({ assignmentId: result.rows[0].assignment_id });
+  } catch (err) {
+    if (sendAccessError(res, err)) return;
+    logger.error({ err }, 'Failed to create assignment');
+    res.status(500).json({ error: errorMessage(err) });
+  }
+}
+
+/** Create assignment routes scoped to the authenticated user's accessible classes. */
+export function createEducationAssignmentRoutes(ctx: AppContext): Router {
+  const router = Router();
+  router.get('/assignments', (req, res) => listAssignments(ctx, req, res));
+  router.post('/assignments', (req, res) => createAssignment(ctx, req, res));
+  return router;
+}

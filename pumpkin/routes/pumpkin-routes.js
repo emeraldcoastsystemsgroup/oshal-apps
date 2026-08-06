@@ -97,8 +97,7 @@ const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
  * tool" and everything else as an operator instruction. A prompt-level fence is not a security
  * boundary; the reentrancy lock below is what bounds the damage when a model ignores it.
  */
-const GUEST_FRAME_MARKER = '[[PUMPKIN:GUEST]]';
-exports.GUEST_FRAME_MARKER = GUEST_FRAME_MARKER;
+exports.GUEST_FRAME_MARKER = '[[PUMPKIN:GUEST]]';
 /** Told to a caller whose in-character reply collided with one already running for the same owner. */
 const BUSY_DETAIL = 'an in-character reply is already being generated for this owner';
 /** Told to a browser that reached the swarm-only door, so the fix is obvious. */
@@ -319,6 +318,7 @@ function publicOrigin(req) {
  * @returns The PNG bytes.
  */
 async function renderQrPng(url) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const encoder = require('qrcode');
     return encoder.toBuffer(url, {
         type: 'png',
@@ -335,7 +335,7 @@ async function renderQrPng(url) {
  */
 async function runPumpkin(ctx, sub, text) {
     return withGuestReplyLock(sub, async () => {
-        const prompt = `${GUEST_FRAME_MARKER}\nA guest at your porch just said to you:\n"""\n${text.slice(0, 600)}\n"""\n\nReply in character as the jack-o'-lantern, using ONLY the JSON contract { "say", "expression", "intensity" }.`;
+        const prompt = `${exports.GUEST_FRAME_MARKER}\nA guest at your porch just said to you:\n"""\n${text.slice(0, 600)}\n"""\n\nReply in character as the jack-o'-lantern, using ONLY the JSON contract { "say", "expression", "intensity" }.`;
         const result = await (0, inline_bot_execution_1.executeBotOrInline)(ctx, botClient, PUMPKIN_AGENT_ID, {
             text: prompt,
             taskId: `pumpkin-${sub}-${(0, crypto_1.randomUUID)()}`,

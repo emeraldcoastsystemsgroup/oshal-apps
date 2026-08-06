@@ -27,6 +27,8 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial guards — the blanket owner-predicate sweep over every store read and write, cross-sub isolation asserted on returned values and on the parameters actually sent, the supersede-not-overwrite proof, applyQuote's three-part transaction, and the schema/RLS/migration agreement checks.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Guard immutable/concurrently idempotent FX persistence, exact foreign-quote binding, owner-bound quote references, atomic quote writes, and scenario micro-price storage.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Guard owner-bound rebaseline policy/run writes, slot idempotency, exact cost evidence, and migration/runtime schema agreement.
  */
 'use strict';
 
@@ -59,6 +61,8 @@ Module._load = function load(request, ...rest) {
 
 const store = require(path.join(PKG, 'routes', 'venture-store.js'));
 const supply = require(path.join(PKG, 'routes', 'venture-store-supply.js'));
+const fxStore = require(path.join(PKG, 'routes', 'venture-store-fx.js'));
+const rebaselineStore = require(path.join(PKG, 'routes', 'venture-store-rebaseline.js'));
 const outputs = require(path.join(PKG, 'routes', 'venture-store-outputs.js'));
 const schema = require(path.join(PKG, 'routes', 'venture-schema.js'));
 
@@ -96,6 +100,27 @@ function assumptionRow(over) {
   }, over || {});
 }
 
+/** A minimal vendor row for owner-bound quote references. */
+function vendorRow(over) {
+  return Object.assign({
+    id: 'ven1', venture_id: 'v1', owner_sub: 'alice', name: 'Factory', kind: 'manufacturer',
+    country: 'DE', url: null, contact: null, moq: 1, lead_time_days: 30,
+    qualification_days: 0, deposit_bps: 0, balance_net_days: 0, qualified: true,
+    notes: null, status: 'active', source_kind: 'user-entered', confidence: 'high',
+  }, over || {});
+}
+
+/** A minimal immutable FX row. */
+function fxRow(over) {
+  return Object.assign({
+    id: 'fx1', venture_id: 'v1', owner_sub: 'alice', source_currency: 'EUR',
+    reporting_currency: 'USD', rate_nanos: '1085000000', source_kind: 'published-source',
+    source_ref: 'ECB reference rate', observed_at: new Date('2026-08-01T00:00:00Z'),
+    idempotency_key: 'quote-eur-20260801', authored_by: 'user:alice',
+    created_at: new Date('2026-08-01T00:00:00Z'), was_inserted: true,
+  }, over || {});
+}
+
 /** Statements that read or write a venture table. Ignores transaction control. */
 const dataCalls = (pool) => pool.calls.filter((c) => /venture_[a-z_]+/.test(c.sql));
 
@@ -119,9 +144,12 @@ test('EVERY store read and write carries an owner_sub predicate and the caller s
   await store.listRuns(pool, sub, 'v1');
   await store.getRun(pool, sub, 'r1');
   await store.latestRun(pool, sub, 'v1');
+  await fxStore.listFxAssumptions(pool, sub, 'v1');
+  await fxStore.getFxAssumption(pool, sub, 'v1', 'fx1');
   await supply.listBom(pool, sub, 'v1');
   await supply.getBomLine(pool, sub, 'v1', 'l1');
   await supply.listVendors(pool, sub, 'v1');
+  await supply.getVendor(pool, sub, 'v1', 'ven1');
   await supply.listQuotes(pool, sub, 'v1');
   await supply.listScheduleTasks(pool, sub, 'v1');
   await supply.listHeadcount(pool, sub, 'v1');
@@ -140,7 +168,7 @@ test('EVERY store read and write carries an owner_sub predicate and the caller s
   const unscoped = dataCalls(pool).filter((c) => !c.params.includes(sub));
   assert.deepEqual(unscoped.map((c) => c.sql.slice(0, 90)), [],
     "every statement must be parameterised on the CALLER's sub, not a literal");
-  assert.ok(dataCalls(pool).length >= 24, 'the sweep must actually have exercised every reader');
+  assert.ok(dataCalls(pool).length >= 27, 'the sweep must actually have exercised every reader');
 });
 
 /* ══ 2. cross-sub isolation, asserted on returned values ══════════════════ */
@@ -286,6 +314,8 @@ test('applyQuote writes a vendor-quote revision, the quote row, and re-points th
     source_kind: 'model-estimate', confidence: 'low', sort_order: 0,
   };
   const pool = makePool((sql) => {
+    if (/FROM venture_ventures/.test(sql)) return { rows: [ventureRow()], rowCount: 1 };
+    if (/FROM venture_vendors/.test(sql)) return { rows: [vendorRow()], rowCount: 1 };
     if (/FROM venture_bom_lines/.test(sql)) return { rows: [bomRow], rowCount: 1 };
     if (/UPDATE venture_assumptions SET superseded_by = id/.test(sql)) return { rows: [{ id: 'est-1' }], rowCount: 1 };
     if (/INSERT INTO venture_assumptions/.test(sql)) {
@@ -296,6 +326,8 @@ test('applyQuote writes a vendor-quote revision, the quote row, and re-points th
         rows: [{
           id: 'q1', venture_id: 'v1', owner_sub: 'alice', vendor_id: 'ven1', bom_line_id: 'l1',
           qty_break: 5000, unit_cost_micros: '41000000', currency: 'USD', tooling_cost_micros: '0',
+          reporting_unit_cost_micros: '41000000', reporting_currency: 'USD',
+          reporting_tooling_cost_micros: '0', fx_assumption_id: null,
           incoterm: 'FOB', lead_time_days: 60, valid_until: null, document_ref: 'Q-2026-11',
           notes: null, assumption_id: 'quote-1', received_at: new Date(0),
         }],
@@ -313,6 +345,8 @@ test('applyQuote writes a vendor-quote revision, the quote row, and re-points th
   assert.equal(out.supersededId, 'est-1', 'the estimate it replaces is superseded, not deleted');
   assert.equal(out.assumption.sourceKind, 'vendor-quote');
   assert.equal(out.quote.assumptionId, 'quote-1', 'the quote row points at the revision it wrote');
+  assert.equal(out.quote.reportingUnitCostMicros, 41000000);
+  assert.equal(out.quote.fxAssumptionId, null);
 
   const insert = pool.calls.find((c) => /INSERT INTO venture_assumptions/.test(c.sql));
   assert.ok(insert.params.includes('vendor-quote'),
@@ -324,9 +358,187 @@ test('applyQuote writes a vendor-quote revision, the quote row, and re-points th
   assert.ok(/source_kind = 'vendor-quote'/.test(lineUpdate.sql));
   assert.ok(lineUpdate.params.includes(41000000));
   assert.ok(lineUpdate.params.includes('alice'), 'even the follow-up write is owner-scoped');
+  assert.ok(pool.calls.some((c) => c.sql === 'BEGIN') && pool.calls.some((c) => c.sql === 'COMMIT'),
+    'the assumption, quote and BOM update commit as one unit');
+  assert.equal(pool.released, 1);
 });
 
 /* ══ 5. bot-authored replacements never delete human work ═════════════════ */
+
+test('an FX assumption insert is immutable and an exact retry is idempotent', async () => {
+  const input = {
+    sourceCurrency: 'EUR', reportingCurrency: 'USD', rateNanos: 1_085_000_000,
+    sourceKind: 'published-source', sourceRef: 'ECB reference rate',
+    observedAt: '2026-08-01T00:00:00.000Z', idempotencyKey: 'quote-eur-20260801',
+  };
+  const insertedPool = makePool((sql) => (/WITH inserted AS/.test(sql)
+    ? { rows: [fxRow()], rowCount: 1 } : { rows: [], rowCount: 0 }));
+  const inserted = await fxStore.insertFxAssumption(
+    insertedPool, 'alice', 'v1', input, 'user:alice',
+  );
+  assert.equal(inserted.inserted, true);
+  assert.ok(Object.isFrozen(inserted.assumption), 'the returned evidence cannot be mutated in memory');
+  assert.match(insertedPool.calls[0].sql, /ON CONFLICT \(venture_id, idempotency_key\) DO NOTHING/);
+  assert.match(insertedPool.calls[0].sql, /FROM venture_ventures[\s\S]*owner_sub = \$2/,
+    'even a superuser-backed insert proves the caller owns the venture');
+
+  const replayPool = makePool(() => ({
+    rows: [fxRow({ was_inserted: false })], rowCount: 1,
+  }));
+  const replay = await fxStore.insertFxAssumption(
+    replayPool, 'alice', 'v1', input, 'user:alice',
+  );
+  assert.equal(replay.inserted, false);
+  assert.equal(replay.assumption.id, inserted.assumption.id,
+    'an exact retry returns the original immutable row');
+  assert.equal(replayPool.calls.filter((c) => /^\s*(UPDATE|DELETE)/i.test(c.sql)).length, 0,
+    'idempotency never mutates the original evidence');
+});
+
+test('reusing an FX idempotency key for different evidence fails closed', async () => {
+  const pool = makePool(() => ({
+    rows: [fxRow({ was_inserted: false, rate_nanos: '1090000000' })], rowCount: 1,
+  }));
+  await assert.rejects(() => fxStore.insertFxAssumption(pool, 'alice', 'v1', {
+    sourceCurrency: 'EUR', reportingCurrency: 'USD', rateNanos: 1_085_000_000,
+    sourceKind: 'published-source', sourceRef: 'ECB reference rate',
+    observedAt: '2026-08-01T00:00:00.000Z', idempotencyKey: 'quote-eur-20260801',
+  }, 'user:alice'), { code: 'fx_idempotency_conflict' });
+});
+
+test('a concurrent exact FX retry is reread after an invisible ON CONFLICT row', async () => {
+  const pool = makePool((sql) => {
+    if (/WITH inserted AS/.test(sql)) return { rows: [], rowCount: 0 };
+    if (/SELECT \* FROM venture_fx_assumptions/.test(sql)) {
+      return { rows: [fxRow({ was_inserted: undefined })], rowCount: 1 };
+    }
+    return { rows: [], rowCount: 0 };
+  });
+  const result = await fxStore.insertFxAssumption(pool, 'alice', 'v1', {
+    sourceCurrency: 'EUR', reportingCurrency: 'USD', rateNanos: 1_085_000_000,
+    sourceKind: 'published-source', sourceRef: 'ECB reference rate',
+    observedAt: '2026-08-01T00:00:00.000Z', idempotencyKey: 'quote-eur-20260801',
+  }, 'user:alice');
+  assert.equal(result.inserted, false);
+  assert.equal(result.assumption.id, 'fx1');
+  assert.equal(pool.calls.length, 2, 'the second statement gets a new READ COMMITTED snapshot');
+  assert.match(pool.calls[1].sql, /owner_sub = \$2/);
+});
+
+test('a foreign quote uses its immutable FX rate for the assumption and BOM', async () => {
+  const bomRow = {
+    id: 'l1', venture_id: 'v1', owner_sub: 'alice', parent_line_id: null, ref: 'PROJ',
+    part_name: 'Projector', spec_text: null, qty_per_unit: '1', uom: 'ea', discrete: true,
+    material: null, process: null, make_or_buy: 'buy', unit_cost_micros: '50000000',
+    low_micros: '28000000', high_micros: '85000000', scrap_pct: '0', moq: null,
+    lead_time_days: null, tooling_cost_micros: '0', tooling_life_units: null, vendor_id: null,
+    assumption_key: 'bom.PROJ.unit-cost', hts_code: null, duty_pct: null,
+    source_kind: 'model-estimate', confidence: 'low', sort_order: 0,
+  };
+  const pool = makePool((sql) => {
+    if (/FROM venture_ventures/.test(sql)) return { rows: [ventureRow()], rowCount: 1 };
+    if (/FROM venture_fx_assumptions/.test(sql)) return { rows: [fxRow()], rowCount: 1 };
+    if (/FROM venture_vendors/.test(sql)) return { rows: [vendorRow()], rowCount: 1 };
+    if (/FROM venture_bom_lines/.test(sql)) return { rows: [bomRow], rowCount: 1 };
+    if (/UPDATE venture_assumptions SET superseded_by = id/.test(sql)) return { rows: [{ id: 'old' }], rowCount: 1 };
+    if (/INSERT INTO venture_assumptions/.test(sql)) {
+      return { rows: [assumptionRow({ id: 'new', value_num: '44485000', source_kind: 'vendor-quote' })], rowCount: 1 };
+    }
+    if (/INSERT INTO venture_quotes/.test(sql)) return {
+      rows: [{
+        id: 'q-eur', venture_id: 'v1', owner_sub: 'alice', vendor_id: 'ven1', bom_line_id: 'l1',
+        qty_break: 5000, unit_cost_micros: '41000000', currency: 'EUR', tooling_cost_micros: '2000000',
+        reporting_unit_cost_micros: '44485000', reporting_currency: 'USD',
+        reporting_tooling_cost_micros: '2170000', fx_assumption_id: 'fx1', incoterm: 'FOB',
+        lead_time_days: 60, valid_until: null, document_ref: 'Q-EUR-1', notes: null,
+        assumption_id: 'new', received_at: new Date(0),
+      }], rowCount: 1,
+    };
+    return { rows: [], rowCount: 0 };
+  });
+  const out = await supply.applyQuote(pool, 'alice', 'v1', {
+    vendorId: 'ven1', bomLineId: 'l1', qtyBreak: 5000,
+    unitCostMicros: 41_000_000, toolingCostMicros: 2_000_000,
+    currency: 'EUR', fxAssumptionId: 'fx1', documentRef: 'Q-EUR-1',
+  });
+  assert.equal(out.quote.unitCostMicros, 41_000_000, 'the supplier amount remains exact EUR micros');
+  assert.equal(out.quote.reportingUnitCostMicros, 44_485_000,
+    'EUR 41.000000 x 1.085 = USD 44.485000');
+  assert.equal(out.quote.reportingToolingCostMicros, 2_170_000);
+  assert.equal(out.quote.fxAssumptionId, 'fx1');
+  const assumptionInsert = pool.calls.find((c) => /INSERT INTO venture_assumptions/.test(c.sql));
+  assert.ok(assumptionInsert.params.includes(44_485_000),
+    'the model ledger receives reporting-currency micros, never the raw foreign number');
+  assert.ok(assumptionInsert.params.some((p) => typeof p === 'string' && p.includes('FX fx1 EUR->USD')),
+    'the assumption provenance names the immutable FX snapshot');
+  const lineUpdate = pool.calls.find((c) => /UPDATE venture_bom_lines/.test(c.sql));
+  assert.ok(lineUpdate.params.includes(44_485_000), 'the BOM is re-pointed at the converted amount');
+});
+
+test('a foreign quote without matching FX evidence performs no write', async () => {
+  const noFxPool = makePool((sql) => (/FROM venture_ventures/.test(sql)
+    ? { rows: [ventureRow()], rowCount: 1 } : { rows: [], rowCount: 0 }));
+  await assert.rejects(() => supply.applyQuote(noFxPool, 'alice', 'v1', {
+    vendorId: 'ven1', unitCostMicros: 41_000_000, currency: 'EUR',
+  }), { code: 'fx_assumption_required' });
+  assert.equal(noFxPool.calls.filter((c) => /^\s*(INSERT|UPDATE|DELETE)/i.test(c.sql)).length, 0);
+
+  const mismatchPool = makePool((sql) => {
+    if (/FROM venture_ventures/.test(sql)) return { rows: [ventureRow()], rowCount: 1 };
+    if (/FROM venture_fx_assumptions/.test(sql)) {
+      return { rows: [fxRow({ source_currency: 'GBP' })], rowCount: 1 };
+    }
+    return { rows: [], rowCount: 0 };
+  });
+  await assert.rejects(() => supply.applyQuote(mismatchPool, 'alice', 'v1', {
+    vendorId: 'ven1', unitCostMicros: 41_000_000, currency: 'EUR', fxAssumptionId: 'fx1',
+  }), { code: 'fx_assumption_mismatch' });
+  assert.equal(mismatchPool.calls.filter((c) => /^\s*(INSERT|UPDATE|DELETE)/i.test(c.sql)).length, 0);
+});
+
+test('a quote-row failure rolls back the assumption revision instead of half-applying it', async () => {
+  const pool = makePool((sql) => {
+    if (/FROM venture_ventures/.test(sql)) return { rows: [ventureRow()], rowCount: 1 };
+    if (/FROM venture_vendors/.test(sql)) return { rows: [vendorRow()], rowCount: 1 };
+    if (/UPDATE venture_assumptions SET superseded_by = id/.test(sql)) return { rows: [{ id: 'old' }], rowCount: 1 };
+    if (/INSERT INTO venture_assumptions/.test(sql)) return { rows: [assumptionRow({ id: 'new' })], rowCount: 1 };
+    if (/INSERT INTO venture_quotes/.test(sql)) throw new Error('quote constraint failed');
+    return { rows: [], rowCount: 0 };
+  });
+  await assert.rejects(() => supply.applyQuote(pool, 'alice', 'v1', {
+    vendorId: 'ven1', assumptionKey: 'bom.PROJ.unit-cost', unitCostMicros: 41_000_000,
+  }), /quote constraint failed/);
+  assert.ok(pool.calls.some((c) => c.sql === 'ROLLBACK'));
+  assert.ok(!pool.calls.some((c) => c.sql === 'COMMIT'));
+  assert.equal(pool.released, 1);
+});
+
+test('a quote cannot bind another owner\'s vendor or BOM line by UUID', async () => {
+  const missingVendor = makePool((sql) => {
+    if (/FROM venture_ventures/.test(sql)) return { rows: [ventureRow()], rowCount: 1 };
+    return { rows: [], rowCount: 0 };
+  });
+  await assert.rejects(() => supply.applyQuote(missingVendor, 'alice', 'v1', {
+    vendorId: 'foreign-vendor', unitCostMicros: 1_000_000,
+  }), { code: 'quote_vendor_not_found' });
+  assert.equal(missingVendor.calls.filter((c) => /^\s*(INSERT|UPDATE|DELETE)/i.test(c.sql)).length, 0);
+
+  const missingLine = makePool((sql) => {
+    if (/FROM venture_ventures/.test(sql)) return { rows: [ventureRow()], rowCount: 1 };
+    if (/FROM venture_vendors/.test(sql)) return { rows: [vendorRow()], rowCount: 1 };
+    return { rows: [], rowCount: 0 };
+  });
+  await assert.rejects(() => supply.applyQuote(missingLine, 'alice', 'v1', {
+    vendorId: 'ven1', bomLineId: 'foreign-line', unitCostMicros: 1_000_000,
+  }), { code: 'quote_bom_line_not_found' });
+  assert.equal(missingLine.calls.filter((c) => /^\s*(INSERT|UPDATE|DELETE)/i.test(c.sql)).length, 0);
+  for (const call of [...missingVendor.calls, ...missingLine.calls]) {
+    if (/venture_(vendors|bom_lines)/.test(call.sql)) {
+      assert.match(call.sql, /owner_sub/, 'reference lookup must carry an owner predicate');
+      assert.ok(call.params.includes('alice'));
+    }
+  }
+});
 
 test('a BOM re-draft deletes only model-authored lines', async () => {
   const pool = makePool(() => ({ rows: [{ id: 'x' }], rowCount: 2 }));
@@ -356,6 +568,142 @@ test('a schedule and headcount re-draft delete only model-authored rows', async 
 });
 
 /* ══ 6. outputs are immutable, and the version is allocated in one statement ══ */
+
+test('an absent rebaseline policy reads as disabled dry-run without writing a row', async () => {
+  const pool = makePool(() => ({ rows: [], rowCount: 0 }));
+  const policy = await rebaselineStore.getRebaselinePolicy(pool, 'alice', 'v1');
+  assert.deepEqual(policy, {
+    ventureId: 'v1', enabled: false, dryRun: true, cadence: 'weekly',
+    weeklyDay: 1, maxCostMicros: 0, updatedAt: null,
+  });
+  assert.equal(pool.calls.length, 1);
+  assert.match(pool.calls[0].sql, /p\.owner_sub = \$2/);
+  assert.deepEqual(pool.calls[0].params, ['v1', 'alice']);
+});
+
+test('policy upsert selects through the owned venture and cannot retarget its owner', async () => {
+  const row = {
+    venture_id: 'v1', owner_sub: 'alice', enabled: true, dry_run: false,
+    cadence: 'nightly', weekly_day: 1, max_cost_micros: '25000', updated_at: new Date(0),
+  };
+  const pool = makePool(() => ({ rows: [row], rowCount: 1 }));
+  const stored = await rebaselineStore.upsertRebaselinePolicy(pool, 'alice', {
+    ventureId: 'v1', enabled: true, dryRun: false, cadence: 'nightly',
+    weeklyDay: 1, maxCostMicros: 25_000, updatedAt: null,
+  });
+  assert.equal(stored.maxCostMicros, 25_000);
+  assert.equal(stored.enabled, true);
+  assert.match(pool.calls[0].sql, /FROM venture_ventures v WHERE v\.id = \$1 AND v\.owner_sub = \$2/);
+  assert.match(pool.calls[0].sql, /venture_rebaseline_policies\.owner_sub = EXCLUDED\.owner_sub/);
+  assert.deepEqual(pool.calls[0].params.slice(0, 2), ['v1', 'alice']);
+});
+
+test('scheduled run reservation is owner-bound and one successful insert needs no lookup', async () => {
+  const pool = makePool((sql) => (/INSERT INTO venture_runs/.test(sql)
+    ? { rows: [{ id: 'r1' }], rowCount: 1 } : { rows: [], rowCount: 0 }));
+  const opened = await rebaselineStore.openScheduledRun(pool, 'alice', 'v1',
+    'nightly:2026-08-06', 50_000, [
+      { name: 'bom', agentId: 'bot', status: 'pending', durationMs: null, error: null },
+      { name: 'compute', agentId: null, status: 'pending', durationMs: null, error: null },
+    ]);
+  assert.deepEqual(opened, { runId: 'r1', inserted: true });
+  assert.equal(pool.calls.length, 1);
+  assert.match(pool.calls[0].sql, /v\.id = \$1 AND v\.owner_sub = \$2/);
+  assert.match(pool.calls[0].sql, /ON CONFLICT \(venture_id, schedule_slot\)/);
+  assert.ok(pool.calls[0].params.includes('alice'));
+  assert.ok(pool.calls[0].params.includes(50_000));
+});
+
+test('a concurrent or retried scheduled slot returns the one existing owner run', async () => {
+  const pool = makePool((sql) => {
+    if (/INSERT INTO venture_runs/.test(sql)) return { rows: [], rowCount: 0 };
+    if (/SELECT id FROM venture_runs/.test(sql)) return { rows: [{ id: 'existing' }], rowCount: 1 };
+    return { rows: [], rowCount: 0 };
+  });
+  const opened = await rebaselineStore.openScheduledRun(pool, 'alice', 'v1',
+    'weekly:2026-08-03', 10, []);
+  assert.deepEqual(opened, { runId: 'existing', inserted: false });
+  assert.equal(pool.calls.length, 2);
+  assert.match(pool.calls[1].sql, /owner_sub = \$2/);
+  assert.deepEqual(pool.calls[1].params, ['v1', 'alice', 'weekly:2026-08-03']);
+});
+
+test('scheduled cost evidence updates only the exact owner venture run', async () => {
+  const pool = makePool(() => ({ rows: [{ id: 'r1' }], rowCount: 1 }));
+  const saved = await rebaselineStore.updateScheduledRunCost(pool, 'alice', 'v1', 'r1', {
+    capMicros: 50_000, spentMicros: 12_345, status: 'within-cap',
+    callsStarted: 1, callsSettled: 1, callsSkipped: 0,
+  });
+  assert.equal(saved, true);
+  assert.match(pool.calls[0].sql, /id = \$1 AND venture_id = \$2 AND owner_sub = \$3/);
+  assert.deepEqual(pool.calls[0].params.slice(0, 4), ['r1', 'v1', 'alice', 'scheduled']);
+  assert.ok(pool.calls[0].params.includes(12_345));
+  assert.match(pool.calls[0].sql, /\$5 >= cost_spent_micros/,
+    'the store cannot rewrite measured spend downward');
+  assert.match(pool.calls[0].sql, /cost_status = 'within-cap'.*cost_status = \$6.*\$6 = 'capture-failed'/s,
+    'terminal cost states can only stay terminal or fail more conservatively');
+});
+
+test('manual run open, progress, and close all bind venture plus owner', async () => {
+  const pool = makePool(() => ({ rows: [{ id: 'r1' }], rowCount: 1 }));
+  const phases = [{ name: 'compute', agentId: null, status: 'pending', durationMs: null, error: null }];
+  assert.equal(await store.openRun(pool, 'alice', 'v1', 'full', phases), 'r1');
+  await store.advanceRun(pool, 'alice', 'v1', 'r1', 'compute', phases, 0);
+  await store.closeRun(pool, 'alice', 'v1', 'r1', 'done', phases, null);
+  assert.equal(pool.calls.length, 3);
+  for (const call of pool.calls) {
+    assert.match(call.sql, /owner_sub/);
+    assert.ok(call.params.includes('alice'));
+    assert.ok(call.params.includes('v1'));
+  }
+  assert.match(pool.calls[1].sql, /WHERE id = \$1 AND venture_id = \$2 AND owner_sub = \$3/);
+  assert.match(pool.calls[2].sql, /WHERE id = \$1 AND venture_id = \$2 AND owner_sub = \$3/);
+});
+
+test('run reads expose scheduled slot and exact integer cost evidence', async () => {
+  const pool = makePool(() => ({ rows: [{
+    id: 'r1', venture_id: 'v1', kind: 'rebaseline', status: 'done', phase: null,
+    phases: [], bots_requested: 3, bots_completed: 3, trigger_kind: 'scheduled',
+    schedule_slot: 'nightly:2026-08-06', cost_cap_micros: '50000',
+    cost_spent_micros: '43125', cost_status: 'within-cap', error: null,
+    started_at: new Date(0), finished_at: new Date(1),
+  }], rowCount: 1 }));
+  const runs = await store.listRuns(pool, 'alice', 'v1');
+  assert.equal(runs[0].triggerKind, 'scheduled');
+  assert.equal(runs[0].scheduleSlot, 'nightly:2026-08-06');
+  assert.equal(runs[0].costCapMicros, 50_000);
+  assert.equal(runs[0].costSpentMicros, 43_125);
+  assert.equal(runs[0].costStatus, 'within-cap');
+});
+
+test('scenario prices persist as micros and legacy cents read back exactly', async () => {
+  const row = {
+    id: 's1', venture_id: 'v1', owner_sub: 'alice', name: 'Sub-cent', overrides: {},
+    volume_units: 10, retail_price_cents: null, retail_price_micros: '3400',
+    channel_mix: {}, is_base: false, created_at: new Date(0),
+  };
+  const pool = makePool(() => ({ rows: [row], rowCount: 1 }));
+  const scenario = await store.insertScenario(pool, 'alice', 'v1', {
+    name: 'Sub-cent', retailPriceMicros: 3400,
+  });
+  assert.equal(scenario.retailPriceMicros, 3400);
+  assert.match(pool.calls[0].sql, /retail_price_micros/);
+  assert.doesNotMatch(pool.calls[0].sql, /retail_price_cents/);
+  assert.ok(pool.calls[0].params.includes(3400));
+
+  const legacyPool = makePool(() => ({ rows: [{
+    ...row, retail_price_micros: null, retail_price_cents: 1234,
+  }], rowCount: 1 }));
+  const legacy = await store.listScenarios(legacyPool, 'alice', 'v1');
+  assert.equal(legacy[0].retailPriceMicros, 12_340_000,
+    'legacy cents are expanded exactly once at the compatibility boundary');
+
+  const invalidPool = makePool();
+  await assert.rejects(() => store.insertScenario(invalidPool, 'alice', 'v1', {
+    name: 'Negative price', retailPriceMicros: -1,
+  }), { code: 'invalid_currency_amount' });
+  assert.equal(invalidPool.calls.length, 0, 'invalid money is refused before a database round trip');
+});
 
 test('a document version is allocated inside the INSERT, never by a prior SELECT', async () => {
   const pool = makePool(() => ({
@@ -411,7 +759,7 @@ test('coverageOf counts what is actually in the ledger', () => {
 test('every table the DDL creates is in the frozen VENTURE_TABLES list', () => {
   assert.deepEqual([...schema.tablesInSchemaSql()].sort(), [...schema.VENTURE_TABLES].sort(),
     'a table created but not listed would get neither RLS nor a readiness check');
-  assert.equal(schema.VENTURE_TABLES.length, 11);
+  assert.equal(schema.VENTURE_TABLES.length, 13);
 });
 
 test('ensureVentureSchema applies an RLS policy for EVERY owned table', async () => {
@@ -434,7 +782,10 @@ test('ensureVentureSchema applies an RLS policy for EVERY owned table', async ()
 test('the migrations create exactly the same tables, each with FORCEd RLS', () => {
   const dir = path.join(PKG, 'migrations');
   const files = fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
-  assert.deepEqual(files, ['001-venture-core.sql', '002-venture-supply-chain.sql', '003-venture-outputs.sql']);
+  assert.deepEqual(files, [
+    '001-venture-core.sql', '002-venture-supply-chain.sql',
+    '003-venture-outputs.sql', '004-venture-fx.sql', '005-venture-rebaseline.sql',
+  ]);
   const sql = files.map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
   const created = [...sql.matchAll(/CREATE TABLE IF NOT EXISTS\s+([a-z_]+)/g)].map((m) => m[1]).sort();
   assert.deepEqual(created, [...schema.VENTURE_TABLES].sort(),
@@ -444,4 +795,32 @@ test('the migrations create exactly the same tables, each with FORCEd RLS', () =
   }
   assert.ok(/CREATE UNIQUE INDEX IF NOT EXISTS venture_assumptions_live_idx[\s\S]*WHERE superseded_by IS NULL/.test(sql),
     'the live-row partial unique index is what makes "one live value per key" a database guarantee');
+  assert.match(sql, /CREATE TRIGGER venture_fx_assumptions_immutable[\s\S]*BEFORE UPDATE OR DELETE/,
+    'the database rejects in-place FX evidence changes, not only the API');
+  assert.match(sql, /CREATE TRIGGER venture_fx_assumptions_validate_owner[\s\S]*BEFORE INSERT/,
+    'an FX row cannot attach its owner_sub to another owner\'s venture');
+  assert.match(sql, /FX reporting currency does not match its owned venture/,
+    'an FX row cannot invent a reporting currency different from its venture');
+  assert.match(sql, /CREATE TRIGGER venture_quotes_validate_fx[\s\S]*BEFORE INSERT OR UPDATE/,
+    'the database rechecks currency pairing and converted amounts on every quote write');
+  assert.match(sql, /quote vendor is missing or owned by another account/,
+    'the database rejects cross-owner vendor references even when a UUID is known');
+  assert.match(sql, /venture_scenarios_retail_price_micros_ck[\s\S]*BETWEEN 0 AND 9007199254740000/,
+    'the database keeps scenario price micros non-negative and exactly representable');
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS retail_price_micros BIGINT/,
+    'the last scenario cents field has an exact micro-currency migration');
+  assert.match(sql, /venture_rebaseline_policy_paid_ck[\s\S]*NOT enabled OR dry_run OR max_cost_micros > 0/,
+    'a paid policy cannot exist without a positive integer-micro cap');
+  assert.match(sql, /venture_runs_schedule_slot_uq[\s\S]*WHERE schedule_slot IS NOT NULL/,
+    'venture/date retries converge at a database partial unique index');
+  assert.match(sql, /CREATE TRIGGER venture_rebaseline_policy_validate_owner[\s\S]*BEFORE INSERT OR UPDATE/,
+    'policy ownership is checked by PostgreSQL as well as the store');
+  assert.match(sql, /CREATE TRIGGER venture_runs_validate_owner[\s\S]*BEFORE INSERT OR UPDATE/,
+    'run ownership is checked by PostgreSQL as well as the store');
+  assert.match(sql, /cost_spent_micros BETWEEN 0 AND 9007199254740000/,
+    'scheduled run evidence remains exactly representable in JavaScript');
+  assert.match(sql, /CREATE TRIGGER venture_runs_validate_cost_transition[\s\S]*BEFORE UPDATE OF trigger_kind/,
+    'the database makes each run slot and authorization immutable after reservation');
+  assert.match(sql, /run measured cost cannot decrease/,
+    'the database rejects rewriting measured spend downward');
 });

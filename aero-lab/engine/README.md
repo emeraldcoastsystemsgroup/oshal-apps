@@ -11,7 +11,7 @@ re-implements physics.
 |---|---|
 | `service.py` | the JSON-lines stdio worker (BUILD_CONTRACT §5): `capabilities` / `polar` / `evaluate` / `screen` / `export` / `mission` |
 | `aero_lab_worker.py` | the frozen spawn target the Node adapter runs; delegates to `service.py` |
-| `export_build_files.py` | FINAL_PRODUCT generation (FP_01..FP_05 pattern) parameterized on the evaluated design — STL / DXF / airfoil.dat / BOM / build sheet |
+| `export_build_files.py` | FINAL_PRODUCT generation (FP_01..FP_05 pattern) parameterized on the evaluated design — STL / DXF / airfoil.dat / BOM / build sheet; STLs fail closed on degeneracy, edge topology or triangle self-intersection |
 | `aerosim/` | **vendored engine tree** (snapshot of the validated package) |
 | `tests/` | the engine's own pytest suite (vendored with it) |
 | `HYBRID_common.py`, `HYBRID_piecewise.py` | the hybrid-buoyancy study machinery (envelope sizing; the `hybrid` capability flag) |
@@ -49,17 +49,21 @@ entry-point modules) so any result can be traced to the exact engine build.
 
 **Hybrid designs** (`buoyancy_fraction > 0`) fly the shipped in-sim path: a
 spherical `BuoyancyVolume` sized by the HYBRID_common fixed point, with the
-wing re-trimmed at the residual weight. The engine's quasi-steady trim
-frequently REFUSES hybrid design points (its 1e-8-relative residual tolerance
-vs the buoyancy element's force floor) — that refusal comes back verbatim as
-`inadmissible_input` (HTTP 422), which is the honest answer. The study's
-streamlined-hull piecewise closure (`HYBRID_piecewise`, how the validated
-f=0.80 craft closed) is not yet exposed through the wire.
+wing re-trimmed at the residual weight. Rejected trim probes are state-pure;
+envelope and pack slow state advance exactly once per accepted step, and the
+unchanged `1e-8` relative trim tolerance now converges for the f = 0.2/0.4/0.6/0.8
+regression boundary. The explicit `build_solar_cruise(..., chain="real")` path
+now composes BEMT, motor/ESC/harness, diode PV/MPPT/harness and one real pack;
+accepted storage intervals reach `PackEcm.step_power` exactly once. Promotion is
+still open because the certified 72 h DESIGN_A real-chain probe lost SOC
+(`1.0000 -> 0.9307`) and the full A-D gate has not passed. That measured
+candidate work remains in `../BACKLOG.md` section A.
 
 ## Determinism
 
 Same design in → same numbers out. No RNG, no wall-clock in results. The
-evaluate chain is byte-for-byte the validated sweep chain (R6/R7):
+packaged evaluate default remains the explicitly ideal, byte-for-byte validated
+sweep chain (R6/R7) until a real candidate earns promotion:
 `to_design → build_solar_cruise → integrate_energy (24 h, 60 s) →
 usable_energy → screen_design`. The R7 winner vector reproduces
 `min_soc 0.4366 / usable 1.0586` through `service.py` (verified at packaging).

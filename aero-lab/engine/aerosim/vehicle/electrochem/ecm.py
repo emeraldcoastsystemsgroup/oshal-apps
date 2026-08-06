@@ -5,6 +5,10 @@ SEQ                 | AUTHOR                      | DESCRIPTION
 -------------------------------------------------------------------------------
 1 | maintainer@emeraldcoastsystemsgroup.com   | Equivalent-circuit model of the real battery (SPEC_chemistry sections 1-2): Arrhenius R_int(SOC,T) with Ea = 26 kJ/mol fitted to Zhang 2003's measured x10 @ -30 C / x20 @ -40 C, the BU-410 charge/discharge C-rate tables with the below-0-C lithium-plating wall (refuse + spill + logged 1%/Ah penalty when forced), the cold-capacity clamp re-anchored to Zhang 2003's own good-electrolyte table (the spec's single 0.006/K slope cannot reproduce the spec's own -40 C wall -- arithmetic in c_avail_frac), pulse power via the R0 fraction of DCIR, the 0.2C usable-capacity integrator the pytest walls call, and PackEcm -- the per-step pack state machine BatteryElement delegates to in real mode. Module HONESTY ledger consolidated here (H1-H14 + the deviations A1-A8).
 2 | maintainer@emeraldcoastsystemsgroup.com   | Added the missing H3 flag (Amprius 0.80 packaging factor, carried by mass.py's pack constants, never billed twice) to ELECTROCHEM_HONESTY so every SPEC section-7 item H1-H14 lands in the module ledger; tests/test_pack_thermal_aging.py asserts the full set.
+3 | maintainer@emeraldcoastsystemsgroup.com   | Made the documented -55 C electrolyte
+  |                                           | solidification boundary return exact zero;
+  |                                           | Kelvin-to-Celsius subtraction previously
+  |                                           | left a 5.68e-16 interpolation residue.
 
 WHY THE COLD COLLAPSE IS EMERGENT AND WHERE THE CLAMP SITS
 ----------------------------------------------------------
@@ -236,6 +240,10 @@ def c_avail_frac(T_K: float) -> float:
     t_degC = float(T_K) - 273.15
     if t_degC >= -10.0:
         return 1.0
+    if t_degC <= -55.0 + 1.0e-12:
+        # 218.15 K - 273.15 K is -54.99999999999997 in binary floating point.
+        # The table's physical endpoint is a hard zero, not a positive epsilon.
+        return 0.0
     return max(0.0, _piecewise_linear(_C_AVAIL_KNOTS_DEGC, t_degC))
 
 

@@ -1,0 +1,365 @@
+# =============================================================================
+# oshal application-store enforced security pipeline
+# =============================================================================
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Add SEC-06 PR/main/weekly SAST, secret, dependency, route/write inventory, auth, migration/RLS, source parity, filesystem, and SBOM gates.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Collapse source parity to one transactional canonical compiler pass so package count cannot multiply runner time or leave partial generated output.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Run LoRA/Vids durability and disclosure regressions against the same locked framework checkout used for route compilation.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Exercise the compiled Vids surface in mobile Chromium for layout, shared-theme, and stored-content injection regressions.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Prove D&D owner backfill, forced RLS, member sharing, private-library isolation, and bounded join admission against disposable PostgreSQL.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Mount compiled Little Monsters routes against disposable PostgreSQL and enforce its two-tenant role matrix, atomic roster writes, and immutable audit.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Enforce the existing LoRA/Vids fresh-install and legacy-upgrade two-owner FORCE-RLS proof in the required disposable-PostgreSQL job.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Require canonical APP-02 package audit records and catalog SHA bindings in compatible rollout mode; mutation tests prove enforce mode fails closed.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Return to manual dispatch before this ever ran. Entry 1 shipped pull_request + push:main + a weekly cron across CodeQL, inventories, source-parity, dependency-audit, secret-scan and several disposable-PostgreSQL suites. This repository is PRIVATE, so every one of those minutes is billed — scripts/publish-store.sh says so in its own header, which is why the nightly publish runs on the operator's box instead of an Actions cron. The same revert landed in the core repo the same day (oshal #142). The gates are KEPT and unchanged; workflow_dispatch stays for a deliberate cloud run. Operator decision 2026-08-06.
+# =============================================================================
+
+name: Security
+
+# MANUAL ONLY - do not add pull_request / push / schedule here.
+#
+# PRIVATE repository: Actions minutes are billed, and these jobs are heavy (CodeQL plus several
+# disposable-PostgreSQL suites). scripts/publish-store.sh documents the same constraint and is the
+# reason the nightly publish runs locally rather than on a cron here. The core repo's automatic
+# Actions budget went to zero twice; do not re-learn that lesson on the billed repo.
+# Use workflow_dispatch for a deliberate cloud run.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: store-security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  PYTHON_VERSION: "3.12"
+  PIP_AUDIT_VERSION: "2.10.1"
+  TRIVY_VERSION: "v0.73.0"
+  GITLEAKS_IMAGE: "zricethezav/gitleaks:v8.28.0@sha256:cdbb7c955abce02001a9f6c9f602fb195b7fadc1e812065883f695d1eeaba854"
+
+jobs:
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, python]
+    steps:
+      - name: Check out complete candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@9e3211c9a3b9311dfe05da2ed48eea3386f042dd # v4.37.6
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+
+      - name: Analyze source
+        uses: github/codeql-action/analyze@9e3211c9a3b9311dfe05da2ed48eea3386f042dd # v4.37.6
+        with:
+          category: /language:${{ matrix.language }}
+          output: codeql-results
+          upload: false
+
+      # CodeQL records alerts without ordinarily failing a PR. Enforce the result locally:
+      # high/critical always blocks and every lower result needs an exact expiring exception.
+      - name: Enforce SARIF findings and exception expiry
+        run: >-
+          node scripts/security/check-codeql-sarif.mjs
+          codeql-results scripts/security/codeql-exceptions.json
+
+      - name: Preserve CodeQL evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: store-codeql-${{ matrix.language }}-${{ github.sha }}
+          path: codeql-results/
+          if-no-files-found: error
+          retention-days: 30
+
+  inventories-and-tests:
+    name: Route/write inventory, auth, migration and RLS
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      dnd_postgres:
+        image: pgvector/pgvector:pg16@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: dnd-security-ci
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Check out candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Preserve core/store separation
+        run: node scripts/check-store-separation.mjs .
+
+      # The inventory derives every route from all package manifests, verifies auth, classifies SQL
+      # writes, and checks each source/compiled module pair. Any added/stale route needs review.
+      - name: Enforce store route and machine-write inventory
+        run: node scripts/security/check-store-security.mjs
+
+      - name: Refuse empty store-ci package test discovery
+        run: node scripts/security/check-store-test-discovery.mjs
+
+      # Compatible is the documented migration default: record shape and catalog binding are
+      # blocking now, while pending status remains an honest rollout warning until real evidence
+      # exists. The mutation suite below proves enforce mode rejects every unsafe status/binding.
+      - name: Validate package audit records and staged catalog bindings
+        env:
+          OSHAL_PACKAGE_AUDIT_MODE: compatible
+        run: node scripts/security/validate-package-audits.mjs
+
+      # Discovery is part of the command. Zero Little Monsters or migration/RLS files fails before
+      # node --test can turn an unmatched shell glob into a false-green release gate.
+      - name: Run complete authorization and migration/RLS families
+        run: node scripts/security/run-store-security-tests.mjs
+
+      # The runner creates its own unique database and NOLOGIN/NOBYPASSRLS role inside this
+      # job-only service, repeats migration 006, proves the full identity matrix, then drops both.
+      - name: Prove D&D owner and member RLS in disposable PostgreSQL
+        run: >-
+          node scripts/security/run-live-dnd-rls-proof.mjs
+          --confirm-live-dnd-rls-proof
+          --container "${{ job.services.dnd_postgres.id }}"
+          --admin-user postgres --admin-database postgres
+
+      # This runner creates unique databases/NOLOGIN NOBYPASSRLS roles, proves fresh-install and
+      # pre-owner upgrade paths for both packages, then independently verifies cleanup. Keeping it
+      # in the same ephemeral service makes the real boundary required without touching a shared DB.
+      - name: Prove LoRA and Vids owner RLS in disposable PostgreSQL
+        run: >-
+          node scripts/security/run-live-owner-rls-proof.mjs
+          --confirm-live-owner-rls-proof
+          --container "${{ job.services.dnd_postgres.id }}"
+          --admin-user postgres --admin-database postgres
+
+  source-compiled-parity:
+    name: Canonical source/compiled parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      lm_postgres:
+        image: pgvector/pgvector:pg16@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: lm-security-ci
+          POSTGRES_DB: postgres
+        # A random host port avoids collisions and is read from job.services below.
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Check out store candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: store
+
+      - name: Check out framework build authority
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: emeraldcoastsystemsgroup/oshal
+          ref: main
+          path: framework
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: framework/package-lock.json
+
+      - name: Install the locked canonical compiler
+        working-directory: framework
+        run: npm ci --legacy-peer-deps
+
+      - name: Install locked Chromium runtime
+        working-directory: framework
+        run: npx playwright install --with-deps chromium
+
+      # One tsc program contains every package under a collision-free staging subtree, preserving
+      # package-relative imports and @/ framework resolution. Verification completes before the
+      # transactional route sync, and both compiler output and staged framework files always clean up.
+      - name: Rebuild every sourced store package in one compiler pass
+        run: >-
+          node store/scripts/security/rebuild-store-routes.mjs
+          --store store --framework framework
+
+      # The candidate package's compiled manifest entrypoint is mounted in real Express. The
+      # runner creates a disposable database plus LOGIN NOSUPERUSER/NOBYPASSRLS application role,
+      # proves the HTTP role matrix and transaction/audit boundary, then removes both objects.
+      - name: Prove Little Monsters authorization in mounted disposable PostgreSQL
+        run: >-
+          node store/scripts/security/run-live-lm-authorization-proof.mjs
+          --confirm-live-lm-authorization-proof
+          --database-url "postgres://postgres:lm-security-ci@127.0.0.1:${{ job.services.lm_postgres.ports[5432] }}/postgres"
+          --framework framework --store store
+
+      - name: Run framework-coupled LoRA and Vids security suites
+        run: >-
+          node store/scripts/security/run-framework-coupled-tests.mjs
+          --store store --framework framework
+
+      - name: Run compiled Vids mobile-browser security proof
+        run: >-
+          node store/scripts/security/run-vids-mobile-browser.mjs
+          --store store --framework framework --surface generated
+
+      - name: Refuse generated drift or new untracked output
+        shell: bash
+        run: |
+          git -C store diff --exit-code -- .
+          test -z "$(git -C store status --porcelain --untracked-files=all)" \
+            || { git -C store status --short; echo '::error::Canonical build changed the store tree'; exit 1; }
+
+  dependency-audit:
+    name: Blocking npm and pip audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # Most store packages are dependency-free. A package that adds production npm dependencies
+      # must add a lockfile and immediately enters the blocking audit loop.
+      - name: Audit every applicable npm package
+        shell: bash
+        run: |
+          mapfile -d '' packages < <(find . -name package.json -not -path '*/node_modules/*' -print0)
+          ((${#packages[@]} > 0)) || { echo '::error::No npm package metadata discovered'; exit 1; }
+          for package_json in "${packages[@]}"; do
+            package_dir="$(dirname "$package_json")"
+            production_count="$(node -e "const p=require(process.argv[1]); console.log(Object.keys(p.dependencies||{}).length)" "$package_json")"
+            if [ "$production_count" -gt 0 ]; then
+              [ -f "$package_dir/package-lock.json" ] \
+                || { echo "::error::$package_dir has production dependencies without package-lock.json"; exit 1; }
+              npm --prefix "$package_dir" audit --package-lock-only --omit=dev --audit-level=high
+            fi
+          done
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install pinned pip-audit
+        run: python -m pip install --disable-pip-version-check "pip-audit==${PIP_AUDIT_VERSION}"
+
+      - name: Audit complete Aero lock and Career runtime requirements
+        run: |
+          python -m pip_audit --no-deps -r aero-lab/engine/requirements-lock.txt
+          python -m pip_audit -r career-hunter/engine/requirements.txt
+
+  secret-scan:
+    name: Full-history and worktree secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Scan complete Git history
+        run: >-
+          docker run --rm -v "$PWD:/scan:ro"
+          -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/scan
+          "$GITLEAKS_IMAGE"
+          detect --source=/scan --config=/scan/.gitleaks.toml
+          --log-opts="--all" --redact --verbose
+
+      - name: Scan checked-out worktree
+        run: >-
+          docker run --rm -v "$PWD:/scan:ro" "$GITLEAKS_IMAGE"
+          detect --source=/scan --config=/scan/.gitleaks.toml
+          --no-git --redact --verbose
+
+  filesystem-and-sbom:
+    name: Filesystem vulnerability gate and SBOM
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      # Store packages do not ship a repository-wide container. Scan the installable filesystem and
+      # generate its CycloneDX SBOM instead of inventing an image that customers never execute.
+      - name: Block fixable high and critical findings
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig
+          format: table
+          exit-code: "1"
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          version: ${{ env.TRIVY_VERSION }}
+
+      - name: Generate CycloneDX store SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: cyclonedx
+          output: store-sbom.cdx.json
+          exit-code: "0"
+          skip-setup-trivy: true
+
+      - name: Preserve immutable SBOM evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: store-sbom-${{ github.sha }}
+          path: store-sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 30
+
+  required:
+    name: SEC-06 required store security gate
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [codeql, inventories-and-tests, source-compiled-parity, dependency-audit, secret-scan, filesystem-and-sbom]
+    steps:
+      - name: Refuse failed, skipped, or cancelled controls
+        env:
+          CODEQL: ${{ needs.codeql.result }}
+          INVENTORIES: ${{ needs.inventories-and-tests.result }}
+          PARITY: ${{ needs.source-compiled-parity.result }}
+          DEPENDENCIES: ${{ needs.dependency-audit.result }}
+          SECRETS: ${{ needs.secret-scan.result }}
+          FILESYSTEM: ${{ needs.filesystem-and-sbom.result }}
+        run: |
+          for result in "$CODEQL" "$INVENTORIES" "$PARITY" "$DEPENDENCIES" "$SECRETS" "$FILESYSTEM"; do
+            [ "$result" = success ] || { echo "::error::Required security control ended: $result"; exit 1; }
+          done

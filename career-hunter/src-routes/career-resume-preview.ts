@@ -1,36 +1,18 @@
 /**
- * Career Hunter — in-surface résumé preview
- *
- * The board and the mobile surface both showed the packet by pointing an `<iframe>` at
- * `GET /resume?id=…`, which serves the generated **PDF** (`user_signals.resume_path` is always a
- * `.pdf` — `engine/jobhunter/generate.py:624` and `career-resume-studio-routes.ts:214` both write
- * that extension, and 1,765 of 1,765 rows on the live store are `.pdf`).
- *
- * No mobile browser renders a PDF in a subframe. iOS has no in-page PDF renderer at all — WebKit
- * hands PDFs to a native viewer that is only instantiated for top-level navigations, so every
- * browser on iOS (all WKWebView) paints the frame's CSS box and draws nothing in it. Chrome and
- * Firefox on Android likewise have no subframe viewer and fall back to a download hand-off. The
- * `load` event still fires, so the page cannot even detect the failure. The result is exactly the
- * operator's report: **the preview takes up screen space but shows nothing.** It works on desktop
- * (PDFium / pdf.js / PDFKit all render inline), which is why this survived several rounds of
- * reports unfixed.
- *
- * The fix does not need a PDF renderer: the generator writes the HTML *first* and prints the PDF
- * from it (`generate.py` — `hp.write_text(html)` then `_render_pdf(hp, pp)`), so a byte-exact HTML
- * source of every PDF is already sitting next to it on disk. This module serves that sibling for
- * preview. The PDF stays the artifact of record — every surface keeps a link to open it.
- *
- * The templates are self-contained by construction: no `<script>`, no external stylesheet, no
- * remote font or image, and Jinja renders them with `autoescape=select_autoescape(["html"])` so
- * the model-authored résumé text is escaped. Surfaces still frame it with `sandbox=""` (no tokens
- * at all), which puts the document in an opaque origin with scripting disabled.
- *
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                                      | DESCRIPTION
+ * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-08-01 00:00:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Fix the operator-reported invisible résumé preview on phones: serve the generated HTML sibling of the packet PDF for in-surface preview (`?as=html`), since no mobile browser renders a PDF in an iframe and the frame kept its box while painting nothing. Screen-only CSS is appended so the print-targeted template reflows to a phone-width frame; the PDF remains the artifact of record.
+ * 1 | maintainer@emeraldcoastsystemsgroup.com   | Serve generated HTML siblings for reliable in-surface resume previews while retaining PDFs as the submitted artifacts.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Require lexical and real-filesystem containment and reject linked or nonregular packet paths before serving either format.
+ */
+
+/**
+ * Career Hunter in-surface resume preview.
  *
+ * The generator writes self-contained HTML before printing the submitted PDF. Mobile browsers do
+ * not reliably render a PDF iframe, so surfaces preview that HTML sibling inside `sandbox=""` and
+ * keep a top-level PDF link. Both artifacts remain caller-scoped filesystem reads.
  * @module career-resume-preview
  */
 import fs from 'fs';
@@ -87,6 +69,45 @@ export function buildPreviewHtml(htmlPath: string): string {
   return fs.readFileSync(htmlPath, 'utf8') + PREVIEW_SCREEN_CSS;
 }
 
+function isNestedPath(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return relative !== ''
+    && relative !== '..'
+    && !relative.startsWith(`..${path.sep}`)
+    && !path.isAbsolute(relative);
+}
+
+function isLinkFreeRegularPath(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  let current = root;
+  const rootStat = fs.lstatSync(current, { throwIfNoEntry: false });
+  if (!rootStat?.isDirectory() || rootStat.isSymbolicLink()) return false;
+  for (const segment of relative.split(path.sep)) {
+    current = path.join(current, segment);
+    const stat = fs.lstatSync(current, { throwIfNoEntry: false });
+    if (!stat || stat.isSymbolicLink()) return false;
+    if (current === candidate) return stat.isFile();
+  }
+  return false;
+}
+
+/**
+ * @description Resolves an existing caller-owned artifact only after both its lexical path and
+ *   real filesystem target remain beneath the caller directory. Every path component is checked
+ *   with `lstat` so a symlink or junction cannot redirect a later read after a string-only check.
+ * @param filePath - Stored artifact path proposed for serving.
+ * @param userDir - Caller-owned store directory that forms the authorization boundary.
+ * @returns The canonical regular-file path, or null when containment or file type is invalid.
+ */
+export function resolveContainedRegularFile(filePath: string, userDir: string): string | null {
+  const root = path.resolve(userDir);
+  const candidate = path.resolve(filePath);
+  if (!isNestedPath(root, candidate) || !isLinkFreeRegularPath(root, candidate)) return null;
+  const realRoot = fs.realpathSync(root);
+  const realCandidate = fs.realpathSync(candidate);
+  return isNestedPath(realRoot, realCandidate) ? realCandidate : null;
+}
+
 /**
  * @description Resolves the HTML preview for a stored packet PDF, applying the same containment
  *   rule the PDF path uses: the resolved file must sit inside the caller's own directory.
@@ -100,9 +121,5 @@ export function buildPreviewHtml(htmlPath: string): string {
  */
 export function resolvePreviewPath(pdfPath: string, userDir: string): string | null {
   const sibling = htmlSiblingOf(pdfPath);
-  if (!sibling) return null;
-  const safeRoot = path.resolve(userDir);
-  const resolved = path.resolve(sibling);
-  if (!resolved.startsWith(safeRoot)) return null;
-  return fs.existsSync(resolved) ? resolved : null;
+  return sibling ? resolveContainedRegularFile(sibling, userDir) : null;
 }

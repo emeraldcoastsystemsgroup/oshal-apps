@@ -1,9 +1,10 @@
 /**
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                      | DESCRIPTION
+ * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-04-21 21:10:00 | roger.murphy@agenticfederal.us   | LM fully-operational spec — exercises every HTML page, every CRUD endpoint, ticket dispatch, and workflow integration
+ * 1 | roger.murphy@agenticfederal.us   | LM fully-operational spec — exercises every HTML page, every CRUD endpoint, ticket dispatch, and workflow integration
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Replace the retired unsafe student write with the class-scoped roster contract and pin both legacy endpoints to 410
  */
 
 import { test, expect, request, type APIRequestContext } from '@playwright/test';
@@ -164,13 +165,24 @@ test('assignments: list + create', async () => {
 
 // ─── Students + Enrollment ───────────────────────────────────────────────────
 
-test('students: create', async () => {
-  const res = await api.post('/api/education/students', {
-    data: { name: `E2E Student ${Date.now()}`, gradeLevel: '9' },
+test('roster: class-scoped provision succeeds and legacy ID writes stay retired', async () => {
+  const email = `e2e-student-${Date.now()}@example.invalid`;
+  const res = await api.post(`/api/education/classes/${testClassId}/students`, {
+    data: { email },
   });
   expect(res.status()).toBe(201);
   const body = await res.json();
   expect(body).toHaveProperty('studentId');
+  expect(body.email).toBe(email);
+
+  for (const [path, data] of [
+    ['/api/education/students', { name: 'Unsafe legacy student', email }],
+    ['/api/education/enroll', { studentId: body.studentId, classId: testClassId }],
+  ] as const) {
+    const legacy = await api.post(path, { data });
+    expect(legacy.status()).toBe(410);
+    expect((await legacy.json()).error).toBe('legacy_roster_endpoint_removed');
+  }
 });
 
 // ─── Status ──────────────────────────────────────────────────────────────────
