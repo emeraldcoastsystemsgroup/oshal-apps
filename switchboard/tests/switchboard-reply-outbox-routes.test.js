@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Exercise the compiled reply route and executor: confirmation-before-I/O, owned-source recipient binding, idempotency replay/conflict, encrypted persistence, owner-only status, atomic claims, and terminal uncertain outcomes.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Use the declared synthetic placeholder for the idempotency fixture, matching the sibling model spec. See that file's entry 2: the public-store gitleaks gate refused the cut on the previous value's entropy, and the store policy is to fix the fixture, not widen the allowlist.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Register the new Streams pane sibling in the parent-mount stub list (the parent now requires ./switchboard-streams-routes); the /replies exactly-once assertion is unchanged.
  */
 'use strict';
 
@@ -170,6 +171,7 @@ function parentMounts() {
     './switchboard-threads-routes': { createThreadsRoutes: () => child('threads') },
     './switchboard-stage-routes': { createStageRoutes: () => child('stage') },
     './switchboard-reply-outbox-routes': { createReplyOutboxRoutes: () => child('replies') },
+    './switchboard-streams-routes': { createStreamsRoutes: () => child('streams') },
   };
   const code = fs.readFileSync(file, 'utf8');
   const mod = { exports: {} };

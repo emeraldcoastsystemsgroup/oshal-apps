@@ -1,3 +1,4 @@
+"use strict";
 /**
  * Switchboard Routes — the "Today" board API (mounted /api/switchboard, requiresAuth).
  *
@@ -27,10 +28,10 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial Switchboard Today pane: GET /today (surface) + GET /feed (unified board — Gmail needs-reply + calendar + inbox-fed social signals, normalized, ranked, time-bucketed). Read-only; no LLM in the controller path. Surfaces serve from ctx.appPackageDir/tools (D10 load-time fallback).
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Mount /threads and /stage through their self-contained sibling modules.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Mount the confirmed durable reply outbox under /replies without changing the parent authentication boundary.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Mount the Streams CMS pane under /streams (operator direction 2026-08-09: CMS-grade publishing — states, variants, revisions, review, confirm-gated publish over compose's publishTo) through its self-contained sibling module; the parent authentication boundary is unchanged.
  *
  * @module switchboard-routes
  */
-"use strict";
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -79,6 +80,7 @@ const switchboard_compose_routes_1 = require("./switchboard-compose-routes");
 const switchboard_threads_routes_1 = require("./switchboard-threads-routes");
 const switchboard_stage_routes_1 = require("./switchboard-stage-routes");
 const switchboard_reply_outbox_routes_1 = require("./switchboard-reply-outbox-routes");
+const switchboard_streams_routes_1 = require("./switchboard-streams-routes");
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
 const logger = (0, logger_1.createChildLogger)({ module: 'switchboard-routes' });
@@ -528,6 +530,6 @@ function createSwitchboardRoutes(ctx) {
     router.use('/threads', (0, switchboard_threads_routes_1.createThreadsRoutes)(ctx));
     router.use('/stage', (0, switchboard_stage_routes_1.createStageRoutes)(ctx));
     router.use('/replies', (0, switchboard_reply_outbox_routes_1.createReplyOutboxRoutes)(ctx));
+    router.use('/streams', (0, switchboard_streams_routes_1.createStreamsRoutes)(ctx));
     return router;
 }
-//# sourceMappingURL=switchboard-routes.js.map

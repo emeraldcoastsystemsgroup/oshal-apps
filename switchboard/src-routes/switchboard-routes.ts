@@ -27,6 +27,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial Switchboard Today pane: GET /today (surface) + GET /feed (unified board — Gmail needs-reply + calendar + inbox-fed social signals, normalized, ranked, time-bucketed). Read-only; no LLM in the controller path. Surfaces serve from ctx.appPackageDir/tools (D10 load-time fallback).
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Mount /threads and /stage through their self-contained sibling modules.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Mount the confirmed durable reply outbox under /replies without changing the parent authentication boundary.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Mount the Streams CMS pane under /streams (operator direction 2026-08-09: CMS-grade publishing — states, variants, revisions, review, confirm-gated publish over compose's publishTo) through its self-contained sibling module; the parent authentication boundary is unchanged.
  *
  * @module switchboard-routes
  */
@@ -44,6 +45,7 @@ import { createComposeRoutes } from './switchboard-compose-routes';
 import { createThreadsRoutes } from './switchboard-threads-routes';
 import { createStageRoutes } from './switchboard-stage-routes';
 import { createReplyOutboxRoutes } from './switchboard-reply-outbox-routes';
+import { createStreamsRoutes } from './switchboard-streams-routes';
 
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -488,6 +490,7 @@ export function createSwitchboardRoutes(ctx: AppContext): Router {
   router.use('/threads', createThreadsRoutes(ctx));
   router.use('/stage', createStageRoutes(ctx));
   router.use('/replies', createReplyOutboxRoutes(ctx));
+  router.use('/streams', createStreamsRoutes(ctx));
 
   return router;
 }

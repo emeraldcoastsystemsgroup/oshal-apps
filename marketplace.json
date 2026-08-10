@@ -1037,8 +1037,8 @@
       "name": "switchboard",
       "suite": "ai-productivity",
       "displayName": "Switchboard",
-      "description": "Every line, one board. Switchboard pulls your mail, DMs, texts, calls, and social mentions into a single prioritized stream — the Today board — so you triage your whole day in one place instead of app-hopping. Reads run on your own connector tokens; ranking and drafting run on the communications bot with cost captured per user. Nothing is sent or posted without your say-so.",
-      "version": "0.3.0",
+      "description": "Every line, one board. Switchboard pulls your mail, DMs, texts, calls, and social mentions into a single prioritized stream — the Today board — so you triage your whole day in one place instead of app-hopping. The Streams desk manages your outbound posts CMS-style: drafts move through review, approval, scheduling, and publish with per-channel variants and revision history. Reads run on your own connector tokens; ranking and drafting run on the communications bot with cost captured per user. Nothing is sent or posted without your say-so.",
+      "version": "0.4.0",
       "theme": "forest",
       "dependencies": {
         "apps": [],

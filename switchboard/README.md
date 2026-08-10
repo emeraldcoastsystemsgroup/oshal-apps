@@ -7,8 +7,8 @@ platform, routed onto one board by one operator.
 
 Built pane by pane. This package currently ships the **Today** board, the portal
 sections (**Inbox / Calendar / Compose**), the **Threads** timeline, the **Stage**
-broadcast composer, the **Workspaces** organizer, and a durable confirmed Gmail
-reply outbox.
+broadcast composer, the **Streams** publishing desk, the **Workspaces** organizer,
+and a durable confirmed Gmail reply outbox.
 
 ## Workspaces (shipped — [ADR-113](https://github.com/emeraldcoastsystemsgroup/open-shal/blob/main/docs/adr/113-switchboard-aggregation-surface-and-workspaces.md))
 
@@ -65,6 +65,31 @@ surface, mounted under its own prefix by `switchboard-routes.ts`. Every read tak
   error and the rest still send. Every send requires the explicit `no-post` confirm; Stage adds no
   scheduler (scheduled sends stay behind the Calendar executor's opt-in flag). The pure fan-out lives
   in `switchboard-stage-fanout` (guarded by the package suite).
+
+## Streams — the CMS publishing desk (shipped)
+
+The operator's call (2026-08-09): publishing must work like a real CMS — the pattern of the
+editorial system built for the JMN client — except the publish targets already exist, so
+Streams manages content and lands on Compose's confirm-gated `publishTo`, never a parallel rail.
+
+- **One post entity** (`oshal_switchboard_stream_posts`, owner-RLS) moving through the 8-state
+  editorial machine: `draft → in_review → approved → scheduled → published`, with `rejected`,
+  `failed`, and `archived`; every legal action is table-driven in the pure
+  `switchboard-streams-model` (guarded by the package suite).
+- **Per-channel variants** (`…_stream_variants`) for x / linkedin / facebook / instagram / threads,
+  each carrying its own publish outcome (`published` / `failed` + error / honest `skipped
+  no_binding` for the copy-paste-only platforms). Variant drafting rides the EXISTING Compose
+  `/variants` bot endpoint — no LLM in the Streams controller path.
+- **A revision per edit** (`…_stream_revisions`): the prior content is snapshotted before every
+  PATCH; edits are allowed only in `draft`/`in_review` — anything later must reopen.
+- **Fail-closed publish**: `confirm: true` or 428; any publishable variant empty/over-limit rejects
+  the whole publish before anything sends; channels then send independently; a claim CAS
+  (`publish_claimed_at`) makes a double-fire or concurrent executor tick unable to double-post.
+- **Scheduling** shares the Calendar executor's opt-in switch (`SWITCHBOARD_PUBLISH_EXECUTOR`) —
+  one flag governs all outward scheduled publishing in this package; until armed, scheduled posts
+  wait and stay publishable by hand.
+- **Imports** fold the older stores in idempotently ((user_sub, source, source_ref) unique):
+  the LinkedIn assistant's judged drafts (score + rationale carried over) and Content Studio drafts.
 
 ## Confirmed reply outbox (shipped locally)
 

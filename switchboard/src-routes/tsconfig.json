@@ -1,0 +1,20 @@
+{
+  "// why": "Compile the switchboard package routes to CommonJS with @/ aliases LEFT INTACT (the oshal loader resolves @/ at runtime — BUILDING-EXTENSIONS §5). Framework `@/` types come from core-modules.d.ts (ambient, never emitted — mapping paths into core SOURCE made tsc emit the core tree into routes/). express + node types resolve from the core checkout's node_modules (declarations only, never emitted). Emit goes to ../routes-build; the build step copies ONLY the modules being shipped into ../routes so untouched compiled siblings never churn. Run: npx tsc -p c:/Projects/oshal-apps/switchboard/src-routes/tsconfig.json (needs the core checkout for the type packages).",
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "ES2022",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "outDir": "../routes-build",
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "express": ["C:/Projects/oshal/node_modules/@types/express"]
+    },
+    "typeRoots": ["C:/Projects/oshal/node_modules/@types"],
+    "types": ["node"]
+  },
+  "include": ["*.ts", "*.d.ts"]
+}

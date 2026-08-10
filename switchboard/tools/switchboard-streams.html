@@ -1,0 +1,1226 @@
+<!doctype html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Streams — Switchboard</title>
+<!-- Streams — the CMS-grade publishing pane: one post entity moving through editorial states
+     (draft → in_review → approved → scheduled/published, with rejected / failed / archived),
+     per-platform variants with char meters, revision history, and publishing through the SAME
+     confirm-gated bindings Compose uses. Nothing posts without an explicit confirm. -->
+<!-- ONE link gives this standalone surface every OSHAL theme; the active one is chosen by the
+     data-theme on <html> above (and kept in sync live by surface-theme.js). Every colour below is
+     DERIVED from a framework token with a hardcoded fallback, so the surface is native to all 11
+     themes in-cockpit AND still renders if opened on its own (fallbacks = the midnight palette,
+     with a light-scheme set under @media so a bare open respects the OS theme too). -->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  /* ── standalone fallback palette (only applies when framework tokens are absent) ──────────── */
+  :root {
+    --sb-bg:#0a0a12; --sb-surface:#12121e; --sb-card:rgba(28,28,48,.55); --sb-card-hover:rgba(40,40,68,.66);
+    --sb-line:rgba(255,255,255,.09); --sb-text:#eeeef5; --sb-text2:#c8c8da; --sb-muted:#8a8aa0;
+    --sb-accent:#7c7cff; --sb-ok:#00d3a7; --sb-warn:#f5b342; --sb-err:#ff6f5e; --sb-active:#4aa3ff;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --sb-bg:#eef1f5; --sb-surface:#f6f8fb; --sb-card:#ffffff; --sb-card-hover:#fbfcfe;
+      --sb-line:rgba(22,26,34,.10); --sb-text:#191c22; --sb-text2:#3a4048; --sb-muted:#5a606b;
+      --sb-accent:#5a5af0; --sb-ok:#1f9d74; --sb-warn:#b3762e; --sb-err:#d94f3d; --sb-active:#2f77c9;
+    }
+  }
+
+  /* ── aliases: framework token first, standalone fallback second ───────────────────────────── */
+  :root {
+    --bg:      var(--bg-primary,      var(--sb-bg));
+    --surface: var(--bg-secondary,    var(--sb-surface));
+    --card:    var(--bg-card,         var(--sb-card));
+    --cardh:   var(--bg-card-hover,   var(--sb-card-hover));
+    --line:    var(--border-color,    var(--sb-line));
+    --lineh:   var(--border-color-hover, var(--sb-line));
+    --text:    var(--text-primary,    var(--sb-text));
+    --text2:   var(--text-secondary,  var(--sb-text2));
+    --muted:   var(--text-muted,      var(--sb-muted));
+    --accent:  var(--accent-primary,  var(--sb-accent));
+    --accent-grad: var(--accent-gradient, linear-gradient(135deg, var(--accent), var(--sb-active)));
+    --ok:      var(--status-success,  var(--sb-ok));
+    --warn:    var(--status-warning,  var(--sb-warn));
+    --err:     var(--status-error,    var(--sb-err));
+    --active:  var(--status-active,   var(--sb-active));
+
+    /* platform brand marks (fixed — same as the compose + today surfaces) */
+    --gmail:#d64b3f; --li:#0a66c2; --x:#e9eaec; --fb:#1877f2; --ig:#d6297a; --threads:#e9eaec;
+
+    --r-sm:10px; --r-md:16px; --r-lg:22px; --pill:999px;
+    --ease:cubic-bezier(.32,.72,.24,1);
+  }
+  /* keep X's / Threads' chip readable on light themes */
+  @media (prefers-color-scheme: light) { :root { --x:#16181c; --threads:#16181c; } }
+  :root[data-theme="daylight"], :root[data-theme="gray"], :root[data-theme="light-blue"],
+  :root[data-theme="sakura"], :root[data-theme="amber"] { --x:#16181c; --threads:#16181c; }
+
+  * { box-sizing:border-box; }
+  html,body { height:100%; }
+  body {
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Segoe UI",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased; font-size:14px; line-height:1.45;
+  }
+  .tnum { font-variant-numeric:tabular-nums; }
+  a { color:var(--accent); text-decoration:none; }
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+
+  .wrap { max-width:1500px; margin:0 auto; padding:26px 24px 70px; }
+
+  /* ── header ───────────────────────────────────────────────────────────────────────────────── */
+  .head { display:flex; align-items:flex-start; gap:16px; margin-bottom:18px; flex-wrap:wrap; }
+  .head .h-main { flex:1; min-width:240px; }
+  .greet { font-size:26px; font-weight:680; letter-spacing:-.025em; margin:0 0 6px; text-wrap:balance; }
+  .subline { color:var(--muted); font-size:14.5px; margin:0; }
+  .subline b { color:var(--text); font-weight:600; }
+  .controls { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+
+  .btn {
+    appearance:none; border:1px solid var(--line); background:var(--card); color:var(--text2);
+    font:inherit; font-size:13px; font-weight:600; padding:8px 15px; border-radius:var(--pill);
+    cursor:pointer; display:inline-flex; align-items:center; gap:8px; transition:all var(--ease) .15s;
+  }
+  .btn svg { width:15px; height:15px; }
+  .btn:hover { border-color:var(--accent); color:var(--accent); }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+  .btn.primary { background:var(--accent-grad); border-color:transparent; color:#fff; box-shadow:0 8px 20px rgba(0,0,0,.16); }
+  .btn.primary:hover { filter:brightness(1.07); color:#fff; }
+  .btn.danger { color:var(--err); }
+  .btn.danger:hover { border-color:var(--err); color:var(--err); }
+  .btn.sm { font-size:12px; padding:6px 12px; }
+  .btn.icon { width:34px; height:34px; padding:0; justify-content:center; border-radius:10px; }
+  .btn .spin, .spin { animation:spin 1s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  .newbtn {
+    appearance:none; border:0; cursor:pointer; font:inherit; font-size:13.5px; font-weight:620;
+    background:var(--accent-grad); color:#fff; padding:0 18px; height:34px; border-radius:var(--pill);
+    display:inline-flex; align-items:center; gap:8px; box-shadow:0 8px 20px rgba(0,0,0,.16);
+    transition:filter var(--ease) .15s, transform var(--ease) .15s;
+  }
+  .newbtn:hover { filter:brightness(1.07); transform:translateY(-1px); }
+  .newbtn svg { width:15px; height:15px; }
+
+  /* preview ribbon */
+  .previewpill {
+    display:none; align-items:center; gap:7px; font-size:12px; color:var(--warn);
+    background:color-mix(in srgb, var(--warn) 12%, transparent); border:1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+    padding:5px 12px; border-radius:var(--pill); margin-bottom:16px; width:fit-content;
+  }
+  .previewpill.show { display:inline-flex; }
+  .previewpill svg { width:13px; height:13px; }
+
+  /* ── the three-region CMS layout ──────────────────────────────────────────────────────────── */
+  .layout { display:grid; grid-template-columns:232px 372px minmax(0,1fr); gap:14px; align-items:start; }
+
+  /* left rail */
+  .rail { background:var(--card); border:1px solid var(--line); border-radius:var(--r-lg); padding:14px; position:sticky; top:16px; }
+  .rail .search { position:relative; margin-bottom:10px; }
+  .rail .search svg { position:absolute; left:11px; top:50%; transform:translateY(-50%); width:14px; height:14px; color:var(--muted); pointer-events:none; }
+  .rail .search input {
+    width:100%; font:inherit; font-size:13px; color:var(--text); background:var(--surface);
+    border:1px solid var(--line); border-radius:var(--pill); padding:8px 12px 8px 32px;
+    transition:border-color var(--ease) .15s;
+  }
+  .rail .search input:focus { outline:none; border-color:var(--accent); }
+  select.wsfilter {
+    appearance:none; width:100%; font:inherit; font-size:13px; font-weight:550; color:var(--text2);
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--pill);
+    padding:8px 30px 8px 13px; cursor:pointer; transition:border-color var(--ease) .15s; margin-bottom:12px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a8aa0' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+    background-repeat:no-repeat; background-position:right 11px center;
+  }
+  select.wsfilter:hover { border-color:var(--accent); }
+
+  .snav { display:flex; flex-direction:column; gap:3px; }
+  .snav button {
+    appearance:none; border:0; background:transparent; color:var(--text2); cursor:pointer; font:inherit;
+    font-size:13px; font-weight:560; padding:8px 11px; border-radius:var(--r-sm); text-align:left;
+    display:flex; align-items:center; gap:9px; transition:all var(--ease) .13s; width:100%;
+  }
+  .snav button:hover { background:var(--surface); color:var(--text); }
+  .snav button.on { background:color-mix(in srgb,var(--accent) 13%,transparent); color:var(--text); }
+  .snav .sdot { width:8px; height:8px; border-radius:3px; flex:none; }
+  .snav .scount { margin-left:auto; font-size:11.5px; font-weight:650; color:var(--muted); background:var(--line); padding:1px 8px; border-radius:var(--pill); }
+  .snav button.on .scount { color:var(--accent); background:color-mix(in srgb,var(--accent) 16%,transparent); }
+
+  .railsec { font-size:10.5px; font-weight:650; text-transform:uppercase; letter-spacing:.09em; color:var(--muted); margin:16px 2px 8px; }
+  .importbar { display:flex; flex-direction:column; gap:7px; }
+  .importbar .btn { width:100%; justify-content:flex-start; font-size:12.5px; }
+
+  /* middle list */
+  .plist { display:flex; flex-direction:column; gap:9px; min-width:0; }
+  .prow {
+    background:var(--card); border:1px solid var(--line); border-radius:var(--r-md); padding:12px 14px;
+    cursor:pointer; transition:transform var(--ease) .15s, box-shadow var(--ease) .15s, border-color var(--ease) .15s;
+    animation:rise .35s var(--ease) backwards;
+  }
+  @keyframes rise { from { opacity:0; transform:translateY(9px); } to { opacity:1; transform:none; } }
+  .prow:hover { transform:translateY(-2px); box-shadow:0 10px 24px rgba(0,0,0,.14); border-color:var(--lineh); }
+  .prow.on { border-color:color-mix(in srgb,var(--accent) 60%,var(--line)); box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 30%,transparent) inset; }
+  .prow .ptitle { font-size:13.5px; font-weight:620; letter-spacing:-.01em; margin-bottom:5px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .prow .ptitle.snip { font-weight:480; color:var(--text2); }
+  .prow .pmeta { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+  .prow .pchip { width:9px; height:9px; border-radius:3px; flex:none; }
+  .prow .ptime { margin-left:auto; font-size:11px; color:var(--muted); white-space:nowrap; }
+  .badge { font-size:10px; font-weight:650; padding:2px 8px; border-radius:var(--pill); letter-spacing:.01em; white-space:nowrap; }
+  .badge.judge { color:var(--accent); background:color-mix(in srgb,var(--accent) 14%,transparent); }
+  .badge.src { color:var(--muted); background:var(--line); }
+  .badge.st-draft, .badge.st-archived { color:var(--muted); background:var(--line); }
+  .badge.st-in_review { color:var(--warn); background:color-mix(in srgb,var(--warn) 15%,transparent); }
+  .badge.st-approved, .badge.st-scheduled { color:var(--active); background:color-mix(in srgb,var(--active) 15%,transparent); }
+  .badge.st-published { color:var(--ok); background:color-mix(in srgb,var(--ok) 15%,transparent); }
+  .badge.st-rejected, .badge.st-failed { color:var(--err); background:color-mix(in srgb,var(--err) 15%,transparent); }
+
+  /* skeleton + empty (same idioms as the calendar surface) */
+  .skelrow { background:var(--card); border:1px solid var(--line); border-radius:var(--r-md); padding:12px 14px; }
+  .shimmer { position:relative; overflow:hidden; background:var(--line); border-radius:8px; }
+  .shimmer::after { content:""; position:absolute; inset:0; transform:translateX(-100%); background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--text) 8%,transparent),transparent); animation:sh 1.4s infinite; }
+  @keyframes sh { 100% { transform:translateX(100%); } }
+  .empty { text-align:center; padding:40px 24px; color:var(--muted); background:var(--card); border:1px solid var(--line); border-radius:var(--r-lg); }
+  .empty svg { width:32px; height:32px; color:var(--accent); margin-bottom:12px; }
+  .empty h3 { color:var(--text); font-size:16px; font-weight:620; margin:0 0 6px; }
+  .empty p { font-size:13px; margin:0 auto; max-width:38ch; line-height:1.5; }
+
+  /* right editor */
+  .editor { background:var(--card); border:1px solid var(--line); border-radius:var(--r-lg); padding:20px; min-width:0; }
+  .ehead { display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+  .ehead h2 { font-size:15.5px; font-weight:640; letter-spacing:-.01em; margin:0; }
+  .ehead .esub { color:var(--muted); font-size:12px; margin-left:auto; }
+  .fld { display:flex; flex-direction:column; gap:6px; margin-bottom:13px; }
+  .fld label { font-size:11.5px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+  .fld input[type=text], .fld textarea, .fld select, .fld input[type=datetime-local] {
+    font:inherit; font-size:14px; color:var(--text); background:var(--surface); border:1px solid var(--line);
+    border-radius:var(--r-sm); padding:10px 12px; width:100%; transition:border-color var(--ease) .15s;
+  }
+  .fld textarea { resize:vertical; min-height:120px; line-height:1.55; }
+  .fld input:focus, .fld textarea:focus, .fld select:focus { outline:none; border-color:var(--accent); }
+  .fld input[readonly], .fld textarea[readonly] { opacity:.75; }
+  .cc { font-size:11px; color:var(--muted); text-align:right; margin-top:-2px; }
+  .cc.over { color:var(--err); }
+
+  /* tags editor */
+  .tagbox { display:flex; flex-wrap:wrap; gap:6px; align-items:center; background:var(--surface); border:1px solid var(--line); border-radius:var(--r-sm); padding:7px 9px; }
+  .tagbox:focus-within { border-color:var(--accent); }
+  .tag { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; color:var(--text2); background:var(--line); border-radius:var(--pill); padding:3px 6px 3px 10px; }
+  .tag button { appearance:none; border:0; background:transparent; color:var(--muted); cursor:pointer; padding:0 3px; font-size:12px; line-height:1; }
+  .tag button:hover { color:var(--err); }
+  .tagbox input { flex:1; min-width:90px; border:0; background:transparent; color:var(--text); font:inherit; font-size:12.5px; padding:3px 2px; }
+  .tagbox input:focus { outline:none; }
+
+  /* note bars */
+  .notebar { display:flex; align-items:flex-start; gap:9px; font-size:12.5px; color:var(--warn); background:color-mix(in srgb,var(--warn) 10%,transparent); border:1px solid color-mix(in srgb,var(--warn) 34%,transparent); border-radius:var(--r-sm); padding:10px 13px; margin-bottom:13px; }
+  .notebar svg { width:14px; height:14px; flex:none; margin-top:1px; }
+  .errbar { display:none; align-items:flex-start; gap:9px; font-size:12.5px; color:var(--err); background:color-mix(in srgb,var(--err) 10%,transparent); border:1px solid color-mix(in srgb,var(--err) 34%,transparent); border-radius:var(--r-sm); padding:10px 13px; margin-bottom:13px; }
+  .errbar.show { display:flex; }
+  .errbar svg { width:14px; height:14px; flex:none; margin-top:1px; }
+
+  /* variant cards */
+  .grouplbl { font-size:11px; font-weight:650; text-transform:uppercase; letter-spacing:.09em; color:var(--muted); margin:20px 2px 10px; display:flex; align-items:center; gap:10px; }
+  .grouplbl .grow { flex:1; }
+  .vgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:12px; }
+  .vcard { background:var(--surface); border:1px solid var(--line); border-radius:var(--r-md); padding:13px 14px; display:flex; flex-direction:column; gap:9px; }
+  .vcard .vhead { display:flex; align-items:center; gap:8px; }
+  .vcard .mark { width:24px; height:24px; border-radius:7px; display:grid; place-items:center; color:#fff; flex:none; }
+  .vcard .mark svg { width:14px; height:14px; }
+  .vcard .vname { font-weight:640; font-size:13.5px; }
+  .vcard .vmeter { margin-left:auto; font-size:11px; font-weight:600; color:var(--muted); }
+  .vcard .vmeter.over { color:var(--err); }
+  .vcard textarea {
+    width:100%; min-height:96px; resize:vertical; border:1px solid var(--line); background:var(--card);
+    color:var(--text); font:inherit; font-size:13px; line-height:1.5; border-radius:var(--r-sm); padding:10px 11px;
+    transition:border-color var(--ease) .15s;
+  }
+  .vcard textarea:focus { outline:none; border-color:var(--accent); }
+  .vcard .vnote { font-size:11px; color:var(--muted); }
+  .vcard .vstatus { font-size:11px; font-weight:600; }
+  .vcard .vstatus.ok { color:var(--ok); } .vcard .vstatus.err { color:var(--err); } .vcard .vstatus.skip { color:var(--muted); }
+
+  /* actions + inline confirm (mirrors compose's pubbtn → confirmwrap flow) */
+  .acts { display:flex; gap:9px; align-items:center; flex-wrap:wrap; margin-top:16px; padding-top:15px; border-top:1px solid var(--line); }
+  .acts .grow { flex:1; }
+  .confirmwrap { display:none; gap:8px; align-items:center; flex-wrap:wrap; background:color-mix(in srgb,var(--warn) 8%,transparent); border:1px solid color-mix(in srgb,var(--warn) 30%,transparent); border-radius:var(--r-sm); padding:9px 12px; margin-top:11px; width:100%; }
+  .confirmwrap.show { display:flex; }
+  .confirmwrap .warnpub { font-size:12.5px; color:var(--warn); font-weight:600; flex:1; min-width:180px; }
+  .pubbtn.hide { display:none; }
+
+  /* transition note prompt (request changes / reject) */
+  .noteprompt { display:none; gap:8px; align-items:center; flex-wrap:wrap; width:100%; margin-top:11px; }
+  .noteprompt.show { display:flex; }
+  .noteprompt input { flex:1; min-width:200px; font:inherit; font-size:13px; color:var(--text); background:var(--surface); border:1px solid var(--line); border-radius:var(--r-sm); padding:9px 12px; }
+  .noteprompt input:focus { outline:none; border-color:var(--accent); }
+
+  /* schedule row */
+  .schedrow { display:none; gap:8px; align-items:center; flex-wrap:wrap; width:100%; margin-top:11px; }
+  .schedrow.show { display:flex; }
+  .schedrow input { font:inherit; font-size:13px; color:var(--text); background:var(--surface); border:1px solid var(--line); border-radius:var(--r-sm); padding:8px 11px; }
+
+  /* publish results */
+  .pubres { display:none; flex-direction:column; gap:7px; margin-top:13px; }
+  .pubres.show { display:flex; }
+  .pubres .prline { display:flex; align-items:center; gap:9px; font-size:12.5px; padding:8px 11px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--surface); }
+  .pubres .prline svg { width:14px; height:14px; flex:none; }
+  .pubres .prline.ok { color:var(--ok); border-color:color-mix(in srgb,var(--ok) 32%,transparent); background:color-mix(in srgb,var(--ok) 10%,transparent); }
+  .pubres .prline.err { color:var(--err); border-color:color-mix(in srgb,var(--err) 32%,transparent); background:color-mix(in srgb,var(--err) 10%,transparent); }
+  .pubres .prline.skip { color:var(--muted); }
+
+  /* revisions */
+  .revlist { display:flex; flex-direction:column; gap:6px; }
+  .revlist button {
+    appearance:none; border:1px solid var(--line); background:var(--surface); color:var(--text2); cursor:pointer;
+    font:inherit; font-size:12.5px; padding:9px 12px; border-radius:var(--r-sm); text-align:left;
+    display:flex; align-items:center; gap:9px; transition:all var(--ease) .13s;
+  }
+  .revlist button:hover { border-color:var(--accent); color:var(--text); }
+  .revlist .rtime { margin-left:auto; font-size:11px; color:var(--muted); white-space:nowrap; }
+  .revempty { font-size:12px; color:var(--muted); padding:4px 2px; }
+
+  /* modal (same idiom as the calendar surface) */
+  .scrim { position:fixed; inset:0; background:rgba(4,6,12,.5); backdrop-filter:blur(3px); display:none; place-items:center; z-index:40; padding:20px; }
+  .scrim.show { display:grid; animation:fade .18s var(--ease); }
+  @keyframes fade { from { opacity:0; } to { opacity:1; } }
+  .modal {
+    width:min(520px,100%); max-height:min(88vh,760px); overflow:auto; background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg);
+    box-shadow:0 30px 80px rgba(0,0,0,.4); animation:pop .22s var(--ease);
+  }
+  @keyframes pop { from { opacity:0; transform:translateY(12px) scale(.98); } to { opacity:1; transform:none; } }
+  .modal h2 { font-size:16.5px; font-weight:680; letter-spacing:-.02em; margin:0; padding:17px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:9px; position:sticky; top:0; background:var(--surface); z-index:1; }
+  .modal h2 svg { width:16px; height:16px; color:var(--accent); }
+  .mbody { padding:16px 20px; display:flex; flex-direction:column; gap:13px; }
+  .mbody .fld { margin-bottom:0; }
+  .plats { display:flex; gap:8px; flex-wrap:wrap; }
+  .plat {
+    appearance:none; border:1px solid var(--line); background:var(--card); color:var(--text2);
+    font:inherit; font-size:12.5px; font-weight:560; padding:7px 13px 7px 10px; border-radius:var(--pill);
+    cursor:pointer; display:inline-flex; align-items:center; gap:7px; transition:all var(--ease) .15s;
+  }
+  .plat .sw { width:9px; height:9px; border-radius:3px; }
+  .plat.on { border-color:var(--accent); color:var(--text); background:color-mix(in srgb,var(--accent) 12%,transparent); }
+  .plat .nc { font-size:10px; color:var(--muted); font-weight:600; }
+  .merr { color:var(--err); font-size:12.5px; padding:0 20px 12px; display:none; }
+  .merr.show { display:block; }
+  .mfoot { display:flex; align-items:center; gap:10px; padding:14px 20px 18px; }
+  .mfoot .grow { flex:1; }
+  .mbtn {
+    appearance:none; border:1px solid var(--line); background:var(--card); color:var(--text2);
+    font:inherit; font-size:13.5px; font-weight:600; padding:9px 16px; border-radius:var(--pill); cursor:pointer;
+    transition:all var(--ease) .15s;
+  }
+  .mbtn:hover { border-color:var(--accent); color:var(--accent); }
+  .mbtn.primary { background:var(--accent-grad); border-color:transparent; color:#fff; box-shadow:0 8px 20px rgba(0,0,0,.16); }
+  .mbtn.primary:hover { filter:brightness(1.07); color:#fff; }
+  .mbtn[disabled] { opacity:.5; cursor:not-allowed; }
+  .revview { font-size:13px; line-height:1.55; }
+  .revview h4 { font-size:11.5px; font-weight:650; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:12px 0 5px; }
+  .revview .rbody { background:var(--card); border:1px solid var(--line); border-radius:var(--r-sm); padding:11px 13px; white-space:pre-wrap; word-break:break-word; }
+
+  /* toast */
+  .toast {
+    position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(16px); opacity:0; pointer-events:none;
+    background:var(--surface); border:1px solid var(--line); color:var(--text); font-size:13px; font-weight:560;
+    padding:11px 18px; border-radius:var(--pill); box-shadow:0 16px 44px rgba(0,0,0,.3); z-index:60;
+    transition:all var(--ease) .22s; display:flex; align-items:center; gap:9px; max-width:min(92vw,560px);
+  }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  .toast svg { width:15px; height:15px; flex:none; }
+  .toast.ok svg { color:var(--ok); } .toast.err svg { color:var(--err); }
+
+  .footnote { margin-top:26px; padding-top:16px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); display:flex; align-items:center; gap:8px; }
+  .footnote svg { width:13px; height:13px; color:var(--accent); }
+
+  @media (max-width:1100px) {
+    .layout { grid-template-columns:200px minmax(0,1fr); }
+    .layout .editor { grid-column:1 / -1; }
+  }
+  @media (max-width:760px) {
+    .wrap { padding:18px 13px 50px; }
+    .greet { font-size:22px; }
+    .layout { grid-template-columns:1fr; }
+    .rail { position:static; }
+    .snav { flex-direction:row; flex-wrap:wrap; }
+    .snav button { width:auto; }
+    .vgrid { grid-template-columns:1fr; }
+  }
+  @media (prefers-reduced-motion:reduce) { * { animation:none !important; transition:none !important; } }
+</style>
+</head>
+<body>
+<!-- icon sprite -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-stream" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><path d="m6.3 6.3 2.4 2.4M15.3 15.3l2.4 2.4M17.7 6.3l-2.4 2.4M8.7 15.3l-2.4 2.4"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4M9 14h.01M15 14h.01"/><path d="M2 13v2M22 13v2"/></symbol>
+  <symbol id="i-at" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.9 7.9"/></symbol>
+  <symbol id="i-dm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-9 8 8.5 8.5 0 0 1-3.9-.9L3 20l1.4-4.1A8.38 8.38 0 0 1 12 3.5a8.5 8.5 0 0 1 9 8Z"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v6h6"/><path d="M3.5 9a9 9 0 1 1-.5 3"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-import" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></symbol>
+</defs></svg>
+
+<div class="wrap">
+  <div class="previewpill" id="previewpill"><svg><use href="#i-eye"/></svg> Preview — sample newsroom; sign in with the Streams backend running to manage your real pipeline</div>
+
+  <header class="head">
+    <div class="h-main">
+      <h1 class="greet">Streams</h1>
+      <p class="subline">Draft → review → approve → publish. <b>Nothing posts without your confirm.</b></p>
+    </div>
+    <div class="controls">
+      <button class="btn icon" id="refreshBtn" title="Refresh"><svg><use href="#i-refresh"/></svg></button>
+      <button class="newbtn" id="newBtn"><svg><use href="#i-plus"/></svg> New post</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT: state rail -->
+    <aside class="rail">
+      <div class="search"><svg><use href="#i-search"/></svg><input type="search" id="qbox" placeholder="Search posts…" aria-label="Search posts" /></div>
+      <select class="wsfilter" id="wsfilter" title="Filter by workspace"><option value="">All workspaces</option></select>
+      <nav class="snav" id="snav" aria-label="Post states"><!-- state buttons injected --></nav>
+      <div class="railsec">Import drafts</div>
+      <div class="importbar">
+        <button class="btn" id="impLi"><svg><use href="#i-import"/></svg> LinkedIn Assistant drafts</button>
+        <button class="btn" id="impCs"><svg><use href="#i-import"/></svg> Content Studio drafts</button>
+      </div>
+    </aside>
+
+    <!-- MIDDLE: post list -->
+    <section class="plist" id="plist" aria-label="Posts"><!-- rows injected --></section>
+
+    <!-- RIGHT: editor / detail -->
+    <section class="editor" id="editor"><!-- editor injected --></section>
+  </div>
+
+  <div class="footnote"><svg><use href="#i-bot"/></svg> Variants drafted on the communications bot · publishing sends the exact text you approved, one explicit confirm per publish — instagram &amp; threads variants are copy-paste only.</div>
+</div>
+
+<!-- new-post modal -->
+<div class="scrim" id="newScrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="newTitle">
+    <h2 id="newTitle"><svg><use href="#i-pen"/></svg>New post</h2>
+    <div class="mbody">
+      <div class="fld">
+        <label for="nTitle">Title <span style="text-transform:none;font-weight:500">(optional)</span></label>
+        <input type="text" id="nTitle" maxlength="140" placeholder="Working title" />
+      </div>
+      <div class="fld">
+        <label for="nBody">Master body</label>
+        <textarea id="nBody" placeholder="Write the master copy — variants tailor it per platform later"></textarea>
+        <div class="cc tnum" id="nCc">0 / 20000</div>
+      </div>
+      <div class="fld">
+        <label>Platforms</label>
+        <div class="plats" id="nPlats"><!-- platform checkboxes injected --></div>
+      </div>
+    </div>
+    <div class="merr" id="nErr"></div>
+    <div class="mfoot">
+      <span class="grow"></span>
+      <button class="mbtn" id="nCancel">Cancel</button>
+      <button class="mbtn primary" id="nCreate">Create draft</button>
+    </div>
+  </div>
+</div>
+
+<!-- revision viewer modal -->
+<div class="scrim" id="revScrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="revTitle">
+    <h2 id="revTitle"><svg><use href="#i-history"/></svg><span id="revTitleText">Revision</span></h2>
+    <div class="mbody"><div class="revview" id="revView"></div></div>
+    <div class="merr" id="revErr"></div>
+    <div class="mfoot">
+      <span class="grow"></span>
+      <button class="mbtn" id="revClose">Close</button>
+      <button class="mbtn primary" id="revRestore"><svg style="width:13px;height:13px;vertical-align:-2px"><use href="#i-undo"/></svg> Restore as draft edit</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><svg><use href="#i-check"/></svg><span id="toastMsg"></span></div>
+<script>
+(function () {
+  "use strict";
+
+  var API = "/api/switchboard/streams";          // this pane's backend (contract v1)
+  var COMPOSE_VARIANTS = "/api/switchboard/compose/variants";  // the EXISTING variants endpoint — streams never calls an LLM itself
+  var WS_API = "/api/switchboard/workspaces";
+
+  // ── contract constants (mirror streams-contract.md) ────────────────────────
+  var VARIANT_PLATFORMS = ["x", "linkedin", "facebook", "instagram", "threads"];
+  var PUBLISHABLE = { x: true, linkedin: true, facebook: true };
+  var LIMITS = { x: 280, linkedin: 3000, facebook: 63206, instagram: 2200, threads: 500 };
+  var MAX_TITLE = 140, MAX_BODY = 20000, MAX_TAGS = 12, MAX_TAG_LEN = 40;
+
+  var BRAND = {
+    x:        { label: "X",         v: "--x",       icon: "#i-at" },
+    linkedin: { label: "LinkedIn",  v: "--li",      icon: "#i-dm" },
+    facebook: { label: "Facebook",  v: "--fb",      icon: "#i-dm" },
+    instagram:{ label: "Instagram", v: "--ig",      icon: "#i-image" },
+    threads:  { label: "Threads",   v: "--threads", icon: "#i-at" }
+  };
+
+  // rail order + labels + dot colour token per state
+  var STATES = [
+    { id: "draft",     label: "Drafts",     dot: "--muted" },
+    { id: "in_review", label: "In review",  dot: "--warn" },
+    { id: "approved",  label: "Approved",   dot: "--active" },
+    { id: "scheduled", label: "Scheduled",  dot: "--active" },
+    { id: "published", label: "Published",  dot: "--ok" },
+    { id: "rejected",  label: "Rejected",   dot: "--err" },
+    { id: "failed",    label: "Failed",     dot: "--err" },
+    { id: "archived",  label: "Archived",   dot: "--muted" }
+  ];
+  var STLABEL = { draft:"Draft", in_review:"In review", approved:"Approved", scheduled:"Scheduled",
+                  published:"Published", rejected:"Rejected", failed:"Failed", archived:"Archived" };
+  var SRCLABEL = { "linkedin-assistant":"LinkedIn Assistant", "content-studio":"Content Studio" };
+
+  var state = {
+    workspace: "", q: "", state: "draft",
+    posts: [], counts: {}, workspaces: [],
+    selected: null,          // the open post (full wire shape)
+    revisions: [],           // [{revisionId, note, savedAt}] for the open post
+    preview: false,          // API unreachable → labelled sample, mutations disabled
+    busy: false
+  };
+
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ var d=document.createElement("div"); d.textContent=s==null?"":String(s); return d.innerHTML; }
+  function escAttr(s){ return esc(s).replace(/"/g,"&quot;"); }  // esc() covers text nodes; attributes also need quotes dead
+  function api(path, opts){
+    return fetch(API+path, Object.assign(
+      { credentials:"same-origin", headers:{ "Content-Type":"application/json", Accept:"application/json" } },
+      opts||{}));
+  }
+  // parse a response into {status, ok, j} without ever swallowing the body
+  function parse(r){ return r.json().catch(function(){ return {}; }).then(function(j){ return { status:r.status, ok:r.ok, j:j }; }); }
+
+  function ago(iso){
+    if(!iso) return "";
+    var d=new Date(iso); if(isNaN(d)) return "";
+    var s=(Date.now()-d.getTime())/1000;
+    if(s<60) return "just now";
+    if(s<3600) return Math.floor(s/60)+"m ago";
+    if(s<86400) return Math.floor(s/3600)+"h ago";
+    if(s<86400*7) return Math.floor(s/86400)+"d ago";
+    return d.toLocaleDateString(undefined,{month:"short",day:"numeric"});
+  }
+  function whenAt(iso){ var d=new Date(iso); return isNaN(d)?"":d.toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}); }
+
+  var toastTimer=null;
+  function toast(msg, ok){
+    var t=$("toast"); t.className="toast show "+(ok===false?"err":"ok");
+    t.querySelector("use").setAttribute("href", ok===false?"#i-warn":"#i-check");
+    $("toastMsg").textContent=msg;
+    clearTimeout(toastTimer); toastTimer=setTimeout(function(){ t.classList.remove("show"); }, 3600);
+  }
+
+  // ── workspaces ─────────────────────────────────────────────────────────────
+  function loadWorkspaces(){
+    return fetch(WS_API,{ credentials:"same-origin", headers:{Accept:"application/json"} })
+      .then(function(r){ return r.ok? r.json():{workspaces:[]}; })
+      .then(function(d){
+        state.workspaces=(d.workspaces||[]);
+        var sel=$("wsfilter");
+        sel.innerHTML='<option value="">All workspaces</option>'+state.workspaces.map(function(w){
+          return '<option value="'+escAttr(w.workspaceId)+'">'+esc(w.name)+'</option>';
+        }).join("");
+        // adopt the portal-wide workspace scope (shared 'switchboard.ws' — same key every pane uses)
+        try{ var sv=localStorage.getItem("switchboard.ws")||""; if(sv){ sel.value=sv; state.workspace=sel.value===sv?sv:""; } }catch(e){}
+      })
+      .catch(function(){ /* selector stays "All workspaces" only */ });
+  }
+
+  // ── posts list + counts ────────────────────────────────────────────────────
+  function listQs(){
+    var qs="?state="+encodeURIComponent(state.state)+"&limit=100";
+    if(state.workspace) qs+="&workspace="+encodeURIComponent(state.workspace);
+    if(state.q) qs+="&q="+encodeURIComponent(state.q);
+    return qs;
+  }
+  function loadPosts(spin){
+    var btn=$("refreshBtn"); if(spin&&btn) btn.querySelector("svg").classList.add("spin");
+    return api("/posts"+listQs())
+      .then(parse)
+      .then(function(res){
+        if(!res.ok) throw new Error((res.j&&(res.j.message||res.j.error))||("HTTP "+res.status));
+        state.preview=false; $("previewpill").classList.remove("show");
+        state.posts=res.j.posts||[]; state.counts=res.j.counts||{};
+        renderRail(); renderList();
+      })
+      .catch(function(){ loadSample(); })
+      .finally(function(){ if(btn) btn.querySelector("svg").classList.remove("spin"); });
+  }
+
+  // ── labelled sample (only when the live API is unreachable) ────────────────
+  function loadSample(){
+    state.preview=true; $("previewpill").classList.add("show");
+    var now=Date.now();
+    function at(hrs){ return new Date(now-hrs*3600e3).toISOString(); }
+    var all=[
+      { postId:"s1", workspaceId:null, title:"Switchboard Streams launch note", body:"Streams is live — a CMS-grade pipeline for every post: draft, review, approve, publish. One confirm per send.", state:"draft", tags:["launch","switchboard"], source:"manual", judgeScore:null, note:null, createdAt:at(30), updatedAt:at(2), revisionCount:2, variants:[{platform:"x",body:"Streams is live 🎛️ draft → review → publish, one confirm per send.",status:"pending"},{platform:"linkedin",body:"",status:"pending"}] },
+      { postId:"s2", workspaceId:null, title:"", body:"Behind the build: how the review queue keeps a human between the bot and the feed.", state:"in_review", tags:["engineering"], source:"content-studio", judgeScore:8.4, note:null, createdAt:at(50), updatedAt:at(6), revisionCount:1, variants:[{platform:"linkedin",body:"Behind the build — the review queue.",status:"pending"}] },
+      { postId:"s3", workspaceId:null, title:"Hiring post — platform engineer", body:"We're hiring a platform engineer to work on the swarm runtime.", state:"approved", tags:["hiring"], source:"linkedin-assistant", judgeScore:9.1, note:"Approved — schedule for Tuesday morning.", createdAt:at(80), updatedAt:at(20), revisionCount:3, variants:[{platform:"linkedin",body:"We're hiring! Platform engineer, swarm runtime.",status:"pending"},{platform:"x",body:"We're hiring a platform engineer 🚀",status:"pending"}] },
+      { postId:"s4", workspaceId:null, title:"Weekly ship note", body:"This week: the content calendar, the stage broadcast bar, and streams.", state:"scheduled", tags:[], source:"manual", judgeScore:null, note:null, scheduledAt:new Date(now+26*3600e3).toISOString(), createdAt:at(90), updatedAt:at(12), revisionCount:1, variants:[{platform:"x",body:"Ship note: calendar + stage + streams.",status:"pending"}] },
+      { postId:"s5", workspaceId:null, title:"Calendar recap", body:"Recap of the calendar launch — plan a week of posts on one board.", state:"published", tags:["recap"], source:"manual", judgeScore:7.6, note:null, publishedAt:at(40), createdAt:at(120), updatedAt:at(40), revisionCount:4, variants:[{platform:"x",body:"Calendar recap.",status:"published"},{platform:"instagram",body:"Calendar recap (IG copy).",status:"skipped",error:"no_binding"}] }
+    ];
+    state.counts={ draft:1, in_review:1, approved:1, scheduled:1, published:1, rejected:0, failed:0, archived:0 };
+    state.posts=all.filter(function(p){ return p.state===state.state; });
+    renderRail(); renderList();
+  }
+
+  // ── LEFT rail ──────────────────────────────────────────────────────────────
+  function renderRail(){
+    var host=$("snav"); host.innerHTML="";
+    STATES.forEach(function(s){
+      var n=state.counts[s.id]; n=(typeof n==="number")?n:0;
+      var b=document.createElement("button");
+      b.className=state.state===s.id?"on":"";
+      b.innerHTML='<span class="sdot" style="background:var('+s.dot+')"></span>'+esc(s.label)
+        +'<span class="scount tnum">'+n+'</span>';
+      b.addEventListener("click", function(){
+        state.state=s.id; state.selected=null; state.revisions=[];
+        renderRail(); renderEditor(); loadPosts(false);
+      });
+      host.appendChild(b);
+    });
+  }
+
+  // ── MIDDLE list ────────────────────────────────────────────────────────────
+  function snippet(p){
+    if(p.title) return { text:p.title, isTitle:true };
+    var b=(p.body||"").replace(/\s+/g," ").trim();
+    return { text:b.length>110? b.slice(0,110)+"…" : (b||"(empty post)"), isTitle:false };
+  }
+  function renderList(){
+    var host=$("plist"); host.innerHTML="";
+    if(!state.posts.length){
+      var stMeta=STATES.filter(function(s){ return s.id===state.state; })[0]||{label:state.state};
+      host.innerHTML='<div class="empty"><svg><use href="#i-stream"/></svg>'
+        +'<h3>Nothing in '+esc(stMeta.label)+'</h3>'
+        +'<p>'+(state.q?'No posts match "'+esc(state.q)+'". Clear the search or try another state.'
+                : emptyHint(state.state))+'</p></div>';
+      return;
+    }
+    state.posts.forEach(function(p,i){
+      var row=document.createElement("article");
+      row.className="prow"+(state.selected&&state.selected.postId===p.postId?" on":"");
+      row.style.animationDelay=(i*30)+"ms";
+      var s=snippet(p);
+      var chips=(p.variants||[]).map(function(v){
+        var b=BRAND[v.platform]; return b?'<span class="pchip" title="'+esc(b.label)+'" style="background:var('+b.v+')"></span>':"";
+      }).join("");
+      var judge=(typeof p.judgeScore==="number")?'<span class="badge judge tnum" title="'+esc(p.judgeRationale||"Judge score")+'">Judge '+esc(p.judgeScore.toFixed?p.judgeScore.toFixed(1):p.judgeScore)+'</span>':"";
+      var src=(p.source&&p.source!=="manual")?'<span class="badge src">'+esc(SRCLABEL[p.source]||p.source)+'</span>':"";
+      row.innerHTML='<div class="ptitle'+(s.isTitle?"":" snip")+'">'+esc(s.text)+'</div>'
+        +'<div class="pmeta">'+chips+judge+src+'<span class="ptime tnum">'+esc(ago(p.updatedAt))+'</span></div>';
+      row.addEventListener("click", function(){ openPost(p.postId); });
+      host.appendChild(row);
+    });
+  }
+  function emptyHint(st){
+    var hints={
+      draft:"Start with <b>New post</b>, or pull existing work in with the import buttons on the left.",
+      in_review:"Submit a draft for review and it lands here for approve / request changes / reject.",
+      approved:"Approve a post in review and it waits here for scheduling or publishing.",
+      scheduled:"Approved posts you schedule appear here until their time comes.",
+      published:"Confirmed publishes land here with their per-channel results.",
+      rejected:"Posts a reviewer rejects wait here — reopen one to work on it again.",
+      failed:"A publish where every channel failed lands here — retry or reopen.",
+      archived:"Archived posts are kept out of the way but never deleted."
+    };
+    return hints[st]||"Nothing here yet.";
+  }
+
+  // ── RIGHT editor ───────────────────────────────────────────────────────────
+  function canEdit(st){ return st==="draft"||st==="in_review"; }
+
+  function openPost(id){
+    if(state.preview){
+      var p=state.posts.filter(function(x){ return x.postId===id; })[0];
+      state.selected=p||null; state.revisions=p&&p.revisionCount? [{revisionId:"r1",note:"sample revision",savedAt:p.createdAt}] : [];
+      renderList(); renderEditor(); return;
+    }
+    api("/posts/"+encodeURIComponent(id))
+      .then(parse)
+      .then(function(res){
+        if(!res.ok) throw new Error((res.j&&(res.j.message||res.j.error))||("HTTP "+res.status));
+        state.selected=res.j.post||null; state.revisions=res.j.revisions||[];
+        renderList(); renderEditor();
+      })
+      .catch(function(e){ toast("Couldn't open the post — "+(e.message||e), false); });
+  }
+
+  // one variant card per storable platform; existing variant rows fill their card
+  function variantCardHTML(platform, v){
+    var b=BRAND[platform], limit=LIMITS[platform];
+    var body=(v&&v.body)||"";
+    var over=body.length>limit;
+    var statusHtml="";
+    if(v&&v.status==="published"){ statusHtml='<span class="vstatus ok">Published'+(v.publishedAt?" · "+esc(whenAt(v.publishedAt)):"")+'</span>'; }
+    else if(v&&v.status==="failed"){ statusHtml='<span class="vstatus err">Failed'+(v.error?" — "+esc(v.error):"")+'</span>'; }
+    else if(v&&v.status==="skipped"){ statusHtml='<span class="vstatus skip">Skipped — no publish binding</span>'; }
+    return ''
+      +'<article class="vcard" data-platform="'+platform+'" data-existing="'+(v?"1":"0")+'"'+(v&&v.mediaRef?' data-mediaref="'+escAttr(v.mediaRef)+'"':'')+'>'
+      +  '<div class="vhead">'
+      +    '<span class="mark" style="background:var('+b.v+')"><svg><use href="'+b.icon+'"/></svg></span>'
+      +    '<span class="vname">'+esc(b.label)+'</span>'
+      +    '<span class="vmeter tnum'+(over?" over":"")+'">'+body.length+' / '+limit+'</span>'
+      +  '</div>'
+      +  '<textarea aria-label="'+esc(b.label)+' variant">'+esc(body)+'</textarea>'
+      +  (PUBLISHABLE[platform]? "" : '<div class="vnote">copy-paste only — no publish binding</div>')
+      +  statusHtml
+      +'</article>';
+  }
+
+  // contextual workflow actions per state (POST /transition, /schedule, /publish)
+  function actionsHTML(p){
+    var st=p.state, out="";
+    function b(label, icon, cls, data){ return '<button class="btn'+(cls?" "+cls:"")+'" data-act="'+data+'"><svg><use href="'+icon+'"/></svg> '+label+'</button>'; }
+    if(st==="draft"){ out+=b("Submit for review","#i-send","primary","t:submit")+b("Archive","#i-x","","t:archive"); }
+    else if(st==="in_review"){ out+=b("Approve","#i-check","primary","t:approve")+b("Request changes","#i-pen","","n:request_changes")+b("Reject","#i-x","danger","n:reject"); }
+    else if(st==="approved"){ out+=b("Schedule","#i-clock","","sched")+b("Publish now","#i-send","primary pubbtn","pub")+b("Reopen","#i-undo","","t:reopen"); }
+    else if(st==="scheduled"){ out+=b("Unschedule","#i-undo","","t:unschedule")+b("Publish now","#i-send","primary pubbtn","pub"); }
+    else if(st==="published"){ out+=b("Archive","#i-x","","t:archive"); }
+    else if(st==="rejected"){ out+=b("Reopen","#i-undo","primary","t:reopen")+b("Archive","#i-x","","t:archive"); }
+    else if(st==="failed"){ out+=b("Retry","#i-refresh","primary","t:retry")+b("Reopen","#i-undo","","t:reopen")+b("Archive","#i-x","","t:archive"); }
+    return out;
+  }
+
+  function renderEditor(){
+    var host=$("editor"), p=state.selected;
+    if(!p){
+      host.innerHTML='<div class="empty" style="border:0;background:transparent">'
+        +'<svg><use href="#i-pen"/></svg><h3>Pick a post</h3>'
+        +'<p>Select a post from the list to edit it, walk it through review, and publish — or hit <b>New post</b> to start one.</p></div>';
+      return;
+    }
+    var editable=canEdit(p.state)&&!state.preview;
+    var html='<div class="ehead">'
+      +'<h2>'+(p.title?esc(p.title):"Untitled post")+'</h2>'
+      +'<span class="badge st-'+esc(p.state)+'">'+esc(STLABEL[p.state]||p.state)+'</span>'
+      +((typeof p.judgeScore==="number")?'<span class="badge judge tnum" title="'+esc(p.judgeRationale||"")+'">Judge '+esc(p.judgeScore.toFixed?p.judgeScore.toFixed(1):p.judgeScore)+'</span>':"")
+      +'<span class="esub tnum">updated '+esc(ago(p.updatedAt))+' · '+esc((p.revisionCount||0))+' revision'+((p.revisionCount||0)===1?"":"s")+'</span>'
+      +'</div>';
+
+    if(p.note){ html+='<div class="notebar"><svg><use href="#i-warn"/></svg><span><b>Note:</b> '+esc(p.note)+'</span></div>'; }
+    if(p.state==="scheduled"&&p.scheduledAt){ html+='<div class="notebar" style="color:var(--active);background:color-mix(in srgb,var(--active) 10%,transparent);border-color:color-mix(in srgb,var(--active) 34%,transparent)"><svg><use href="#i-clock"/></svg><span>Scheduled for <b>'+esc(whenAt(p.scheduledAt))+'</b></span></div>'; }
+    if(p.state==="published"&&p.publishedAt){ html+='<div class="notebar" style="color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,transparent);border-color:color-mix(in srgb,var(--ok) 34%,transparent)"><svg><use href="#i-check"/></svg><span>Published <b>'+esc(whenAt(p.publishedAt))+'</b></span></div>'; }
+    if(p.state==="failed"&&p.publishError){ html+='<div class="errbar show"><svg><use href="#i-warn"/></svg><span><b>Publish failed:</b> '+esc(p.publishError)+'</span></div>'; }
+
+    html+='<div class="errbar" id="edErr"><svg><use href="#i-warn"/></svg><span id="edErrMsg"></span></div>';
+
+    // fields
+    html+='<div class="fld"><label for="eTitle">Title</label>'
+      +'<input type="text" id="eTitle" maxlength="'+MAX_TITLE+'" value="'+escAttr(p.title||"")+'"'+(editable?"":" readonly")+' /></div>';
+    html+='<div class="fld"><label for="eBody">Master body</label>'
+      +'<textarea id="eBody"'+(editable?"":" readonly")+'>'+esc(p.body||"")+'</textarea>'
+      +'<div class="cc tnum" id="eCc">'+(p.body||"").length+' / '+MAX_BODY+'</div></div>';
+
+    // tags
+    html+='<div class="fld"><label>Tags</label><div class="tagbox" id="tagbox">';
+    (p.tags||[]).forEach(function(t){
+      html+='<span class="tag" data-tag="'+escAttr(t)+'">'+esc(t)+(editable?'<button title="Remove tag" data-deltag="'+escAttr(t)+'">×</button>':"")+'</span>';
+    });
+    if(editable){ html+='<input id="tagInput" placeholder="add tag ⏎" maxlength="'+MAX_TAG_LEN+'" />'; }
+    else if(!(p.tags||[]).length){ html+='<span class="revempty">no tags</span>'; }
+    html+='</div></div>';
+
+    // variants
+    html+='<div class="grouplbl">Per-platform variants<span class="grow"></span>'
+      +(editable?'<button class="btn sm" id="draftVarsBtn"><svg><use href="#i-spark"/></svg> Draft per-platform variants</button>':"")
+      +'</div><div class="vgrid" id="vgrid">';
+    var byP={}; (p.variants||[]).forEach(function(v){ byP[v.platform==="twitter"?"x":v.platform]=v; });
+    VARIANT_PLATFORMS.forEach(function(pl){ html+=variantCardHTML(pl, byP[pl]); });
+    html+='</div>';
+
+    // actions
+    html+='<div class="acts" id="acts">'+actionsHTML(p);
+    if(editable){ html+='<span class="grow"></span><button class="btn primary" id="saveBtn"><svg><use href="#i-check"/></svg> Save</button>'; }
+    else if(!state.preview){
+      html+='<span class="grow"></span>';
+      if(p.state==="approved"||p.state==="rejected"||p.state==="failed"){ html+='<span class="vnote" style="align-self:center">Editing is locked — use <b>Reopen</b> to edit.</span>'; }
+      else if(p.state==="scheduled"){ html+='<span class="vnote" style="align-self:center">Editing is locked — <b>Unschedule</b>, then reopen to edit.</span>'; }
+      else if(p.state==="published"||p.state==="archived"){ html+='<span class="vnote" style="align-self:center">This post is read-only.</span>'; }
+    }
+    html+='</div>';
+
+    // schedule picker row (approved only), transition-note prompt, publish confirm bar, publish results
+    html+='<div class="schedrow" id="schedrow"><svg style="width:14px;height:14px;color:var(--muted)"><use href="#i-clock"/></svg>'
+      +'<input type="datetime-local" id="schedAt" aria-label="Schedule date and time" />'
+      +'<button class="btn sm primary" id="schedGo">Schedule</button>'
+      +'<button class="btn sm" id="schedCancel"><svg><use href="#i-x"/></svg></button></div>';
+    html+='<div class="noteprompt" id="noteprompt">'
+      +'<input id="noteInput" maxlength="500" placeholder="" />'
+      +'<button class="btn sm primary" id="noteGo">Send</button>'
+      +'<button class="btn sm" id="noteCancel"><svg><use href="#i-x"/></svg></button></div>';
+    html+='<div class="confirmwrap" id="pubConfirm"><span class="warnpub" id="pubConfirmMsg"></span>'
+      +'<button class="btn sm primary" id="pubDoConfirm"><svg><use href="#i-check"/></svg> Confirm</button>'
+      +'<button class="btn sm" id="pubCancelConfirm"><svg><use href="#i-x"/></svg></button></div>';
+    html+='<div class="pubres" id="pubres"></div>';
+
+    // revisions
+    html+='<div class="grouplbl">Revision history</div><div class="revlist" id="revlist">';
+    if(!state.revisions.length){ html+='<span class="revempty">No revisions yet — each Save snapshots the prior content here.</span>'; }
+    else {
+      state.revisions.forEach(function(r){
+        html+='<button data-rev="'+escAttr(r.revisionId)+'"><svg style="width:13px;height:13px;color:var(--muted)"><use href="#i-history"/></svg>'
+          +'<span>'+esc(r.note||"Revision")+'</span><span class="rtime tnum">'+esc(whenAt(r.savedAt))+'</span></button>';
+      });
+    }
+    html+='</div>';
+
+    host.innerHTML=html;
+    wireEditor(p, editable);
+  }
+
+  function edErr(msg){ var e=$("edErr"); if(!e) return; $("edErrMsg").textContent=msg; e.classList.add("show"); }
+  function edErrClear(){ var e=$("edErr"); if(e) e.classList.remove("show"); }
+  function meterFix(card){
+    var ta=card.querySelector("textarea"), m=card.querySelector(".vmeter");
+    var limit=LIMITS[card.dataset.platform]||280;
+    m.textContent=ta.value.length+" / "+limit; m.classList.toggle("over", ta.value.length>limit);
+  }
+
+  function wireEditor(p, editable){
+    // char meters
+    var body=$("eBody");
+    if(body){ body.addEventListener("input", function(){
+      var n=body.value.length, c=$("eCc"); c.textContent=n+" / "+MAX_BODY; c.classList.toggle("over", n>MAX_BODY);
+    }); }
+    Array.prototype.forEach.call(document.querySelectorAll("#vgrid .vcard"), function(card){
+      var ta=card.querySelector("textarea");
+      if(!editable) ta.readOnly=true;
+      ta.addEventListener("input", function(){ meterFix(card); });
+    });
+
+    // tags editor
+    var tagInput=$("tagInput");
+    if(tagInput){
+      tagInput.addEventListener("keydown", function(e){
+        if(e.key!=="Enter"&&e.key!==",") return;
+        e.preventDefault();
+        var t=tagInput.value.replace(/,/g,"").trim();
+        if(!t) return;
+        if(t.length>MAX_TAG_LEN){ edErr("Tags are limited to "+MAX_TAG_LEN+" characters."); return; }
+        var have=collectTags();
+        if(have.indexOf(t)>=0){ tagInput.value=""; return; }
+        if(have.length>=MAX_TAGS){ edErr("A post can carry at most "+MAX_TAGS+" tags."); return; }
+        edErrClear();
+        var span=document.createElement("span"); span.className="tag"; span.setAttribute("data-tag", t);
+        span.innerHTML=esc(t)+'<button title="Remove tag" data-deltag="'+escAttr(t)+'">×</button>';
+        $("tagbox").insertBefore(span, tagInput);
+        tagInput.value="";
+      });
+    }
+    $("tagbox").addEventListener("click", function(e){
+      var del=e.target.closest("[data-deltag]"); if(!del||!editable) return;
+      del.closest(".tag").remove();
+    });
+
+    // AI variant drafting → the EXISTING compose endpoint; results land in the cards, Save PATCHes them
+    var dv=$("draftVarsBtn");
+    if(dv){ dv.addEventListener("click", function(){ draftVariants(dv); }); }
+
+    // save
+    var sv=$("saveBtn");
+    if(sv){ sv.addEventListener("click", function(){ savePost(sv); }); }
+
+    // workflow actions
+    $("acts").addEventListener("click", function(e){
+      var btn=e.target.closest("[data-act]"); if(!btn) return;
+      var act=btn.getAttribute("data-act");
+      if(act==="pub"){ startPublish(btn); return; }
+      if(act==="sched"){ toggleSched(); return; }
+      if(act.indexOf("t:")===0){ doTransition(act.slice(2), null, btn); return; }
+      if(act.indexOf("n:")===0){ openNotePrompt(act.slice(2)); return; }
+    });
+
+    // schedule row
+    $("schedGo").addEventListener("click", doSchedule);
+    $("schedCancel").addEventListener("click", function(){ $("schedrow").classList.remove("show"); });
+
+    // transition-note prompt (request changes / reject)
+    $("noteGo").addEventListener("click", function(){
+      var act=$("noteprompt").getAttribute("data-action")||"";
+      var note=$("noteInput").value.trim();
+      if(!note){ $("noteInput").focus(); return; }
+      doTransition(act, note, $("noteGo"));
+    });
+    $("noteCancel").addEventListener("click", function(){ $("noteprompt").classList.remove("show"); });
+
+    // publish confirm bar (mirrors compose: Publish → confirm bar → Confirm re-sends with confirm:true)
+    $("pubDoConfirm").addEventListener("click", function(){ sendPublish(true); });
+    $("pubCancelConfirm").addEventListener("click", function(){
+      $("pubConfirm").classList.remove("show");
+      var pb=document.querySelector("#acts .pubbtn"); if(pb) pb.classList.remove("hide");
+    });
+
+    // revisions
+    $("revlist").addEventListener("click", function(e){
+      var b=e.target.closest("[data-rev]"); if(!b) return;
+      openRevision(b.getAttribute("data-rev"));
+    });
+  }
+
+  function collectTags(){
+    return Array.prototype.map.call(document.querySelectorAll("#tagbox .tag"), function(s){ return s.getAttribute("data-tag"); });
+  }
+  function collectVariants(){
+    var out=[];
+    Array.prototype.forEach.call(document.querySelectorAll("#vgrid .vcard"), function(card){
+      var bodyV=card.querySelector("textarea").value;
+      if(bodyV.trim()==="" && card.dataset.existing!=="1") return; // never create empty variant rows
+      var v={ platform:card.dataset.platform, body:bodyV };
+      if(card.dataset.mediaref) v.mediaRef=card.dataset.mediaref;
+      out.push(v);
+    });
+    return out;
+  }
+
+  // ── AI drafting via the EXISTING compose endpoint (streams' backend never calls an LLM) ────
+  function draftVariants(btn){
+    if(state.preview){ toast("Preview — connect the Streams backend to draft variants", false); return; }
+    var text=$("eBody").value.trim();
+    if(!text){ $("eBody").focus(); edErr("Write the master body first — variants are drafted from it."); return; }
+    edErrClear();
+    btn.disabled=true; btn.innerHTML='<svg class="spin"><use href="#i-refresh"/></svg> Drafting…';
+    fetch(COMPOSE_VARIANTS,{ method:"POST", credentials:"same-origin",
+      headers:{ "Content-Type":"application/json", Accept:"application/json" },
+      body:JSON.stringify({ text:text, platforms:VARIANT_PLATFORMS, workspaceId:state.workspace }) })
+      .then(parse)
+      .then(function(res){
+        if(!res.ok){ edErr((res.j&&(res.j.message||res.j.error))||"Could not draft variants ("+res.status+")"); return; }
+        var byP={}; (res.j.variants||[]).forEach(function(v){ byP[v.platform==="twitter"?"x":v.platform]=v.text; });
+        Array.prototype.forEach.call(document.querySelectorAll("#vgrid .vcard"), function(card){
+          var t=byP[card.dataset.platform];
+          if(typeof t==="string"){ card.querySelector("textarea").value=t; meterFix(card); }
+        });
+        toast("Variants drafted — review, tweak, then Save");
+      })
+      .catch(function(){ edErr("The composer is offline right now."); })
+      .finally(function(){ btn.disabled=false; btn.innerHTML='<svg><use href="#i-spark"/></svg> Draft per-platform variants'; });
+  }
+
+  // ── save (PATCH — draft / in_review only; the server snapshots the prior content) ──────────
+  function savePost(btn){
+    if(state.preview){ toast("Preview — connect the Streams backend to save", false); return; }
+    var p=state.selected; if(!p) return;
+    var bodyV=$("eBody").value;
+    if(!bodyV.trim()){ edErr("The master body can't be empty."); return; }
+    if(bodyV.length>MAX_BODY){ edErr("Master body is over "+MAX_BODY+" characters."); return; }
+    edErrClear();
+    btn.disabled=true; btn.innerHTML='<svg class="spin"><use href="#i-refresh"/></svg> Saving…';
+    api("/posts/"+encodeURIComponent(p.postId),{ method:"PATCH",
+      body:JSON.stringify({ title:$("eTitle").value.trim(), body:bodyV, tags:collectTags(), variants:collectVariants() }) })
+      .then(parse)
+      .then(function(res){
+        if(!res.ok){ edErr((res.j&&(res.j.message||res.j.error))||("Save failed ("+res.status+")")); return; }
+        toast("Saved");
+        openPost(p.postId);        // re-fetch → fresh post + the new revision snapshot
+        loadPosts(false);          // counts / list snippets may have changed
+      })
+      .catch(function(){ edErr("Save request failed."); })
+      .finally(function(){ btn.disabled=false; btn.innerHTML='<svg><use href="#i-check"/></svg> Save'; });
+  }
+
+  // ── workflow transitions ───────────────────────────────────────────────────
+  function openNotePrompt(action){
+    var np=$("noteprompt"); np.setAttribute("data-action", action);
+    $("noteInput").value="";
+    $("noteInput").placeholder = action==="reject" ? "Why is this rejected? (stored on the post)" : "What needs to change? (stored on the post)";
+    $("noteGo").textContent = action==="reject" ? "Reject" : "Request changes";
+    np.classList.add("show"); $("schedrow").classList.remove("show");
+    $("noteInput").focus();
+  }
+  function doTransition(action, note, btn){
+    if(state.preview){ toast("Preview — connect the Streams backend to move posts", false); return; }
+    var p=state.selected; if(!p) return;
+    if(btn){ btn.disabled=true; }
+    var payload={ action:action }; if(note) payload.note=note;
+    api("/posts/"+encodeURIComponent(p.postId)+"/transition",{ method:"POST", body:JSON.stringify(payload) })
+      .then(parse)
+      .then(function(res){
+        if(!res.ok){ edErr((res.j&&(res.j.message||res.j.error))||("That action isn't valid here ("+res.status+")")); return; }
+        state.selected=res.j.post||state.selected;
+        renderEditor();
+        loadPosts(false);
+        toast(STLABEL[state.selected.state]? "Moved to "+STLABEL[state.selected.state] : "Done");
+      })
+      .catch(function(){ edErr("Transition request failed."); })
+      .finally(function(){ if(btn) btn.disabled=false; });
+  }
+
+  // ── schedule (approved → scheduled; its own endpoint, not a transition) ────
+  function toggleSched(){
+    var row=$("schedrow");
+    if(!row.classList.contains("show")){
+      var d=new Date(Date.now()+3600e3); d.setMinutes(0,0,0);
+      function pad(n){ return (n<10?"0":"")+n; }
+      $("schedAt").value=d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+"T"+pad(d.getHours())+":"+pad(d.getMinutes());
+    }
+    row.classList.toggle("show"); $("noteprompt").classList.remove("show");
+  }
+  function doSchedule(){
+    if(state.preview){ toast("Preview — connect the Streams backend to schedule", false); return; }
+    var p=state.selected; if(!p) return;
+    var v=$("schedAt").value;
+    if(!v){ $("schedAt").focus(); return; }
+    var d=new Date(v);
+    if(isNaN(d)){ edErr("That date/time isn't valid."); return; }
+    if(d.getTime()<=Date.now()){ edErr("Pick a future date & time."); return; }
+    edErrClear();
+    var btn=$("schedGo"); btn.disabled=true;
+    api("/posts/"+encodeURIComponent(p.postId)+"/schedule",{ method:"POST", body:JSON.stringify({ scheduledAt:d.toISOString() }) })
+      .then(parse)
+      .then(function(res){
+        if(!res.ok){ edErr((res.j&&(res.j.message||res.j.error))||("Schedule failed ("+res.status+")")); return; }
+        state.selected=res.j.post||state.selected;
+        renderEditor(); loadPosts(false);
+        toast("Scheduled for "+whenAt(state.selected.scheduledAt||d.toISOString()));
+      })
+      .catch(function(){ edErr("Schedule request failed."); })
+      .finally(function(){ btn.disabled=false; });
+  }
+
+  // ── publish: POST /publish; a 428 (confirmation_required) renders the inline confirm bar,
+  //    and ONLY an explicit click re-sends with confirm:true — never auto-confirmed. ──────────
+  function startPublish(btn){
+    if(state.preview){ toast("Preview — connect the Streams backend to publish", false); return; }
+    edErrClear(); $("pubres").classList.remove("show");
+    sendPublish(false, btn);
+  }
+  function sendPublish(confirmed, pubBtn){
+    var p=state.selected; if(!p) return;
+    var doc=$("pubDoConfirm");
+    if(confirmed){ doc.disabled=true; doc.innerHTML='<svg class="spin"><use href="#i-refresh"/></svg> Publishing…'; }
+    else if(pubBtn){ pubBtn.disabled=true; }
+    api("/posts/"+encodeURIComponent(p.postId)+"/publish",{ method:"POST",
+      body:JSON.stringify(confirmed? { confirm:true } : {}) })
+      .then(parse)
+      .then(function(res){
+        if(res.status===428){
+          // the server's confirmation gate — mirror compose: swap the publish button for the confirm bar
+          var pb=document.querySelector("#acts .pubbtn"); if(pb) pb.classList.add("hide");
+          $("pubConfirmMsg").textContent=(res.j&&res.j.message)||"Publishing requires confirm: true. No write was attempted.";
+          $("pubConfirm").classList.add("show");
+          return;
+        }
+        $("pubConfirm").classList.remove("show");
+        var pb2=document.querySelector("#acts .pubbtn"); if(pb2) pb2.classList.remove("hide");
+        if(!res.ok){ edErr((res.j&&(res.j.message||res.j.error))||("Publish failed ("+res.status+")")); return; }
+        var results=(res.j&&res.j.results)||[];
+        state.selected=res.j.post||state.selected;
+        renderEditor();
+        showPubResults(results);
+        loadPosts(false);
+        toast(state.selected.state==="published"? "Published" : "Publish finished — see per-channel results", state.selected.state==="published");
+      })
+      .catch(function(){ edErr("Publish request failed."); })
+      .finally(function(){
+        doc=$("pubDoConfirm"); if(doc){ doc.disabled=false; doc.innerHTML='<svg><use href="#i-check"/></svg> Confirm'; }
+        if(pubBtn) pubBtn.disabled=false;
+      });
+  }
+  function showPubResults(results){
+    var host=$("pubres"); if(!host) return;
+    if(!results.length){ host.classList.remove("show"); return; }
+    host.innerHTML=results.map(function(r){
+      var b=BRAND[r.platform==="twitter"?"x":r.platform]||{label:r.platform};
+      if(r.ok){
+        var ids=[r.tweetId,r.postId,r.externalRef].filter(Boolean).join(" · ");
+        return '<div class="prline ok"><svg><use href="#i-check"/></svg><span><b>'+esc(b.label)+'</b> — published'+(ids?' · '+esc(ids):'')+'</span></div>';
+      }
+      if(r.error==="no_binding"){
+        return '<div class="prline skip"><svg><use href="#i-x"/></svg><span><b>'+esc(b.label)+'</b> — skipped (no publish binding; copy-paste this variant)</span></div>';
+      }
+      return '<div class="prline err"><svg><use href="#i-warn"/></svg><span><b>'+esc(b.label)+'</b> — failed'+((r.message||r.error)?': '+esc(r.message||r.error):'')+'</span></div>';
+    }).join("");
+    host.classList.add("show");
+  }
+
+  // ── revision viewer (read-only) + restore-as-draft-edit ────────────────────
+  var openRev=null; // the loaded revision {revisionId, title, body, variants, note, savedAt}
+  function openRevision(revId){
+    var p=state.selected; if(!p) return;
+    if(state.preview){
+      openRev={ revisionId:revId, title:p.title, body:p.body, variants:p.variants, note:"sample revision", savedAt:p.createdAt };
+      renderRevModal(); return;
+    }
+    api("/posts/"+encodeURIComponent(p.postId)+"/revisions/"+encodeURIComponent(revId))
+      .then(parse)
+      .then(function(res){
+        if(!res.ok){ toast((res.j&&(res.j.message||res.j.error))||("Couldn't load the revision ("+res.status+")"), false); return; }
+        openRev=res.j.revision||null;
+        if(openRev) renderRevModal();
+      })
+      .catch(function(){ toast("Revision request failed", false); });
+  }
+  function renderRevModal(){
+    var r=openRev; if(!r) return;
+    $("revTitleText").textContent="Revision · "+whenAt(r.savedAt);
+    var vlist=Array.isArray(r.variants)? r.variants : [];
+    var html="";
+    if(r.note){ html+='<h4>Note</h4><div class="rbody">'+esc(r.note)+'</div>'; }
+    html+='<h4>Title</h4><div class="rbody">'+(r.title?esc(r.title):'<span style="color:var(--muted)">untitled</span>')+'</div>';
+    html+='<h4>Master body</h4><div class="rbody">'+esc(r.body||"")+'</div>';
+    if(vlist.length){
+      html+='<h4>Variants</h4>';
+      vlist.forEach(function(v){
+        var b=BRAND[v.platform==="twitter"?"x":v.platform]||{label:v.platform};
+        html+='<div class="rbody" style="margin-bottom:7px"><b style="font-size:11.5px">'+esc(b.label)+'</b><br/>'+esc(v.body||"")+'</div>';
+      });
+    }
+    $("revView").innerHTML=html;
+    var editable=state.selected&&canEdit(state.selected.state)&&!state.preview;
+    var rb=$("revRestore");
+    rb.disabled=!editable;
+    rb.title=editable? "" : "Reopen the post to draft first, then restore";
+    $("revErr").classList.remove("show");
+    $("revScrim").classList.add("show");
+  }
+  function restoreRevision(){
+    var r=openRev, p=state.selected;
+    if(!r||!p) return;
+    if(!(canEdit(p.state)&&!state.preview)){
+      var e=$("revErr"); e.textContent="Editing is locked in "+(STLABEL[p.state]||p.state)+" — reopen the post first."; e.classList.add("show");
+      return;
+    }
+    // copy the snapshot into the editor — the user reviews and Saves; nothing is written yet
+    $("eTitle").value=r.title||"";
+    var body=$("eBody"); body.value=r.body||""; body.dispatchEvent(new Event("input"));
+    var byP={}; (Array.isArray(r.variants)?r.variants:[]).forEach(function(v){ byP[v.platform==="twitter"?"x":v.platform]=v.body||""; });
+    Array.prototype.forEach.call(document.querySelectorAll("#vgrid .vcard"), function(card){
+      if(Object.prototype.hasOwnProperty.call(byP, card.dataset.platform)){
+        card.querySelector("textarea").value=byP[card.dataset.platform]; meterFix(card);
+      }
+    });
+    $("revScrim").classList.remove("show"); openRev=null;
+    toast("Revision copied into the editor — hit Save to keep it");
+  }
+
+  // ── new post ───────────────────────────────────────────────────────────────
+  var newSel={ x:true, linkedin:true };
+  function renderNewPlats(){
+    var host=$("nPlats"); host.innerHTML="";
+    VARIANT_PLATFORMS.forEach(function(pl){
+      var b=BRAND[pl], on=!!newSel[pl];
+      var el=document.createElement("button");
+      el.type="button"; el.className="plat"+(on?" on":"");
+      el.innerHTML='<span class="sw" style="background:var('+b.v+')"></span>'+esc(b.label)
+        +(PUBLISHABLE[pl]?'':'<span class="nc">· variant only</span>');
+      el.addEventListener("click", function(){ newSel[pl]=!newSel[pl]; renderNewPlats(); });
+      host.appendChild(el);
+    });
+  }
+  function openNewModal(){
+    $("nTitle").value=""; $("nBody").value=""; $("nCc").textContent="0 / "+MAX_BODY; $("nCc").classList.remove("over");
+    $("nErr").classList.remove("show");
+    newSel={ x:true, linkedin:true };
+    renderNewPlats();
+    $("newScrim").classList.add("show");
+    setTimeout(function(){ $("nBody").focus(); }, 40);
+  }
+  function nErr(m){ var e=$("nErr"); e.textContent=m; e.classList.add("show"); }
+  function createPost(){
+    if(state.preview){ toast("Preview — connect the Streams backend to create posts", false); return; }
+    var body=$("nBody").value;
+    if(!body.trim()){ nErr("Write the master body — the title is optional, the body isn't."); return; }
+    if(body.length>MAX_BODY){ nErr("Master body is over "+MAX_BODY+" characters."); return; }
+    var platforms=VARIANT_PLATFORMS.filter(function(pl){ return newSel[pl]; });
+    $("nErr").classList.remove("show");
+    var btn=$("nCreate"); btn.disabled=true; btn.textContent="Creating…";
+    var payload={ title:$("nTitle").value.trim(), body:body, platforms:platforms };
+    if(state.workspace) payload.workspaceId=state.workspace;
+    api("/posts",{ method:"POST", body:JSON.stringify(payload) })
+      .then(parse)
+      .then(function(res){
+        if(!(res.status===201||res.ok)){ nErr((res.j&&(res.j.message||res.j.error))||("Create failed ("+res.status+")")); return; }
+        $("newScrim").classList.remove("show");
+        var post=res.j.post;
+        state.state="draft"; state.selected=post||null; state.revisions=[];
+        renderRail(); renderEditor();
+        loadPosts(false).then(function(){ if(post) openPost(post.postId); });
+        toast("Draft created");
+      })
+      .catch(function(){ nErr("Create request failed."); })
+      .finally(function(){ btn.disabled=false; btn.textContent="Create draft"; });
+  }
+
+  // ── import bar ─────────────────────────────────────────────────────────────
+  function importFrom(source, btn){
+    if(state.preview){ toast("Preview — connect the Streams backend to import", false); return; }
+    var orig=btn.innerHTML;
+    btn.disabled=true; btn.innerHTML='<svg class="spin"><use href="#i-refresh"/></svg> Importing…';
+    api("/import",{ method:"POST", body:JSON.stringify({ source:source }) })
+      .then(parse)
+      .then(function(res){
+        if(!res.ok){ toast((res.j&&(res.j.message||res.j.error))||("Import failed ("+res.status+")"), false); return; }
+        var n=(res.j&&typeof res.j.imported==="number")?res.j.imported:0;
+        toast(n? ("Imported "+n+" draft"+(n===1?"":"s")+" from "+SRCLABEL[source]) : ("Nothing new to import from "+SRCLABEL[source]));
+        loadPosts(false);
+      })
+      .catch(function(){ toast("Import request failed", false); })
+      .finally(function(){ btn.disabled=false; btn.innerHTML=orig; });
+  }
+
+  // ── global wiring ──────────────────────────────────────────────────────────
+  var qTimer=null;
+  $("qbox").addEventListener("input", function(){
+    clearTimeout(qTimer);
+    qTimer=setTimeout(function(){ state.q=$("qbox").value.trim(); loadPosts(false); }, 300);
+  });
+  $("wsfilter").addEventListener("change", function(){
+    state.workspace=$("wsfilter").value;
+    try{ localStorage.setItem("switchboard.ws", state.workspace||""); }catch(e){}
+    loadPosts(false);
+  });
+  $("refreshBtn").addEventListener("click", function(){
+    loadPosts(true).then(function(){ if(state.selected&&!state.preview) openPost(state.selected.postId); });
+  });
+  $("newBtn").addEventListener("click", openNewModal);
+  $("nCancel").addEventListener("click", function(){ $("newScrim").classList.remove("show"); });
+  $("nCreate").addEventListener("click", createPost);
+  $("nBody").addEventListener("input", function(){
+    var n=$("nBody").value.length, c=$("nCc"); c.textContent=n+" / "+MAX_BODY; c.classList.toggle("over", n>MAX_BODY);
+  });
+  $("revClose").addEventListener("click", function(){ $("revScrim").classList.remove("show"); openRev=null; });
+  $("revRestore").addEventListener("click", restoreRevision);
+  $("impLi").addEventListener("click", function(){ importFrom("linkedin-assistant", $("impLi")); });
+  $("impCs").addEventListener("click", function(){ importFrom("content-studio", $("impCs")); });
+  [ $("newScrim"), $("revScrim") ].forEach(function(sc){
+    sc.addEventListener("click", function(e){ if(e.target===sc) sc.classList.remove("show"); });
+  });
+  document.addEventListener("keydown", function(e){
+    if(e.key!=="Escape") return;
+    $("newScrim").classList.remove("show"); $("revScrim").classList.remove("show");
+  });
+
+  // skeleton while the first list loads (same shimmer idiom as the calendar surface)
+  $("plist").innerHTML='<div class="skelrow"><div class="shimmer" style="width:70%;height:13px"></div><div class="shimmer" style="width:45%;height:10px;margin-top:9px"></div></div>'
+    +'<div class="skelrow"><div class="shimmer" style="width:55%;height:13px"></div><div class="shimmer" style="width:60%;height:10px;margin-top:9px"></div></div>'
+    +'<div class="skelrow"><div class="shimmer" style="width:64%;height:13px"></div><div class="shimmer" style="width:38%;height:10px;margin-top:9px"></div></div>';
+  renderEditor();
+  loadWorkspaces().then(function(){ loadPosts(false); });
+})();
+</script>
+</body>
+</html>
