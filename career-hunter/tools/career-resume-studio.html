@@ -1,16 +1,23 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="midnight">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Resume Studio</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
 <style>
-  /* Follow the swarm theme: map the cockpit design-system vars, with standalone fallbacks. */
+  /* Follow the operator's cockpit theme: every alias DERIVES from a framework token carried by
+     surface-themes.css above. No hex fallbacks — a fallback here can never fire from the parent
+     (custom properties do not cross an iframe boundary), it only pins the surface to one palette. */
   :root {
-    --bg: var(--bg-primary, #0f141b); --panel: var(--bg-secondary, #161d27);
-    --card: var(--bg-tertiary, #1b2430); --line: var(--border-color, #283242);
-    --text: var(--text-primary, #e6edf3); --muted: var(--text-secondary, #93a1b3);
-    --accent: var(--accent-primary, #34d399); --danger: var(--danger, #f87171);
+    --bg: var(--bg-primary); --panel: var(--bg-secondary);
+    --card: var(--bg-tertiary); --line: var(--border-color);
+    --text: var(--text-primary); --muted: var(--text-secondary);
+    --accent: var(--accent-primary); --danger: var(--status-error);
+    /* Ink for text sitting ON the accent fill. Every theme pairs a bright accent with a dark page
+       (or the inverse), so the page background is the one ink that contrasts in all eleven. */
+    --on-accent: var(--bg-primary);
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
@@ -22,8 +29,10 @@
   .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
   select, button { font: inherit; color: var(--text); background: var(--card);
     border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
-  button.primary { background: var(--accent); color: #06231a; border-color: transparent; font-weight: 600; }
+  button.primary { background: var(--accent); color: var(--on-accent); border-color: transparent; font-weight: 600; }
   button:disabled { opacity: .5; cursor: default; }
+  /* The .sheet block below is a simulated sheet of PAPER — the printed resume preview. It stays
+     white with print inks in every theme, on purpose: it is what the PDF looks like, not chrome. */
   .sheet { background: #fff; color: #14202e; max-width: 760px; margin: 0 auto; padding: 40px 48px;
     border-radius: 6px; box-shadow: 0 10px 40px rgba(0,0,0,.35); }
   .sheet h1 { font-size: 22px; margin: 0 0 2px; }
@@ -44,7 +53,7 @@
   .chat header small { color: var(--muted); font-weight: 400; }
   .log { flex: 1; overflow: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
   .msg { padding: 9px 12px; border-radius: 10px; max-width: 92%; white-space: pre-wrap; }
-  .msg.you { align-self: flex-end; background: var(--accent); color: #06231a; }
+  .msg.you { align-self: flex-end; background: var(--accent); color: var(--on-accent); }
   .msg.bot { align-self: flex-start; background: var(--card); border: 1px solid var(--line); }
   .msg.sys { align-self: center; color: var(--muted); font-size: 12px; }
   .composer { padding: 12px; border-top: 1px solid var(--line); display: flex; gap: 8px; }
@@ -58,14 +67,16 @@
 <div class="wrap">
   <div class="preview">
     <div class="toolbar">
-      <select id="pick"><option value="">Loading your generated resumes…</option></select>
+      <select id="pick"><option value="">Pick a resume…</option><option value="master">⭐ My resume (master)</option></select>
       <button id="save" class="primary" disabled>Save &amp; re-render PDF</button>
       <a id="pdf" href="#" target="_blank" rel="noopener" style="display:none">Open PDF</a>
       <span id="status" style="color:var(--muted)"></span>
     </div>
     <div id="sheet" class="sheet" hidden></div>
-    <div id="empty" class="empty">Pick a generated resume to start editing. Then tell the editor what to change
-      ("tighten the summary", "lead the third bullet with the outcome") and watch it update live.</div>
+    <div id="empty" class="empty">Pick a resume to start editing. The ⭐ master resume is your durable career
+      profile — every tailored resume is generated from it — and it is always editable; per-job packets come from
+      the Job Board. Then tell the editor what to change ("tighten the summary", "lead the third bullet with the
+      outcome") and watch it update live.</div>
   </div>
   <div class="chat">
     <header>Resume Editor <small>· reaches in and fixes the resume</small></header>
@@ -77,17 +88,8 @@
   </div>
 </div>
 <script>
-// ── theme bridge: inherit the cockpit's data-theme so this surface matches the swarm ──
-(function themeSync(){
-  try {
-    const apply = () => { const t = (window.parent && window.parent.document.documentElement.getAttribute('data-theme')) || 'dark';
-      document.documentElement.setAttribute('data-theme', t); };
-    apply(); window.addEventListener('storage', apply);
-    if (window.parent && window.parent.document) new MutationObserver(apply)
-      .observe(window.parent.document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-  } catch (e) { /* cross-origin / standalone — keep defaults */ }
-})();
-
+// Theming is handled by /shared/ui/js/surface-theme.js in <head> — it reads the operator's saved
+// cockpit theme from localStorage, sets data-theme before paint, and live-follows changes.
 const API = '/api/career-hunter';
 let state = { postingId: null, resume: null, cover: null, history: [] };
 const $ = (id) => document.getElementById(id);
@@ -102,7 +104,7 @@ function renderPreview(){
     `<div class="exp"><div class="er"><span>${esc(e.title)}</span><span>${esc(e.span)}</span></div>`
     + `<div class="org">${esc(e.org)}</div><ul>${(e.bullets || []).map((b) => `<li>${esc(b)}</li>`).join('')}</ul></div>`).join('');
   const comp = (r.competencies || []).map((c) => `<span>${esc(c)}</span>`).join('');
-  const name = ((window.__contact && window.__contact.name) || 'Resume');
+  const name = ((window.__meta && window.__meta.name) || (window.__contact && window.__contact.name) || 'Resume');
   $('sheet').innerHTML =
     `<h1>${esc(name)}</h1><p class="headline">${esc(r.headline)}</p>`
     + (r.summary ? `<h2>Summary</h2><p class="summary">${esc(r.summary)}</p>` : '')
@@ -130,23 +132,43 @@ function applyAction(a){
   }
 }
 
+// The job-packet feed can take seconds on a large corpus, so the picker NEVER waits on it:
+// the master entry is static in the markup and this only appends/refreshes the packet entries.
 async function loadList(){
-  const res = await fetch(`${API}/jobs?status=generated&per=80&sort=generated`);
-  const j = await res.json(); const jobs = (j.jobs || []).filter((x) => x.has_resume);
-  const sel = $('pick'); sel.innerHTML = '<option value="">' + (jobs.length ? 'Pick a generated resume…' : 'No generated resumes yet — generate one from the Job Board.') + '</option>';
+  const sel = $('pick');
+  let jobs = [];
+  try {
+    const res = await fetch(`${API}/jobs?status=generated&per=80&sort=generated`);
+    const j = await res.json(); jobs = (j.jobs || []).filter((x) => x.has_resume);
+  } catch (e) { /* the master resume stays editable even when the job list is unavailable */ }
+  const keep = sel.value || (state.postingId ? String(state.postingId) : '');
+  sel.innerHTML = '<option value="">' + (jobs.length ? 'Pick a resume…' : 'No job packets yet — job packets come from the Job Board.') + '</option>';
+  // The master is ALWAYS the first real entry: it is the durable profile packets are generated from.
+  const master = document.createElement('option');
+  master.value = 'master'; master.textContent = '⭐ My resume (master)';
+  sel.appendChild(master);
   jobs.forEach((x) => { const o = document.createElement('option'); o.value = x.id; o.textContent = `${x.title} — ${x.company}`; sel.appendChild(o); });
+  if (keep) sel.value = keep;
 }
 
 async function loadDoc(id){
   setStatus('loading…');
+  const isMaster = id === 'master';
   const res = await fetch(`${API}/resume/doc?id=${encodeURIComponent(id)}`);
   if (!res.ok) { setStatus('could not load'); return; }
   const j = await res.json();
-  state = { postingId: Number(id), resume: j.resume || {}, cover: j.cover || {}, history: [] };
+  state = { postingId: isMaster ? 'master' : Number(id), resume: j.resume || {}, cover: j.cover || {}, history: [] };
   window.__meta = j.meta || {}; $('log').innerHTML = '';
-  add('sys', `Editing: ${j.meta && j.meta.title || ''} — ${j.meta && j.meta.company || ''}`);
+  add('sys', isMaster
+    ? 'Editing your MASTER resume — changes here update the durable profile every tailored resume is generated from.'
+    : `Editing: ${j.meta && j.meta.title || ''} — ${j.meta && j.meta.company || ''}`);
   renderPreview(); $('save').disabled = false; $('msg').disabled = false; $('send').disabled = false;
-  $('pdf').href = `${API}/resume?id=${encodeURIComponent(id)}`; $('pdf').style.display = 'inline-block';
+  // The master has no packet PDF (packets render PDFs; the master saves straight into the durable
+  // profile), so the PDF affordances are hidden and Save is relabelled rather than left implying a
+  // re-render that cannot happen.
+  $('save').textContent = isMaster ? 'Save master resume' : 'Save & re-render PDF';
+  if (isMaster) { $('pdf').style.display = 'none'; $('pdf').removeAttribute('href'); }
+  else { $('pdf').href = `${API}/resume?id=${encodeURIComponent(id)}`; $('pdf').style.display = 'inline-block'; }
   setStatus('');
 }
 
@@ -166,13 +188,26 @@ async function send(){
 }
 
 async function save(){
-  if (!state.postingId) return; $('save').disabled = true; setStatus('saving + re-rendering…');
+  if (!state.postingId) return; $('save').disabled = true;
+  const isMaster = state.postingId === 'master';
+  setStatus(isMaster ? 'saving your master resume…' : 'saving + re-rendering…');
   try {
+    const body = isMaster
+      ? { postingId: 'master', resume: state.resume }
+      : { postingId: state.postingId, resume: state.resume, cover: state.cover };
     const res = await fetch(`${API}/resume/save`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ postingId: state.postingId, resume: state.resume, cover: state.cover }) });
+      body: JSON.stringify(body) });
     const j = await res.json();
-    setStatus(j.ok ? 'saved — PDF re-rendered' : 'save failed');
-    add('sys', j.ok ? 'Saved and re-rendered the PDF.' : 'Save failed.');
+    if (isMaster) {
+      if (j.ok) {
+        const log = (j.changelog || []).join('; ');
+        setStatus(j.changed ? 'master resume updated' : 'no changes to save');
+        add('sys', j.changed ? ('Updated your master resume: ' + (log || 'saved.')) : 'No changes to save — your master resume already matches.');
+      } else { setStatus('save failed'); add('sys', 'Save failed' + (j.error ? ': ' + j.error : '.')); }
+    } else {
+      setStatus(j.ok ? 'saved — PDF re-rendered' : 'save failed');
+      add('sys', j.ok ? 'Saved and re-rendered the PDF.' : 'Save failed.');
+    }
   } catch (e) { setStatus('save failed'); }
   finally { $('save').disabled = false; }
 }
@@ -182,9 +217,13 @@ $('send').addEventListener('click', send);
 $('msg').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
 $('save').addEventListener('click', save);
 loadList();
-// Deep-link: open straight to a resume when the board passes ?id=
+// Deep-link: open straight to a resume when the board passes ?id=. Otherwise open the MASTER
+// immediately — the studio must never sit dead with disabled fields while the packet feed loads;
+// "the studio doesn't know about my resume" (operator, 2026-08-11) was exactly this idle state.
 const pre = new URLSearchParams(location.search).get('id');
-if (pre) loadDoc(pre);
+const initial = pre || 'master';
+$('pick').value = initial;
+loadDoc(initial);
 </script>
 </body>
 </html>

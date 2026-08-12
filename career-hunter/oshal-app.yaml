@@ -9,6 +9,8 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Release claim leases, ambiguity-safe Apply recovery, monotonic application provenance, explicit submission consent, and read-only mobile startup as version 1.6.2.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Release durable Apply V2 run/token claim binding and ledger-backed manual application assertions as version 1.6.3.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Release strict backend selection, dual-store contract evidence, convergent replay, and stable interview source identity as version 1.6.4.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Group the top ribbon into Job Search / Resume / Presence sections, add the cross-app Portrait Studio entry, and declare the portrait-studio app dependency as version 1.7.0.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Release the Resume Studio master document (view + guide + whitelisted save-back into the durable career profile on augment's backup/audit rails) as version 1.8.0.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — career-hunter (Career Hunter)
@@ -49,7 +51,7 @@ description: >-
   posting against your private career profile, and turns the best fits into a human-in-the-loop
   application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume +
   cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.
-version: 1.6.4
+version: 1.9.1
 status: active
 theme: daylight
 
@@ -80,6 +82,24 @@ smoke:
       rejectValues: [noop, stub, empty]
     requiresAi: false
 
+# ADR-085 dependencies. `apps:` names the OTHER installed packages this one links into:
+# the Presence ribbon group carries a cross-app tile to portrait-studio's own surface
+# (/api/portrait-studio/app), so with portrait-studio absent that tile would load nothing.
+# Declaring it makes the reverse-dependency guard block a portrait-studio uninstall while
+# Career Hunter is active, and lets the installer pull it in.
+#
+# `connectors:` is deliberately ABSENT, not []. The key doubles as this app's runtime
+# connector allow-list — PRESENT means "this is the complete set my surfaces may offer",
+# and [] means "offer none". This app reaches at least four provider ids today (anthropic +
+# firecrawl in career-settings-routes/career-engine-dispatch, google + twilio in
+# career-digest), and the LinkedIn rail may add more, so an empty or partially-guessed list
+# would silently strip working connectors off the settings surface. Absent = unfiltered =
+# today's behaviour. Declaring the accurate allow-list is worth doing as its own audited
+# change, not as a side effect of a ribbon edit.
+dependencies:
+  apps: [portrait-studio]
+  tools: []
+
 # Guests may browse read-only; every write is gated. (Was hardcoded Tier A in core —
 # the literal left with this carve. Request only; grants come from the operator, D4.)
 guestTier: readonly
@@ -98,6 +118,14 @@ bots:
   - agentId: cb000000-0000-0000-0000-000000000001
     name: career-hunter
     persona: personas/career-hunter.yaml   # package copy — the one persona (worker + advisor)
+    # ADR-093 Tier 2: this bot runs at its own dedicated node (the core compose ships the
+    # `career-bot` service, profile `career-node`). Dispatch leaves the controller, so the
+    # ADR-127 demo-CLI carve can run the operator's turns on the deployment's mounted CLI
+    # login — inline on the controller, SEC-05 refuses every CLI and the bot was stuck on
+    # the hosted-only ladder. With the node service not running, dispatch fails visibly
+    # rather than silently degrading onto a runtime the declaration opted out of.
+    container: career-bot
+    port: 5000
     role: career/job-hunt-owner
     capabilities:
       - ats-scraping
@@ -228,11 +256,74 @@ tools:
       the jobs data". {running:true} = scrape+index still going; corpusFreshAt = newest
       last-seen timestamp in the shared corpus (UTC). Data from tonight = the morning is ready.
 
+  # ── resume editing tools: "a bot and a tool to edit the database and re-render the resume" ──
+  # The bot reads the master editor document with career_resume_read, proposes edits in
+  # conversation, and applies them with career_resume_save — which rides the SAME audited route
+  # rails Resume Studio uses (validation, backup snapshot, whitelist write-back; a numeric
+  # postingId save also re-renders that packet's PDF). The save is approval-gated: nothing
+  # changes the durable career profile without the user confirming the tool call.
+  - name: career_resume_read
+    displayName: Read Resume (Master Document)
+    type: cli
+    description: >-
+      Read the signed-in user's editable resume document — the durable master career profile
+      (headline, summary, competencies, experience with bullets, skills, clearance) every
+      tailored resume is generated from.
+    executor:
+      executorType: cli
+      cliCommand: node {packageDir}/bin/oshal-jobhunter.js resume base
+    defaultAuthMode: auto
+    usageInstructions: >-
+      Call career_resume_read (no arguments) BEFORE proposing or making any resume edit — it
+      returns {ok, resume} where resume is the current master document. Quote the user's real
+      content back when discussing changes; never invent sections that are not in the document.
+  - name: career_resume_save
+    displayName: Save Resume Edits
+    type: api
+    description: >-
+      Apply an edited resume document — 'master' saves the durable career profile through the
+      whitelist write-back (backup snapshot + audit), a numeric postingId saves that job
+      packet's tailored resume AND re-renders its PDF.
+    executor: { executorType: api, apiEndpoint: "POST /api/career-hunter/resume/save" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        postingId:
+          description: "'master' for the durable profile, or the numeric posting id for a job packet"
+        resume:
+          type: object
+          description: The FULL edited resume document (start from career_resume_read's output)
+      required: [postingId, resume]
+    usageInstructions: >-
+      Call career_resume_save ONLY after the user approves the specific edits. Send the FULL
+      resume document (career_resume_read's shape with your changes applied), never a fragment.
+      postingId 'master' = update the durable profile; a numeric postingId = save + re-render
+      that packet's PDF. Report the changelog/paths the call returns. Titles, organizations and
+      date spans on master experience entries are anchors and cannot be changed here — say so
+      if asked.
+
 # ─────────────────────────────────────────────────────────────────────────────
 # UI SURFACES
-#   board    (top)    — the native package job board (classic paths redirect here)
-#   approvals(bottom) — the human-in-the-loop application ticket queue, near Settings
-#   settings (bottom) — Anthropic click-to-connect + Firecrawl API-key field + cron toggles
+#
+# The `top` tray is SECTIONED by the optional `group:` label (see
+# docs/ribbon-groups-adr-085-addendum.md). The cockpit ribbon buckets top items by that
+# label, preserving group order by FIRST APPEARANCE and item order within a group; the
+# entries below are listed in the order they render so the manifest reads like the rail.
+#   (no group) Mobile — the pinned front door, deliberately the ungrouped lead band
+#   Job Search  board · submissions · recruiters · insights — find work and watch it move
+#   Resume      strengthen · resume studio — the artifact you send
+#   Presence    profile studio · portrait studio — how you look to a recruiter
+#
+# `section: bottom` items are FORCED ungrouped by the renderer (they are the pinned base
+# tray, already visually divided), so they carry no `group:` — adding one is a silent no-op:
+#   approvals (bottom) — the human-in-the-loop application ticket queue, near Settings
+#   companies (bottom) — admin-only corpus/ATS administration
+#   settings  (bottom) — Anthropic click-to-connect + Firecrawl API-key field + cron toggles
+#
+# A deployment whose core predates the `group:` key drops it during profile synthesis and
+# renders the same flat ribbon it renders today — degrade-to-flat, never a broken rail.
 # ─────────────────────────────────────────────────────────────────────────────
 ui:
   static:
@@ -241,11 +332,13 @@ ui:
       icon: codicon codicon-device-mobile
       iframeUrl: /api/career-hunter/mobile
       section: top
+    # ── Job Search ──────────────────────────────────────────────────────────
     - toolName: career-board
       label: Job Board
       icon: codicon codicon-briefcase
       iframeUrl: /api/career-hunter/board-native
       section: top
+      group: Job Search
     # Submissions — what the desktop worker is doing with the queued résumés: worker reachability,
     # the ticket lanes, and the narrated screenshot story per run. Sits next to the Job Board because
     # that is where a submission is queued and this is where you watch it.
@@ -254,21 +347,35 @@ ui:
       icon: codicon codicon-desktop-download
       iframeUrl: /api/career-hunter/submissions
       section: top
+      group: Job Search
     - toolName: career-recruiters
       label: Recruiters
       icon: codicon codicon-organization
       iframeUrl: /api/career-hunter/recruiters-ui
       section: top
+      group: Job Search
+    # Insights is search ANALYTICS (pipeline funnel, open roles by company/state, salary
+    # bands) — it reads the hunt, so it belongs with the hunt, not with the resume.
+    - toolName: career-insights
+      label: Insights
+      icon: codicon codicon-graph-line
+      iframeUrl: /api/career-hunter/insights-ui
+      section: top
+      group: Job Search
+    # ── Resume ──────────────────────────────────────────────────────────────
     - toolName: career-strengthen
       label: Strengthen
       icon: codicon codicon-sparkle
       iframeUrl: /api/career-hunter/strengthen-ui
       section: top
+      group: Resume
     - toolName: career-resume-studio
       label: Resume Studio
       icon: codicon codicon-edit
       iframeUrl: /api/career-hunter/resume-studio
       section: top
+      group: Resume
+    # ── Presence — how a recruiter sees you before they read the resume ──────
     # Profile Studio — LinkedIn profile customization (plan -> approve -> desktop
     # browser-control apply via linkedin-profile-operator; no LinkedIn edit API exists).
     - toolName: career-profile-studio
@@ -276,11 +383,22 @@ ui:
       icon: codicon codicon-account
       iframeUrl: /api/career-hunter/profile-studio
       section: top
-    - toolName: career-insights
-      label: Insights
-      icon: codicon codicon-graph-line
-      iframeUrl: /api/career-hunter/insights-ui
+      group: Presence
+    # Portrait Studio — a CROSS-APP tile into the separate portrait-studio package
+    # (declared under dependencies.apps). The headshot is part of the same presence
+    # story as the LinkedIn profile, so it is reachable without leaving the hunt.
+    # NOTE: the ribbon derives a view's guest tier from the iframeUrl's app segment, so
+    # this tile inherits portrait-studio's tier, NOT this package's guestTier: readonly.
+    # The toolName is career-SCOPED on purpose: registerDynamicToolUI/deregisterDynamicToolUI
+    # key the shared tile registry by toolName alone, so reusing the bare `portrait-studio`
+    # name would let this package's activation repoint — and its unload DEREGISTER —
+    # portrait-studio's own ribbon tile.
+    - toolName: career-portrait-studio
+      label: Portrait Studio
+      icon: codicon codicon-device-camera
+      iframeUrl: /api/portrait-studio/app
       section: top
+      group: Presence
     - toolName: career-approvals
       label: Approvals
       icon: codicon codicon-checklist

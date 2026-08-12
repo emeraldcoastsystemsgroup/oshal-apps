@@ -82,6 +82,8 @@ Module._load = function loadWithLoggerStub(request, ...rest) {
     return { decryptToken: (...args) => decryptBehavior(...args) };
   }
   if (request === '@/app/routes/caller-sub') return { callerSub: (req) => req?.userSub || null };
+  // No trusted-service identity in these isolation runs — the OIDC-only path stays exercised.
+  if (request === '@/shared/middleware/authz') return { getTrustedServiceUserSub: () => null };
   if (request === 'better-sqlite3') return class FixtureDatabase {};
   return originalLoad.call(this, request, ...rest);
 };

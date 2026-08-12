@@ -307,9 +307,9 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "Reads openings from employers' own public ATS job feeds into a shared corpus, scores every posting against your private career profile, and turns the best fits into a human-in-the-loop application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume + cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.",
-      "version": "1.6.4",
+      "version": "1.9.1",
       "dependencies": {
-        "apps": [],
+        "apps": ["portrait-studio"],
         "tools": [],
         "connectors": []
       },
@@ -1117,7 +1117,7 @@
         "sourceSha": "0000000000000000000000000000000000000000"
       },
       "status": "ready"
-    },
+    },
     {
       "name": "venture-plan",
       "suite": "ai-finance",

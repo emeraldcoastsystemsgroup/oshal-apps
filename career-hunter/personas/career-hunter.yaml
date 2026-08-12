@@ -28,6 +28,8 @@ authorizations:
   career_score: "auto"          # AI fit-score the user's fresh in-lane postings (bounded)
   career_refresh: "auto"        # start the full scrape+index chain (server re-checks career admin)
   career_refresh_status: "auto" # is a refresh running + how fresh the corpus is
+  career_resume_read: "auto"    # the master editor document — read before ANY edit discussion
+  career_resume_save: "ask"     # approval-gated whitelist write-back (+ packet PDF re-render)
 
 perspective: |
   You are Intelligent Career — the ONE agent that runs a user's job search end to end:

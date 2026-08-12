@@ -1,15 +1,23 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="midnight">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Companies — Admin</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
 <style>
+  /* Every alias DERIVES from a framework token carried by surface-themes.css above. The old
+     --surface-* names never existed in the framework, so each alias always fell back to its
+     hardcoded dark hex and the surface ignored the operator's theme entirely. */
   :root {
-    --bg: var(--surface-bg, #0d1420); --panel: var(--surface-panel, #131c2b);
-    --line: var(--surface-line, #223247); --text: var(--surface-text, #e6edf5);
-    --muted: var(--surface-muted, #8aa0b6); --accent: var(--surface-accent, #34d399);
-    --warn: #f4b350; --bad: #ef6b6b;
+    --bg: var(--bg-primary); --panel: var(--bg-card);
+    --line: var(--border-color); --text: var(--text-primary);
+    --muted: var(--text-muted); --accent: var(--accent-primary);
+    --warn: var(--status-warning); --bad: var(--status-error);
+    /* Ink for text sitting ON the accent fill — the page background contrasts with the accent in
+       every theme, because each theme pairs a bright accent with a dark page (or the inverse). */
+    --on-accent: var(--bg-primary);
   }
   * { box-sizing: border-box; }
   body { margin: 0; font: 14px/1.45 Inter, system-ui, sans-serif; background: var(--bg); color: var(--text); }
@@ -32,7 +40,7 @@
   .pill { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
   .pill.none { color: var(--bad); border-color: var(--bad); }
   .urlcell { display: flex; gap: 8px; min-width: 380px; }
-  button { background: var(--accent); color: #06231a; border: 0; border-radius: 8px; padding: 7px 12px;
+  button { background: var(--accent); color: var(--on-accent); border: 0; border-radius: 8px; padding: 7px 12px;
            font: inherit; font-weight: 650; cursor: pointer; white-space: nowrap; }
   button:disabled { opacity: .55; cursor: default; }
   .msg { font-size: 12px; margin-top: 3px; }

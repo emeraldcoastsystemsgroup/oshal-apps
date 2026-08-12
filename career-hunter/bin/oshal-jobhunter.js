@@ -27,6 +27,8 @@
  * 21 | maintainer@emeraldcoastsystemsgroup.com  | Clarify that legacy raw stores retain their existing absolute paths as compatibility aliases.
  * 22 | maintainer@emeraldcoastsystemsgroup.com  | Honor the parent's end-to-end deadline during credential fallback and skip duplicate brokerage when the controller supplied a complete credential set.
  * 23 | maintainer@emeraldcoastsystemsgroup.com  | Propagate explicit profile mutation results and make artifact batches fail nonzero while retaining every bounded item outcome.
+ * 24 | maintainer@emeraldcoastsystemsgroup.com  | Stop dropping each gap theme's interviewer question at the CLI boundary and expose the bounded enrichment audit tail. The strengthen list projection whitelisted seven fields and omitted prompt/desc, so the real per-theme question the engine has always carried never reached the surface, which substituted a generic sentence; strengthen changelog lets a caller read the bullets a detached augmentation actually wrote, whose stdout the asynchronous dispatch cannot return.
+ * 25 | maintainer@emeraldcoastsystemsgroup.com  | Add the Resume Studio master-document verbs: `resume base` (straight profile-to-editor mapping, no LLM) and `resume base-save` (bounded CH_RESUME_DOC whitelist write-back through profile.replace_resume_fields), so the durable career profile has a first-class editor path.
  *
  * Verbs (each forwards extra args to the engine):
  *   pull      -> scrape --all  then  match.rescore_recent  (nightly corpus refresh + keyword index)
@@ -35,6 +37,7 @@
  *   discover  -> discover --all-missing | --company NAME
  *   enrich    -> enrich --missing
  *   board     -> dashboard --no-browser --host 127.0.0.1 --port <port>
+ *   resume    -> base (master editor document) | base-save (whitelist profile write-back)
  *
  * Per-user data lives under {STORE}/{tenant}/{user_segment}/; portable lowercase subjects retain
  * their legacy segment and every unsafe subject is reversibly encoded. The jobs corpus is shared
@@ -452,14 +455,61 @@ function applicationRuns(verb, rest) {
   }
 }
 
-/** Map the four resume-strengthening subcommands while rejecting misspelled state changes. */
+/** Build the bounded master-resume save leg: refuse oversize payloads, then whitelist-write. */
+function resumeBaseSaveRun() {
+  const python = [
+    'import os,json',
+    'from jobhunter import profile',
+    'raw=os.environ.get("CH_RESUME_DOC","")',
+    'if len(raw.encode("utf-8","replace"))>262144:',
+    ' print(json.dumps({"ok":False,"error":"master resume payload exceeds the 256 KiB input limit"}))',
+    ' raise SystemExit(1)',
+    'try:\n doc=json.loads(raw)\nexcept Exception:\n doc=None',
+    'result=profile.replace_resume_fields(doc) if isinstance(doc,dict) else {"ok":False,"error":"invalid master resume payload"}',
+    'print(json.dumps(result,ensure_ascii=False))',
+    'raise SystemExit(0 if result.get("ok") is True else 1)',
+  ].join('\n');
+  return ['-c', python];
+}
+
+/** Map the Resume Studio master-document subcommands onto the profile engine's exact mappers. */
+function resumeRuns(rest) {
+  const sub = rest[0] || '';
+  if (sub === 'base') {
+    return [['-c', 'import json\nfrom jobhunter import profile\n'
+      + 'print(json.dumps(profile.base_document(), ensure_ascii=False))']];
+  }
+  if (sub === 'base-save') return [resumeBaseSaveRun()];
+  throw cliError('resume: base|base-save', 2);
+}
+
+/** Read the bounded tail of this user's enrichment audit log as JSON, without touching the DB. */
+function strengthenChangelogRun() {
+  return ['-c', 'import json\nfrom pathlib import Path\nfrom jobhunter import config\n'
+    + 'p=Path(config.CAREER_DB).parent / "enrichment_log.jsonl"\n'
+    + 'lines=p.read_text(encoding="utf-8", errors="replace").splitlines()[-8:] if p.exists() else []\n'
+    + 'out=[]\n'
+    + 'for line in lines:\n'
+    + ' try:\n'
+    + '  r=json.loads(line)\n'
+    + ' except Exception:\n'
+    + '  continue\n'
+    + ' if not isinstance(r, dict):\n'
+    + '  continue\n'
+    + ' entries=[str(c)[:500] for c in (r.get("changelog") or []) if str(c).strip()][:25]\n'
+    + ' out.append({"at": str(r.get("at",""))[:32], "facts": str(r.get("facts",""))[:240],'
+    + ' "changelog": entries})\n'
+    + 'print(json.dumps({"entries": out}, ensure_ascii=False))'];
+}
+
+/** Map the resume-strengthening subcommands while rejecting misspelled state changes. */
 function strengthenRuns(rest) {
   const sub = rest[0] || 'list';
   if (sub === 'scan') return [['-c', 'from jobhunter import gaps; print("scanned", gaps.scan())']];
   if (sub === 'list') return [['-c', 'import json\nfrom jobhunter import gaps\n'
     + 'gaps.scan() if not gaps.is_scanned() else None\n'
     + 't,total=gaps.themes_with_stats()\n'
-    + 'out=[dict(key=x["key"], title=gaps.title_of(x["key"]), n_jobs=x.get("n_jobs",0), avg_fit=x.get("avg_fit"), status=x.get("status"), response=x.get("response"), addressable=x.get("addressable")) for x in t]\n'
+    + 'out=[dict(key=x["key"], title=gaps.title_of(x["key"]), n_jobs=x.get("n_jobs",0), avg_fit=x.get("avg_fit"), status=x.get("status"), response=x.get("response"), addressable=x.get("addressable"), prompt=x.get("prompt",""), desc=x.get("desc","")) for x in t]\n'
     + 'print(json.dumps({"themes":out,"total":total}, default=str))']];
   if (sub === 'answer') return [['-c', 'import os, json\nfrom jobhunter import gaps, profile\n'
     + 'k=os.environ.get("CH_KEY","").strip()\nr=os.environ.get("CH_RESP","").strip()\n'
@@ -468,12 +518,14 @@ function strengthenRuns(rest) {
     + 'print(json.dumps({"changelog": (a or {}).get("changelog", [])}))']];
   if (sub === 'status') return [['-c', 'import os\nfrom jobhunter import gaps\n'
     + 'gaps.set_status(os.environ.get("CH_KEY","").strip(), os.environ.get("CH_STATUS","open").strip())']];
-  throw cliError('strengthen: scan|list|answer|status', 2);
+  if (sub === 'changelog') return [strengthenChangelogRun()];
+  throw cliError('strengthen: scan|list|answer|status|changelog', 2);
 }
 
 /** Resolve one supported CLI verb through small domain-specific mapping helpers. */
 function engineRuns(verb, rest) {
   if (verb === 'strengthen') return strengthenRuns(rest);
+  if (verb === 'resume') return resumeRuns(rest);
   for (const mapper of [corpusRuns, applicationRuns]) {
     const runs = mapper(verb, rest);
     if (runs) return runs;

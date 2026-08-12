@@ -1,15 +1,28 @@
 <!doctype html>
 <!--
   Career Hunter — native Strengthen surface (Phase 4): the "talk and it strengthens
-  your resume" flow. Reads gap themes via /api/career-hunter/strengthen; an answer saves
-  the example AND enriches the durable profile (so future tailored resumes pull it).
+  your resume" flow. Reads gap themes via /api/career-hunter/strengthen; each theme carries the
+  engine's own interviewer question (gaps.THEMES[].prompt). An answer saves the example AND
+  enriches the durable profile (so future tailored resumes pull it) — and the bullets that
+  augmentation actually wrote are read back from /api/career-hunter/strengthen/changelog and
+  shown, because the augmentation runs detached and cannot answer on the POST.
+  Dictation comes from /api/career-hunter/static/mic.js (Web Speech API, no key, no cost).
   Author: roger.murphy@emeraldcoastsystemsgroup.com
 -->
-<html lang="en"><head>
+<html lang="en" data-theme="midnight"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Strengthen</title>
+<!-- Framework theme tokens + the bootstrap that picks the operator's theme and follows it live.
+     Custom properties do NOT cross an iframe boundary, so the surface must carry the tokens and
+     set its own data-theme; theme files scope to [data-theme="…"] with no :root fallback, hence
+     the default above. -->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<script src="/api/career-hunter/static/mic.js" defer></script>
 <style>
-  :root { --bg:#0e0e16; --panel:#15151f; --panel2:#1b1b27; --line:#272735; --text:#e6e6f0; --muted:#8b8ba3; --accent:#7c6cff; --accent2:#00d3a7; --warn:#ffb454; --scrollbar-thumb:rgba(255,255,255,.14); }
+  /* Short alias names kept, but DERIVED from the framework tokens — no hardcoded hex, so all
+     eleven themes work instead of only the dark ones. */
+  :root { --bg:var(--bg-primary); --panel:var(--bg-card); --panel2:var(--bg-tertiary); --line:var(--border-color); --text:var(--text-primary); --muted:var(--text-muted); --accent:var(--accent-primary); --accent2:var(--status-success); --warn:var(--status-warning); }
   * { box-sizing:border-box; }
   body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
   .wrap { max-width:820px; margin:0 auto; padding:22px 22px 60px; }
@@ -17,20 +30,30 @@
   .bar { display:flex; gap:10px; align-items:center; margin:0 0 16px; }
   .btn { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 13px; font-size:12.5px; cursor:pointer; } .btn:hover { border-color:var(--accent); }
   .btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); } .btn.ghost { background:transparent; color:var(--muted); }
+  .btn[disabled] { opacity:.55; cursor:default; }
   .prog { color:var(--muted); font-size:12px; margin-left:auto; }
   .card { background:var(--panel); border:1px solid var(--line); border-radius:13px; padding:16px 18px; margin-bottom:11px; }
   .card.focus { border-color:var(--accent); }
-  .q { font-size:15px; font-weight:600; margin:0 0 3px; } .impact { color:var(--warn); font-size:12px; margin:0 0 11px; }
+  .q { font-size:15px; font-weight:600; margin:0 0 3px; }
+  .desc { color:var(--muted); font-size:12px; margin:0 0 6px; line-height:1.45; }
+  .impact { color:var(--warn); font-size:12px; margin:0 0 8px; }
+  .ask { font-size:13.5px; line-height:1.5; margin:0 0 10px; }
   textarea { width:100%; min-height:84px; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:9px; padding:10px 12px; font-size:13px; font-family:inherit; resize:vertical; }
-  .ans { display:flex; gap:8px; margin-top:9px; }
-  .answered { background:rgba(0,211,167,.08); border-color:rgba(0,211,167,.3); }
+  .ans { display:flex; gap:8px; margin-top:9px; align-items:center; }
+  .note { color:var(--muted); font-size:12px; margin:9px 0 0; }
+  .answered { background:var(--bg-card-hover); border-color:var(--accent2); }
   .answered .q { color:var(--accent2); } .resp { color:var(--text); font-size:13px; line-height:1.5; white-space:pre-wrap; margin:6px 0 0; }
   .pill { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:2px 8px; border-radius:10px; background:var(--panel2); color:var(--muted); }
   .grp { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:18px 0 8px; }
   .empty { color:var(--muted); font-size:13px; padding:40px; text-align:center; border:1px dashed var(--line); border-radius:12px; }
+  .added { border:1px solid var(--accent2); border-radius:13px; padding:13px 17px; margin:0 0 14px; background:var(--bg-card-hover); }
+  .added h2 { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--accent2); margin:0 0 8px; }
+  .added .item { margin:0 0 10px; } .added .item:last-child { margin-bottom:0; }
+  .added .it { font-size:12.5px; color:var(--muted); margin:0 0 4px; }
+  .added ul { margin:0; padding-left:18px; } .added li { font-size:13px; line-height:1.5; margin:0 0 3px; }
   .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:9px 15px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; } .toast.show { opacity:1; }
-  ::-webkit-scrollbar{width:11px;height:11px} ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px} ::-webkit-scrollbar-track{background:transparent}
-  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
+  ::-webkit-scrollbar{width:11px;height:11px} ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb);border-radius:6px} ::-webkit-scrollbar-track{background:transparent}
+  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb) transparent}
   @media (max-width:640px){
     .wrap { padding:14px 14px 48px; }
     textarea { font-size:16px; }
@@ -40,34 +63,41 @@
     .prog { margin-left:0; width:100%; }
   }
 </style>
-<script>(function(){const M={'--bg':'--bg-primary','--panel':'--bg-secondary','--panel2':'--bg-tertiary','--line':'--border-color','--text':'--text-primary','--muted':'--text-secondary','--accent':'--accent-primary','--accent2':'--status-success','--scrollbar-thumb':'--scrollbar-thumb'};function m(){try{const p=(window.parent&&window.parent!==window)?window.parent:null;if(!p)return;const cs=p.getComputedStyle(p.document.documentElement);for(const k in M){const v=cs.getPropertyValue(M[k]).trim();if(v)document.documentElement.style.setProperty(k,v);}}catch(e){}}m();window.addEventListener('storage',e=>{if(e.key==='cockpit-theme')setTimeout(m,30);});try{const p=window.parent;if(p&&p!==window)new MutationObserver(m).observe(p.document.documentElement,{attributes:true,attributeFilter:['data-theme']});}catch(e){}document.addEventListener('DOMContentLoaded',m);})();</script>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
 <div class="wrap">
   <h1>Strengthen your resume</h1>
-  <p class="sub">Every gap the AI flagged across your in-lane jobs, clustered into themes. Answer one with a real example — it's woven into your profile, so every future tailored resume pulls from it.</p>
+  <p class="sub">Every gap the AI flagged across your in-lane jobs, clustered into themes. Answer one out loud (tap the mic in any box) with a real example — it's woven into your profile, so every future tailored resume pulls from it.</p>
   <div class="bar">
     <button class="btn" onclick="rescan()">↻ Rescan gaps</button>
     <span class="prog" id="prog"></span>
   </div>
+  <div id="added"></div>
   <div id="list"></div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
-const $=id=>document.getElementById(id); const listEl=$('list'), toastEl=$('toast'), progEl=$('prog');
+const $=id=>document.getElementById(id); const listEl=$('list'), toastEl=$('toast'), progEl=$('prog'), addedEl=$('added');
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const GENERIC_ASK='Give a concrete example of your experience here — what you built or owned, and the outcome.';
+const byKey={};          // key -> theme, so an in-flight answer knows its title
+const added=[];          // what augmentation wrote, newest first; survives a list reload
 function toast(m){ toastEl.textContent=m; toastEl.className='toast show'; setTimeout(()=>toastEl.className='toast',2600); }
 
 function openCard(t,focus){
-  return `<div class="card${focus?' focus':''}">
+  return `<div class="card${focus?' focus':''}" id="card-${esc(t.key)}">
     <p class="q">${esc(t.title||t.key)}</p>
-    <p class="impact">Costs you ~${t.n_jobs} in-lane job${t.n_jobs===1?'':'s'} — give a concrete example of your experience here.</p>
-    <textarea id="ta-${esc(t.key)}" placeholder="e.g. At my last company I built the CI/CD pipeline that…"></textarea>
+    ${t.desc?`<p class="desc">${esc(t.desc)}</p>`:''}
+    <p class="impact">Costs you ~${t.n_jobs} in-lane job${t.n_jobs===1?'':'s'}.</p>
+    <p class="ask">${esc(t.prompt||GENERIC_ASK)}</p>
+    <textarea id="ta-${esc(t.key)}" placeholder="Type it, or tap the mic and just talk…"></textarea>
     <div class="ans">
-      <button class="btn primary" onclick="answer('${esc(t.key)}')">Save &amp; strengthen</button>
+      <button class="btn primary" id="save-${esc(t.key)}" onclick="answer('${esc(t.key)}')">Save &amp; strengthen</button>
       <button class="btn ghost" onclick="setStatus('${esc(t.key)}','skipped')">Skip</button>
     </div>
+    <p class="note" id="note-${esc(t.key)}"></p>
   </div>`;
 }
 function answeredCard(t){
@@ -78,10 +108,21 @@ function answeredCard(t){
   </div>`;
 }
 
+function renderAdded(){
+  if(!added.length){ addedEl.innerHTML=''; return; }
+  addedEl.innerHTML=`<div class="added"><h2>Profile updates</h2>`+added.map(a=>`
+    <div class="item"><p class="it">${esc(a.title)}</p>${
+      a.bullets.length ? `<p class="it">Added to your profile:</p><ul>${a.bullets.map(b=>`<li>${esc(b)}</li>`).join('')}</ul>`
+      : `<p class="it">${esc(a.message||'Saved — nothing new to add; your example is stored on this theme.')}</p>`
+    }</div>`).join('')+`</div>`;
+}
+function note(key,text){ const el=$('note-'+key); if(el) el.textContent=text; }
+
 async function load(){
   listEl.innerHTML='<div class="empty">Loading gaps…</div>';
   try {
     const { themes=[], total=0 } = await (await fetch('/api/career-hunter/strengthen')).json();
+    themes.forEach(t=>{ byKey[t.key]=t; });
     const addr=themes.filter(t=>t.addressable && (t.n_jobs>0 || t.status!=='open'));
     const open=addr.filter(t=>t.status==='open' && t.n_jobs>0).sort((a,b)=>b.n_jobs-a.n_jobs);
     const answered=addr.filter(t=>t.status==='answered');
@@ -95,14 +136,63 @@ async function load(){
     listEl.innerHTML=html;
   } catch(e){ listEl.innerHTML='<div class="empty">Could not load: '+esc(e.message)+'</div>'; }
 }
+
+/* The augmentation child owns this user's engine slot while it runs, so a 409 here means
+   "still weaving", not a failure; 429 is the global engine ceiling — same retry, different
+   cause. Anything else is a real read of the durable audit. */
+async function fetchChangelog(){
+  const r=await fetch('/api/career-hunter/strengthen/changelog');
+  if(r.status===409||r.status===429) return { status:'in-progress', entries:[] };
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  const d=await r.json();
+  return { status:d.status||'idle', entries:Array.isArray(d.entries)?d.entries:[] };
+}
+function newestAt(entries){ return entries.reduce((a,e)=>(e&&e.at>a?e.at:a),''); }
+function pickEntry(entries,baseline,title){
+  const sorted=entries.slice().sort((a,b)=>(a.at<b.at?1:-1));
+  return sorted.find(e=>baseline!==null ? e.at>baseline : String(e.facts||'').indexOf(title)===0) || null;
+}
+/* Each poll is NOT a cheap read — the changelog route claims an engine capacity slot and
+   spawns the CLI. Back off 3s→10s instead of hammering every 3s: ~11 spawns over the same
+   ~90s window a fixed 3s cadence would hit 30 times. */
+async function waitForEntry(baseline,title){
+  let idle=0, fails=0;
+  for(let i=0;i<12;i++){
+    await sleep(Math.min(3000+i*1000,10000));
+    let d;
+    try { d=await fetchChangelog(); fails=0; }
+    catch(e){ if(++fails>=3) return { pending:true, changelog:[] }; continue; }
+    if(d.status==='in-progress'){ idle=0; continue; }
+    const hit=pickEntry(d.entries,baseline,title);
+    if(hit) return hit;
+    if(++idle>=2) return null;   // engine idle twice with nothing new: augmentation added nothing
+  }
+  return { pending:true, changelog:[] };
+}
+
 async function answer(key){
   const ta=document.getElementById('ta-'+key); const response=(ta&&ta.value||'').trim();
-  if(!response){ toast('Type an example first'); return; }
-  try { const r=await fetch('/api/career-hunter/strengthen/answer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,response})});
+  if(!response){ toast('Type or dictate an example first'); return; }
+  const title=(byKey[key]&&byKey[key].title)||key;
+  const save=$('save-'+key); if(save) save.disabled=true;
+  note(key,'Saving your example…');
+  let baseline=null;
+  try { const b=await fetchChangelog(); if(b.status!=='in-progress') baseline=newestAt(b.entries); } catch(e){ /* poll falls back to title matching */ }
+  try {
+    const r=await fetch('/api/career-hunter/strengthen/answer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,response})});
     if(r.status!==202&&!r.ok) throw new Error('HTTP '+r.status);
-    toast('Saved — weaving it into your profile…'); setTimeout(load,1200);
-  } catch(e){ toast('Failed: '+e.message); }
+  } catch(e){ if(save) save.disabled=false; note(key,''); toast('Failed: '+e.message); return; }
+  note(key,'Saved — weaving it into your profile…');
+  const hit=await waitForEntry(baseline,title);
+  const bullets=(hit&&Array.isArray(hit.changelog))?hit.changelog:[];
+  added.unshift({ title, bullets, message: hit&&hit.pending
+    ? 'Still weaving this in — reopen this screen shortly to see what was added.'
+    : 'Saved — nothing new to add; your example is stored on this theme.' });
+  renderAdded();
+  if(bullets.length) toast('Added to your profile');
+  load();
 }
+
 async function setStatus(key,status){
   try { const r=await fetch('/api/career-hunter/strengthen/'+encodeURIComponent(key)+'/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
     if(!r.ok) throw new Error('HTTP '+r.status); load();

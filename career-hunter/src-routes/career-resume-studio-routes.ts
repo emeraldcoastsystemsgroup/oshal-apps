@@ -10,6 +10,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | Added complete packet and signal-path rollback under the retained user-store lease.
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | Split the route registrar into bounded load, guide, and save handlers.
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | Moved packet discovery, reads, writes, snapshots, and rollback off synchronous filesystem APIs.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com   | Added the MASTER document: id=master loads the durable profile through `resume base`, save whitelists back through `resume base-save` (changelog returned to the surface), and the guide bot is told it is editing the profile every tailored resume is generated from — with cover and title/org/span edits stripped for the master case.
  */
 
 /**
@@ -40,6 +41,14 @@ import { callerSub, openUserDb, userPaths } from './career-user-store';
 const logger = createChildLogger({ module: 'career-resume-studio-routes' });
 const CAREER_AGENT_ID = 'cb000000-0000-0000-0000-000000000001';
 const botClient = new BotNodeClient(createRegistryEndpointResolver());
+/** Sentinel document id the surface sends for the durable master profile (never a posting id). */
+const MASTER_ID = 'master';
+/** Route-side payload ceiling, slightly under the engine's 256 KiB guard. Defence in depth,
+ *  not the first wall: the control plane's global JSON body limit (~100 KB unless
+ *  OSHAL_JSON_BODY_LIMIT raises it) rejects most oversize bodies before this handler runs, so
+ *  this guard is operative only on deployments that widen that limit — the engine-side refusal
+ *  in bin/oshal-jobhunter.js remains the authoritative cap either way. */
+const MASTER_DOC_MAX_BYTES = 256_000;
 
 type ResumeAction =
   | { op: 'set_headline'; text: string }
@@ -218,6 +227,23 @@ async function saveAndRerenderPacket(
   }
 }
 
+/** Frame the guide bot for either a job-tailored packet or the durable MASTER profile. */
+function guidePromptIntro(meta: Record<string, unknown>): string[] {
+  if (meta.master === true) {
+    return [
+      'You are editing the candidate\'s MASTER resume in a live editor. This is NOT a job-tailored',
+      'packet: it is the durable career profile every future tailored resume is generated from, and',
+      'every change you make here updates that durable profile. Do NOT tailor to any specific job,',
+      'company, or posting — keep every edit generally true of the whole career. Never change a',
+      'role\'s title, org, or span (they anchor the durable profile); edit bullets and text fields.',
+    ];
+  }
+  return [
+    'You are editing the candidate\'s tailored RESUME + COVER LETTER for a specific job, in a live editor.',
+    `Target role: ${String(meta.title || '')} at ${String(meta.company || '')}.`,
+  ];
+}
+
 function guidePrompt(
   message: string,
   resume: Record<string, unknown>,
@@ -225,9 +251,9 @@ function guidePrompt(
   meta: Record<string, unknown>,
   history: string,
 ): string {
+  const master = meta.master === true;
   return [
-    'You are editing the candidate\'s tailored RESUME + COVER LETTER for a specific job, in a live editor.',
-    `Target role: ${String(meta.title || '')} at ${String(meta.company || '')}.`,
+    ...guidePromptIntro(meta),
     '',
     'HARD TRUTH RULES (never violate): edit ONLY the facts already present â€” NEVER invent or add an',
     'employer, title, date, metric, skill, certification, clearance, or claim. You may reorder, sharpen,',
@@ -237,7 +263,7 @@ function guidePrompt(
     'NEVER use em or en dashes. Keep bullets to 1-2 lines, strong past-tense lead verbs, outcome first.',
     '',
     'CURRENT RESUME (JSON):', JSON.stringify(resume).slice(0, 12000),
-    'CURRENT COVER (JSON):', JSON.stringify(cover).slice(0, 4000),
+    ...(master ? [] : ['CURRENT COVER (JSON):', JSON.stringify(cover).slice(0, 4000)]),
     history ? `\nCONVERSATION SO FAR:\n${history}` : '',
     `\nUSER: ${message}`,
     '',
@@ -249,8 +275,10 @@ function guidePrompt(
     '- {"op":"set_clearance","text":"exact clearance as already stated"}',
     '- {"op":"set_competencies","items":["8-12 short phrases"]}',
     '- {"op":"set_skills","items":["concise skills"]}',
-    '- {"op":"update_experience","index":1,"bullets":["rewritten bullets"]}',
-    '- {"op":"set_cover_paragraphs","items":["exactly 3 tight paragraphs, under ~230 words total"]}',
+    master
+      ? '- {"op":"update_experience","index":1,"bullets":["rewritten bullets"]} (bullets ONLY — the master keeps titles, orgs, and spans fixed)'
+      : '- {"op":"update_experience","index":1,"bullets":["rewritten bullets"]}',
+    ...(master ? [] : ['- {"op":"set_cover_paragraphs","items":["exactly 3 tight paragraphs, under ~230 words total"]}']),
   ].join('\n');
 }
 
@@ -262,20 +290,22 @@ function toStrings(value: unknown, count = 24): string[] {
     .filter(Boolean);
 }
 
-function experienceAction(raw: Record<string, unknown>): ResumeAction | null {
+function experienceAction(raw: Record<string, unknown>, master: boolean): ResumeAction | null {
   if (Number(raw.index) < 1) return null;
   const action: ResumeAction = {
     op: 'update_experience',
     index: Math.floor(Number(raw.index)),
   };
-  if (raw.title) action.title = String(raw.title).slice(0, 200);
-  if (raw.org) action.org = String(raw.org).slice(0, 200);
-  if (raw.span) action.span = String(raw.span).slice(0, 60);
+  // The master save matches roles by index+title, so title/org/span edits are stripped there —
+  // they would only poison the payload into a refused save.
+  if (raw.title && !master) action.title = String(raw.title).slice(0, 200);
+  if (raw.org && !master) action.org = String(raw.org).slice(0, 200);
+  if (raw.span && !master) action.span = String(raw.span).slice(0, 60);
   if (raw.bullets) action.bullets = toStrings(raw.bullets, 8);
   return action;
 }
 
-function cleanAction(raw: Record<string, unknown>): ResumeAction | null {
+function cleanAction(raw: Record<string, unknown>, master: boolean): ResumeAction | null {
   const op = String(raw.op || '');
   const text = (max: number): string => String(raw.text ?? '').slice(0, max);
   if (op === 'set_headline') return { op, text: text(400) };
@@ -283,16 +313,16 @@ function cleanAction(raw: Record<string, unknown>): ResumeAction | null {
   if (op === 'set_clearance') return { op, text: text(200) };
   if (op === 'set_competencies') return { op, items: toStrings(raw.items) };
   if (op === 'set_skills') return { op, items: toStrings(raw.items) };
-  if (op === 'set_cover_paragraphs') return { op, items: toStrings(raw.items, 6) };
-  if (op === 'update_experience') return experienceAction(raw);
+  if (op === 'set_cover_paragraphs') return master ? null : { op, items: toStrings(raw.items, 6) };
+  if (op === 'update_experience') return experienceAction(raw, master);
   return null;
 }
 
-function cleanActions(raw: unknown): ResumeAction[] {
+function cleanActions(raw: unknown, master: boolean): ResumeAction[] {
   if (!Array.isArray(raw)) return [];
   return raw
     .slice(0, 12)
-    .map((action) => cleanAction(action as Record<string, unknown>))
+    .map((action) => cleanAction(action as Record<string, unknown>, master))
     .filter((action): action is ResumeAction => action !== null);
 }
 
@@ -304,7 +334,9 @@ function guideHistory(raw: unknown): string {
   }).join('\n');
 }
 
-function parseGuideResponse(response: unknown): { reply: string; actions: ResumeAction[] } {
+function parseGuideResponse(
+  response: unknown, master: boolean,
+): { reply: string; actions: ResumeAction[] } {
   let reply = 'Updated.';
   let actions: ResumeAction[] = [];
   const match = String(response || '').match(/\{[\s\S]*\}/);
@@ -312,16 +344,43 @@ function parseGuideResponse(response: unknown): { reply: string; actions: Resume
   try {
     const parsed = JSON.parse(match[0]) as { reply?: string; actions?: unknown };
     reply = String(parsed.reply || reply).slice(0, 1200);
-    actions = cleanActions(parsed.actions);
+    actions = cleanActions(parsed.actions, master);
   } catch (err) {
     logger.warn({ err }, 'resume guide bot JSON is unparseable');
   }
   return { reply, actions };
 }
 
-async function getResumeDocument(req: Request, res: Response): Promise<void> {
+/** Read the engine child's JSON document out of its stdout tail, or null when it printed none. */
+function parseEngineJson(out: string): Record<string, unknown> | null {
+  const start = out.indexOf('{');
+  if (start < 0) return null;
+  try { return JSON.parse(out.slice(start)) as Record<string, unknown>; } catch { return null; }
+}
+
+/** Load the MASTER document through the engine's straight, model-free profile mapping. */
+async function getMasterDocument(ctx: AppContext, userSub: string, res: Response): Promise<void> {
+  const result = await runCareerCliAwait(ctx.pool, userSub, ['resume', 'base']);
+  if (result.limitReason) {
+    rejectEngineStart(res, { started: false, limitReason: result.limitReason }, 'master resume load');
+    return;
+  }
+  const parsed = result.ok ? parseEngineJson(result.out) : null;
+  if (!parsed) {
+    logger.error({ err: result.err.slice(-300), userSub }, 'master resume load failed');
+    res.status(500).json({ error: 'master resume load failed' });
+    return;
+  }
+  res.json(parsed);
+}
+
+async function getResumeDocument(ctx: AppContext, req: Request, res: Response): Promise<void> {
   const userSub = callerSub(req);
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (String(req.query.id || '') === MASTER_ID) {
+    await getMasterDocument(ctx, userSub, res);
+    return;
+  }
   const postingId = Number(req.query.id);
   if (!Number.isFinite(postingId)) { res.status(400).json({ error: 'id required' }); return; }
   const dir = await packetDir(userSub, postingId);
@@ -336,20 +395,37 @@ async function getResumeDocument(req: Request, res: Response): Promise<void> {
   }
 }
 
+/** Resolve the document a guide turn edits: packet metadata from disk, or the master sentinel. */
+async function guideDocument(
+  userSub: string, body: Record<string, unknown>,
+): Promise<{ document: ResumeDocument } | { status: number; error: string }> {
+  if (body.postingId === MASTER_ID) {
+    if (!body.resume || typeof body.resume !== 'object') {
+      return { status: 400, error: 'resume required for the master document' };
+    }
+    // The guide needs only document.meta for the master — the surface always sends the live
+    // resume in the body, and there is no packet directory to read.
+    return { document: { resume: {}, cover: {}, meta: { master: true } } };
+  }
+  const postingId = Number(body.postingId);
+  if (!Number.isFinite(postingId)) return { status: 400, error: 'postingId + message required' };
+  const dir = await packetDir(userSub, postingId);
+  if (!dir) return { status: 404, error: 'no generated packet' };
+  return { document: await readDoc(dir) };
+}
+
 async function guideResume(ctx: AppContext, req: Request, res: Response): Promise<void> {
   const userSub = callerSub(req);
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
   const body = req.body || {};
-  const postingId = Number(body.postingId);
+  const postingId = String(body.postingId ?? '').slice(0, 32);
   const message = String(body.message || '').trim();
-  if (!Number.isFinite(postingId) || !message) {
-    res.status(400).json({ error: 'postingId + message required' });
-    return;
-  }
-  const dir = await packetDir(userSub, postingId);
-  if (!dir) { res.status(404).json({ error: 'no generated packet' }); return; }
+  if (!message) { res.status(400).json({ error: 'postingId + message required' }); return; }
   try {
-    const document = await readDoc(dir);
+    const loaded = await guideDocument(userSub, body);
+    if ('status' in loaded) { res.status(loaded.status).json({ error: loaded.error }); return; }
+    const { document } = loaded;
+    const master = document.meta.master === true;
     const resume = body.resume && typeof body.resume === 'object' ? body.resume : document.resume;
     const cover = body.cover && typeof body.cover === 'object' ? body.cover : document.cover;
     const result = await executeBotOrInline(ctx, botClient, CAREER_AGENT_ID, {
@@ -361,7 +437,7 @@ async function guideResume(ctx: AppContext, req: Request, res: Response): Promis
       direct: false,
       userSub,
     } as never);
-    const parsed = parseGuideResponse(result.response);
+    const parsed = parseGuideResponse(result.response, master);
     logger.info({ userSub, postingId, actions: parsed.actions.length }, 'resume guide turn');
     res.json(parsed);
   } catch (err) {
@@ -370,10 +446,53 @@ async function guideResume(ctx: AppContext, req: Request, res: Response): Promis
   }
 }
 
+/** Persist the MASTER document through the engine's whitelist write-back, returning its changelog. */
+async function saveMasterResume(
+  ctx: AppContext, userSub: string, body: Record<string, unknown>, res: Response,
+): Promise<void> {
+  if (!body.resume || typeof body.resume !== 'object') {
+    res.status(400).json({ error: 'resume required' });
+    return;
+  }
+  const payload = JSON.stringify({ resume: body.resume });
+  if (Buffer.byteLength(payload, 'utf8') > MASTER_DOC_MAX_BYTES) {
+    res.status(413).json({ ok: false, error: 'master resume payload too large' });
+    return;
+  }
+  try {
+    const result = await runCareerCliAwait(
+      ctx.pool, userSub, ['resume', 'base-save'], { CH_RESUME_DOC: payload },
+    );
+    if (result.limitReason) {
+      rejectEngineStart(res, { started: false, limitReason: result.limitReason }, 'master resume save');
+      return;
+    }
+    const parsed = parseEngineJson(result.out) as
+      { ok?: unknown; changed?: unknown; changelog?: unknown; error?: unknown } | null;
+    if (!parsed || parsed.ok !== true) {
+      const refusal = String(parsed?.error || '').slice(0, 400);
+      logger.error({ userSub, refusal, err: result.err.slice(-300) }, 'master resume save failed');
+      res.status(refusal ? 422 : 500).json({ ok: false, error: refusal || 'master resume save failed' });
+      return;
+    }
+    const changelog = Array.isArray(parsed.changelog)
+      ? parsed.changelog.slice(0, 50).map((line) => String(line).slice(0, 500)) : [];
+    logger.info({ userSub, changed: parsed.changed === true, entries: changelog.length }, 'master resume saved');
+    res.json({ ok: true, changed: parsed.changed === true, changelog });
+  } catch (err) {
+    logger.error({ err, userSub }, 'master resume save failed');
+    res.status(500).json({ error: 'save failed' });
+  }
+}
+
 async function saveResume(ctx: AppContext, req: Request, res: Response): Promise<void> {
   const userSub = callerSub(req);
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
   const body = req.body || {};
+  if (body.postingId === MASTER_ID) {
+    await saveMasterResume(ctx, userSub, body, res);
+    return;
+  }
   const postingId = Number(body.postingId);
   if (!Number.isFinite(postingId) || !body.resume || !body.cover) {
     res.status(400).json({ error: 'postingId + resume + cover required' });
@@ -406,13 +525,15 @@ async function saveResume(ctx: AppContext, req: Request, res: Response): Promise
 }
 
 /**
- * @description Mounts structured resume load, bot guide, and transactional save routes.
+ * @description Mounts structured resume load, bot guide, and transactional save routes. All three
+ * accept `master` as the document id alongside numeric posting ids: the master case reads and
+ * writes the durable career profile through the engine's `resume base`/`resume base-save` verbs.
  * @param router - Authenticated Career Hunter router.
- * @param ctx - Kernel context used for bot execution and brokered packet rerendering.
+ * @param ctx - Kernel context used for bot execution and brokered engine dispatch.
  * @returns Nothing.
  */
 export function registerCareerResumeStudio(router: Router, ctx: AppContext): void {
-  router.get('/resume/doc', getResumeDocument);
+  router.get('/resume/doc', (req, res) => getResumeDocument(ctx, req, res));
   router.post('/resume/guide', (req, res) => guideResume(ctx, req, res));
   router.post('/resume/save', (req, res) => saveResume(ctx, req, res));
 }

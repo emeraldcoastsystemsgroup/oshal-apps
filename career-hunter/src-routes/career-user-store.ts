@@ -12,11 +12,14 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | Reject confirmation evidence reached through a symlinked path component before historical rows can be classified as verified submissions.
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | Keep unauthenticated historical notes unverified; only contained confirmation evidence can strengthen a legacy applied record.
  * 9 | maintainer@emeraldcoastsystemsgroup.com   | Ensure route-opened user stores also carry the durable Apply run id and exact claim token.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com   | callerSub now resolves the verified trusted-service identity ahead of the OIDC session (eats/spotify tool idiom): the framework tool-executor's api-type tools call these routes with X-Service-Secret + the signed-in user's sub, and the OIDC-only read returned null for exactly those calls — which is why no career tool could ever reach the resume rails. The mount is already service-or-oidc; the kernel helper verifies the secret before trusting the header.
  */
 import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
 import { createChildLogger } from '@/shared/logger';
+import { getTrustedServiceUserSub } from '@/shared/middleware/authz';
+import { callerSub as oidcCallerSub } from '@/app/routes/caller-sub';
 
 const storePath = require('../lib/user-store-path') as {
   legacyUserSubFromStoreEntry: (tenantDir: string, entryName: string) => string | null;
@@ -46,12 +49,21 @@ function careerStoreRoot(): string {
 }
 
 /**
- * @description Re-exports the kernel-owned caller identity helper so Career route modules share
- * one authentication interpretation without depending on the Career route registrar.
- * @param req - Express request whose authenticated OIDC subject identifies the caller.
- * @returns The authenticated caller subject, or null when no authenticated subject is present.
+ * @description The caller identity every Career route resolves — trusted-service identity
+ * FIRST, then the OIDC session. The trusted-service half is what lets the framework
+ * tool-executor's api-type tools (career_resume_save) call these routes on the signed-in
+ * user's behalf: the executor sends X-Service-Secret plus the user's sub, and the kernel's
+ * getTrustedServiceUserSub verifies the secret before trusting the header (fail-closed) —
+ * the same idiom the eats/spotify tool-backed routes use. The mount is already
+ * `service-or-oidc` (ADR-085 D2), so the middleware admits both caller classes.
+ * @param req - Express request carrying either a verified service identity or an OIDC session.
+ * @returns The authenticated caller subject, or null when neither identity is present.
  */
-export { callerSub } from '@/app/routes/caller-sub';
+export function callerSub(req: import('express').Request): string | null {
+  const trusted = getTrustedServiceUserSub(req);
+  if (trusted) return trusted;
+  return oidcCallerSub(req);
+}
 
 /**
  * @description Returns the Career store tenant used consistently by filesystem and SQL scopes.

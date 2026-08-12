@@ -22,7 +22,7 @@
                      Application records  GET /jobs?status=applied
 
   No new data endpoints — this is a view over what already exists. Self-contained (works when
-  opened directly on a phone at /api/career-hunter/mobile); dark-default, prefers-color-scheme aware.
+  opened directly on a phone at /api/career-hunter/mobile); follows the operator's cockpit theme.
 
   CHANGE LOG
   -----------------------------------------------------------------------------
@@ -30,32 +30,39 @@
   -----------------------------------------------------------------------------
   1 | maintainer@emeraldcoastsystemsgroup.com | Render explicit, redacted application provenance and stop presenting every recorded outcome as confirmation-backed.
   2 | maintainer@emeraldcoastsystemsgroup.com | Require an explicit pull-more action before enqueueing drafts, render owner-scoped durable apply state, and state final-submit consent accurately.
+  3 | maintainer@emeraldcoastsystemsgroup.com | Join the canonical surface theme rail (surface-themes.css + surface-theme.js) and derive every palette alias from framework tokens. The surface hardcoded a dark palette plus a prefers-color-scheme override, so it ignored the operator's chosen cockpit theme and rendered near-black on a light theme.
 -->
-<html lang="en">
+<html lang="en" data-theme="midnight">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0d1117">
 <title>Intelligent Career — Mobile</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
 <style>
+/* Every palette alias DERIVES from a framework token carried by surface-themes.css above, so all
+   eleven cockpit themes follow. The old prefers-color-scheme block is gone on purpose: the OS
+   setting is not the operator's choice — the cockpit theme is, and surface-theme.js applies it. */
 :root{
-  --bg:#0d1117; --bg2:#111827; --card:#161d2b; --card2:#1c2536;
-  --ink:#eef2f7; --muted:#9aa7b8; --line:rgba(255,255,255,.10);
-  --teal:#22b8a0; --teal-ink:#062a25;
-  --green:#4ea363; --red:#e0574c; --amber:#e0a54b; --blue:#4f83e6;
-  --shadow:0 12px 34px rgba(0,0,0,.45);
+  --bg:var(--bg-primary); --bg2:var(--bg-secondary); --card:var(--bg-card); --card2:var(--bg-card-hover);
+  --ink:var(--text-primary); --muted:var(--text-muted); --line:var(--border-color);
+  --teal:var(--accent-primary);
+  /* Ink ON the accent fill: the page background is the one ink that contrasts in every theme,
+     because each pairs a bright accent with a dark page (or a dark accent with a light page). */
+  --teal-ink:var(--bg-primary);
+  --green:var(--status-success); --red:var(--status-error);
+  --amber:var(--status-warning); --blue:var(--status-active);
+  --shadow:var(--panel-shadow);
   --radius:20px;
   --safe-b:env(safe-area-inset-bottom,0px);
 }
-@media (prefers-color-scheme: light){
-  :root{
-    --bg:#eef1f5; --bg2:#e6eaf0; --card:#ffffff; --card2:#f4f6f9;
-    --ink:#151b22; --muted:#5a6672; --line:rgba(21,27,34,.12);
-    --teal:#118a76; --teal-ink:#ffffff; --shadow:0 12px 30px rgba(21,27,34,.16);
-  }
-}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%}
+/* --bg2 is a GLASS token — translucent in every theme — and the body gradient uses it, so the page
+   needs an opaque ground underneath or the top of the gradient composites over the browser's white
+   canvas and washes out in the dark themes. */
+html{background:var(--bg)}
 body{
   background:radial-gradient(120% 90% at 50% -10%, var(--bg2), var(--bg) 60%);
   color:var(--ink);
@@ -71,7 +78,9 @@ header{
 header .brand{font-weight:800;letter-spacing:-.01em;font-size:1.05rem}
 header .brand small{display:block;color:var(--muted);font-weight:600;font-size:.68rem;letter-spacing:.06em;text-transform:uppercase}
 .pill{font-size:.7rem;font-weight:700;padding:4px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--card)}
-.pill.busy{color:var(--amber);border-color:rgba(224,165,75,.4)}
+/* Tinted borders are mixed FROM the status token so they track the theme instead of pinning a
+   status colour that no longer matches the palette. */
+.pill.busy{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 40%,transparent)}
 
 main{flex:1 1 auto;position:relative;overflow:hidden}
 .view{position:absolute;inset:0;display:none;flex-direction:column}
@@ -91,8 +100,8 @@ main{flex:1 1 auto;position:relative;overflow:hidden}
 .jobcard h2{margin:4px 0 10px;font-size:1.5rem;line-height:1.15;font-weight:850;letter-spacing:-.01em}
 .jc-meta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
 .chip{font-size:.72rem;font-weight:700;padding:4px 9px;border-radius:999px;background:var(--bg2);border:1px solid var(--line);color:var(--muted)}
-.chip.pay{color:var(--green);border-color:rgba(78,163,99,.35)}
-.chip.remote{color:var(--teal);border-color:rgba(34,184,160,.35)}
+.chip.pay{color:var(--green);border-color:color-mix(in srgb,var(--green) 35%,transparent)}
+.chip.remote{color:var(--teal);border-color:color-mix(in srgb,var(--teal) 35%,transparent)}
 .fit{display:flex;align-items:center;gap:12px;margin:2px 0 14px}
 .fit .ring{--v:0;width:56px;height:56px;border-radius:50%;flex:0 0 auto;
   background:conic-gradient(var(--teal) calc(var(--v)*1%), var(--line) 0);
@@ -145,17 +154,19 @@ main{flex:1 1 auto;position:relative;overflow:hidden}
 .tabpane{flex:1 1 auto;overflow:auto;-webkit-overflow-scrolling:touch;padding:14px}
 /* Packet panes are a column: the document fills the pane and scrolls inside its own frame, with
    the "open the real PDF" action pinned under it. min-height:0 is load-bearing — without it the
-   flex item refuses to shrink and the link is pushed off the bottom of the sheet. */
+   flex item refuses to shrink and the link is pushed off the bottom of the sheet.
+   The frame stays WHITE in every theme on purpose: it holds the printed résumé/cover page, so it
+   is a simulated sheet of paper rather than surface chrome. */
 .tabpane.pdf{padding:0;display:flex;flex-direction:column;overflow:hidden}
 .packet-frame{flex:1 1 auto;min-height:0;background:#fff}
 .tabpane iframe{width:100%;height:100%;border:0;background:#fff;display:block}
 .packet-pdf{flex:0 0 auto;margin:10px 12px calc(10px + var(--safe-b));text-decoration:none;text-align:center}
 .kchips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
-.kchips .ok{color:var(--green);border-color:rgba(78,163,99,.35)}
-.kchips .gap{color:var(--amber);border-color:rgba(224,165,75,.35)}
+.kchips .ok{color:var(--green);border-color:color-mix(in srgb,var(--green) 35%,transparent)}
+.kchips .gap{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 35%,transparent)}
 .sheet-foot{flex:0 0 auto;padding:12px 14px calc(12px + var(--safe-b));border-top:1px solid var(--line);background:var(--card)}
 .hint{color:var(--muted);font-size:.78rem;margin:0 0 9px;text-align:center}
-.offline{border:1px solid rgba(224,165,75,.4);background:rgba(224,165,75,.08);border-radius:12px;padding:12px;margin-bottom:10px}
+.offline{border:1px solid color-mix(in srgb,var(--amber) 40%,transparent);background:color-mix(in srgb,var(--amber) 8%,transparent);border-radius:12px;padding:12px;margin-bottom:10px}
 .offline b{color:var(--amber)}
 .offline .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .offline a.btn{display:block;text-align:center;text-decoration:none}
@@ -173,10 +184,10 @@ main{flex:1 1 auto;position:relative;overflow:hidden}
 .application-proof{margin-top:7px;padding:6px 8px;border:1px solid var(--line);border-radius:9px;
   color:var(--muted);font-size:.74rem;line-height:1.35;white-space:normal}
 .application-proof b{display:block;color:var(--ink)}
-.application-proof.proof-manual{border-color:rgba(79,131,230,.42)}
-.application-proof.proof-worker{border-color:rgba(224,165,75,.48)}
-.application-proof.proof-confirmation{border-color:rgba(78,163,99,.52)}
-.application-proof.proof-unverified{border-color:rgba(224,87,76,.42)}
+.application-proof.proof-manual{border-color:color-mix(in srgb,var(--blue) 42%,transparent)}
+.application-proof.proof-worker{border-color:color-mix(in srgb,var(--amber) 48%,transparent)}
+.application-proof.proof-confirmation{border-color:color-mix(in srgb,var(--green) 52%,transparent)}
+.application-proof.proof-unverified{border-color:color-mix(in srgb,var(--red) 42%,transparent)}
 
 /* ---------- Bottom nav ---------- */
 nav{flex:0 0 auto;display:flex;border-top:1px solid var(--line);background:var(--card);
@@ -186,14 +197,17 @@ nav button{flex:1;background:none;border:0;color:var(--muted);font:inherit;font-
 nav button .ic{font-size:1.25rem;line-height:1}
 nav button.active{color:var(--teal)}
 nav button .badge{position:absolute;top:4px;left:calc(50% + 8px);min-width:16px;height:16px;border-radius:999px;
-  background:var(--red);color:#fff;font-size:.62rem;font-weight:800;display:grid;place-items:center;padding:0 4px}
+  background:var(--red);color:var(--bg-primary);font-size:.62rem;font-weight:800;display:grid;place-items:center;padding:0 4px}
 
 .empty{text-align:center;color:var(--muted);padding:44px 20px}
 .empty .big{font-size:2.4rem;margin-bottom:8px}
 .spin{display:inline-block;width:15px;height:15px;border:2px solid var(--line);border-top-color:var(--teal);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
+/* NOTE: surface-glass.css (linked below) styles .toast with `background: var(--oshal-glass-bg)
+   !important` + backdrop blur, so it paints the toast when present. The background here is
+   only the standalone fallback for when that stylesheet fails to load. */
 .toast{position:fixed;left:50%;bottom:calc(78px + var(--safe-b));transform:translateX(-50%) translateY(20px);
-  background:#0b0f16;color:#fff;border:1px solid var(--line);padding:11px 16px;border-radius:12px;font-weight:700;font-size:.86rem;
+  background:var(--bg);color:var(--ink);border:1px solid var(--line);padding:11px 16px;border-radius:12px;font-weight:700;font-size:.86rem;
   opacity:0;pointer-events:none;transition:.2s;max-width:88%;text-align:center;z-index:50}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>

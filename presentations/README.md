@@ -21,6 +21,12 @@ surface"** carve — only the surface layer ships here:
   storage-target save layer (ADR-041), the email senders, and the deck-builder bot
   node (container + LOCAL-registry block + core persona, ADR-093 interim).
 
+## Roadmap specs
+
+| Doc | What |
+|---|---|
+| [docs/meeting-recap-spec.md](docs/meeting-recap-spec.md) | Recording → timeline of text+images → summary with highlighted screenshots → review PPTX. Pipeline proven on the JMN requirement sessions (166 min, three recordings); local-only transcription, faces cropped, one reasoning step. |
+
 ## Surfaces
 
 | Tile | URL | What |

@@ -5,6 +5,11 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard Apply V2 run/token storage parity and ensure offline migration never revives a one-time claim token.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Follow the storage-contract release while retaining the Apply V2 migration assertion.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Follow the ribbon-grouping release (1.7.0) while retaining the Apply V2 migration assertion.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Follow the master-resume release (1.8.0) while retaining the Apply V2 migration assertion.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Follow the Resume Studio auto-open release (1.8.1 — master doc opens on load; picker never waits on the packet feed).
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Follow the resume-tools release (1.9.0 — career_resume_read/career_resume_save declared + granted, so the chat bot can finally edit + re-render through the audited route rails).
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Follow the node release (1.9.1 - bots[0] declares container: career-bot / port: 5000 per ADR-093 Tier 2, so dispatch runs at the dedicated node and the ADR-127 demo-CLI carve governs the operator's turns).
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -21,7 +26,7 @@ const routeStore = read('src-routes', 'career-user-store.ts');
 const loader = read('scripts', 'migrate-sqlite-to-postgres.js');
 
 test('manifest ships the idempotent Apply V2 claim-binding migration', () => {
-  assert.match(manifest, /version:\s*1\.6\.4/);
+  assert.match(manifest, /version:\s*1\.9\.1/);
   assert.match(manifest, /migrations\/102-career-apply-run-binding\.sql/);
   assert.match(migration, /ADD COLUMN IF NOT EXISTS apply_run_id UUID/);
   assert.match(migration, /ADD COLUMN IF NOT EXISTS apply_claim_token UUID/);

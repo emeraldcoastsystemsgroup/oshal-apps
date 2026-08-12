@@ -10,12 +10,24 @@ approval queue → apply-pipeline handoff. It also provides the morning digest, 
 recruiters, strengthen, insights, approvals, settings, Resume Studio, Profile Studio, mobile swipe,
 submissions, and the jobs knowledge graph.
 
+Those surfaces reach the operator through a **sectioned ribbon**: Mobile leads ungrouped as the
+pinned front door, then **Job Search** (Job Board, Submissions, Recruiters, Insights), **Resume**
+(Strengthen, Resume Studio), and **Presence** (Profile Studio plus a cross-app tile into the
+separate `portrait-studio` package). Approvals, Companies, and Career Settings stay in the
+ungrouped bottom tray. The `group:` key that drives this, and the rules a cross-app tile has to
+follow, are written up in
+[docs/ribbon-groups-adr-085-addendum.md](docs/ribbon-groups-adr-085-addendum.md).
+
 ## Shape
 
 - `oshal-app.yaml` declares the service-or-OIDC `/api/career-hunter` mount, OIDC graph mount,
-  package bot, CLI tools, ribbon surfaces, `career-application` workflow, migrations, and requested
-  guest tier. Data routes still derive their subject from OIDC; only the admin refresh accepts a
-  trusted service subject and then rechecks Career administration.
+  package bot, CLI tools, grouped ribbon surfaces, the `portrait-studio` app dependency,
+  `career-application` workflow, migrations, and requested guest tier. Data routes still derive
+  their subject from OIDC; only the admin refresh accepts a trusted service subject and then
+  rechecks Career administration. `dependencies.connectors` is intentionally absent rather than
+  `[]`: present means "the complete set of connectors my surfaces may offer", and this app
+  reaches at least `anthropic`, `firecrawl`, `google`, and `twilio`, so an empty or partial list
+  would silently strip working connectors off Career Settings and the digest.
 - `src-routes/` contains small route-family registrars plus dependency leaves for user-store paths,
   brokered engine dispatch, process leases, transactional files, cron, feeds, scoring, studios,
   artifacts, job guide, graph, and onboarding. The canonical `oshal-app build` compiles every
@@ -30,6 +42,7 @@ submissions, and the jobs knowledge graph.
   runtime behavior, tenant paths, engine leases, bounded extraction, upload rollback, board
   planning, digest routing, graph ingestion, and resume preview behavior.
 - `scripts/` contains graph and insights smoke checks.
+- `docs/` contains the longer-form package notes, indexed by [docs/README.md](docs/README.md).
 
 ## Two board details that are not obvious from the code
 
@@ -64,13 +77,17 @@ remains the byte-identical artifact of record and every surface retains a top-le
   existing `user-<raw-sub>.db` basename, so database bytes and absolute artifact paths are not
   silently relocated. New unsafe identities use identity-marked encoded directories.
 - **Cross-app rails:** the apply pipeline, apply operator, LinkedIn profile operator, Portrait
-  Studio, and Profile Studio ingest callback remain shared integrations.
+  Studio, and Profile Studio ingest callback remain shared integrations. Portrait Studio is now
+  also a declared `dependencies.apps` entry and a Presence-group ribbon tile pointing at that
+  package's own `/api/portrait-studio/app` surface — so its guest tier, not this package's,
+  governs that tile.
 - **Morning brief:** the kernel's `career-brief-bridge` consumes this package's hits and skips them
   cleanly when the package is absent.
 
 <!-- 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | Document fail-closed credential recovery after removal of the public encryption-key fallback. -->
 <!-- 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | Document the canonical framework build and dependency-free versus framework-backed Career validation commands. -->
 <!-- 2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | Document exact engine pins, the required dual-backend contract, convergence evidence, and the gated cutover runbook. -->
+<!-- 2026-08-11 | maintainer@emeraldcoastsystemsgroup.com | Document the sectioned ribbon (Job Search / Resume / Presence), the cross-app Portrait Studio tile and its inherited guest tier, the deliberately absent connector allow-list, and the new docs/ index. -->
 
 ## Build and validation
 

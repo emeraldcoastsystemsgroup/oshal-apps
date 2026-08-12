@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR                                    | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Add the Resume Studio MASTER document mapping: base_document() (straight, model-free profile -> editor shape) and replace_resume_fields() (whitelist write-back reusing augment's backup/audit/atomic-replace rails), so the durable profile every tailored resume is generated from finally has an editor.
+
 """Loads the user's career_db.json and renders a compact profile for prompts."""
 from __future__ import annotations
 import json
@@ -564,3 +570,205 @@ def absorb(file_path: str, kind: str = "other") -> dict:
     res = augment(facts)
     return {"ok": res.get("ok") is True, "changed": res.get("changed") is True,
             "kind": kind, "changelog": res.get("changelog", [])}
+
+
+# ── Master-resume editor mapping (Resume Studio "master" document) ──
+# The studio's per-job packets are generated FROM this durable profile; these functions give the
+# surface a first-class editor over the profile itself. base_document() is a STRAIGHT mapping —
+# no model call, no fabrication. replace_resume_fields() is the whitelist write-back that reuses
+# augment()'s safety rails (bounded sizes, backup rotation, audit record, atomic replace).
+_MASTER_TEXT_FIELDS = (
+    ("headline", "headline", 400),
+    ("summary", "experience_summary", 4000),
+    ("clearance", "clearance", 300),
+)
+_MASTER_EXTRA_SKILL_GROUP = "Additional Skills"
+_MASTER_MAX_COMPETENCIES = 40
+_MASTER_MAX_SKILLS = 120
+_MASTER_MAX_BULLETS = 24
+_MASTER_ITEM_MAX_CHARS = 200
+_MASTER_BULLET_MAX_CHARS = 1000
+
+
+def base_document() -> dict:
+    """Assemble the Resume Studio editor document for the MASTER resume.
+
+    A straight, model-free mapping of career_db.json into the exact shape the studio's
+    renderPreview/applyAction already speak: headline (the profile's optional headline field,
+    falling back to the credential line — both candidate-stated, nothing invented), summary,
+    competencies, experience (roles with verbatim deliverable bullets), a flattened skills
+    list in group order, and clearance. Returns {resume, cover, meta{master: True}}."""
+    d = load()
+    p = d.get("profile", {}) or {}
+    experience = [{
+        "title": r.get("title", ""),
+        "org": r.get("org", ""),
+        "span": f"{r.get('start', '')}–{r.get('end') or 'present'}",
+        "bullets": [str(b) for b in (r.get("deliverables") or [])],
+    } for r in d.get("roles", []) or []]
+    flat_skills = []
+    for group in (d.get("skills", {}) or {}).values():
+        flat_skills.extend(str(item) for item in (group or {}).get("items", []) or [])
+    return {
+        "resume": {
+            "headline": p.get("headline") or p.get("credential") or "",
+            "summary": p.get("experience_summary", ""),
+            "competencies": [str(c) for c in d.get("competencies") or []],
+            "experience": experience,
+            "skills": flat_skills,
+            "clearance": p.get("clearance", ""),
+        },
+        "cover": {},
+        "meta": {"master": True, "name": p.get("name", "")},
+    }
+
+
+def _bounded_master_str(value, limit: int, label: str) -> str:
+    """Validate one editor text field, refusing (never silently truncating) oversize content."""
+    if not isinstance(value, str):
+        raise ValueError(f"{label} must be a string")
+    text = value.strip()
+    if len(text) > limit:
+        raise ValueError(f"{label} exceeds {limit} characters")
+    return text
+
+
+def _bounded_master_list(items, max_items: int, max_chars: int, label: str) -> list:
+    """Validate one editor string list under explicit count and per-item character bounds."""
+    if not isinstance(items, list):
+        raise ValueError(f"{label} must be a list")
+    if len(items) > max_items:
+        raise ValueError(f"{label} exceeds {max_items} items")
+    bounded = []
+    for item in items:
+        text = _bounded_master_str(item, max_chars, f"{label} item")
+        if text:
+            bounded.append(text)
+    return bounded
+
+
+def _apply_master_texts(raw: dict, resume: dict, changelog: list) -> bool:
+    """Apply only the whitelisted text fields the payload actually carries."""
+    profile_block = raw.setdefault("profile", {})
+    changed = False
+    for key, target, limit in _MASTER_TEXT_FIELDS:
+        if key not in resume:
+            continue
+        value = _bounded_master_str(resume.get(key), limit, key)
+        if str(profile_block.get(target, "") or "") != value:
+            profile_block[target] = value
+            changelog.append(f"{key} updated")
+            changed = True
+    return changed
+
+
+def _regroup_master_skills(raw: dict, items: list) -> bool:
+    """Apply the editor's flat skills list while preserving the profile's group structure.
+
+    Items kept in the list stay in their existing groups, removed items leave their groups,
+    and brand-new items land in one dedicated additions group so durable grouping survives."""
+    wanted = _low(items)
+    groups = raw.setdefault("skills", {})
+    changed = False
+    covered = set()
+    for name in list(groups):
+        entry = groups.get(name) or {}
+        existing = entry.get("items", []) or []
+        kept = [item for item in existing if str(item).strip().lower() in wanted]
+        covered.update(str(item).strip().lower() for item in kept)
+        if kept != existing:
+            entry["items"] = kept
+            groups[name] = entry
+            changed = True
+    additions = [item for item in items if item.lower() not in covered]
+    if additions:
+        grp = groups.setdefault(_MASTER_EXTRA_SKILL_GROUP, {"items": []})
+        grp.setdefault("items", [])
+        changed = _append_unique(grp["items"], additions) or changed
+    return changed
+
+
+def _apply_master_lists(raw: dict, resume: dict, changelog: list) -> bool:
+    """Apply the whitelisted competencies and skills lists the payload actually carries."""
+    changed = False
+    if "competencies" in resume:
+        items = _bounded_master_list(
+            resume.get("competencies"), _MASTER_MAX_COMPETENCIES, _MASTER_ITEM_MAX_CHARS,
+            "competencies")
+        if items != [str(c) for c in raw.get("competencies") or []]:
+            raw["competencies"] = items
+            changelog.append(f"competencies updated ({len(items)})")
+            changed = True
+    if "skills" in resume:
+        items = _bounded_master_list(
+            resume.get("skills"), _MASTER_MAX_SKILLS, _MASTER_ITEM_MAX_CHARS, "skills")
+        if _regroup_master_skills(raw, items):
+            changelog.append("skills updated")
+            changed = True
+    return changed
+
+
+def _apply_master_bullets(raw: dict, resume: dict, changelog: list) -> bool:
+    """Apply per-role bullets, matching each entry by index AND title; any mismatch refuses."""
+    if "experience" not in resume:
+        return False
+    entries = resume.get("experience")
+    if not isinstance(entries, list):
+        raise ValueError("experience must be a list")
+    roles = raw.get("roles", []) or []
+    if len(entries) > len(roles):
+        raise ValueError("experience has more entries than the profile has roles")
+    changed = False
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            raise ValueError(f"experience entry {index + 1} must be an object")
+        title = str(entry.get("title", "")).strip()
+        role_title = str(roles[index].get("title", "")).strip()
+        if title != role_title:
+            raise ValueError(
+                f"experience entry {index + 1} title does not match the profile role "
+                f"(got {title!r}, profile has {role_title!r}) — "
+                "master save matches roles by index and title")
+        if "bullets" not in entry:
+            continue
+        bullets = _bounded_master_list(
+            entry.get("bullets"), _MASTER_MAX_BULLETS, _MASTER_BULLET_MAX_CHARS,
+            f"role {index + 1} bullets")
+        if bullets != [str(b) for b in roles[index].get("deliverables") or []]:
+            roles[index]["deliverables"] = bullets
+            changelog.append(f"role {index + 1} ({title}) bullets updated ({len(bullets)})")
+            changed = True
+    return changed
+
+
+def replace_resume_fields(doc: dict) -> dict:
+    """Whitelist write-back of the studio's MASTER document into career_db.json.
+
+    Applies ONLY headline, summary, clearance, competencies, skills, and per-role bullets
+    (matched by index AND title — any mismatch refuses the whole save with the file
+    untouched). Everything else in the payload is ignored. Persistence reuses augment()'s
+    rails: pre-image backup with rotation, bounded audit record, atomic replace, and cache
+    invalidation. Returns {ok, changed, changelog} or {ok: False, error}."""
+    if not isinstance(doc, dict) or not isinstance(doc.get("resume"), dict):
+        return {"ok": False, "error": "invalid master resume document"}
+    if not config.CAREER_DB.exists():
+        return {"ok": False, "error": "no career profile yet — upload a resume first"}
+    text = _read_profile_text()
+    try:
+        raw = json.loads(text)
+    except ValueError:
+        # A corrupt profile file must answer the refusal shape, not a traceback: the route
+        # maps {ok: False} to a readable 422 while a raised exception becomes a generic 500.
+        return {"ok": False, "error": "career profile file is unreadable — restore from backup"}
+    resume = doc["resume"]
+    changelog: list = []
+    try:
+        changed = _apply_master_bullets(raw, resume, changelog)
+        changed = _apply_master_texts(raw, resume, changelog) or changed
+        changed = _apply_master_lists(raw, resume, changelog) or changed
+        if not changed:
+            return _augmentation_result(False, [])
+        _persist_augmentation(text, raw, "resume-studio master edit", changelog)
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc)}
+    return _augmentation_result(True, changelog)

@@ -65,6 +65,8 @@ Module._load = function loadWithUserStoreStubs(request, ...rest) {
     return { createChildLogger: () => ({ info() {}, warn() {}, error() {}, debug() {} }) };
   }
   if (request === '@/app/routes/caller-sub') return { callerSub: () => null };
+  // No trusted-service identity in these isolation runs — the OIDC-only path stays exercised.
+  if (request === '@/shared/middleware/authz') return { getTrustedServiceUserSub: () => null };
   if (request === 'better-sqlite3') return FixtureDatabase;
   return originalLoad.call(this, request, ...rest);
 };
