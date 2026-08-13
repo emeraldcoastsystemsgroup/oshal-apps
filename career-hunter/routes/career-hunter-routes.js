@@ -18,6 +18,7 @@
  * 12 | maintainer@emeraldcoastsystemsgroup.com   | Moved caller identity and store primitives into a cycle-free dependency leaf.
  * 13 | maintainer@emeraldcoastsystemsgroup.com   | Decomposed the composition root into bounded route-family modules while preserving its public exports.
  * 14 | maintainer@emeraldcoastsystemsgroup.com   | Registered caller-scoped offline application autofill bookmarklet generation.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com   | Registered the corpus-only browse feed used before a resume is indexed.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.userPaths = exports.openUserDb = exports.listStoreUsers = exports.callerSub = exports.isCareerAdmin = exports.buildJobFilters = exports.enqueueForUser = void 0;
@@ -37,6 +38,7 @@ const career_artifacts_1 = require("./career-artifacts");
 const career_autofill_routes_1 = require("./career-autofill-routes");
 const career_automation_1 = require("./career-automation");
 const career_board_routes_1 = require("./career-board-routes");
+const career_browse_routes_1 = require("./career-browse-routes");
 const career_company_routes_1 = require("./career-company-routes");
 const career_digest_1 = require("./career-digest");
 const career_job_guide_1 = require("./career-job-guide");
@@ -85,6 +87,7 @@ function registerExtractedRouteFamilies(router, ctx) {
     (0, career_company_routes_1.registerCareerCompanyRoutes)(router, ctx);
     (0, career_application_routes_1.registerCareerApplicationReadRoutes)(router, ctx);
     (0, career_board_routes_1.registerCareerBoardRoutes)(router, ctx);
+    (0, career_browse_routes_1.registerCareerBrowseRoutes)(router);
     (0, career_recruiter_routes_1.registerCareerRecruiterRoutes)(router);
     (0, career_strengthen_routes_1.registerCareerStrengthenRoutes)(router, ctx);
     (0, career_application_routes_1.registerCareerApplicationMutationRoutes)(router, ctx);

@@ -11,6 +11,8 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Release strict backend selection, dual-store contract evidence, convergent replay, and stable interview source identity as version 1.6.4.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Group the top ribbon into Job Search / Resume / Presence sections, add the cross-app Portrait Studio entry, and declare the portrait-studio app dependency as version 1.7.0.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Release the Resume Studio master document (view + guide + whitelisted save-back into the durable career profile on augment's backup/audit rails) as version 1.8.0.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Release the pre-resume job search: a corpus-only browse feed, a score-free board mode, and an Apply that starts resume onboarding, as version 1.10.0.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Release the opaque mobile swipe card, so the role behind the lead one no longer reads through it, as version 1.10.1.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — career-hunter (Career Hunter)
@@ -51,7 +53,7 @@ description: >-
   posting against your private career profile, and turns the best fits into a human-in-the-loop
   application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume +
   cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.
-version: 1.9.1
+version: 1.10.1
 status: active
 theme: daylight
 

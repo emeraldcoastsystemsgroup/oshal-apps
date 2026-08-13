@@ -16,6 +16,7 @@
   5 | maintainer@emeraldcoastsystemsgroup.com | Render explicit, redacted application provenance without treating manual or worker-reported completion as confirmation-backed.
   6 | maintainer@emeraldcoastsystemsgroup.com | Surface a private per-user offline autofill bookmarklet that remains usable when the OSHAL stack is unavailable.
   7 | maintainer@emeraldcoastsystemsgroup.com | Explain the supported-site, page-event boundary for offline autofill without promising control over employer page scripts.
+  8 | maintainer@emeraldcoastsystemsgroup.com | Search and browse the openings before a resume exists, and make Apply the resume-upload onboarding step.
 -->
 <html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -129,9 +130,10 @@
 <body>
 <div class="wrap">
   <h1>Job Board</h1>
-  <p class="sub">Scored corpus + your pipeline.</p>
+  <p class="sub" id="sub">Scored corpus + your pipeline.</p>
   <div class="tabs" id="tabs"></div>
   <div id="onboard" hidden></div>
+  <div id="intent" hidden></div>
   <div class="bar">
     <input id="q" type="search" placeholder="Search title or description…"/>
     <label>Sort
@@ -141,7 +143,7 @@
         <option value="company">Company</option><option value="generated">Generated</option><option value="applied">Application records</option>
       </select>
     </label>
-    <label>Fit≥<select id="min_score"><option value="">any</option><option>70</option><option>80</option><option>90</option></select></label>
+    <label id="fitWrap">Fit≥<select id="min_score"><option value="">any</option><option>70</option><option>80</option><option>90</option></select></label>
     <label>$≥<select id="min_pay"><option value="">any</option><option value="100000">100k</option><option value="150000">150k</option><option value="200000">200k</option><option value="250000">250k</option></select></label>
     <label>Posted<select id="days"><option value="">any</option><option value="7">7d</option><option value="14">14d</option><option value="30">30d</option></select></label>
     <label><input type="checkbox" id="remote"/> Remote</label>
@@ -283,6 +285,50 @@ function card(j){
   </div>`;
 }
 
+// A browse card. No fit / P(land) / high-win, because nothing has been scored against a resume
+// that does not exist yet — and no Generate / Submit / Mark-applied, because those all need the
+// résumé too. What it has instead is Apply, which is the honest next step: it starts onboarding.
+// The job travels on data-* attributes through esc(), NOT interpolated into an inline handler —
+// a title carrying an apostrophe would otherwise break out of the attribute.
+function browseCard(j){
+  const sal=salary(j);
+  return `<div class="card" data-job-id="${j.id}">
+    <div class="top"><div><p class="title">${esc(j.title)}</p><p class="co">${esc(j.company||'')}</p></div></div>
+    <div class="meta">${sal?`<span class="sal">${sal}</span>`:''}${j.location?`<span>${esc(j.location)}</span>`:''}${j.remote?'<span>remote</span>':''}${j.job_type?`<span>${esc(j.job_type)}</span>`:''}${j.posted_date?`<span>posted ${esc(j.posted_date)}</span>`:''}${j.industry?`<span>${esc(j.industry)}</span>`:''}</div>
+    <div class="acts">
+      <button class="btn submit" data-apply="${j.id}" data-title="${esc(j.title||'')}" data-company="${esc(j.company||'')}">Apply with OSHAL ▶</button>
+      ${j.url?`<a class="btn go" href="${esc(j.url)}" target="_blank" rel="noopener">Open posting ↗</a>`:''}
+    </div>
+  </div>`;
+}
+listEl.addEventListener('click',e=>{
+  const b=e.target.closest&&e.target.closest('[data-apply]');
+  if(!b) return;
+  applyIntent({ id:Number(b.dataset.apply), title:b.dataset.title||'', company:b.dataset.company||'' });
+});
+
+// ── Apply-before-resume ──────────────────────────────────────────────────────
+// Apply on a browse card cannot submit anything, so it does the only useful thing it can: it
+// remembers WHICH job the user wanted and hands them the resume upload, named after that job.
+// The intent survives the 2-3 minute index + score, which is the whole point — the user comes
+// back to a scored board and we can still say what they were reaching for.
+const INTENT_KEY='career-board.applyIntent.v1';
+const INTENT_TTL=14*24*60*60*1000;
+function readIntent(){
+  try {
+    const v=JSON.parse(localStorage.getItem(INTENT_KEY)||'null');
+    return (v && v.id && (Date.now()-(v.at||0))<INTENT_TTL) ? v : null;
+  } catch(e){ return null; }
+}
+function clearIntent(){ try{ localStorage.removeItem(INTENT_KEY); }catch(e){ /* private mode */ } }
+function applyIntent(job){
+  try{ localStorage.setItem(INTENT_KEY, JSON.stringify({...job, at:Date.now()})); }catch(e){ /* private mode */ }
+  renderGetStarted(job);
+  const ob=$('onboard');
+  ob.hidden=false;
+  if(ob.scrollIntoView) ob.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
 // ── Filter memory ────────────────────────────────────────────────────────────
 // The board is an iframe surface, so every ribbon navigation reloads this document and drops any
 // in-memory state. The filter set is therefore persisted to localStorage on every change and
@@ -297,6 +343,9 @@ function currentFilters(){
   FILTER_IDS.forEach(k=>{ const v=$(k).value; if(v) f[k]=v; });
   if($('remote').checked) f.remote='1';
   if(activeStatus) f.status=activeStatus;
+  // Browse has no scores and no pipeline, so a remembered fit floor or status tab would filter
+  // against columns the corpus-only feed never reads. Drop them rather than send them.
+  if(mode==='browse'){ delete f.min_score; delete f.status; }
   return f;
 }
 function applyFilters(f){
@@ -321,21 +370,42 @@ function rememberFilters(){
   }catch(e){ /* replaceState is best-effort */ }
 }
 function clearFilters(){
-  FILTER_IDS.forEach(k=>{ $(k).value = k==='sort' ? 'ai' : ''; });
+  const fallback = mode==='browse' ? 'recent' : 'ai';
+  FILTER_IDS.forEach(k=>{ $(k).value = k==='sort' ? fallback : ''; });
   $('remote').checked=false; activeStatus='';
   rememberFilters(); loadStats(); loadJobs();
 }
 
 function jobsQuery(){
   const p=new URLSearchParams(currentFilters());
-  p.set('per','150');
+  p.set('per', mode==='browse' ? '60' : '150');
   return p;
 }
 function fetchJobs(){
-  return fetch('/api/career-hunter/jobs?'+jobsQuery()).then(r=>r.json());
+  // Two feeds, one surface. /jobs ranks the caller's scored signals; /browse reads the shared
+  // corpus alone and is the only one that can answer anything before a resume is indexed.
+  const path = mode==='browse' ? '/api/career-hunter/browse' : '/api/career-hunter/jobs';
+  return fetch(path+'?'+jobsQuery()).then(r=>r.json());
+}
+function renderBrowse(jobs, info){
+  if(info.empty){ listEl.innerHTML='<div class="empty">No openings have been ingested yet.</div>'; countEl.textContent=''; return; }
+  const notes=[];
+  if(jobs.length && info.poolSize) notes.push(`searched the first ${info.poolSize.toLocaleString()} title matches`);
+  if(info.capped) notes.push('narrow the search to page deeper');
+  const filtered=Object.keys(currentFilters()).some(k=>k!=='sort');
+  countEl.innerHTML = (jobs.length?`${jobs.length} open role${jobs.length===1?'':'s'}`:'')
+    + (notes.length?` <span class="hint">· ${esc(notes.join(' · '))}</span>`:'')
+    + (filtered?` <a href="#" id="clearFilters" class="hint" style="text-decoration:underline">clear filters</a>`:'');
+  const cf=$('clearFilters'); if(cf) cf.onclick=e=>{ e.preventDefault(); clearFilters(); };
+  listEl.innerHTML = jobs.length ? jobs.map(browseCard).join('')
+    : '<div class="empty">No open roles match that search.</div>';
 }
 function renderJobs(data){
   const { jobs=[], empty, pooled, poolSize, exhausted } = data||{};
+  if(data && data.browse){
+    renderBrowse(jobs, { empty, poolSize: data.pooled?poolSize:null, capped: data.capped });
+    return;
+  }
   if(empty){ listEl.innerHTML='<div class="empty">No job data yet. Run a pull from Career Settings.</div>'; countEl.textContent=''; return; }
   const filtered=Object.keys(currentFilters()).some(k=>k!=='sort');
   const notes=[];
@@ -644,24 +714,90 @@ let qt; $('q').addEventListener('input',()=>{ clearTimeout(qt); qt=setTimeout(re
 ['sort','min_score','min_pay','days'].forEach(k=>$(k).addEventListener('change',refilter));
 $('remote').addEventListener('change',refilter);
 
-// ── Getting started: a new user has no indexed resume, so the board can't score anything.
-// Gate the board behind a one-time resume upload + index. ───────────────────────────────
-function boardControls(show){ ['tabs','count','list'].forEach(id=>{const e=$(id); if(e) e.style.display=show?'':'none';}); const bar=document.querySelector('.bar'); if(bar) bar.style.display=show?'':'none'; }
-function renderGetStarted(){
+// ── Board modes ──────────────────────────────────────────────────────────────
+// 'scored' — an indexed resume and AI-scored matches: the full board.
+// 'browse' — signed in, nothing indexed yet. The openings are STILL searchable; what is missing is
+//            every score-shaped affordance (fit floor, pipeline tabs, submit rails), because those
+//            all read a résumé that does not exist. This mode is the funnel: it used to be a blank
+//            page behind an upload box, so a new account could not see what it was signing up for.
+// 'hidden' — mid-index / failed-ingest, where a board underneath would just be noise.
+let mode='scored';
+const SCORED_SORT_HTML=$('sort').innerHTML;
+const BROWSE_SORTS=[['recent','Newest'],['posted','Recently posted'],['salary','Salary'],['company','Company'],['title','Title']];
+function setVisible(el,on){ if(el) el.style.display = on ? '' : 'none'; }
+/** Swap the sort menu between the scored keys and the corpus-only keys, preserving the choice. */
+function setSortOptions(browse){
+  const sel=$('sort'); const want=browse?'browse':'scored';
+  if(sel.dataset.set===want) return;
+  const keep=sel.value; sel.dataset.set=want;
+  sel.innerHTML = browse
+    ? BROWSE_SORTS.map(([v,l])=>`<option value="${v}">${l}</option>`).join('')
+    : SCORED_SORT_HTML;
+  const valid=[...sel.options].some(o=>o.value===keep);
+  sel.value = valid ? keep : (browse?'recent':'ai');
+}
+function setMode(next){
+  mode=next;
+  const on = next!=='hidden', browse = next==='browse';
+  ['count','list'].forEach(id=>setVisible($(id),on));
+  setVisible(document.querySelector('.bar'),on);
+  setVisible($('tabs'), on && !browse);
+  setVisible($('fitWrap'), on && !browse);
+  setVisible(document.querySelector('.countrow .bulk'), on && !browse);
+  setVisible($('applyRules'), on && !browse);
+  setVisible($('autofillRules'), on && !browse);
+  $('q').placeholder = browse ? 'Search job titles…' : 'Search title or description…';
+  const sub=$('sub');
+  if(sub) sub.textContent = browse
+    ? 'Every opening we track. Search it now — scores and tailored résumés arrive with your resume.'
+    : 'Scored corpus + your pipeline.';
+  if(on) setSortOptions(browse);
+}
+// ── Getting started: a new user has no indexed resume, so the board can't score anything. ──
+// `intent` is the job an Apply click was reaching for; naming it is what makes the upload feel
+// like the next step in applying rather than a toll gate in front of an empty page.
+function renderGetStarted(intent){
+  const lead = intent
+    ? `To apply to <b>${esc(intent.title||'this role')}</b>${intent.company?` at <b>${esc(intent.company)}</b>`:''},
+       OSHAL writes you a tailored résumé and cover letter — so it needs your current resume first.
+       Upload it and we'll bring you back to this one.`
+    : `You're browsing every opening we've collected. Upload your resume to get a <b>fit score</b> on
+       each of them, a tailored résumé + cover letter per job, and one-click apply.`;
   $('onboard').innerHTML = `
-  <div style="border:1px solid var(--line);border-radius:14px;padding:28px;max-width:680px;margin:18px auto;background:rgba(255,255,255,.02);">
-    <h2 style="margin:0 0 6px;font-size:18px;">Get started — index your resume</h2>
-    <p class="sub" style="margin:0 0 16px;">The board scores every opening against <b>your</b> background, so it needs your resume first.</p>
-    <ol style="color:var(--muted);font-size:13px;line-height:1.7;padding-left:18px;margin:0 0 18px;">
-      <li>Upload your resume (<b>PDF</b> or <b>DOCX</b>) — it's stored privately to your account.</li>
-      <li>We index it into your profile: experience, skills, and metrics. This takes about <b>2–3 minutes</b> and starts the moment you upload.</li>
-      <li>Then pull fresh jobs and every posting gets a fit score against your background.</li>
-      <li>Fine-tune anytime from <b>Resume Strengthen</b> — answer a few gap questions and your future resumes pull the new facts automatically.</li>
-    </ol>
+  <div style="border:1px solid var(--${intent?'accent':'line'});border-radius:14px;padding:22px;max-width:680px;margin:18px auto;background:rgba(255,255,255,.02);">
+    <h2 style="margin:0 0 6px;font-size:18px;">${intent?'One step first — index your resume':'Get started — index your resume'}</h2>
+    <p class="sub" style="margin:0 0 14px;">${lead}</p>
     <input type="file" id="obFile" accept=".pdf,.docx,.txt,.md" style="display:none" onchange="uploadResume(this)"/>
     <button class="btn go" id="obBtn" onclick="document.getElementById('obFile').click()" style="font-size:14px;padding:10px 18px;">Upload &amp; index my resume</button>
     <p class="sub" style="margin:12px 0 0;font-size:11px;">PDF or DOCX, up to 8&nbsp;MB. Stored to your account only.</p>
+    <details class="rules" style="margin:14px 0 0;">
+      <summary>What happens after I upload</summary>
+      <ol style="color:var(--muted);font-size:13px;line-height:1.7;padding-left:18px;margin:0 0 12px;">
+        <li>We index it into your profile: experience, skills, and metrics. About <b>2–3 minutes</b>, starting the moment you upload.</li>
+        <li>Every posting already in the board gets a fit score against your background.</li>
+        <li>Pick a job and OSHAL writes the résumé + cover letter for it.</li>
+        <li>Fine-tune anytime from <b>Resume Strengthen</b> — answer a few gap questions and your future resumes pull the new facts automatically.</li>
+      </ol>
+    </details>
   </div>`;
+}
+/** After indexing, say what the user was reaching for before they had to stop and upload. */
+function renderIntentBanner(){
+  const bar=$('intent'); if(!bar) return;
+  const it=readIntent();
+  if(!it){ bar.hidden=true; bar.innerHTML=''; return; }
+  bar.hidden=false;
+  bar.innerHTML = `<div class="card" style="border-color:var(--accent)">
+    <div class="meta" style="margin:0">
+      <span>Your resume is indexed — you can apply to <b>${esc(it.title||'the role you picked')}</b>${it.company?` at <b>${esc(it.company)}</b>`:''} now.</span>
+      <button class="btn go" id="intentGo">Find it</button>
+      <button class="btn" id="intentNo">Dismiss</button>
+    </div></div>`;
+  $('intentGo').onclick=()=>{
+    $('q').value=it.title||''; activeStatus='';
+    clearIntent(); bar.hidden=true; rememberFilters(); loadStats(); loadJobs();
+  };
+  $('intentNo').onclick=()=>{ clearIntent(); bar.hidden=true; bar.innerHTML=''; };
 }
 function renderIndexing(){
   $('onboard').innerHTML = `
@@ -724,19 +860,26 @@ async function checkOnboarding(prefetch){
   catch(e){ st={hasResume:true,scored:1}; } // never block the board on a status hiccup
   const ob=$('onboard');
   if(st && st.indexing){
-    boardControls(false); ob.hidden=false; renderIndexing(); setTimeout(checkOnboarding,6000); return;
+    // Indexing takes 2-3 minutes; there is no reason to take the openings away for it.
+    setMode('browse'); ob.hidden=false; renderIndexing();
+    if(!listEl.querySelector('.card')) loadJobs();
+    setTimeout(checkOnboarding,6000); return;
   }
   if(st && st.ingest && st.ingest.state==='failed'){
-    boardControls(false); ob.hidden=false; renderIngestFailure(st.ingest.error); return;
+    setMode('hidden'); ob.hidden=false; renderIngestFailure(st.ingest.error); return;
   }
   if(st && st.hasResume && st.scored>0){
-    ob.hidden=true; boardControls(true);
+    ob.hidden=true; setMode('scored'); renderIntentBanner();
     if(feed){ const d=await feed; if(d && !d.error){ renderJobs(d); return; } }
     loadStats(); loadJobs(); return;
   }
-  boardControls(false); ob.hidden=false;
-  if(st && st.hasResume){ renderBuildBoard(); return; }   // resume done, no scored jobs yet
-  renderGetStarted();
+  // No scored board yet — but the corpus is still worth showing. The onboarding card rides ABOVE
+  // a live, searchable browse feed instead of replacing it, so the openings are what sells the
+  // upload rather than the other way round.
+  ob.hidden=false; setMode('browse');
+  if(st && st.hasResume) renderBuildBoard();              // resume done, nothing scored yet
+  else renderGetStarted(readIntent());
+  loadJobs();
 }
 
 // The chosen target computer — '' means let the dispatcher auto-pick. Threaded into every submit.

@@ -1,7 +1,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — Portrait Studio
 #
-# Upload a photo, crop the head, and generate a portrait:
+# Take or upload a photo, crop the head, and generate a portrait:
 #   • Professional mode — a studio-quality headshot (backdrop, attire, framing).
 #   • Character mode — the fun side: the subject's face (person OR pet) on a
 #     human-type body, hands in frame, in a themed scene — American Gothic with
@@ -17,8 +17,9 @@ displayName: Portrait Studio
 description: >-
   Turn any photo into a portrait worth framing — a professional studio
   headshot, or your pet's face on a human body holding a pitchfork.
-  Upload, crop the head, pick a style, generate.
-version: 1.3.0
+  Take the photo with your camera or upload one, crop the head, pick a
+  style, generate.
+version: 1.4.0
 status: active
 # Deployment-wide tile visibility (the little-monsters lesson: person-scope hid
 # the installed row from every other user). Portrait DATA stays strictly

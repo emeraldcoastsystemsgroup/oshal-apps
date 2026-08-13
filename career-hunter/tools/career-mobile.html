@@ -31,6 +31,7 @@
   1 | maintainer@emeraldcoastsystemsgroup.com | Render explicit, redacted application provenance and stop presenting every recorded outcome as confirmation-backed.
   2 | maintainer@emeraldcoastsystemsgroup.com | Require an explicit pull-more action before enqueueing drafts, render owner-scoped durable apply state, and state final-submit consent accurately.
   3 | maintainer@emeraldcoastsystemsgroup.com | Join the canonical surface theme rail (surface-themes.css + surface-theme.js) and derive every palette alias from framework tokens. The surface hardcoded a dark palette plus a prefers-color-scheme override, so it ignored the operator's chosen cockpit theme and rendered near-black on a light theme.
+  4 | maintainer@emeraldcoastsystemsgroup.com | Paint the swipe deck's cards on the document's opaque ground. --card/--card2 are glass tokens and the deck stacks the next role under the lead one at the same inset, so the operator could read the next opportunity straight through the card they were about to swipe.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -88,8 +89,16 @@ main{flex:1 1 auto;position:relative;overflow:hidden}
 
 /* ---------- Discover / swipe deck ---------- */
 #deck{flex:1 1 auto;position:relative;margin:6px 16px}
+/* The deck stacks the next role UNDERNEATH the lead one at the same inset:0 box, and --card /
+   --card2 are GLASS tokens (0.55-0.62 alpha in every theme). A card painted with those alone
+   therefore composites over the card behind it, and the operator reads the next opportunity
+   straight through the one they are about to swipe. The glass gradient stays — it is what makes
+   the card look like the rest of the cockpit — but it is now painted ON an opaque ground: the
+   SAME token the document uses for its own ground (see `html{background:var(--bg)}` above), so
+   a card is exactly as opaque as the page in all eleven themes and no theme can regress it. */
 .jobcard{
-  position:absolute;inset:0;background:linear-gradient(160deg,var(--card),var(--card2));
+  position:absolute;inset:0;
+  background:linear-gradient(160deg,var(--card),var(--card2)),var(--bg);
   border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);
   padding:20px 20px 16px;display:flex;flex-direction:column;
   will-change:transform;touch-action:pan-y;

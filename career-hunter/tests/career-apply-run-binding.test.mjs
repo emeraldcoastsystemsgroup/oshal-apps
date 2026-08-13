@@ -26,7 +26,7 @@ const routeStore = read('src-routes', 'career-user-store.ts');
 const loader = read('scripts', 'migrate-sqlite-to-postgres.js');
 
 test('manifest ships the idempotent Apply V2 claim-binding migration', () => {
-  assert.match(manifest, /version:\s*1\.9\.1/);
+  assert.match(manifest, /version:\s*1\.10\.1/);
   assert.match(manifest, /migrations\/102-career-apply-run-binding\.sql/);
   assert.match(migration, /ADD COLUMN IF NOT EXISTS apply_run_id UUID/);
   assert.match(migration, /ADD COLUMN IF NOT EXISTS apply_claim_token UUID/);

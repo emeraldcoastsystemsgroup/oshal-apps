@@ -7,6 +7,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Carry the durable Apply run id and one-time claim token through SQLite, legacy, and PostgreSQL application stores.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Seed PostgreSQL recruiter rows with stable source ids matching their declared composite key.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Make fresh SQLite schemas include every indexed corpus and lifecycle column before indexes and writes use them.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Index the corpus for the pre-resume title browse so its keyword search is covered rather than scanning descriptions.
 
 """Storage layer. Two backends, selected by JOBHUNTER_STORE (see config.STORE).
 
@@ -699,6 +700,11 @@ CREATE INDEX IF NOT EXISTS corpus.idx_corpus_target  ON postings_corpus(target_r
 CREATE INDEX IF NOT EXISTS corpus.idx_corpus_lane ON postings_corpus(active, target_role);
 CREATE INDEX IF NOT EXISTS corpus.idx_corpus_company_active ON postings_corpus(company_id, active);
 CREATE INDEX IF NOT EXISTS corpus.idx_corpus_seen ON postings_corpus(first_seen_at DESC);
+-- The pre-resume BROWSE search. A user with no indexed resume has no signal rows, so their board
+-- is planned straight off the corpus and its keyword term matches titles only. `SELECT id ... WHERE
+-- active=1 AND title LIKE ?` is COVERED by this index, which is the difference between scanning
+-- ~65MB of title keys and dragging every row's inline 2.6KB description through the page cache.
+CREATE INDEX IF NOT EXISTS corpus.idx_corpus_browse ON postings_corpus(active, title);
 
 CREATE TABLE IF NOT EXISTS corpus.company_reputation (
     company_id     INTEGER PRIMARY KEY,

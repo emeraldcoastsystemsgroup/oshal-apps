@@ -44,7 +44,7 @@ follow, are written up in
 - `scripts/` contains graph and insights smoke checks.
 - `docs/` contains the longer-form package notes, indexed by [docs/README.md](docs/README.md).
 
-## Two board details that are not obvious from the code
+## Three board details that are not obvious from the code
 
 **The feed is planned, not joined** (`career-board-feed`). Joining the full corpus to user signals
 made the live multi-gigabyte corpus drag description text through the page cache even though the
@@ -53,6 +53,15 @@ sort-key order, bounds the candidate pool, and reaches the corpus only for that 
 predicates remain inside the bounded pool. Keep predicates sargable (`p.target_role = 1`, not a
 `COALESCE` wrapper), and do not add `p.description` to the board select. The supporting indexes and
 `ANALYZE` setup live in `engine/jobhunter/db.py`; check `sqlite_stat1` first on a slow new install.
+
+**There are two feeds, and the pre-resume one reads the corpus alone** (`career-browse-feed`).
+`GET /jobs` answers "which of my scored matches", so it returns nothing for an account with no
+signals database — which is every account before its first upload. `GET /browse` answers "what is
+open at all" straight off the tenant corpus, and the board renders it in a score-free mode where
+Apply becomes the resume-upload step. Its keyword search matches **titles only** and plans through
+the covering `idx_corpus_browse (active, title)`; matching `p.description` there would reintroduce
+the same page-cache problem the scored feed was replanned to remove. Guarded against a real SQLite
+corpus in `tests/career-browse-feed.test.mjs`, including the query plan.
 
 **The packet preview serves HTML, not the PDF** (`career-resume-preview`, `?as=html`). Mobile
 browsers do not reliably render a PDF inside an iframe. The generator already writes the HTML

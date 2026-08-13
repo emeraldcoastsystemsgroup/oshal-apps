@@ -40,7 +40,7 @@ description: >-
   LinkedIn, your smart-home app, and more, reconnect a login that's expired, or connect
   a new one. Plus an optional access review that flags what needs attention. OSHAL never
   shows or hands back a password — this launches accounts you've already authorized.
-version: 1.0.0
+version: 1.0.1
 status: active
 
 # Trustworthy blue skin for the keys/identity surface.

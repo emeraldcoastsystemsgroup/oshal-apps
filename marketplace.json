@@ -307,7 +307,7 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "Reads openings from employers' own public ATS job feeds into a shared corpus, scores every posting against your private career profile, and turns the best fits into a human-in-the-loop application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume + cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.",
-      "version": "1.9.1",
+      "version": "1.10.1",
       "dependencies": {
         "apps": ["portrait-studio"],
         "tools": [],
@@ -387,8 +387,8 @@
       "name": "portrait-studio",
       "suite": "ai-creative",
       "displayName": "Portrait Studio",
-      "description": "Turn any photo into a portrait worth framing — 100 profiles × 100 backdrops: business, business casual, slice of life, work environments, history and fantasy, with interchangeable clothing, hats, props and finishes. Millions of permutations of awesome.",
-      "version": "1.3.0",
+      "description": "Turn any photo into a portrait worth framing — take it with your camera or upload one, then 100 profiles × 100 backdrops: business, business casual, slice of life, work environments, history and fantasy, with interchangeable clothing, hats, props and finishes. Millions of permutations of awesome.",
+      "version": "1.4.0",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -545,7 +545,7 @@
       "suite": "ai-productivity",
       "displayName": "Identity Hub",
       "description": "Every account you've connected, in one place - click to jump straight into Gmail, LinkedIn, your smart-home app, and more, reconnect a login that's expired, or connect a new one, plus an optional access review that flags what needs attention. OSHAL never shows or hands back a password. The identity-advisor inline node and the connector hub (/api/connect + /utilities) stay framework-resident; this package is the surface over them.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "theme": "ocean",
       "dependencies": {
         "apps": [],

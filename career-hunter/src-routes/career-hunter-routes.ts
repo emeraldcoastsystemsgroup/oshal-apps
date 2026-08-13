@@ -17,6 +17,7 @@
  * 12 | maintainer@emeraldcoastsystemsgroup.com   | Moved caller identity and store primitives into a cycle-free dependency leaf.
  * 13 | maintainer@emeraldcoastsystemsgroup.com   | Decomposed the composition root into bounded route-family modules while preserving its public exports.
  * 14 | maintainer@emeraldcoastsystemsgroup.com   | Registered caller-scoped offline application autofill bookmarklet generation.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com   | Registered the corpus-only browse feed used before a resume is indexed.
  */
 
 /**
@@ -37,6 +38,7 @@ import { registerCareerArtifacts } from './career-artifacts';
 import { registerCareerAutofillRoutes } from './career-autofill-routes';
 import { registerCareerAutomationRoutes } from './career-automation';
 import { registerCareerBoardRoutes, registerCareerResumeAlias } from './career-board-routes';
+import { registerCareerBrowseRoutes } from './career-browse-routes';
 import { registerCareerCompanyRoutes } from './career-company-routes';
 import { registerCareerDigestRoutes } from './career-digest';
 import { registerCareerJobGuide } from './career-job-guide';
@@ -85,6 +87,7 @@ function registerExtractedRouteFamilies(router: Router, ctx: AppContext): void {
   registerCareerCompanyRoutes(router, ctx);
   registerCareerApplicationReadRoutes(router, ctx);
   registerCareerBoardRoutes(router, ctx);
+  registerCareerBrowseRoutes(router);
   registerCareerRecruiterRoutes(router);
   registerCareerStrengthenRoutes(router, ctx);
   registerCareerApplicationMutationRoutes(router, ctx);

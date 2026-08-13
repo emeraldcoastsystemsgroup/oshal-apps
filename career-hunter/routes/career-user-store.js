@@ -8,6 +8,8 @@ exports.careerTenant = careerTenant;
 exports.userStoreSegment = userStoreSegment;
 exports.userPaths = userPaths;
 exports.openUserDb = openUserDb;
+exports.corpusDbPath = corpusDbPath;
+exports.openCorpusDb = openCorpusDb;
 exports.listStoreUsers = listStoreUsers;
 /**
  * CHANGE LOG
@@ -24,6 +26,7 @@ exports.listStoreUsers = listStoreUsers;
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | Keep unauthenticated historical notes unverified; only contained confirmation evidence can strengthen a legacy applied record.
  * 9 | maintainer@emeraldcoastsystemsgroup.com   | Ensure route-opened user stores also carry the durable Apply run id and exact claim token.
  * 10 | maintainer@emeraldcoastsystemsgroup.com   | callerSub now resolves the verified trusted-service identity ahead of the OIDC session (eats/spotify tool idiom): the framework tool-executor's api-type tools call these routes with X-Service-Secret + the signed-in user's sub, and the OIDC-only read returned null for exactly those calls — which is why no career tool could ever reach the resume rails. The mount is already service-or-oidc; the kernel helper verifies the secret before trusting the header.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com   | Open the tenant-shared corpus on its own so the board stays searchable before a resume exists.
  */
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
@@ -109,6 +112,46 @@ function openUserDb(userSub, readonly = true) {
     const db = new better_sqlite3_1.default(userDb, { readonly });
     db.exec(`ATTACH DATABASE '${corpusDb.replace(/'/g, "''")}' AS corpus`);
     tuneDatabase(db);
+    return db;
+}
+/**
+ * @description Resolves the tenant-shared corpus database path without naming a user. The corpus
+ * is one file per tenant, so it exists as soon as any ingest has run — including for an account
+ * that has never uploaded a resume and therefore has no signals database of its own.
+ * @returns The absolute path to the tenant corpus database.
+ */
+function corpusDbPath() {
+    const tenantDir = storePath.resolveContainedPath(careerStoreRoot(), TENANT);
+    return storePath.resolveContainedPath(tenantDir, 'corpus.db');
+}
+/**
+ * @description Opens the shared corpus alone, reachable under the same `corpus.` schema prefix the
+ * board's SQL already uses. This is the handle the browse feed needs: {@link openUserDb} returns
+ * null until BOTH store databases exist, which is exactly the pre-resume state where the openings
+ * should still be searchable.
+ *
+ * The corpus is attached to an empty in-memory main rather than opened as main, so one prefix
+ * serves both feeds and no `user_signals` name can accidentally resolve. Read-only callers get
+ * `query_only`, which covers the attached file too — `readonly` on the main handle would not.
+ * @param readonly - Whether the handle must reject writes. Only the index-ensure path passes false.
+ * @returns An attached SQLite handle, or null until the tenant corpus has been seeded.
+ */
+function openCorpusDb(readonly = true) {
+    const corpusDb = corpusDbPath();
+    if (!fs_1.default.existsSync(corpusDb))
+        return null;
+    const db = new better_sqlite3_1.default(':memory:');
+    db.exec(`ATTACH DATABASE '${corpusDb.replace(/'/g, "''")}' AS corpus`);
+    try {
+        db.pragma('busy_timeout=4000');
+        db.pragma('corpus.cache_size=-65536');
+        db.pragma('mmap_size=268435456');
+    }
+    catch (err) {
+        logger.warn({ err }, 'career corpus pragma tuning skipped');
+    }
+    if (readonly)
+        db.pragma('query_only=true');
     return db;
 }
 /** Return true when a path is a strict descendant of the supplied root. */

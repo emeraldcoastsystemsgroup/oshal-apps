@@ -26,6 +26,7 @@
  * -----------------------------------------------------------------------------
  * 2026-06-17 18:40:00 | roger.murphy@emeraldcoastsystemsgroup.com | Initial — Identity Hub launcher: GET / + /ui (surface), GET /advice (identity-advisor reasons over the caller's connection METADATA inventory; reason-only bot runs inline on the api container). Catalog + connection state reused from /api/connect/list; no token ever exposed.
  * 2026-07-19 19:05:00 | roger.murphy@emeraldcoastsystemsgroup.com | Carved out of OSHAL core into the identity app package (ADR-085 Wave 3, "skill with a surface"). Standard (ctx) factory; the surface serves from ctx.appPackageDir/tools (load-time env fallback, D10). Shared core helpers import via @/ aliases: connector-tenancy's accessibleConnections + inline-bot-execution's executeBotOrInline. The identity-advisor inline node (BOTH swarm-bot-registry blocks), the connector hub (/api/connect/*), and /utilities stay framework-resident (ADR-093).
+ * 2026-08-12 20:30:00 | maintainer@emeraldcoastsystemsgroup.com | BUG-13: the access-review inventory computed `expired` as `expiry < now`, which flags every refreshable connection whose hour-long access token has lapsed - 9 of 18 accounts on a real deployment, all healthy - so the advisor was told to reconnect logins that renew themselves. Now uses core's isConnectionExpired (lapsed AND unrenewable), adds `refreshable` so the bot can read a past expiry correctly, and says so in the prompt.
  *
  * @module identity-routes
  */
@@ -36,7 +37,7 @@ import * as fs from 'fs';
 import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
 import { BotNodeClient, createRegistryEndpointResolver } from '@/features/agent-management';
-import { accessibleConnections } from '@/app/routes/connector-tenancy';
+import { accessibleConnections, isConnectionExpired } from '@/app/routes/connector-tenancy';
 import { executeBotOrInline } from '@/app/routes/inline-bot-execution';
 
 const logger = createChildLogger({ module: 'identity-routes' });
@@ -70,6 +71,10 @@ interface InventoryItem {
   shared: boolean;
   isDefault: boolean;
   expiry: string | null;
+  /** Can this authorization renew itself? A stored refresh token is what makes a lapsed
+   *  access token a non-event, so the advisor needs it to read `expiry` correctly. */
+  refreshable: boolean;
+  /** Needs re-consent — lapsed AND unrenewable. NOT `expiry < now` (see isConnectionExpired). */
   expired: boolean;
 }
 
@@ -106,7 +111,11 @@ async function buildInventory(pool: AppContext['pool'], sub: string): Promise<In
     shared: Boolean(r.tenant_id),
     isDefault: Boolean(r.is_default),
     expiry: r.expiry ? new Date(r.expiry).toISOString() : null,
-    expired: r.expiry ? new Date(r.expiry).getTime() < now : false,
+    refreshable: Boolean(r.refresh_token),
+    // The core definition, shared with the /api/connect/list projection. This used to be
+    // `expiry < now`, which flagged every refreshable connection whose hour-long access token
+    // had lapsed - on a real deployment, 9 of 18 accounts, all of them healthy (BUG-13).
+    expired: isConnectionExpired(r, now),
   }));
 }
 
@@ -119,7 +128,9 @@ function buildAdvicePrompt(inventory: InventoryItem[]): string {
     'with these sections (omit a section if it has nothing to say):',
     '',
     '## Needs attention now',
-    'Expired authorizations that should be reconnected — name the provider and account.',
+    'Authorizations that need re-consent - the `expired` flag. Name the provider and account.',
+    'A past `expiry` with `refreshable: true` renews itself silently and is NOT a problem;',
+    'never report one as expired.',
     '## Housekeeping',
     'Duplicate accounts for one provider, a provider with no default set, or stale-looking accounts.',
     '## Worth adding',

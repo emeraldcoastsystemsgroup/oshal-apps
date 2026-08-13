@@ -16,10 +16,55 @@ Turn any photo into a portrait worth framing.
   (`validateOverrides`); only the free-text notes field is prose, and it is
   sanitized. Put the crown on the LinkedIn headshot. We won't judge.
 
+## Getting the photo in (v1.4.0)
+
+Step 1 takes a photo four ways, and all four land in the same interactive crop
+stage and pass the same validation (image MIME, 20 MB ceiling):
+
+- **This device** — drop or choose a file, as before.
+- **Connected files** — a folder browser over whatever storage the caller has
+  connected: OSHAL Storage, Career, Dropbox, Google Drive, GitHub. The studio
+  integrates with none of them individually; it reads the framework's one storage
+  rail (`/api/files/roots|browse|download`), so a source the operator connects
+  later simply appears. Folders and images are listed, everything else is filtered
+  — and *counted* ("2 non-image files and 1 over 20 MB hidden") rather than
+  silently dropped, because a short list reads as an empty folder. Oversized files
+  are refused before the download, not after it.
+- **Use camera** — a live in-page preview (`getUserMedia`) with a camera picker
+  when the device has more than one. Professional mode opens the front lens,
+  Character mode the rear one (pets are rarely selfies). The preview is mirrored
+  so lining up feels natural; the *captured frame is not*, because a mirrored
+  headshot flips the text on a badge or a shirt.
+- **Camera app fallback** — a browser without an in-page camera (or a phone) gets
+  the OS camera through `<input capture>` instead, with the right lens preselected.
+
+Nothing is uploaded at capture time: the frame lives in the browser until the crop
+is confirmed and **Generate** is pressed, exactly like a dropped file. Closing the
+modal — button, Escape, or hiding the tab — stops every track, so the camera light
+goes out.
+
+Two honest edges in the picker. **Google Drive can be connected and still look
+empty** — the connector holds Google's per-file `drive.file` scope, which only ever
+sees files oshal created, not the photos you took; the picker says exactly that
+instead of claiming there are no images (widening it is a core decision, tracked in
+[BACKLOG.md](BACKLOG.md)). And **HEIC** files off a phone are listed but marked
+"may not open here", because most desktop browsers cannot decode them — picking one
+gives a message naming the format rather than a bare failure.
+
+The camera needs a **secure context**: `https://` or `localhost`. Opening the
+cockpit at a plain `http://192.168.x.x` address hides `navigator.mediaDevices`
+entirely, and the surface says so in those words rather than blaming the browser
+(that distinction is a tested behaviour, not a nicety — the fix is the origin).
+When no camera path exists at all, the control is hidden with a reason instead of
+rendered dead.
+
 ## How it works
 
 1. The studio surface (`/api/portrait-studio/app`, a ribbon tile) does the
-   upload + interactive crop client-side and POSTs the cropped PNG.
+   capture-or-upload + interactive crop client-side and POSTs the cropped PNG.
+   The source-selection logic is served at `/api/portrait-studio/capture.js` —
+   the same file the test suite requires, so a fallback branch cannot pass in the
+   test and differ in the page.
 2. The route builds a deterministic prompt from the style catalog
    (`src-routes/portrait-catalog.ts` — identity preservation, exactly two hands,
    no text — encoded once) and hands the photo as the **anchor** to the
@@ -67,8 +112,14 @@ generations per user per 24 h.
   check. A dead key reads `configured: false` with the reason.
 - **Tested** — `node tests/run.js` (plain node, zero deps, CI-gate-able) covers
   catalog invariants (every preset's layer ids exist, overrides land in prompts,
-  fail-closed validation, notes sanitization) and the ops primitives
-  (retry/backoff semantics, error classification, timeout, semaphore FIFO).
+  fail-closed validation, notes sanitization), the ops primitives
+  (retry/backoff semantics, error classification, timeout, semaphore FIFO), and
+  the photo-source decisions (live / camera-app / hidden across every capability
+  combination, the shared photo rule, honest permission and insecure-page
+  messages, lens preference, device labelling, frame box, and the connected-asset
+  picker's image filter, hidden counts, provider-agnostic breadcrumbs and
+  empty-folder causes). `tests/browser/camera-proof.js` is the hand-run browser
+  proof of the DOM wiring — see [BACKLOG.md](BACKLOG.md).
 
 ## Package layout
 

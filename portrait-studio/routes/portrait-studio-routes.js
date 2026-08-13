@@ -6,6 +6,7 @@
  * -----------------------------------------------------------------------------
  * 2026-07-16 10:45:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Portrait Studio routes (ADR-085 package): studio surface + style catalog + generate (multipart crop upload → storyboard image provider edit, async with gallery polling) + per-user gallery/serve/delete. All rows and files are caller-sub-scoped; the image engine is the media-generation kernel skill (vendor-abstracted, fail-closed).
  * 2026-07-17 11:30:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Industrial hardening: stuck-row sweep (boot + throttled lazy — an api restart mid-generation can no longer strand a spinner), retry-with-backoff on transient vendor errors + hard per-attempt timeout, process-wide generation semaphore + per-user in-flight cap (burst control), vendor-reported cost captured on the row (cost_usd) AND in the canonical ledger via recordStoryboardImageCost (chat_tasks + oshal_cost_events, attributed to portrait-artist + the caller), /provider now runs the provider's REAL healthCheck (key validity + credit) instead of key-presence.
+ * 2026-08-12 09:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Serve the camera-source decision module at GET /capture.js from the package tools dir, so the surface's live-camera Step 1 runs the SAME file the package test suite requires — no inline copy that can drift from the tested fallback logic.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -258,6 +259,18 @@ function createPortraitStudioRoutes(ctx) {
             if (err) {
                 logger.error({ err }, 'failed to serve portrait studio surface');
                 res.status(404).send('Portrait Studio surface not found');
+            }
+        });
+    });
+    /** GET /capture.js — the surface's camera-source decision module. Served from the package
+     *  (not inlined) so the SAME file the browser runs is the one `node tests/run.js` requires:
+     *  a fallback branch cannot pass in the test and differ in the page. */
+    router.get('/capture.js', (_req, res) => {
+        res.type('application/javascript');
+        res.sendFile(path.join(surfaceDir, 'portrait-capture.js'), (err) => {
+            if (err) {
+                logger.error({ err }, 'failed to serve portrait capture module');
+                res.status(404).send('// portrait capture module not found');
             }
         });
     });

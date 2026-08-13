@@ -12,6 +12,7 @@ async function main() {
   const suites = [
     ['catalog-invariants', require('./catalog-invariants.spec.js')],
     ['ops', require('./ops.spec.js')],
+    ['capture', require('./capture.spec.js')],
   ];
   let failed = 0;
   for (const [name, run] of suites) {

@@ -11,6 +11,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Guard the rendered offline autofill affordance, PII warning, and one-time bookmarklet copy flow.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Require supported-site refusal and accurate direct-action versus employer-page event wording.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Prove mobile startup is read-only, draft top-up requires an explicit action, and status uses the owner-scoped durable apply queue.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Require every full-bleed mobile overlay to be grounded on the document's own opaque token so a stacked swipe card cannot show the role behind it.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -228,4 +229,94 @@ test('the board renders the offline autofill setup with an explicit PII warning'
   assert.match(html, /supported Ashby, Greenhouse, Lever, Workday, or Distyl application/);
   assert.match(html, /does not directly upload, click, navigate, call the network, create an account, answer demographic questions, or submit/);
   assert.match(html, /Employer page scripts can react to those events/);
+});
+
+// ── Full-bleed overlays must be opaque ───────────────────────────────────────
+// Every framework theme paints --bg-card / --bg-card-hover at 0.55-0.62 alpha: they are GLASS
+// tokens, correct for a panel sitting on the page and wrong for anything stacked ON TOP OF other
+// content. The swipe deck renders the next role underneath the lead one in the same `inset:0` box,
+// so a lead card painted only in glass let the operator read the next opportunity straight through
+// the card they were about to swipe (operator report, 2026-08-12).
+//
+// The rule is derived, not hardcoded: whatever token the DOCUMENT uses as its own ground is the
+// ground a full-bleed overlay has to be painted on. A theme cannot regress it and a renamed alias
+// breaks the guard loudly instead of silently.
+
+/** Strip comments so prose about `background` or `inset:0` cannot satisfy a rule match. */
+function styleSheetOf(name) {
+  return [...surfaces[name].matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)]
+    .map((m) => m[1]).join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
+}
+
+/** Crude but sufficient rule split: `selector { declarations }` pairs, at-rules skipped. */
+function rulesOf(css) {
+  const rules = [];
+  for (const [, selector, block] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const sel = selector.trim();
+    if (!sel || sel.startsWith('@')) continue;
+    rules.push({ selector: sel, block });
+  }
+  return rules;
+}
+
+/** Read one declaration's value out of a rule block. */
+function decl(block, prop) {
+  const match = block.match(new RegExp(String.raw`(?:^|;)\s*${prop}\s*:([^;]+)`));
+  return match ? match[1].trim() : null;
+}
+
+/** Split a background value into layers on TOP-LEVEL commas only — gradients carry their own. */
+function backgroundLayers(value) {
+  const layers = []; let depth = 0; let current = '';
+  for (const ch of value) {
+    if (ch === '(') depth += 1;
+    if (ch === ')') depth -= 1;
+    if (ch === ',' && depth === 0) { layers.push(current.trim()); current = ''; continue; }
+    current += ch;
+  }
+  if (current.trim()) layers.push(current.trim());
+  return layers;
+}
+
+const GLASS = ['--card', '--card2', '--bg-card', '--bg-card-hover'];
+
+test('the mobile surface grounds every full-bleed overlay on the same token as the document', () => {
+  const css = styleSheetOf('career-mobile.html');
+  const rules = rulesOf(css);
+
+  const htmlRule = rules.find((r) => r.selector === 'html');
+  const ground = decl(htmlRule?.block || '', 'background');
+  assert.ok(ground, 'the document no longer declares its own opaque ground');
+
+  // Anything positioned over other content at inset:0 AND painting a background.
+  const overlays = rules.filter((r) => {
+    const position = decl(r.block, 'position');
+    return position === 'absolute' && /(?:^|;)\s*inset\s*:\s*0\b/.test(r.block)
+      && decl(r.block, 'background');
+  });
+  assert.ok(overlays.length >= 2,
+    `expected the deck card and the sheet to be full-bleed overlays, found: ${overlays.map((r) => r.selector).join(', ')}`);
+
+  for (const rule of overlays) {
+    const layers = backgroundLayers(decl(rule.block, 'background'));
+    const bottom = layers[layers.length - 1];
+    assert.equal(bottom, ground,
+      `${rule.selector} is stacked over other content but its bottom background layer is `
+      + `"${bottom}" instead of the document ground "${ground}" — content behind it shows through`);
+  }
+});
+
+test('the lead swipe card is the one that has to be opaque, and it still looks like a card', () => {
+  const rules = rulesOf(styleSheetOf('career-mobile.html'));
+  const card = rules.find((r) => r.selector === '.jobcard');
+  assert.ok(card, '.jobcard rule is missing — the deck was restructured, re-check the opacity rule');
+  const layers = backgroundLayers(decl(card.block, 'background'));
+  assert.ok(layers.length >= 2, 'the card has a single background layer again, so it is glass-only');
+  // The glass gradient is what makes it match the cockpit — it must survive, just not alone.
+  assert.ok(GLASS.some((token) => layers[0].includes(token)),
+    `the card lost its themed surface: ${layers[0]}`);
+  assert.ok(!GLASS.some((token) => layers[layers.length - 1].includes(token)),
+    'the card is grounded on a glass token, which is not a ground at all');
+  // The deck really does stack, which is what makes all of the above load-bearing.
+  assert.match(surfaces['career-mobile.html'], /el\.innerHTML=\(next\?cardHTML\(next,false\):''\)\+cardHTML\(top,true\)/);
 });
