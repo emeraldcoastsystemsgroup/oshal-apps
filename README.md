@@ -41,7 +41,7 @@ All **47 packages**, shelved by ADR-097 suite. Versions and status come from
 
 | App | Folder | Version | Status | What it is |
 |---|---|---|---|---|
-| **Intelligent Career** | [`career-hunter/`](career-hunter/) | 1.10.1 | ready | Reads openings from employers' own public ATS job feeds into a shared corpus, scores every posting against your private career profile, and turns the best fits into a human-in-the-loop application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume + cover letter. |
+| **Intelligent Career** | [`career-hunter/`](career-hunter/) | 1.12.1 | ready | Reads openings from employers' own public ATS job feeds into a shared corpus, scores every posting against your private career profile, and turns the best fits into a human-in-the-loop application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume + cover letter. |
 | **Job Apply** | [`job-apply/`](job-apply/) | 1.0.0 | ready | Submit an approved, packet-ready job application by driving your real browser on a desktop worker node — push a ticket, it queues, the career-hunter worker submits it, and the ticket passes or fails. |
 | **World Intelligence** | [`world/`](world/) | 1.0.3 | ready | Shared world intelligence (ADR-061 Layer B) - multi-source news feeds classified into a bias-aware sentiment graph (political + economic + outlet-kind axes), entity co-mention graph, and historical series. |
 

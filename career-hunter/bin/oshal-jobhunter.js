@@ -29,6 +29,7 @@
  * 23 | maintainer@emeraldcoastsystemsgroup.com  | Propagate explicit profile mutation results and make artifact batches fail nonzero while retaining every bounded item outcome.
  * 24 | maintainer@emeraldcoastsystemsgroup.com  | Stop dropping each gap theme's interviewer question at the CLI boundary and expose the bounded enrichment audit tail. The strengthen list projection whitelisted seven fields and omitted prompt/desc, so the real per-theme question the engine has always carried never reached the surface, which substituted a generic sentence; strengthen changelog lets a caller read the bullets a detached augmentation actually wrote, whose stdout the asynchronous dispatch cannot return.
  * 25 | maintainer@emeraldcoastsystemsgroup.com  | Add the Resume Studio master-document verbs: `resume base` (straight profile-to-editor mapping, no LLM) and `resume base-save` (bounded CH_RESUME_DOC whitelist write-back through profile.replace_resume_fields), so the durable career profile has a first-class editor path.
+ * 26 | maintainer@emeraldcoastsystemsgroup.com  | Bring the master-resume input ceiling under the platform limit that actually governs it: 96 KiB, not 256 KiB. CH_RESUME_DOC is delivered through execve, and Linux caps a single environment string at 128 KiB, so the old ceiling could never fire on a Linux deployment — an oversize document failed the spawn with E2BIG and surfaced an opaque error instead of the designed refusal. The guard was unreachable in production and only ever passed its test on Windows.
  *
  * Verbs (each forwards extra args to the engine):
  *   pull      -> scrape --all  then  match.rescore_recent  (nightly corpus refresh + keyword index)
@@ -461,8 +462,13 @@ function resumeBaseSaveRun() {
     'import os,json',
     'from jobhunter import profile',
     'raw=os.environ.get("CH_RESUME_DOC","")',
-    'if len(raw.encode("utf-8","replace"))>262144:',
-    ' print(json.dumps({"ok":False,"error":"master resume payload exceeds the 256 KiB input limit"}))',
+    // 96 KiB, not the 256 KiB this used to claim. CH_RESUME_DOC crosses an execve boundary,
+    // and Linux caps ONE environment string at MAX_ARG_STRLEN = 128 KiB. Anything larger never
+    // arrives: the spawn dies with E2BIG and the caller gets an opaque failure instead of this
+    // clean refusal JSON. A 256 KiB ceiling was therefore dead code on every Linux deployment —
+    // which is all of them. Keep this strictly under 128 KiB so the guard can actually fire.
+    'if len(raw.encode("utf-8","replace"))>98304:',
+    ' print(json.dumps({"ok":False,"error":"master resume payload exceeds the 96 KiB input limit"}))',
     ' raise SystemExit(1)',
     'try:\n doc=json.loads(raw)\nexcept Exception:\n doc=None',
     'result=profile.replace_resume_fields(doc) if isinstance(doc,dict) else {"ok":False,"error":"invalid master resume payload"}',

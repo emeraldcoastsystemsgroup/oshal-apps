@@ -101,9 +101,28 @@ async function runLockChild(user, verb, options = {}) {
   return result.out;
 }
 
+/**
+ * Resolve a TypeScript compiler without assuming one operator's disk layout.
+ * OSHAL_ROOT first (CI sets it), then a sibling core checkout, then ordinary
+ * node resolution. The previous hardcoded C:/Projects/oshal path made this
+ * guard pass on exactly one machine and fail everywhere else.
+ */
+function findTypeScript() {
+  const roots = [process.env.OSHAL_ROOT, path.resolve(packageRoot, '..', '..', 'oshal')].filter(Boolean);
+  for (const root of roots) {
+    const candidate = path.join(root, 'node_modules', 'typescript');
+    if (fs.existsSync(path.join(candidate, 'package.json'))) return require(candidate);
+  }
+  try {
+    return require('typescript');
+  } catch {
+    assert.fail('no TypeScript compiler found — set OSHAL_ROOT to a checkout that has one');
+  }
+}
+
 /** Load the TypeScript source directly so this guard does not depend on a generated build. */
 function loadSourceRunner() {
-  const typescript = require('C:/Projects/oshal/node_modules/typescript/lib/typescript.js');
+  const typescript = findTypeScript();
   const source = fs.readFileSync(runnerSourcePath, 'utf8');
   const compiled = typescript.transpileModule(source, {
     compilerOptions: { module: typescript.ModuleKind.CommonJS, target: typescript.ScriptTarget.ES2022,

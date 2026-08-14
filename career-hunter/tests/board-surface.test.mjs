@@ -12,6 +12,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Require supported-site refusal and accurate direct-action versus employer-page event wording.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Prove mobile startup is read-only, draft top-up requires an explicit action, and status uses the owner-scoped durable apply queue.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Require every full-bleed mobile overlay to be grounded on the document's own opaque token so a stacked swipe card cannot show the role behind it.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Guard the one-click node installer: offered only when no computer is connected, announced before it downloads, and never a swarm-wide join code.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -319,4 +320,36 @@ test('the lead swipe card is the one that has to be opaque, and it still looks l
     'the card is grounded on a glass token, which is not a ground at all');
   // The deck really does stack, which is what makes all of the above load-bearing.
   assert.match(surfaces['career-mobile.html'], /el\.innerHTML=\(next\?cardHTML\(next,false\):''\)\+cardHTML\(top,true\)/);
+});
+
+// ── One-click worker-node install ────────────────────────────────────────────
+
+test('the board offers a node installer exactly where it reports no node', () => {
+  // The node picker is the one place on this surface that already knows whether a computer
+  // is connected, so it is the place the fix belongs. Offering it when a node IS connected
+  // would be handing out credentials nobody asked for.
+  assert.match(html, /id="installNode"/, 'the install affordance is gone');
+  assert.match(html, /href="\/api\/join\/node-installer"/, 'it no longer points at the installer');
+  assert.match(html, /id="installNode"[^>]*hidden/, 'it must start hidden until we know');
+  assert.match(body, /install\.hidden = workers\.length > 0/,
+    'the installer is not tied to whether a computer is connected');
+});
+
+test('the download says what is in the file before it exists', () => {
+  // Same rule as the offline autofill bookmarklet: a file carrying a credential is
+  // announced BEFORE it lands in Downloads, not documented somewhere afterwards.
+  assert.match(body, /window\.confirm\(/);
+  assert.match(body, /contains a credential for THIS computer only/);
+  assert.match(body, /revoke it any time/i);
+  // Cancelling must not still download — the anchor's default has to be prevented.
+  assert.match(body, /if\(!ok\)\{ e\.preventDefault\(\); return; \}/);
+  assert.match(body, /if\(!name\)\{ e\.preventDefault\(\); return; \}/);
+});
+
+test('the board never mints or shows a swarm-wide join code', () => {
+  // A per-user surface may hand out a per-device credential. A join code embeds the
+  // swarm-wide secret and is worth every node, so it must never appear here.
+  assert.ok(!/OSJOIN1/.test(html), 'the board renders a swarm-wide join code');
+  assert.ok(!/join\/code/.test(html), 'the board reaches the operator-only join-code route');
+  assert.ok(!/SHARED_SECRET/i.test(html));
 });

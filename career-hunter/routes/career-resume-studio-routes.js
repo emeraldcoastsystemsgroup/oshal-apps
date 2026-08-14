@@ -12,6 +12,8 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | Split the route registrar into bounded load, guide, and save handlers.
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | Moved packet discovery, reads, writes, snapshots, and rollback off synchronous filesystem APIs.
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | Added the MASTER document: id=master loads the durable profile through `resume base`, save whitelists back through `resume base-save` (changelog returned to the surface), and the guide bot is told it is editing the profile every tailored resume is generated from — with cover and title/org/span edits stripped for the master case.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com   | Track the engine's corrected 96 KiB master-document ceiling. The document reaches the engine as an environment string across execve, which Linux caps at 128 KiB, so the previous 256 KiB pair described a limit neither side could enforce.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com  | THE EDITOR TALKS BACK. Operator, 2026-08-13: "the concierge will take the commands but doesn't talk to me or respond — I just tell it what to do and it does it. OK but not great." The prompt was the cause: it asked for "one short conversational sentence" and the model complied exactly, making a command executor out of something that should be a conversation. `reply` is now the half that carries the work (what changed and WHY, the tradeoff, the replaced words quoted), a clarifying question with actions:[] is an explicitly valid turn, and a question/opinion/review answers without editing. Also fixed the matching bug: a model reply with no JSON had its words DISCARDED and replaced with "Updated." — throwing away the answer and claiming an edit that never happened; the prose is now kept as the reply.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -63,12 +65,15 @@ const CAREER_AGENT_ID = 'cb000000-0000-0000-0000-000000000001';
 const botClient = new agent_management_1.BotNodeClient((0, agent_management_1.createRegistryEndpointResolver)());
 /** Sentinel document id the surface sends for the durable master profile (never a posting id). */
 const MASTER_ID = 'master';
-/** Route-side payload ceiling, slightly under the engine's 256 KiB guard. Defence in depth,
+/** Route-side payload ceiling, slightly under the engine's 96 KiB guard. Defence in depth,
  *  not the first wall: the control plane's global JSON body limit (~100 KB unless
  *  OSHAL_JSON_BODY_LIMIT raises it) rejects most oversize bodies before this handler runs, so
  *  this guard is operative only on deployments that widen that limit — the engine-side refusal
- *  in bin/oshal-jobhunter.js remains the authoritative cap either way. */
-const MASTER_DOC_MAX_BYTES = 256_000;
+ *  in bin/oshal-jobhunter.js remains the authoritative cap either way.
+ *  Both ceilings sit under Linux's 128 KiB cap on a single environment string: the engine
+ *  receives this document through CH_RESUME_DOC across execve, so a larger limit would be
+ *  unenforceable rather than generous. */
+const MASTER_DOC_MAX_BYTES = 98_000;
 const RENDERED_PACKET_FILES = [
     'application.json',
     'Resume_ATS.html',
@@ -237,8 +242,20 @@ function guidePrompt(message, resume, cover, meta, history) {
         history ? `\nCONVERSATION SO FAR:\n${history}` : '',
         `\nUSER: ${message}`,
         '',
+        // TALK BACK. The old contract asked for "one short conversational sentence" and the editor
+        // obeyed it literally: it executed commands and said "Updated." Operator, 2026-08-13 — "the
+        // concierge will take the commands but doesn't talk to me or respond, so I just tell it what
+        // to do and it does it. OK but not great." A resume is a conversation, so `reply` is now the
+        // half that carries the work, and zero actions is an explicitly VALID turn.
         'Reply with ONLY a JSON object (no prose, no code fences):',
-        '{"reply":"<one short conversational sentence>","actions":[ ...zero or more edits... ]}',
+        '{"reply":"<what you would say out loud>","actions":[ ...zero or more edits... ]}',
+        'HOW TO TALK: `reply` is a real answer, not a receipt. Say what you changed and WHY it is',
+        'stronger, name the tradeoff you made, and when the request is ambiguous ASK rather than guess',
+        '(answer with a question and NO actions — that is a valid, expected turn). When you are asked a',
+        'question, or for an opinion or a review, answer it with actions:[] and change nothing. Never',
+        'reply with a bare "Updated." Two or three sentences is right; do not pad it.',
+        'When you DO edit, quote the words you replaced so the user can see the change without hunting',
+        'for it in the preview.',
         'Allowed actions (use the minimal set that satisfies the request):',
         '- {"op":"set_headline","text":"..."}',
         '- {"op":"set_summary","text":"3-4 sentence executive summary"}',
@@ -316,9 +333,13 @@ function guideHistory(raw) {
 function parseGuideResponse(response, master) {
     let reply = 'Updated.';
     let actions = [];
-    const match = String(response || '').match(/\{[\s\S]*\}/);
+    const raw = String(response || '').trim();
+    const match = raw.match(/\{[\s\S]*\}/);
+    // No JSON at all means the model just TALKED — which is now an expected turn (a question back, an
+    // opinion, a review). Keep its words: replacing them with "Updated." both threw the answer away
+    // and claimed an edit that never happened.
     if (!match)
-        return { reply, actions };
+        return { reply: raw ? raw.slice(0, 1200) : reply, actions };
     try {
         const parsed = JSON.parse(match[0]);
         reply = String(parsed.reply || reply).slice(0, 1200);

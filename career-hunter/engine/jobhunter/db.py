@@ -705,6 +705,54 @@ CREATE INDEX IF NOT EXISTS corpus.idx_corpus_seen ON postings_corpus(first_seen_
 -- active=1 AND title LIKE ?` is COVERED by this index, which is the difference between scanning
 -- ~65MB of title keys and dragging every row's inline 2.6KB description through the page cache.
 CREATE INDEX IF NOT EXISTS corpus.idx_corpus_browse ON postings_corpus(active, title);
+-- The pre-resume BROWSE default view: newest in-lane openings. Without the date IN the
+-- index, SQLite serves the lane predicate from idx_corpus_lane and then sorts what it
+-- finds -- "USE TEMP B-TREE FOR ORDER BY" over ~157K rows to return 20, measured at 26s
+-- on the live 1.6M-posting corpus. With it, the ordering IS the index walk and the query
+-- stops at the page size.
+CREATE INDEX IF NOT EXISTS corpus.idx_corpus_lane_seen
+    ON postings_corpus(active, target_role, first_seen_at DESC);
+-- ...and the same for the DEFAULT search view, which does not constrain target_role at
+-- all (a job search searches the database, not the tracked lane). Without the date
+-- adjacent to `active` alone, that view falls back to idx_corpus_active plus a sort.
+CREATE INDEX IF NOT EXISTS corpus.idx_corpus_active_seen
+    ON postings_corpus(active, first_seen_at DESC);
+-- "Highest salary" over the whole corpus. An EXPRESSION index, matching the sort key the
+-- feed emits exactly: without it that sort materialises and sorts the entire active set
+-- to return twenty rows (measured 6.7s on the live corpus, 4ms with it).
+CREATE INDEX IF NOT EXISTS corpus.idx_corpus_pay
+    ON postings_corpus(active, COALESCE(salary_max,salary_min,0) DESC);
+-- Full-text search over what a job seeker actually types. EXTERNAL CONTENT
+-- (content='postings_corpus', content_rowid='id'): stores only the index, never a second
+-- copy of the 1.1GB of description text, and its rowid IS the posting id so the join is a
+-- rowid lookup. This is what makes a text term survive a narrow filter -- LIKE over a
+-- covering index cannot stay covered once the same arm must also test state or job_type,
+-- and "nurse" + FL + fte measured 12-17s that way against 9ms through here.
+-- Populate with: INSERT INTO postings_fts(postings_fts) VALUES('rebuild');  (62s for 1.59M)
+CREATE VIRTUAL TABLE IF NOT EXISTS corpus.postings_fts USING fts5(
+    title, description, content='postings_corpus', content_rowid='id',
+    tokenize='unicode61');
+-- An external-content FTS5 table does NOT follow its content table on its own. Without
+-- these, every posting ingested after the index was built is invisible to search, silently
+-- and forever -- the index keeps answering, it just answers about yesterday. The nightly
+-- pull adds 10-18k postings, so that decays fast. Guarded in career-browse-feed.test.mjs.
+CREATE TRIGGER IF NOT EXISTS corpus.postings_fts_insert
+AFTER INSERT ON postings_corpus BEGIN
+    INSERT INTO postings_fts(rowid, title, description)
+    VALUES (new.id, new.title, new.description);
+END;
+CREATE TRIGGER IF NOT EXISTS corpus.postings_fts_delete
+AFTER DELETE ON postings_corpus BEGIN
+    INSERT INTO postings_fts(postings_fts, rowid, title, description)
+    VALUES ('delete', old.id, old.title, old.description);
+END;
+CREATE TRIGGER IF NOT EXISTS corpus.postings_fts_update
+AFTER UPDATE ON postings_corpus BEGIN
+    INSERT INTO postings_fts(postings_fts, rowid, title, description)
+    VALUES ('delete', old.id, old.title, old.description);
+    INSERT INTO postings_fts(rowid, title, description)
+    VALUES (new.id, new.title, new.description);
+END;
 
 CREATE TABLE IF NOT EXISTS corpus.company_reputation (
     company_id     INTEGER PRIMARY KEY,

@@ -13,6 +13,10 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Release the Resume Studio master document (view + guide + whitelisted save-back into the durable career profile on augment's backup/audit rails) as version 1.8.0.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Release the pre-resume job search: a corpus-only browse feed, a score-free board mode, and an Apply that starts resume onboarding, as version 1.10.0.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Release the opaque mobile swipe card, so the role behind the lead one no longer reads through it, as version 1.10.1.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Release Search Jobs: a dedicated screen over the whole corpus — free text across titles and employers, company/location/remote/salary/type/date filters, sorting and paging, no resume and no match concept — as version 1.11.0.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | Fix Search Jobs against the live corpus: push posting filters into the search arms (a filter after a bounded pool returned zero), speak the engine's job_type vocabulary instead of friendly guesses, and drop the company sort no index can serve, as version 1.11.1.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | Give Search Jobs the layout every job site uses (left filter rail narrowing live results, removable chips), separate title-contains and description-contains fields, and an FTS5 full-text index with sync triggers that takes a filtered text search from 22.7s to under a second, as version 1.12.0.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | Offer a one-click worker-node installer where the board reports no connected computer, so a user never visits Settings to paste a key, as version 1.12.1.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — career-hunter (Career Hunter)
@@ -53,7 +57,7 @@ description: >-
   posting against your private career profile, and turns the best fits into a human-in-the-loop
   application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume +
   cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.
-version: 1.10.1
+version: 1.12.1
 status: active
 theme: daylight
 
@@ -335,6 +339,15 @@ ui:
       iframeUrl: /api/career-hunter/mobile
       section: top
     # ── Job Search ──────────────────────────────────────────────────────────
+    # Search Jobs leads the group on purpose: it is the one screen in it that works
+    # before anything is set up. The Job Board below needs an indexed résumé to say
+    # anything at all — this searches the shared corpus and never mentions a match.
+    - toolName: career-search
+      label: Search Jobs
+      icon: codicon codicon-search
+      iframeUrl: /api/career-hunter/search-ui
+      section: top
+      group: Job Search
     - toolName: career-board
       label: Job Board
       icon: codicon codicon-briefcase
@@ -418,6 +431,24 @@ ui:
       icon: codicon codicon-settings-gear
       iframeUrl: /api/career-hunter/settings
       section: bottom
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SURFACE — the surface-bridge op allow-list. FAIL-CLOSED: without this block the
+# cockpit relay forwards NOTHING for this app, which is why the floating assistant
+# could not see Resume Studio at all.
+#   context  Resume Studio publishes WHICH resume is open + a digest of it, so the
+#            floating Jarvis stops being blind to the screen the operator is on.
+#   custom   Jarvis drives an edit back as {name:'resume_action', data:<action>} —
+#            the SAME whitelisted action vocabulary the concierge already emits, so
+#            it lands through the studio's existing applyAction() with no second
+#            edit path to keep in sync.
+#   notify   confirm an applied edit in the surface, not only in the chat bubble.
+# Deliberately NOT declared: set_field/set_content (the sheet is a rendered preview,
+# not a form — an edit must go through applyAction so it stays a real document
+# mutation) and navigate (nothing here needs to move the ribbon).
+# ─────────────────────────────────────────────────────────────────────────────
+surface:
+  ops: [context, custom, notify]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ROUTES — mounted conditionally by the loader.

@@ -87,6 +87,19 @@
     </div>
   </div>
 </div>
+<!-- Surface bridge: publish WHAT IS OPEN so the floating Jarvis can talk about this resume, and
+     accept the edits he sends back. Jarvis drives edits as custom{name:'resume_action'} carrying
+     the same whitelisted action shape the concierge emits, so both assistants land through the one
+     applyAction() below — there is no second edit path to keep in sync. ES module; hands the client
+     to the main script through window. Degrades silently: if the bridge module is unavailable the
+     studio behaves exactly as it did before. -->
+<script type="module">
+  import { createSurfaceBridgeClient } from '/shared/ui/js/surface-bridge-client.js';
+  const bridge = createSurfaceBridgeClient({ app: 'career-hunter' });
+  bridge.attach();
+  window.__bridge = bridge;
+  window.dispatchEvent(new Event('bridge-ready'));
+</script>
 <script>
 // Theming is handled by /shared/ui/js/surface-theme.js in <head> — it reads the operator's saved
 // cockpit theme from localStorage, sets data-theme before paint, and live-follows changes.
@@ -132,6 +145,80 @@ function applyAction(a){
   }
 }
 
+// ── Surface bridge: tell the floating assistant what is on this screen ──────────────────────
+// A DIGEST, not a document dump: enough for Jarvis to discuss the resume specifically (and to
+// name a bullet by index when proposing an edit) while staying inside the contract's 4000-char
+// cap. The full document stays owned by the career bot, which is the one that edits it.
+function resumeDigest(){
+  const r = state.resume || {};
+  const lines = [];
+  if (r.headline) lines.push(`Headline: ${r.headline}`);
+  if (r.summary) lines.push(`Summary: ${r.summary}`);
+  if ((r.competencies || []).length) lines.push(`Core competencies: ${r.competencies.join(', ')}`);
+  if ((r.skills || []).length) lines.push(`Skills: ${r.skills.join(', ')}`);
+  if (r.clearance) lines.push(`Clearance: ${r.clearance}`);
+  (r.experience || []).forEach((e, i) => {
+    // 1-based to match update_experience's index, so an edit Jarvis proposes addresses the role
+    // the user is actually looking at.
+    lines.push(`Role ${i + 1}: ${e.title || ''} — ${e.org || ''} (${e.span || ''})`);
+    (e.bullets || []).forEach((b, bi) => lines.push(`  bullet ${bi + 1}: ${b}`));
+  });
+  const text = lines.join('\n');
+  return text.length > 3900 ? text.slice(0, 3900) + '\n…(truncated)' : text;
+}
+
+function publishContext(){
+  if (!window.__bridge || !state.postingId) return;
+  const isMaster = state.postingId === 'master';
+  try {
+    window.__bridge.emitContext({
+      surface: 'resume-studio',
+      title: isMaster ? 'Master resume (the durable career profile)'
+        : `Tailored resume — ${(window.__meta && window.__meta.title) || ''} at ${(window.__meta && window.__meta.company) || ''}`,
+      recordId: String(state.postingId),
+      digest: resumeDigest(),
+      fields: { master: isMaster, roles: (state.resume && state.resume.experience || []).length },
+      can: ['custom', 'notify'],
+      // The assistant has to know the EXACT name our handler matches on, and the action vocabulary
+      // inside it. Without this it invents a plausible name (observed: update_master_resume_summary)
+      // and the edit is relayed, delivered, then silently dropped while the user is told it worked.
+      customOps: [{
+        name: 'resume_action',
+        description: 'Edit this resume. data = {"actions":[...]} using ONLY these ops: '
+          + '{"op":"set_headline","text"} {"op":"set_summary","text"} {"op":"set_clearance","text"} '
+          + '{"op":"set_competencies","items":[]} {"op":"set_skills","items":[]} '
+          + '{"op":"update_experience","index":<1-based role number>,"bullets":[]}'
+          + (isMaster ? '. MASTER doc: bullets only, never a title/org/span.'
+            : ' {"op":"set_cover_paragraphs","items":[]}')
+          + ' Edit only facts already present — never invent an employer, title, date, or metric.',
+      }],
+    });
+  } catch (_) { /* the studio must never break because the assistant is unavailable */ }
+}
+
+// Jarvis's edits arrive as a custom op re-dispatched by the bridge client as a DOM event. They go
+// through the SAME applyAction the concierge's actions use, so a Jarvis edit and a concierge edit
+// are indistinguishable downstream — including needing Save to persist.
+document.addEventListener('surface-bridge:custom', (evt) => {
+  const detail = evt.detail || {};
+  // The floating assistant's panel iframe is created lazily, so it asks for a snapshot when it
+  // opens — by then our load-time publish has already been and gone.
+  if (detail.name === 'request_context') { publishContext(); return; }
+  if (detail.name !== 'resume_action' || !state.resume) return;
+  const actions = Array.isArray(detail.data && detail.data.actions)
+    ? detail.data.actions
+    : [detail.data];
+  let applied = 0;
+  for (const a of actions) {
+    if (a && typeof a.op === 'string') { applyAction(a); applied += 1; }
+  }
+  if (!applied) return;
+  renderPreview();
+  publishContext();                                   // the assistant's next turn sees its own edit
+  add('sys', `Jarvis edited this resume (${applied} change${applied === 1 ? '' : 's'}). Save to keep it.`);
+  setStatus('edited by Jarvis — Save to re-render the PDF');
+});
+
 // The job-packet feed can take seconds on a large corpus, so the picker NEVER waits on it:
 // the master entry is static in the markup and this only appends/refreshes the packet entries.
 async function loadList(){
@@ -162,7 +249,7 @@ async function loadDoc(id){
   add('sys', isMaster
     ? 'Editing your MASTER resume — changes here update the durable profile every tailored resume is generated from.'
     : `Editing: ${j.meta && j.meta.title || ''} — ${j.meta && j.meta.company || ''}`);
-  renderPreview(); $('save').disabled = false; $('msg').disabled = false; $('send').disabled = false;
+  renderPreview(); publishContext(); $('save').disabled = false; $('msg').disabled = false; $('send').disabled = false;
   // The master has no packet PDF (packets render PDFs; the master saves straight into the durable
   // profile), so the PDF affordances are hidden and Save is relabelled rather than left implying a
   // re-render that cannot happen.
@@ -181,7 +268,7 @@ async function send(){
       body: JSON.stringify({ postingId: state.postingId, message: text, resume: state.resume, cover: state.cover, history: state.history }) });
     const j = await res.json();
     if (j.error) { add('bot', 'Sorry, that edit failed.'); }
-    else { (j.actions || []).forEach(applyAction); renderPreview(); add('bot', j.reply || 'Updated.'); state.history.push({ role: 'bot', text: j.reply || '' });
+    else { (j.actions || []).forEach(applyAction); renderPreview(); publishContext(); add('bot', j.reply || 'Updated.'); state.history.push({ role: 'bot', text: j.reply || '' });
       if ((j.actions || []).length) setStatus('edited — Save to re-render the PDF'); }
   } catch (e) { add('bot', 'Network error.'); }
   finally { $('send').disabled = false; setStatus(''); }
@@ -224,6 +311,9 @@ const pre = new URLSearchParams(location.search).get('id');
 const initial = pre || 'master';
 $('pick').value = initial;
 loadDoc(initial);
+// The bridge is a module script, so it can resolve AFTER loadDoc's publish attempt. Publish again
+// once it is ready (no-op when the document hasn't loaded yet — loadDoc publishes on its own).
+window.addEventListener('bridge-ready', publishContext);
 </script>
 </body>
 </html>

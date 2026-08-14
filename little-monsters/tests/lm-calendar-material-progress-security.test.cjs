@@ -111,8 +111,16 @@ function findTypeScript() {
     .filter(Boolean);
   const packageDir = roots.map(root => path.join(root, 'node_modules', 'typescript'))
     .find(candidate => fs.existsSync(path.join(candidate, 'package.json')));
-  assert.ok(packageDir, 'the sibling oshal checkout must provide the TypeScript compiler');
-  return require(packageDir);
+  if (packageDir) return require(packageDir);
+  // A sibling core checkout exists on an operator workstation but never on a CI
+  // runner, where the compiler is installed and pointed at through OSHAL_ROOT.
+  // Fall back to ordinary resolution before failing, so the guard can run
+  // anywhere a compiler is present rather than only next to a core clone.
+  try {
+    return require('typescript');
+  } catch {
+    return assert.fail('no TypeScript compiler found — set OSHAL_ROOT to a checkout that has one');
+  }
 }
 
 function loadSourceModules() {

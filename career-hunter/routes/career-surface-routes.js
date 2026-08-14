@@ -59,6 +59,9 @@ function redirectClassicBoard(_req, res) {
  */
 function registerCareerSurfaceRoutes(router) {
     router.get('/board-native', createCareerToolFileHandler('career-board.html'));
+    // Search Jobs — the corpus, not the caller's scored matches. Deliberately a separate
+    // screen from the board: it works with no résumé indexed, and has no fit/pipeline concept.
+    router.get('/search-ui', createCareerToolFileHandler('career-search.html'));
     router.get('/recruiters-ui', createCareerToolFileHandler('career-recruiters.html'));
     router.get('/strengthen-ui', createCareerToolFileHandler('career-strengthen.html'));
     router.get('/insights-ui', createCareerToolFileHandler('career-insights.html'));

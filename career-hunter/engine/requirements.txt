@@ -3,8 +3,10 @@
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Pin the complete engine surface and ship the PostgreSQL driver used by JOBHUNTER_STORE=postgres.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Pin python-dateutil. jobhunter/dates.py imports it unconditionally to normalize posting dates, so a clean install of these pins could not import the engine at all — it only ever worked on a box where another package had dragged dateutil in transitively.
 
 requests==2.34.2
+python-dateutil==2.9.0.post0  # jobhunter/dates.py — posting-date normalization
 tenacity==9.1.4
 beautifulsoup4==4.15.0
 lxml==6.1.1

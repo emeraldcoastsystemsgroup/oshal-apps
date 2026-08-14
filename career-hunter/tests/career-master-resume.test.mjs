@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the Resume Studio MASTER document: `resume base` straight mapping and `resume base-save` whitelist round-trip run the CLI's exact Python programs against the real profile engine (backup rotation, audit, refusal-on-mismatch with the file untouched), with source-level assertions for the routing and surface seams only.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Size the oversize fixture so it can actually reach the engine on Linux, and assert that it does. At 263 KB it exceeded execve's 128 KiB per-variable limit, so the spawn failed before the refusal branch ran and the test only passed on Windows.
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -169,13 +170,20 @@ test('resume base-save refuses a role index/title mismatch and leaves the file u
   assert.equal(fs.existsSync(path.join(store.dir, 'backups')), false, 'no backup for a refused save');
 });
 
+// The payload must be over the engine's 96 KiB ceiling AND under the 128 KiB that Linux allows
+// in one environment string. The original 263 KB version could only ever pass on Windows: on a
+// runner it blew execve's MAX_ARG_STRLEN, so spawnSync returned E2BIG with stdout undefined and
+// the engine's refusal branch was never reached. A guard that cannot deliver its own input is
+// not a guard, and this one was hiding a ceiling production could not enforce either.
 test('resume base-save refuses an oversize CH_RESUME_DOC payload before parsing it', () => {
   const engineRuns = loadEngineRuns();
   const store = makeStore('oversize');
   const before = fs.readFileSync(store.careerDb, 'utf8');
+  const payload = `{"resume":{"summary":"${'x'.repeat(99_000)}"}}`;
+  assert.ok(Buffer.byteLength(payload, 'utf8') < 131_072,
+    'the oversize fixture must still fit through execve or this asserts nothing');
   const refused = runPythonMapping(engineRuns('resume', ['base-save'])[0], {
-    ...storeEnv(store),
-    CH_RESUME_DOC: `{"resume":{"summary":"${'x'.repeat(263_000)}"}}`,
+    ...storeEnv(store), CH_RESUME_DOC: payload,
   });
   assert.notEqual(refused.status, 0);
   assert.match(JSON.parse(refused.stdout.trim()).error, /input limit/);

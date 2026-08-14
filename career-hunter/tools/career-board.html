@@ -17,6 +17,7 @@
   6 | maintainer@emeraldcoastsystemsgroup.com | Surface a private per-user offline autofill bookmarklet that remains usable when the OSHAL stack is unavailable.
   7 | maintainer@emeraldcoastsystemsgroup.com | Explain the supported-site, page-event boundary for offline autofill without promising control over employer page scripts.
   8 | maintainer@emeraldcoastsystemsgroup.com | Search and browse the openings before a resume exists, and make Apply the resume-upload onboarding step.
+  9 | maintainer@emeraldcoastsystemsgroup.com | Offer a one-click worker-node installer where the surface reports no connected computer, so a user never has to visit Settings to paste a key.
 -->
 <html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -153,6 +154,8 @@
     <div class="bulk">
       <label class="nodepick">On <select id="nodeSel" title="Which computer runs the browser"><option value="">auto-pick</option></select></label>
       <span class="hint" id="workerHint"></span>
+      <a class="btn go" id="installNode" href="/api/join/node-installer" target="_blank"
+         rel="noopener" hidden>Set up this computer &#8681;</a>
       <button class="btn go" id="copyAutofill" onclick="copyOfflineAutofill()">Copy offline autofill bookmarklet</button>
       <button class="btn submit" id="subAll" onclick="submitAllReady()">Submit all ready ▶▶</button>
       <a class="btn" href="/api/career-hunter/submissions" target="_top">Submissions queue →</a>
@@ -903,12 +906,33 @@ async function loadWorkers(){
     if(el){
       const chosen = selectedNode() ? workers.find(w=>w.clientId===selectedNode())
                                     : workers.find(w=>w.clientId===defaultClientId);
-      if(!workers.length){ el.className='hint warn'; el.textContent='No leaf node connected — set one up (see below).'; }
+      if(!workers.length){ el.className='hint warn'; el.textContent='No computer connected — set one up:'; }
       else if(!chosen){ el.className='hint'; el.textContent=''; }
       else { el.className='hint'+(chosen.available?'':' warn'); el.textContent = chosen.available ? 'ready' : chosen.state; }
     }
+    // The one-click installer is offered exactly when there is nothing to submit ON. It
+    // carries a credential scoped to ONE computer (minted per download, revocable on its
+    // own), so it is safe to hand to whoever is signed in — but it is still a credential,
+    // which is why the confirm below says so before the file exists.
+    const install=$('installNode');
+    if(install) install.hidden = workers.length > 0;
   } catch(e){ if(el){ el.textContent=''; } }
 }
+
+// A downloaded installer contains this user's per-device credential. Same rule as the
+// offline autofill bookmarklet: say what is in the file BEFORE it lands in Downloads.
+const installLink=$('installNode');
+if(installLink) installLink.onclick=e=>{
+  const name=(window.prompt('Name this computer (shows up in the picker above):','my-computer')||'').trim();
+  if(!name){ e.preventDefault(); return; }
+  const ok=window.confirm(
+    'The downloaded file contains a credential for THIS computer only.\n\n'
+    +'Anyone who runs it enrols a machine that receives work dispatched to you. Do not share '
+    +'it, and delete it once the computer appears. You can revoke it any time from Settings — '
+    +'that disables this one computer and nothing else.\n\nDownload it?');
+  if(!ok){ e.preventDefault(); return; }
+  installLink.href='/api/join/node-installer?name='+encodeURIComponent(name);
+};
 
 restoreFilters();       // must precede the first fetch so it carries the remembered filter
 checkOnboarding(true);  // prefetch the feed in parallel with the onboarding gate

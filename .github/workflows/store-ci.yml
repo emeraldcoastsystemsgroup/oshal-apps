@@ -25,6 +25,7 @@
 # 20 | maintainer@emeraldcoastsystemsgroup.com     | Make Career run its shared SQLite/PostgreSQL contract against a disposable non-superuser database with the package's exact Python runtime pins.
 # 21 | maintainer@emeraldcoastsystemsgroup.com     | Run Kalshi's authenticated Settings/Alerts contract in real Chromium against the compiled package route and a signed local-session HTTP boundary; install pinned browser dependencies so CI fails instead of skipping when Chromium is unavailable.
 # 22 | maintainer@emeraldcoastsystemsgroup.com     | Give the Career job Node 24 so its pre-resume browse guard can build a real SQLite corpus from the engine's own schema and assert the covering-index plan.
+# 23 | maintainer@emeraldcoastsystemsgroup.com     | Move the career Postgres admin URL to the step that consumes it. The job context is step-level only; referencing it in job-level env made GitHub reject the whole file as invalid, and an unparseable file has no readable triggers — so every push to every branch since #58 (Aug 6) fired a zero-second failure run + email, despite the PR-only on: block. The jobs added in #58/#69 never actually executed until this fix.
 
 name: store-ci
 on:
@@ -71,8 +72,16 @@ jobs:
       # whose safety depends on authorization and mutation remaining adjacent.
       # All suites are dependency-free plain node, so no install step can mask a
       # missing guard or substitute a framework checkout for the packaged code.
+      # The one exception is a TypeScript compiler: the source-side guards
+      # transpile the package's own .ts and have no runtime dependency beyond
+      # that. On a workstation they find it in the sibling core checkout, which
+      # does not exist on a runner — so install it and point OSHAL_ROOT at it.
+      - name: Provide a TypeScript compiler
+        run: npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/tsroot" typescript@5.9.3
       - name: Run every Little Monsters security suite
         working-directory: little-monsters
+        env:
+          OSHAL_ROOT: ${{ runner.temp }}/tsroot
         run: node --test "tests/*.test.cjs"
 
   game-show:
@@ -283,8 +292,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
-    env:
-      CAREER_TEST_POSTGRES_ADMIN_URL: postgresql://postgres:career-contract-ci@127.0.0.1:${{ job.services.career_postgres.ports[5432] }}/postgres
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -321,8 +328,19 @@ jobs:
       # The pre-resume BROWSE feed is guarded the same way plus one level deeper: a real SQLite
       # corpus built from the engine's own CORPUS_SCHEMA, with no user_signals table anywhere,
       # and an EXPLAIN QUERY PLAN assertion that the title search stays covered by its index.
+      # Same compiler contract as little-monsters: the cross-process lock guard
+      # transpiles the package's own src-routes rather than trusting a build.
+      - name: Provide a TypeScript compiler
+        run: npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/tsroot" typescript@5.9.3
       - name: Run career-hunter suites
         working-directory: career-hunter
+        # Step-level on purpose: the job context (job.services.*.ports) does not exist at
+        # job level — a job-level env with this expression makes GitHub reject the entire
+        # workflow file, which then fails a zero-second stub run on EVERY push to EVERY
+        # branch because an unparseable file has no readable triggers.
+        env:
+          CAREER_TEST_POSTGRES_ADMIN_URL: postgresql://postgres:career-contract-ci@127.0.0.1:${{ job.services.career_postgres.ports[5432] }}/postgres
+          OSHAL_ROOT: ${{ runner.temp }}/tsroot
         run: node --test "tests/*.test.mjs"
 
   rides:

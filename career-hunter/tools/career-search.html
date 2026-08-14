@@ -1,0 +1,407 @@
+<!doctype html>
+<!--
+  Career Hunter — Search Jobs.
+
+  A plain search over every opening in the shared corpus. It is NOT the Job Board:
+  the board ranks the caller's résumé-scored matches and needs an indexed résumé to
+  say anything at all. There is no fit score, no P(land), no pipeline and no
+  submission rail here — none of those mean anything without a résumé, and this
+  screen deliberately works without one.
+
+  The shape is the one every job site uses: filters down the left, results beside
+  them, and the newest postings showing before anything has been asked for. Each
+  control NARROWS what is already on screen — tick Remote, then add a title, then a
+  state — rather than composing a query you then submit.
+
+  Reads GET /api/career-hunter/browse (corpus-only; no user_signals table is touched)
+  with q / title / description / company / state / remote / type / min_pay / days /
+  sort / page.
+
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  SEQ                 | AUTHOR                                      | DESCRIPTION
+  -----------------------------------------------------------------------------
+  1 | maintainer@emeraldcoastsystemsgroup.com | A dedicated job-search screen: free text over titles and employers, company/location/remote/salary/type/date filters, sorting, and paging over the whole corpus, with no résumé and no match concept anywhere.
+  2 | maintainer@emeraldcoastsystemsgroup.com | The layout every job site uses — a left filter rail narrowing live results — plus separate title-contains and description-contains fields over the full-text index, removable filter chips, and an honest note that most postings publish no salary.
+-->
+<html lang="en" data-theme="midnight"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Search Jobs</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+:root{
+  --bg:var(--bg-primary); --panel:var(--bg-secondary); --card:var(--bg-card);
+  --line:var(--border-color); --ink:var(--text-primary); --muted:var(--text-secondary);
+  --accent:var(--accent-primary); --good:var(--status-success);
+}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--ink);
+     font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{max-width:1240px;margin:0 auto;padding:18px 20px 60px}
+h1{font-size:21px;margin:0 0 2px}
+.sub{color:var(--muted);font-size:12.5px;margin:0 0 14px}
+
+/* ---- two columns: filter rail, results ---- */
+.cols{display:grid;grid-template-columns:262px minmax(0,1fr);gap:20px;align-items:start}
+.rail{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+      padding:4px 14px 14px;position:sticky;top:12px}
+.railhead{display:flex;align-items:center;justify-content:space-between;
+          padding:12px 0 8px;border-bottom:1px solid var(--line)}
+.railhead b{font-size:13px}
+.clear{background:none;border:0;color:var(--accent);font:inherit;font-size:12px;
+       cursor:pointer;padding:0}
+.clear[disabled]{color:var(--muted);opacity:.5;cursor:default}
+.grp{border-bottom:1px solid var(--line);padding:11px 0}
+.grp:last-child{border-bottom:0}
+.grp > label,.grp .glabel{display:block;font-size:11px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.05em;margin:0 0 6px}
+.grp input[type=search],.grp select{
+  width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);
+  border-radius:8px;padding:7px 9px;font:inherit;font-size:13px}
+.grp .hint{display:block;color:var(--muted);font-size:11px;margin:5px 0 0;line-height:1.4}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pill{border:1px solid var(--line);background:var(--bg);color:var(--muted);
+      border-radius:20px;padding:4px 11px;font-size:12px;cursor:pointer}
+.pill[aria-pressed=true]{border-color:var(--accent);color:var(--accent);
+      background:color-mix(in srgb,var(--accent) 14%,transparent);font-weight:650}
+details.adv{border-top:1px solid var(--line)}
+details.adv summary{cursor:pointer;color:var(--accent);font-size:12.5px;padding:11px 0 2px;
+  list-style:none}
+details.adv summary::-webkit-details-marker{display:none}
+details.adv summary::before{content:"\25B8  "}
+details.adv[open] summary::before{content:"\25BE  "}
+
+/* ---- results ---- */
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;
+     flex-wrap:wrap;margin:0 0 10px}
+.count{color:var(--muted);font-size:12.5px}
+.count b{color:var(--ink)}
+.sortwrap{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:12.5px}
+.sortwrap select{background:var(--panel);color:var(--ink);border:1px solid var(--line);
+  border-radius:8px;padding:6px 9px;font:inherit;font-size:12.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.chip{border:1px solid var(--accent);color:var(--accent);border-radius:20px;
+      padding:3px 7px 3px 11px;font-size:12px;display:flex;align-items:center;gap:5px}
+.chip button{background:none;border:0;color:inherit;font:inherit;cursor:pointer;
+  font-size:15px;line-height:1;padding:0 3px}
+.job{background:var(--card);border:1px solid var(--line);border-radius:11px;
+     padding:13px 15px;margin-bottom:9px}
+.job h2{font-size:15px;margin:0;font-weight:650}
+.job h2 a{color:var(--ink);text-decoration:none}
+.job h2 a:hover{color:var(--accent)}
+.co{color:var(--muted);font-size:12.5px;margin:3px 0 0}
+.meta{display:flex;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin:9px 0 0}
+.meta .pay{color:var(--good);font-weight:650}
+.tag{border:1px solid var(--line);border-radius:20px;padding:1px 9px;font-size:11px}
+.acts{margin:10px 0 0;display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;
+     padding:6px 12px;font-size:12.5px;text-decoration:none;display:inline-block;cursor:pointer}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{border-color:var(--accent);color:var(--accent);font-weight:650}
+.empty{color:var(--muted);border:1px dashed var(--line);border-radius:12px;
+       padding:40px;text-align:center;line-height:1.7}
+.pager{display:flex;gap:9px;justify-content:center;align-items:center;margin:16px 0 0;
+       color:var(--muted);font-size:12.5px}
+.note{color:var(--muted);font-size:11.5px}
+@media(max-width:820px){
+  .cols{grid-template-columns:1fr}
+  .rail{position:static}
+  .grp input[type=search],.grp select{font-size:16px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Search Jobs</h1>
+  <p class="sub">Every opening we track. No résumé needed — this searches the whole database.</p>
+
+  <div class="cols">
+    <!-- ── filter rail ────────────────────────────────────────────────── -->
+    <form class="rail" id="rail" autocomplete="off">
+      <div class="railhead"><b>Filters</b>
+        <button type="button" class="clear" id="clear" disabled>Clear all</button></div>
+
+      <div class="grp">
+        <label for="q">Search</label>
+        <input id="q" name="q" type="search" placeholder="title or employer"/>
+        <span class="hint">Matches job titles and company names.</span>
+      </div>
+
+      <div class="grp">
+        <span class="glabel">Remote</span>
+        <div class="pills">
+          <button type="button" class="pill" data-remote=""  aria-pressed="true">Any</button>
+          <button type="button" class="pill" data-remote="1" aria-pressed="false">Remote</button>
+          <button type="button" class="pill" data-remote="0" aria-pressed="false">On-site</button>
+        </div>
+        <input type="hidden" id="remote" name="remote" value=""/>
+      </div>
+
+      <div class="grp">
+        <label for="state">Location</label>
+        <input id="state" name="state" type="search" maxlength="2" placeholder="state code, e.g. FL"/>
+        <span class="hint">About 6 in 10 postings record a state.</span>
+      </div>
+
+      <div class="grp">
+        <label for="type">Job type</label>
+        <!-- The VALUES are the engine's vocabulary (jobtype.classify), not friendly
+             guesses: the corpus stores "fte"/"parttime"/"intern"/"contract", so a menu
+             offering "full-time" matched none of the 583,000 postings that are one.
+             Guarded in tests/career-browse-feed.test.mjs against jobtype.py itself. -->
+        <select id="type" name="type">
+          <option value="">Any</option>
+          <option value="fte">Full-time</option>
+          <option value="parttime">Part-time</option>
+          <option value="contract">Contract</option>
+          <option value="intern">Internship</option>
+        </select>
+      </div>
+
+      <div class="grp">
+        <label for="days">Date posted</label>
+        <select id="days" name="days">
+          <option value="">Any time</option>
+          <option value="1">Past 24 hours</option>
+          <option value="7">Past week</option>
+          <option value="14">Past 2 weeks</option>
+          <option value="30">Past month</option>
+        </select>
+      </div>
+
+      <div class="grp">
+        <label for="min_pay">Minimum salary</label>
+        <select id="min_pay" name="min_pay">
+          <option value="">Any</option>
+          <option value="80000">$80,000</option>
+          <option value="100000">$100,000</option>
+          <option value="150000">$150,000</option>
+          <option value="200000">$200,000</option>
+          <option value="250000">$250,000</option>
+        </select>
+        <span class="hint">Only about <b>1 in 9</b> postings publishes a salary, so a
+          minimum hides every job that stayed quiet about pay — most of them.</span>
+      </div>
+
+      <details class="adv" id="adv">
+        <summary>Advanced</summary>
+        <div class="grp">
+          <label for="title">Job title contains</label>
+          <input id="title" name="title" type="search" placeholder="e.g. registered nurse"/>
+        </div>
+        <div class="grp">
+          <label for="description">Job description contains</label>
+          <input id="description" name="description" type="search" placeholder="e.g. TS/SCI clearance"/>
+          <span class="hint">Searches the full text of every posting.</span>
+        </div>
+        <div class="grp">
+          <label for="company">Company</label>
+          <input id="company" name="company" type="search" placeholder="e.g. Lockheed"/>
+        </div>
+      </details>
+    </form>
+
+    <!-- ── results ────────────────────────────────────────────────────── -->
+    <div>
+      <div class="bar">
+        <div class="count" id="count"></div>
+        <label class="sortwrap">Sort by
+          <select id="sort" name="sort">
+            <option value="recent">Newest first</option>
+            <option value="posted">Recently posted</option>
+            <option value="salary">Highest salary</option>
+            <option value="title">Job title A&ndash;Z</option>
+          </select>
+        </label>
+      </div>
+      <div class="chips" id="chips"></div>
+      <div id="list"></div>
+      <div class="pager" id="pager"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const listEl = $('list'), countEl = $('count'), pagerEl = $('pager'), chipsEl = $('chips');
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// Every control that NARROWS the results, and what to call it on a removable chip.
+// `sort` is a view choice rather than a filter, so it is never a chip and never
+// enables "Clear all".
+const FILTERS = [
+  ['q', 'Search'], ['remote', 'Remote'], ['state', 'Location'], ['type', 'Job type'],
+  ['days', 'Posted'], ['min_pay', 'Min salary'], ['title', 'Title'],
+  ['description', 'Description'], ['company', 'Company'],
+];
+const FIELDS = FILTERS.map(([id]) => id).concat(['sort']);
+const ADVANCED = ['title', 'description', 'company'];
+const PER = 50;
+let page = 1;
+
+/** How a filter's raw value should read on its chip. */
+function chipText(id, value){
+  if (id === 'remote') return value === '1' ? 'Remote' : 'On-site';
+  if (id === 'days') return value === '1' ? 'Past 24 hours' : 'Past ' + value + ' days';
+  if (id === 'min_pay') return '$' + Number(value).toLocaleString() + '+';
+  if (id === 'type') return ($('type').selectedOptions[0] || {}).text || value;
+  return value;
+}
+
+function money(n){ return '$' + Math.round(n / 1000) + 'k'; }
+function salary(j){
+  const hi = j.salary_max, lo = j.salary_min;
+  if (!hi && !lo) return '';
+  if (lo && hi && lo !== hi) return money(lo) + '–' + money(hi);
+  return money(hi || lo);
+}
+
+/** The current search, as a plain object. Empty controls are omitted entirely. */
+function criteria(){
+  const c = {};
+  FIELDS.forEach(k => { const v = $(k).value.trim(); if (v) c[k] = v; });
+  return c;
+}
+function fill(c){
+  FIELDS.forEach(k => { $(k).value = c[k] || ''; });
+  if (!$('sort').value) $('sort').value = 'recent';
+  setRemote(c.remote || '');
+  // Advanced opens when it holds something, so a filter is never hidden from the person
+  // who set it — including on a shared link.
+  $('adv').open = ADVANCED.some(k => c[k]);
+}
+function setRemote(value){
+  $('remote').value = value;
+  const pills = document.querySelectorAll('.pill');
+  for (let i = 0; i < pills.length; i += 1) {
+    pills[i].setAttribute('aria-pressed', String(pills[i].dataset.remote === value));
+  }
+}
+function remember(){
+  const c = criteria();
+  if (page > 1) c.page = String(page);
+  try {
+    const qs = new URLSearchParams(c).toString();
+    history.replaceState(null, '', qs ? location.pathname + '?' + qs : location.pathname);
+  } catch(e){ /* replaceState is best-effort inside an iframe */ }
+}
+
+/** Re-run from the first page. Every control calls this; nothing is ever "submitted". */
+function refilter(){ page = 1; search(); }
+
+function renderChips(){
+  const c = criteria();
+  const active = FILTERS.filter(f => c[f[0]]);
+  $('clear').disabled = active.length === 0;
+  chipsEl.innerHTML = active.map(f =>
+    '<span class="chip">' + esc(f[1]) + ': ' + esc(chipText(f[0], c[f[0]])) +
+    '<button type="button" data-drop="' + f[0] + '" title="Remove">×</button></span>').join('');
+}
+chipsEl.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-drop]');
+  if (!b) return;
+  const id = b.dataset.drop;
+  if (id === 'remote') setRemote(''); else $(id).value = '';
+  refilter();
+});
+
+function jobCard(j){
+  const pay = salary(j);
+  const bits = [
+    pay ? '<span class="pay">' + pay + '</span>' : '',
+    j.location ? '<span>' + esc(j.location) + '</span>' : '',
+    j.remote ? '<span class="tag">remote</span>' : '',
+    j.job_type ? '<span class="tag">' + esc(j.job_type) + '</span>' : '',
+    j.posted_date ? '<span>posted ' + esc(String(j.posted_date).slice(0, 10)) + '</span>' : '',
+    j.industry ? '<span>' + esc(j.industry) + '</span>' : '',
+  ].filter(Boolean).join('');
+  const title = j.url
+    ? '<a href="' + esc(j.url) + '" target="_blank" rel="noopener">' + esc(j.title) + '</a>'
+    : esc(j.title);
+  return '<div class="job">'
+    + '<h2>' + title + '</h2>'
+    + '<p class="co">' + esc(j.company || '') + '</p>'
+    + '<div class="meta">' + bits + '</div>'
+    + '<div class="acts">'
+    + (j.url ? '<a class="btn primary" href="' + esc(j.url) + '" target="_blank" rel="noopener">View &amp; apply ↗</a>' : '')
+    + '<button class="btn" data-company="' + esc(j.company || '') + '">More at this company</button>'
+    + '</div></div>';
+}
+
+listEl.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-company]');
+  if (!b) return;
+  $('company').value = b.dataset.company || '';
+  $('adv').open = true;
+  refilter();
+});
+
+function renderCount(data){
+  const n = data.jobs.length;
+  const notes = [];
+  if (data.deep) notes.push('descriptions searched');
+  if (data.capped) notes.push('narrow the filters to page further');
+  countEl.innerHTML = (n ? '<b>' + n + '</b> job' + (n === 1 ? '' : 's') + (page > 1 ? ' · page ' + page : '') : '')
+    + (notes.length ? ' <span class="note">· ' + esc(notes.join(' · ')) + '</span>' : '');
+}
+
+function renderPager(data){
+  const more = !data.exhausted && !data.capped;
+  if (page === 1 && !more){ pagerEl.innerHTML = ''; return; }
+  pagerEl.innerHTML =
+    (page > 1 ? '<button class="btn" id="prev">← Previous</button>' : '')
+    + '<span>Page ' + page + '</span>'
+    + (more ? '<button class="btn" id="next">Next →</button>' : '');
+  const prev = $('prev'), next = $('next');
+  if (prev) prev.onclick = () => { page -= 1; search(); };
+  if (next) next.onclick = () => { page += 1; search(); };
+}
+
+async function search(){
+  const c = criteria();
+  const params = new URLSearchParams(c);
+  params.set('per', String(PER));
+  params.set('page', String(page));
+  remember(); renderChips();
+  listEl.innerHTML = '<div class="empty">Searching…</div>';
+  countEl.textContent = ''; pagerEl.innerHTML = '';
+  try {
+    const response = await fetch('/api/career-hunter/browse?' + params);
+    const data = await response.json();
+    if (data.error) throw new Error(data.error);
+    if (data.empty){
+      listEl.innerHTML = '<div class="empty">No jobs have been collected yet.</div>';
+      return;
+    }
+    const jobs = data.jobs || [];
+    listEl.innerHTML = jobs.length ? jobs.map(jobCard).join('')
+      : '<div class="empty">Nothing matched.<br/>Remove a filter above, or try '
+        + '<b>Job description contains</b> under Advanced.</div>';
+    renderCount(data); renderPager(data);
+  } catch(e){
+    listEl.innerHTML = '<div class="empty">Could not search: ' + esc(e.message) + '</div>';
+  }
+}
+
+// Progressive filtering: a menu or a pill re-runs immediately, a text box waits until the
+// typing stops. Nothing here submits a form — the results are always already live.
+let typing;
+['q', 'state', 'title', 'description', 'company'].forEach(k =>
+  $(k).addEventListener('input', () => { clearTimeout(typing); typing = setTimeout(refilter, 350); }));
+['type', 'days', 'min_pay', 'sort'].forEach(k => $(k).addEventListener('change', refilter));
+const pills = document.querySelectorAll('.pill');
+for (let i = 0; i < pills.length; i += 1) {
+  pills[i].addEventListener('click', function(){ setRemote(this.dataset.remote); refilter(); });
+}
+$('rail').addEventListener('submit', e => { e.preventDefault(); refilter(); });
+$('clear').onclick = () => { fill({}); refilter(); };
+
+const fromUrl = Object.fromEntries(new URLSearchParams(location.search));
+fill(fromUrl);
+page = Math.max(1, Number(fromUrl.page) || 1);
+search();
+</script>
+</body></html>
