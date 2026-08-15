@@ -26,7 +26,15 @@ const routeStore = read('src-routes', 'career-user-store.ts');
 const loader = read('scripts', 'migrate-sqlite-to-postgres.js');
 
 test('manifest ships the idempotent Apply V2 claim-binding migration', () => {
-  assert.match(manifest, /version:\s*1\.12\.1/);
+  // Pinned to a floor, not an exact version: this asserted `version: 1.12.1` literally, so
+  // every unrelated patch bump turned it red and said nothing about the migration it exists
+  // to guard. What matters is that the manifest is at or past the release that introduced
+  // the migration AND still declares it.
+  const declared = manifest.match(/^version:\s*(\d+)\.(\d+)\.(\d+)/m);
+  assert.ok(declared, 'the manifest must declare a semver version');
+  const [maj, min, patch] = declared.slice(1).map(Number);
+  const atOrAfter = maj > 1 || (maj === 1 && (min > 12 || (min === 12 && patch >= 1)));
+  assert.ok(atOrAfter, `manifest version ${declared[1]}.${declared[2]}.${declared[3]} predates the Apply V2 binding migration`);
   assert.match(manifest, /migrations\/102-career-apply-run-binding\.sql/);
   assert.match(migration, /ADD COLUMN IF NOT EXISTS apply_run_id UUID/);
   assert.match(migration, /ADD COLUMN IF NOT EXISTS apply_claim_token UUID/);

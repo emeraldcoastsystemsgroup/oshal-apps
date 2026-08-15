@@ -74,6 +74,16 @@
   .bulk { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .bulk .hint { font-size:11.5px; color:var(--muted); }
   .bulk .hint.warn { color:var(--danger); }
+  /* Run instructions for the downloaded installer. Full-width so the command never wraps
+     mid-token — a half-copied PowerShell line fails in a way that reads like our bug. */
+  .howto { flex-basis:100%; margin:8px 0 0; padding:10px 12px; font-size:12.5px; line-height:1.55;
+           background:var(--panel2); border:1px solid var(--accent2); border-radius:9px; }
+  .howto b { color:var(--text); }
+  .howto code { display:block; margin:7px 0; padding:8px 10px; background:var(--bg); color:var(--accent2);
+                border:1px solid var(--line); border-radius:7px; font-size:12px; overflow-x:auto;
+                white-space:pre; user-select:all; }
+  .howto code.inline { display:inline; padding:1px 5px; margin:0; font-size:12px; }
+  .howto .note { display:block; margin:6px 0 0; color:var(--muted); font-size:11.5px; }
   .nodepick { font-size:12px; color:var(--muted); display:flex; align-items:center; gap:5px; }
   .nodepick select { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:4px 7px; font-size:12px; }
   .rules { margin:0 0 12px; border:1px solid var(--line); border-radius:9px; background:var(--panel); padding:0 12px; font-size:12.5px; }
@@ -154,8 +164,18 @@
     <div class="bulk">
       <label class="nodepick">On <select id="nodeSel" title="Which computer runs the browser"><option value="">auto-pick</option></select></label>
       <span class="hint" id="workerHint"></span>
-      <a class="btn go" id="installNode" href="/api/join/node-installer" target="_blank"
-         rel="noopener" hidden>Set up this computer &#8681;</a>
+      <a class="btn go" id="installNode" href="/api/join/node-installer"
+         download="install-oshal-node.cmd" hidden>Set up this computer &#8681;</a>
+      <!-- Shown only once the file has actually been handed over. It is a .cmd, not a .ps1,
+           because Windows refuses a downloaded .ps1 as "not digitally signed" under the
+           default policy and nothing the person does at the double-click fixes that. -->
+      <div class="howto" id="installHow" hidden>
+        <b>Saved to Downloads as <code class="inline">install-oshal-node.cmd</code> — double-click it.</b>
+        <span class="note">Windows may first ask whether to run a file from the internet; choose Run.
+        It installs the node app, connects it to your account, and starts it. This computer then
+        appears in the picker above within a minute. Delete the file afterwards — it holds a
+        credential for this one computer, revocable any time from Settings.</span>
+      </div>
       <button class="btn go" id="copyAutofill" onclick="copyOfflineAutofill()">Copy offline autofill bookmarklet</button>
       <button class="btn submit" id="subAll" onclick="submitAllReady()">Submit all ready ▶▶</button>
       <a class="btn" href="/api/career-hunter/submissions" target="_top">Submissions queue →</a>
@@ -932,6 +952,11 @@ if(installLink) installLink.onclick=e=>{
     +'that disables this one computer and nothing else.\n\nDownload it?');
   if(!ok){ e.preventDefault(); return; }
   installLink.href='/api/join/node-installer?name='+encodeURIComponent(name);
+  // Reveal how to RUN it only once the file is actually being handed over. A downloaded .ps1
+  // is refused twice by Windows (execution policy, then the internet tag), and both refusals
+  // are silent on a double-click — so the instruction has to travel with the download rather
+  // than live in a doc nobody opens.
+  const how=$('installHow'); if(how) how.hidden=false;
 };
 
 restoreFilters();       // must precede the first fetch so it carries the remembered filter

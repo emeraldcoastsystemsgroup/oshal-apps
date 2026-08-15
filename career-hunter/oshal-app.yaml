@@ -57,7 +57,7 @@ description: >-
   posting against your private career profile, and turns the best fits into a human-in-the-loop
   application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume +
   cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.
-version: 1.12.1
+version: 1.12.3
 status: active
 theme: daylight
 

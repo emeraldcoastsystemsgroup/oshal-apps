@@ -335,6 +335,48 @@ test('the board offers a node installer exactly where it reports no node', () =>
     'the installer is not tied to whether a computer is connected');
 });
 
+test('the installer downloads in place rather than through a popup', () => {
+  // The defect this exists for: the link was target="_blank". This surface runs inside the
+  // cockpit's SANDBOXED iframe, and a sandbox without allow-downloads discards the download
+  // silently — the popup opened, showed a blank tab, saved nothing, and logged nothing. The
+  // server had already rendered the script and recorded it as issued, so both sides looked
+  // healthy. Core now grants allow-downloads; this asserts the surface stopped depending on
+  // a popup at all, which is what makes the download work regardless of the sandbox.
+  assert.match(html, /id="installNode"[^>]*download="install-oshal-node\.cmd"/,
+    'the anchor must carry download=, or the browser navigates instead of saving');
+  const anchor = html.match(/<a[^>]*id="installNode"[\s\S]*?>/)[0];
+  assert.ok(!/target="_blank"/.test(anchor),
+    'target="_blank" makes this a popup download, the exact shape a sandbox discards');
+});
+
+test('the download ships with the one thing needed to actually run it', () => {
+  // Windows refuses a downloaded .ps1 twice — the execution policy rejects unsigned scripts,
+  // and the file carries an internet tag. Both refusals are silent on a double-click, so a
+  // user who gets the file still gets nowhere. The instruction has to travel WITH the
+  // download; a runbook is not where someone looks while staring at a file that did nothing.
+  assert.match(html, /id="installHow"[^>]*hidden/,
+    'the run instructions must exist and start hidden until a file is handed over');
+  assert.match(html, /install-oshal-node\.cmd/,
+    'instructions must name the real downloaded filename, not a placeholder');
+  assert.match(body, /how\.hidden=false/,
+    'the instructions must be revealed when the download is confirmed');
+  // Revealing them up-front would be noise for the majority who never click.
+  assert.ok(!/id="installHow"(?![^>]*hidden)/.test(html),
+    'instructions must not be visible before the download exists');
+});
+
+test('the download is a .cmd, because Windows refuses a downloaded .ps1', () => {
+  // A downloaded .ps1 is rejected as "not digitally signed" under the DEFAULT RemoteSigned
+  // policy, and right-click "Run with PowerShell" passes no bypass — so the only people who
+  // could run it were the ones who already knew to change their execution policy. A .cmd is
+  // outside execution policy entirely. Core emits the batch header; this asserts the surface
+  // asks for the matching filename, or the browser saves it under a name that will not run.
+  assert.match(html, /id="installNode"[^>]*download="install-oshal-node\.cmd"/,
+    'the download attribute must name a .cmd');
+  assert.ok(!/download="install-oshal-node\.ps1"/.test(html),
+    'a .ps1 filename puts the file back behind the execution policy');
+});
+
 test('the download says what is in the file before it exists', () => {
   // Same rule as the offline autofill bookmarklet: a file carrying a credential is
   // announced BEFORE it lands in Downloads, not documented somewhere afterwards.
