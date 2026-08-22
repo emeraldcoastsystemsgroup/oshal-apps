@@ -19,7 +19,7 @@ description: >-
   headshot, or your pet's face on a human body holding a pitchfork.
   Take the photo with your camera or upload one, crop the head, pick a
   style, generate.
-version: 1.4.0
+version: 1.4.1
 status: active
 # Deployment-wide tile visibility (the little-monsters lesson: person-scope hid
 # the installed row from every other user). Portrait DATA stays strictly

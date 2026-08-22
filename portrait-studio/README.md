@@ -77,16 +77,22 @@ rendered dead.
 
 ## Image engine configuration (operator)
 
-The engine is chosen by `STORYBOARD_IMAGE_PROVIDER` (default `codex`), same as
-the Video Studio storyboard stage — **fail-closed**, never silently falling to a
-paid vendor:
+The engine is chosen by `STORYBOARD_IMAGE_PROVIDER`, same as the Video Studio
+storyboard stage — **fail-closed**, never silently falling to a paid vendor.
+Unset, the default is demo-aware (ADR-130): `codex-cli` when the deployment
+runs `DEMO_MODE=true`, `codex` otherwise:
 
 | provider | model | needs |
 |---|---|---|
-| `codex` (default) | `gpt-image-1` edits | a **platform** OpenAI credential (`openAiApiKey` in `config-seed/secrets.json`). ⚠ The Codex **ChatGPT-subscription** OAuth token does NOT work here — `/v1/images` rejects subscription tokens with a misleading "token has expired". |
+| `codex-cli` (demo default) | the render bot's boot codex model (fleet `gpt-5.5`) via the swarm's own codex harness — **free**, subscription-included | `DEMO_MODE=true` + the caller in `OSHAL_OPERATOR_SUBS` (SEC-05 demo carve, enforced at the bot node) + the app-boot executor; render bot via `STORYBOARD_CLI_IMAGE_BOT_ID` |
+| `codex` (non-demo default) | `gpt-image-1` edits | a **platform** OpenAI credential (`OPENAI_API_KEY` / `openAiApiKey`). ⚠ The Codex **ChatGPT-subscription** OAuth token does NOT work here — `/v1/images` rejects subscription tokens. |
 | `openrouter` | `google/gemini-2.5-flash-image` (override: `OPENROUTER_IMAGE_MODEL`) | the swarm's OpenRouter key (`OPENROUTER_API_KEY` / `openRouterApiKey`); ~$0.04/image, image-to-image via chat completions |
 | `vertex` | `gemini-2.5-flash-image` | a Google token with the cloud-platform scope (explicit opt-in) |
 | `comfyui` | local GPU workflow | not wired yet |
+
+Since 1.4.1 the routes pass the caller's sub to the resolver — the `codex-cli`
+rail authorizes **per caller**, so the `/provider` banner answers for the user
+looking at it, and non-operator callers fail closed with the carve hint.
 
 The surface shows a banner (via `GET /api/portrait-studio/provider`) when the
 engine isn't configured. `PORTRAIT_STUDIO_DAILY_CAP` (default 25) caps

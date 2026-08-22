@@ -7,6 +7,7 @@
  * 2026-07-16 10:45:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Portrait Studio routes (ADR-085 package): studio surface + style catalog + generate (multipart crop upload → storyboard image provider edit, async with gallery polling) + per-user gallery/serve/delete. All rows and files are caller-sub-scoped; the image engine is the media-generation kernel skill (vendor-abstracted, fail-closed).
  * 2026-07-17 11:30:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Industrial hardening: stuck-row sweep (boot + throttled lazy — an api restart mid-generation can no longer strand a spinner), retry-with-backoff on transient vendor errors + hard per-attempt timeout, process-wide generation semaphore + per-user in-flight cap (burst control), vendor-reported cost captured on the row (cost_usd) AND in the canonical ledger via recordStoryboardImageCost (chat_tasks + oshal_cost_events, attributed to portrait-artist + the caller), /provider now runs the provider's REAL healthCheck (key validity + credit) instead of key-presence.
  * 2026-08-12 09:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Serve the camera-source decision module at GET /capture.js from the package tools dir, so the surface's live-camera Step 1 runs the SAME file the package test suite requires — no inline copy that can drift from the tested fallback logic.
+ * 2026-08-22 00:30:00 | maintainer@emeraldcoastsystemsgroup.com     | Thread the caller's sub into resolveStoryboardImageProvider (generation + /provider probe). The ADR-130 codex-cli provider — the demo-mode default that renders on the swarm's own codex harness — authorizes per caller via the SEC-05 demo carve, so a resolve without userSub reads unavailable and fails closed. Other providers ignore the field. (1.4.1)
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -183,7 +184,9 @@ async function runGeneration(ctx, id, sub, prompt, source) {
     await generationSlots.acquire();
     try {
         await ctx.pool.query(`UPDATE ps_portraits SET status = 'generating', updated_at = NOW() WHERE portrait_id = $1`, [id]);
-        const provider = await (0, video_generation_1.resolveStoryboardImageProvider)();
+        // The caller's sub rides to the provider: the ADR-130 codex-cli rail authorizes per caller
+        // (SEC-05 demo carve at the bot node); the vendor-API providers ignore it.
+        const provider = await (0, video_generation_1.resolveStoryboardImageProvider)({ userSub: sub });
         const attempt = () => (0, portrait_ops_1.withTimeout)(provider.generateWithMeta
             ? provider.generateWithMeta(prompt, source)
             : provider.generate(prompt, source).then((image) => ({ image, costUsd: null, model: `${provider.id}-default` })), VENDOR_TIMEOUT_MS, 'image generation');
@@ -279,10 +282,12 @@ function createPortraitStudioRoutes(ctx) {
         res.json((0, portrait_catalog_1.clientCatalog)());
     });
     /** GET /provider — is the image engine ACTUALLY working? Runs the provider's real
-     *  credential probe when it has one (key validity + credit), because key-presence lies. */
-    router.get('/provider', async (_req, res) => {
+     *  credential probe when it has one (key validity + credit), because key-presence lies.
+     *  Resolved with the CALLER's sub: the codex-cli rail is per-caller (demo carve), so the
+     *  banner must answer for the user who is looking at it. */
+    router.get('/provider', async (req, res) => {
         try {
-            const provider = await (0, video_generation_1.resolveStoryboardImageProvider)();
+            const provider = await (0, video_generation_1.resolveStoryboardImageProvider)({ userSub: callerSub(req) || undefined });
             if (provider.healthCheck) {
                 const health = await provider.healthCheck();
                 res.json({ configured: health.ok, provider: provider.id, costClass: provider.costClass, detail: health.detail, ...(health.ok ? {} : { hint: health.detail }) });
