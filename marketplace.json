@@ -307,7 +307,7 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "Reads openings from employers' own public ATS job feeds into a shared corpus, scores every posting against your private career profile, and turns the best fits into a human-in-the-loop application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume + cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.",
-      "version": "1.12.1",
+      "version": "1.12.3",
       "dependencies": {
         "apps": ["portrait-studio"],
         "tools": [],
@@ -388,7 +388,7 @@
       "suite": "ai-creative",
       "displayName": "Portrait Studio",
       "description": "Turn any photo into a portrait worth framing — take it with your camera or upload one, then 100 profiles × 100 backdrops: business, business casual, slice of life, work environments, history and fantasy, with interchangeable clothing, hats, props and finishes. Millions of permutations of awesome.",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -1162,6 +1162,40 @@
       },
       "audit": {
         "record": "audits/ocean-lab.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
+      "status": "ready"
+    },
+    {
+      "name": "marketing-engine",
+      "suite": "ai-productivity",
+      "displayName": "Marketing Engine",
+      "description": "Takes a built oshal product to traffic, users, and revenue: campaign board with stage-gated intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic metrics scorecard, experiment registry, budget proposals a human approves, and weekly review tickets worked by inline concierge bots only after human approval.",
+      "version": "0.1.0",
+      "theme": "midnight",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [
+          "linkedin",
+          "mastodon",
+          "bluesky",
+          "resend",
+          "google",
+          "google-search-console",
+          "posthog",
+          "twitter",
+          "meta-business"
+        ]
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "marketing-engine",
+        "ref": "main"
+      },
+      "audit": {
+        "record": "audits/marketing-engine.json",
         "sourceSha": "0000000000000000000000000000000000000000"
       },
       "status": "ready"

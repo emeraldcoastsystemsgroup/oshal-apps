@@ -8,6 +8,7 @@
     "game-show|npm test",
     "kalshi|node --test \"tests/*.test.js\"",
     "little-monsters|node --test \"tests/*.test.cjs\"",
+    "marketing-engine|node --test \"tests/*.test.mjs\"",
     "payroll|node --test \"tests/*.test.mjs\"",
     "presentations|node --test \"tests/*.test.*\"",
     "pumpkin|node --test \"tests/*.test.cjs\"",

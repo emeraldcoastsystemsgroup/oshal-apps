@@ -169,7 +169,7 @@ test('every non-Pumpkin package owns the reviewed service-only readiness smoke',
     .filter((entry) => entry.isDirectory() && existsSync(join(entry.name, 'oshal-app.yaml')))
     .map((entry) => entry.name)
     .sort();
-  assert.equal(packageDirs.length, 47, 'the smoke audit must cover the complete store manifest set');
+  assert.equal(packageDirs.length, 48, 'the smoke audit must cover the complete store manifest set');
 
   const excluded = new Set(['pumpkin']);
   const normalizedModule = (file) => `${readFileSync(file, 'utf8').replaceAll('\r\n', '\n').trimEnd()}\n`;
@@ -214,11 +214,11 @@ test('every non-Pumpkin package owns the reviewed service-only readiness smoke',
     assert.equal(normalizedModule(compiledPath), canonicalCompiled, `${packageDir} compiled smoke drifted`);
     covered += 1;
   }
-  assert.equal(covered, 46, 'exactly Pumpkin is excluded from the 47-package rollout');
+  assert.equal(covered, 47, 'exactly Pumpkin is excluded from the 48-package rollout');
 
   const inventory = JSON.parse(readFileSync('scripts/security/store-route-inventory.json', 'utf8')).routes;
   const smokeRoutes = inventory.filter((entry) => entry.includes('|routes/package-smoke.js|'));
-  assert.equal(smokeRoutes.length, 46);
+  assert.equal(smokeRoutes.length, 47);
   assert.ok(smokeRoutes.every((entry) => entry.endsWith('|service|no-sql-write')));
 });
 

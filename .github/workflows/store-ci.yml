@@ -26,6 +26,7 @@
 # 21 | maintainer@emeraldcoastsystemsgroup.com     | Run Kalshi's authenticated Settings/Alerts contract in real Chromium against the compiled package route and a signed local-session HTTP boundary; install pinned browser dependencies so CI fails instead of skipping when Chromium is unavailable.
 # 22 | maintainer@emeraldcoastsystemsgroup.com     | Give the Career job Node 24 so its pre-resume browse guard can build a real SQLite corpus from the engine's own schema and assert the covering-index plan.
 # 23 | maintainer@emeraldcoastsystemsgroup.com     | Move the career Postgres admin URL to the step that consumes it. The job context is step-level only; referencing it in job-level env made GitHub reject the whole file as invalid, and an unparseable file has no readable triggers — so every push to every branch since #58 (Aug 6) fired a zero-second failure run + email, despite the PR-only on: block. The jobs added in #58/#69 never actually executed until this fix.
+# 24 | maintainer@emeraldcoastsystemsgroup.com     | Run the marketing-engine package's suites: the app's only dangerous powers are posting under someone's name and moving their budget, so the guards are the consent gates (absent or garbage authorization row = OFF, cap 0 = never, count at cap = skipped), the import-never-arms-spend stripping, UTM validation/encoding, the 20% reallocation cap + channel floors, and honest no_data scorecard marking. Same dependency-free plain-node contract, against the COMPILED pure model. NOTE THE GLOB: these suites are .mjs.
 
 name: store-ci
 on:
@@ -389,6 +390,29 @@ jobs:
       - name: Run pumpkin suites
         working-directory: pumpkin
         run: node --test "tests/*.test.cjs"
+
+  marketing-engine:
+    name: marketing-engine package suites
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # The app's only dangerous powers are posting under someone's name and moving their
+      # budget, so the guards that matter are the refusals: an absent or garbage channel
+      # authorization row is OFF (only strict true/'t'/'true' opts in), a daily cap of 0 means
+      # never, a count at cap is a skip, campaign import can NEVER arm consent/spend fields
+      # (the series-pump import rule), a non-http(s) URL never comes back UTM-tagged, a budget
+      # reallocation never shifts more than 20% of the donor allocation (strictly inside the
+      # 20%-of-envelope bound) or breaches a channel floor, and
+      # a metrics source with no events is marked no_data rather than rendered as a number.
+      # Plain node, no install, against the COMPILED pure model — the same bytes the framework
+      # mounts. GLOB: these suites are .mjs; the house tests/*.test.js glob matches ZERO files.
+      - name: Run marketing-engine suites
+        working-directory: marketing-engine
+        run: node --test "tests/*.test.mjs"
 
   venture-plan:
     name: venture-plan package suites

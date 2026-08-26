@@ -1,0 +1,1227 @@
+<!doctype html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Marketing — oshal</title>
+<!--
+  CHANGE LOG
+  =============================================================================
+  SEQ                 | AUTHOR                                      | DESCRIPTION
+  =============================================================================
+  1 | maintainer@emeraldcoastsystemsgroup.com   | Marketing Engine surface v0.1.0: Board
+      (campaigns, stage gates, research/draft/launch actions, UTM builder), Scorecard
+      (weekly rollup with honest NO DATA badges), Channels (per-channel consent rows +
+      run ledger), Experiments (ICE registry), Approvals (budget proposals). Every
+      outward write goes through an explicit confirm dialog that sends confirm:true;
+      428/409/503 responses are rendered honestly, never papered over.
+-->
+<!-- Marketing Engine — the campaign cockpit. Bots draft and propose; the human on this
+     surface approves, publishes, and spends. Nothing goes out without an explicit
+     confirm, and a scorecard source without data says NO DATA — never a number. -->
+<!-- ONE link gives this standalone surface every OSHAL theme; the active one is chosen by the
+     data-theme on <html> above (and kept in sync live by surface-theme.js). Every colour below is
+     DERIVED from a framework token with a hardcoded fallback, so the surface is native to all
+     themes in-cockpit AND still renders if opened on its own (fallbacks = the midnight palette,
+     with a light-scheme set under @media so a bare open respects the OS theme too). -->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  /* ── standalone fallback palette (only applies when framework tokens are absent) ──────────── */
+  :root {
+    --mk-bg:#0a0a12; --mk-surface:#12121e; --mk-card:rgba(28,28,48,.55); --mk-card-hover:rgba(40,40,68,.66);
+    --mk-line:rgba(255,255,255,.09); --mk-text:#eeeef5; --mk-text2:#c8c8da; --mk-muted:#8a8aa0;
+    --mk-accent:#7c7cff; --mk-ok:#00d3a7; --mk-warn:#f5b342; --mk-err:#ff6f5e; --mk-active:#4aa3ff;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --mk-bg:#eef1f5; --mk-surface:#f6f8fb; --mk-card:#ffffff; --mk-card-hover:#fbfcfe;
+      --mk-line:rgba(22,26,34,.10); --mk-text:#191c22; --mk-text2:#3a4048; --mk-muted:#5a606b;
+      --mk-accent:#5a5af0; --mk-ok:#1f9d74; --mk-warn:#b3762e; --mk-err:#d94f3d; --mk-active:#2f77c9;
+    }
+  }
+
+  /* ── aliases: framework token first, standalone fallback second ───────────────────────────── */
+  :root {
+    --bg:      var(--bg-primary,      var(--mk-bg));
+    --surface: var(--bg-secondary,    var(--mk-surface));
+    --card:    var(--bg-card,         var(--mk-card));
+    --cardh:   var(--bg-card-hover,   var(--mk-card-hover));
+    --line:    var(--border-color,    var(--mk-line));
+    --text:    var(--text-primary,    var(--mk-text));
+    --text2:   var(--text-secondary,  var(--mk-text2));
+    --muted:   var(--text-muted,      var(--mk-muted));
+    --accent:  var(--accent-primary,  var(--mk-accent));
+    --accent-grad: var(--accent-gradient, linear-gradient(135deg, var(--accent), var(--mk-active)));
+    --ok:      var(--status-success,  var(--mk-ok));
+    --warn:    var(--status-warning,  var(--mk-warn));
+    --err:     var(--status-error,    var(--mk-err));
+    --active:  var(--status-active,   var(--mk-active));
+    --r-sm:10px; --r-md:16px; --r-lg:22px; --pill:999px;
+    --ease:cubic-bezier(.32,.72,.24,1);
+  }
+
+  * { box-sizing:border-box; }
+  html,body { height:100%; }
+  body {
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased; font-size:14px; line-height:1.45;
+  }
+  .tnum { font-variant-numeric:tabular-nums; }
+  a { color:var(--accent); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+
+  .wrap { max-width:1280px; margin:0 auto; padding:26px 24px 70px; }
+
+  /* ── header + tabs ────────────────────────────────────────────────────────────────────────── */
+  .head { display:flex; align-items:flex-start; gap:16px; margin-bottom:14px; flex-wrap:wrap; }
+  .head .h-main { flex:1; min-width:240px; }
+  .greet { font-size:26px; font-weight:680; letter-spacing:-.025em; margin:0 0 6px; }
+  .subline { color:var(--muted); font-size:14.5px; margin:0; }
+  .subline b { color:var(--text); font-weight:600; }
+  .controls { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+
+  .tabs { display:flex; gap:6px; flex-wrap:wrap; border-bottom:1px solid var(--line); margin-bottom:18px; }
+  .tabs button {
+    appearance:none; border:0; background:none; color:var(--muted); font:inherit; font-size:13.5px;
+    font-weight:620; padding:10px 14px 12px; cursor:pointer; border-bottom:2px solid transparent;
+    margin-bottom:-1px; display:inline-flex; align-items:center; gap:7px; transition:color var(--ease) .15s;
+  }
+  .tabs button:hover { color:var(--text); }
+  .tabs button.on { color:var(--text); border-bottom-color:var(--accent); }
+  .tabs .cnt { font-size:11px; font-weight:700; background:var(--card); border:1px solid var(--line);
+    border-radius:var(--pill); padding:1px 7px; color:var(--muted); }
+  .pane { display:none; }
+  .pane.on { display:block; }
+
+  .btn {
+    appearance:none; border:1px solid var(--line); background:var(--card); color:var(--text2);
+    font:inherit; font-size:13px; font-weight:600; padding:8px 15px; border-radius:var(--pill);
+    cursor:pointer; display:inline-flex; align-items:center; gap:8px; transition:all var(--ease) .15s;
+  }
+  .btn svg { width:15px; height:15px; }
+  .btn:hover { border-color:var(--accent); color:var(--accent); }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+  .btn.primary { background:var(--accent-grad); border-color:transparent; color:#fff; box-shadow:0 8px 20px rgba(0,0,0,.16); }
+  .btn.primary:hover { filter:brightness(1.07); color:#fff; }
+  .btn.danger { color:var(--err); }
+  .btn.danger:hover { border-color:var(--err); color:var(--err); }
+  .btn.sm { font-size:12px; padding:5px 11px; }
+  .spin { animation:spin 1s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* ── banners / badges ─────────────────────────────────────────────────────────────────────── */
+  .banner {
+    display:none; align-items:flex-start; gap:9px; font-size:13px; color:var(--err);
+    background:color-mix(in srgb, var(--err) 10%, transparent); border:1px solid color-mix(in srgb, var(--err) 36%, transparent);
+    padding:10px 14px; border-radius:var(--r-sm); margin-bottom:16px;
+  }
+  .banner.show { display:flex; }
+  .banner svg { width:15px; height:15px; flex:none; margin-top:1px; }
+  .badge { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700;
+    letter-spacing:.04em; padding:2px 9px; border-radius:var(--pill); border:1px solid var(--line); color:var(--muted); }
+  .badge.ok   { color:var(--ok);   border-color:color-mix(in srgb, var(--ok) 45%, transparent);   background:color-mix(in srgb, var(--ok) 10%, transparent); }
+  .badge.warn { color:var(--warn); border-color:color-mix(in srgb, var(--warn) 45%, transparent); background:color-mix(in srgb, var(--warn) 10%, transparent); }
+  .badge.err  { color:var(--err);  border-color:color-mix(in srgb, var(--err) 45%, transparent);  background:color-mix(in srgb, var(--err) 10%, transparent); }
+  .badge.acc  { color:var(--accent); border-color:color-mix(in srgb, var(--accent) 45%, transparent); background:color-mix(in srgb, var(--accent) 10%, transparent); }
+  .badge.nodata { color:var(--warn); border-style:dashed; border-color:color-mix(in srgb, var(--warn) 50%, transparent); background:none; }
+
+  /* ── cards / lists ────────────────────────────────────────────────────────────────────────── */
+  .card { background:var(--card); border:1px solid var(--line); border-radius:var(--r-md); padding:16px 18px; margin-bottom:14px; }
+  .card:hover { background:var(--cardh); }
+  .card h3 { margin:0; font-size:15.5px; font-weight:650; letter-spacing:-.01em; }
+  .rowline { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .metaline { color:var(--muted); font-size:12.5px; margin-top:4px; display:flex; gap:12px; flex-wrap:wrap; }
+  .empty { color:var(--muted); font-size:13.5px; padding:26px 8px; text-align:center; }
+  .sechead { font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin:20px 0 9px; }
+  .inline-err { display:none; color:var(--err); font-size:12.5px; margin-top:8px; white-space:pre-wrap; }
+  .inline-err.show { display:block; }
+  .inline-err a { color:var(--err); text-decoration:underline; }
+
+  /* stage chips */
+  .stages { display:flex; gap:6px; flex-wrap:wrap; }
+  .stg { appearance:none; border:1px solid var(--line); background:none; color:var(--muted); font:inherit;
+    font-size:11.5px; font-weight:650; padding:3px 10px; border-radius:var(--pill); cursor:pointer; transition:all var(--ease) .15s; }
+  .stg:hover { border-color:var(--accent); color:var(--accent); }
+  .stg.on { border-color:var(--accent); color:var(--text); background:color-mix(in srgb, var(--accent) 14%, transparent); }
+  .stg:disabled { cursor:default; opacity:.7; }
+
+  select, input[type=text], input[type=url], input[type=email], input[type=number], input[type=date], textarea {
+    font:inherit; font-size:13px; color:var(--text); background:var(--surface); border:1px solid var(--line);
+    border-radius:var(--r-sm); padding:8px 11px; outline:none; max-width:100%;
+  }
+  select:focus, input:focus, textarea:focus { border-color:var(--accent); }
+  textarea { width:100%; min-height:90px; resize:vertical; }
+  label.f { display:block; font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:0 0 5px; }
+  .fld { margin-bottom:13px; }
+
+  .detail { border-top:1px solid var(--line); margin-top:13px; padding-top:13px; display:none; }
+  .detail.show { display:block; }
+  .kv { background:var(--surface); border:1px solid var(--line); border-radius:var(--r-sm); padding:10px 13px;
+    font-size:12.5px; white-space:pre-wrap; word-break:break-word; max-height:260px; overflow:auto; }
+  .actions { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0; }
+
+  /* content items */
+  .citem { border:1px solid var(--line); border-radius:var(--r-sm); padding:11px 13px; margin-bottom:9px; background:var(--surface); }
+  .citem .cbody { font-size:13px; color:var(--text2); white-space:pre-wrap; word-break:break-word; margin:7px 0 0; max-height:220px; overflow:auto; }
+
+  /* tables */
+  .tblwrap { overflow-x:auto; border:1px solid var(--line); border-radius:var(--r-md); }
+  table.tbl { border-collapse:collapse; width:100%; font-size:13px; }
+  .tbl th { text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--muted); padding:10px 13px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  .tbl td { padding:9px 13px; border-bottom:1px solid var(--line); vertical-align:top; }
+  .tbl tr:last-child td { border-bottom:0; }
+  .tbl .num { text-align:right; font-variant-numeric:tabular-nums; }
+
+  /* channel consent rows */
+  .chrow { display:grid; grid-template-columns:170px 1fr; gap:14px; align-items:start; }
+  .sw { position:relative; width:38px; height:22px; border-radius:var(--pill); border:1px solid var(--line);
+    background:var(--surface); cursor:pointer; transition:all var(--ease) .15s; appearance:none; flex:none; }
+  .sw::after { content:""; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%;
+    background:var(--muted); transition:all var(--ease) .15s; }
+  .sw:checked { background:color-mix(in srgb, var(--ok) 28%, transparent); border-color:var(--ok); }
+  .sw:checked::after { left:18px; background:var(--ok); }
+  .sw:disabled { opacity:.5; cursor:not-allowed; }
+  .swlab { display:flex; align-items:center; gap:9px; font-size:13px; color:var(--text2); }
+  .capin { width:76px; }
+
+  /* ── modals: grounded on --bg-primary (--bg-card is translucent — never use it for overlays) ─ */
+  .scrim { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:50;
+    align-items:flex-start; justify-content:center; padding:7vh 16px 16px; overflow:auto; }
+  .scrim.show { display:flex; }
+  .modal { background:var(--bg); border:1px solid var(--line); border-radius:var(--r-lg); width:min(560px, 100%);
+    box-shadow:0 28px 80px rgba(0,0,0,.45); }
+  .modal h2 { display:flex; align-items:center; gap:9px; font-size:16.5px; font-weight:660; margin:0; padding:17px 20px 4px; }
+  .modal h2 svg { width:17px; height:17px; color:var(--accent); }
+  .mbody { padding:12px 20px 4px; }
+  .merr { color:var(--err); font-size:12.5px; padding:0 20px 10px; display:none; white-space:pre-wrap; }
+  .merr.show { display:block; }
+  .merr a { color:var(--err); text-decoration:underline; }
+  .mfoot { display:flex; align-items:center; gap:10px; padding:12px 20px 18px; }
+  .mfoot .grow { flex:1; }
+  .cwarn { font-size:13px; color:var(--warn); background:color-mix(in srgb, var(--warn) 9%, transparent);
+    border:1px solid color-mix(in srgb, var(--warn) 32%, transparent); border-radius:var(--r-sm);
+    padding:10px 13px; margin-bottom:12px; display:flex; gap:8px; align-items:flex-start; }
+  .cwarn svg { width:15px; height:15px; flex:none; margin-top:1px; }
+  .cbodyprev { background:var(--surface); border:1px solid var(--line); border-radius:var(--r-sm);
+    padding:10px 13px; font-size:12.5px; white-space:pre-wrap; word-break:break-word; max-height:220px; overflow:auto; margin-bottom:12px; }
+  .chips { display:flex; gap:7px; flex-wrap:wrap; }
+  .chip { appearance:none; border:1px solid var(--line); background:var(--card); color:var(--text2); font:inherit;
+    font-size:12.5px; font-weight:600; padding:6px 13px; border-radius:var(--pill); cursor:pointer; transition:all var(--ease) .15s; }
+  .chip.on { border-color:var(--accent); color:var(--text); background:color-mix(in srgb, var(--accent) 12%, transparent); }
+
+  /* toast */
+  .toast {
+    position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(16px); opacity:0; pointer-events:none;
+    background:var(--bg); border:1px solid var(--line); color:var(--text); font-size:13px; font-weight:560;
+    padding:11px 18px; border-radius:var(--pill); box-shadow:0 16px 44px rgba(0,0,0,.3); z-index:60;
+    transition:all var(--ease) .22s; display:flex; align-items:center; gap:9px; max-width:min(92vw,560px);
+  }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  .toast svg { width:15px; height:15px; flex:none; }
+  .toast.ok svg { color:var(--ok); } .toast.err svg { color:var(--err); }
+
+  .footnote { margin-top:26px; padding-top:16px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); display:flex; align-items:center; gap:8px; }
+  .footnote svg { width:13px; height:13px; color:var(--accent); flex:none; }
+
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width:760px) {
+    .wrap { padding:18px 13px 50px; }
+    .greet { font-size:22px; }
+    .chrow { grid-template-columns:1fr; }
+    .grid2 { grid-template-columns:1fr; }
+  }
+  @media (prefers-reduced-motion:reduce) { * { animation:none !important; transition:none !important; } }
+</style>
+</head>
+<body>
+<!-- icon sprite -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-mega" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-7-4 15-6-4-4 4v-5.5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4M9 14h.01M15 14h.01"/><path d="M2 13v2M22 13v2"/></symbol>
+  <symbol id="i-import" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
+  <symbol id="i-flask" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7L4.5 19a2 2 0 0 0 1.8 3h11.4a2 2 0 0 0 1.8-3L14 9V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+</defs></svg>
+
+<div class="wrap">
+  <header class="head">
+    <div class="h-main">
+      <h1 class="greet">Marketing</h1>
+      <p class="subline">Bots draft and propose. <b>You approve, publish, and spend — one explicit confirm each.</b></p>
+    </div>
+    <div class="controls">
+      <button class="btn" id="refreshBtn" title="Refresh"><svg><use href="#i-refresh"/></svg> Refresh</button>
+    </div>
+  </header>
+
+  <div class="banner" id="banner"><svg><use href="#i-warn"/></svg><span id="bannerMsg"></span></div>
+
+  <nav class="tabs" role="tablist">
+    <button id="tab-board" class="on" role="tab">Board <span class="cnt" id="cntBoard">–</span></button>
+    <button id="tab-scorecard" role="tab">Scorecard</button>
+    <button id="tab-channels" role="tab">Channels</button>
+    <button id="tab-experiments" role="tab">Experiments <span class="cnt" id="cntExp">–</span></button>
+    <button id="tab-approvals" role="tab">Approvals <span class="cnt" id="cntAppr">–</span></button>
+  </nav>
+
+  <!-- ══ BOARD ══════════════════════════════════════════════════════════════════════════════ -->
+  <section class="pane on" id="pane-board" role="tabpanel">
+    <div class="rowline" style="margin-bottom:14px">
+      <button class="btn primary" id="newCampBtn"><svg><use href="#i-plus"/></svg> New campaign</button>
+      <button class="btn" id="importBtn"><svg><use href="#i-import"/></svg> Import</button>
+      <span style="flex:1"></span>
+      <span class="badge" title="Imports carry content only — they can never enable a channel, set a budget, or advance a stage">imports never arm spend</span>
+    </div>
+    <div id="campList"></div>
+
+    <div class="sechead">UTM link builder</div>
+    <div class="card" id="utmCard">
+      <div class="grid2">
+        <div class="fld"><label class="f" for="utmUrl">Destination URL</label><input type="url" id="utmUrl" placeholder="https://oshal.ai/product" style="width:100%"/></div>
+        <div class="fld"><label class="f" for="utmCampaign">Campaign</label><input type="text" id="utmCampaign" placeholder="campaign-slug" style="width:100%"/></div>
+        <div class="fld"><label class="f" for="utmSource">Source</label><input type="text" id="utmSource" placeholder="linkedin" style="width:100%"/></div>
+        <div class="fld"><label class="f" for="utmMedium">Medium</label><input type="text" id="utmMedium" placeholder="social" style="width:100%"/></div>
+      </div>
+      <div class="rowline">
+        <input type="text" id="utmContent" placeholder="content tag (optional)"/>
+        <button class="btn" id="utmBtn"><svg><use href="#i-link"/></svg> Build link</button>
+        <code id="utmOut" style="font-size:12px; word-break:break-all;"></code>
+        <button class="btn sm" id="utmCopy" style="display:none"><svg><use href="#i-copy"/></svg> Copy</button>
+      </div>
+      <div class="inline-err" id="utmErr"></div>
+    </div>
+  </section>
+
+  <!-- ══ SCORECARD ══════════════════════════════════════════════════════════════════════════ -->
+  <section class="pane" id="pane-scorecard" role="tabpanel">
+    <div class="rowline" style="margin-bottom:14px">
+      <span class="subline">Weekly rollup from the deterministic ingest. A source without data says <b>NO DATA</b> — the number is absent, not zero.</span>
+      <span style="flex:1"></span>
+      <button class="btn" id="rebuildBtn"><svg><use href="#i-refresh"/></svg> Rebuild current week</button>
+    </div>
+    <div class="inline-err" id="scErr"></div>
+    <div id="scWrap"></div>
+  </section>
+
+  <!-- ══ CHANNELS ═══════════════════════════════════════════════════════════════════════════ -->
+  <section class="pane" id="pane-channels" role="tabpanel">
+    <p class="subline" style="margin:0 0 14px">Consent is per channel and <b>default OFF</b>. Enabled permits manual, per-item publishes (each still confirm-gated). Standing authorization is the future gate for autonomous scheduled posting — v0.1.0 ships NO autonomous posting path, so arming it changes nothing today; it records your intent + cap so turning the scheduler on later is a deliberate act. It requires a cap and its own confirm.</p>
+    <div id="chanList"></div>
+    <div class="sechead">Run ledger — every outward attempt, including refusals</div>
+    <div id="ledgerWrap"></div>
+  </section>
+
+  <!-- ══ EXPERIMENTS ════════════════════════════════════════════════════════════════════════ -->
+  <section class="pane" id="pane-experiments" role="tabpanel">
+    <div class="card">
+      <h3 style="margin-bottom:10px">New experiment</h3>
+      <div class="fld"><label class="f" for="exHyp">Hypothesis</label><textarea id="exHyp" style="min-height:56px" placeholder="If we …, then … because …"></textarea></div>
+      <div class="rowline">
+        <div class="fld" style="flex:1; min-width:180px"><label class="f" for="exVar">Variable</label><input type="text" id="exVar" style="width:100%" placeholder="the ONE thing this test changes"/></div>
+        <div class="fld"><label class="f" for="exI">Impact</label><select id="exI"></select></div>
+        <div class="fld"><label class="f" for="exC">Confidence</label><select id="exC"></select></div>
+        <div class="fld"><label class="f" for="exE">Ease</label><select id="exE"></select></div>
+        <div class="fld"><label class="f" for="exCamp">Campaign</label><select id="exCamp"><option value="">—</option></select></div>
+      </div>
+      <div class="rowline"><button class="btn primary" id="exAddBtn"><svg><use href="#i-flask"/></svg> Add</button></div>
+      <div class="inline-err" id="exErr"></div>
+    </div>
+    <div id="expList"></div>
+  </section>
+
+  <!-- ══ APPROVALS ══════════════════════════════════════════════════════════════════════════ -->
+  <section class="pane" id="pane-approvals" role="tabpanel">
+    <div class="rowline" style="margin-bottom:14px">
+      <span class="subline">Budget and allocation proposals from the campaign director. <b>Approving applies the change</b> — it requires a confirm.</span>
+      <span style="flex:1"></span>
+      <a class="btn" href="/cockpit/?app=marketing-engine" target="_top">Review tickets in the cockpit</a>
+    </div>
+    <div id="apprList"></div>
+  </section>
+
+  <div class="footnote"><svg><use href="#i-bot"/></svg> Drafting and analysis run on the app's inline bots via your own AI provider · publishing uses your own connected accounts · every outward attempt (including refusals) lands in the run ledger.</div>
+</div>
+
+<!-- new-campaign modal -->
+<div class="scrim" id="newScrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ncTitle">
+    <h2 id="ncTitle"><svg><use href="#i-plus"/></svg>New campaign</h2>
+    <div class="mbody">
+      <div class="fld"><label class="f" for="ncProduct">Product</label><input type="text" id="ncProduct" style="width:100%" placeholder="which oshal product this campaign sells"/></div>
+      <div class="fld"><label class="f" for="ncName">Campaign name</label><input type="text" id="ncName" style="width:100%" maxlength="140"/></div>
+      <div class="fld"><label class="f" for="ncMotion">Motion</label>
+        <select id="ncMotion"><option value="adoption">adoption — users & installs</option><option value="revenue">revenue — paying customers</option></select>
+      </div>
+      <div class="fld"><label class="f">Channels</label><div class="chips" id="ncChans"></div></div>
+    </div>
+    <div class="merr" id="ncErr"></div>
+    <div class="mfoot"><span class="grow"></span>
+      <button class="btn" id="ncCancel">Cancel</button>
+      <button class="btn primary" id="ncCreate">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- import modal -->
+<div class="scrim" id="impScrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="impTitle">
+    <h2 id="impTitle"><svg><use href="#i-import"/></svg>Import a campaign</h2>
+    <div class="mbody">
+      <div class="cwarn"><svg><use href="#i-warn"/></svg><span>Import carries <b>content only</b> — name, ICP, message map, channel list. It can never enable a channel, grant standing authorization, set caps or budgets, or advance a stage. Consent stays OFF until you switch it on yourself.</span></div>
+      <div class="fld"><label class="f" for="impJson">Campaign JSON</label><textarea id="impJson" style="min-height:150px" placeholder='{"product":"…","name":"…","icp":{…},"message_map":{…},"channels":["linkedin"]}'></textarea></div>
+    </div>
+    <div class="merr" id="impErr"></div>
+    <div class="mfoot"><span class="grow"></span>
+      <button class="btn" id="impCancel">Cancel</button>
+      <button class="btn primary" id="impGo">Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- draft modal -->
+<div class="scrim" id="draftScrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="dfTitle">
+    <h2 id="dfTitle"><svg><use href="#i-bot"/></svg>Draft content — <span id="dfCamp"></span></h2>
+    <div class="mbody">
+      <div class="fld"><label class="f" for="dfChannel">Channel</label>
+        <select id="dfChannel">
+          <option value="linkedin">LinkedIn</option><option value="mastodon">Mastodon</option>
+          <option value="bluesky">Bluesky</option><option value="email">Email</option>
+        </select>
+      </div>
+      <div class="fld"><label class="f" for="dfBrief">Brief</label><textarea id="dfBrief" placeholder="what this piece should say — the campaign's ICP and message map ride along automatically"></textarea></div>
+      <p class="subline" style="margin:0 0 8px; font-size:12.5px">The campaign director writes a <b>draft</b>. Nothing publishes from this dialog.</p>
+    </div>
+    <div class="merr" id="dfErr"></div>
+    <div class="mfoot"><span class="grow"></span>
+      <button class="btn" id="dfCancel">Cancel</button>
+      <button class="btn primary" id="dfGo">Draft it</button>
+    </div>
+  </div>
+</div>
+
+<!-- generic confirm modal: EVERY outward write funnels through here and sends confirm:true -->
+<div class="scrim" id="cfScrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cfTitle">
+    <h2 id="cfTitle"><svg><use href="#i-warn"/></svg><span id="cfTitleText">Confirm</span></h2>
+    <div class="mbody">
+      <div class="cwarn"><svg><use href="#i-warn"/></svg><span id="cfMsg"></span></div>
+      <div class="cbodyprev" id="cfPreview" style="display:none"></div>
+      <div class="fld" id="cfEmailFld" style="display:none"><label class="f" for="cfEmail">Recipient (one address)</label><input type="email" id="cfEmail" style="width:100%" placeholder="name@example.com"/></div>
+      <div class="fld" id="cfVerdictFld" style="display:none"><label class="f" for="cfVerdict">Verdict — what the data showed</label><input type="text" id="cfVerdict" style="width:100%"/></div>
+    </div>
+    <div class="merr" id="cfErr"></div>
+    <div class="mfoot"><span class="grow"></span>
+      <button class="btn" id="cfCancel">Cancel</button>
+      <button class="btn primary" id="cfGo"><svg><use href="#i-check"/></svg> <span id="cfGoText">Confirm</span></button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><svg><use href="#i-check"/></svg><span id="toastMsg"></span></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var API = "/api/marketing";
+  var CHANNELS = ["linkedin", "mastodon", "bluesky", "email"];
+  var CHLABEL = { linkedin:"LinkedIn", mastodon:"Mastodon", bluesky:"Bluesky", email:"Email", launch:"Launch (human-posted)" };
+  var STAGES = [
+    { n:0, label:"0 · validate",  hint:"$0 — ICP card, landing section, waitlist, one human launch post" },
+    { n:1, label:"1 · organic",   hint:"tier-1 tools only — full organic playbook, lifecycle email" },
+    { n:2, label:"2 · monetize",  hint:"still $0 ads — paid plan live, price test, conversion tracking" },
+    { n:3, label:"3 · paid scale",hint:"one paid channel at floor, governed by the review loop" }
+  ];
+  var SOURCES = [
+    { id:"gsc",     label:"Search Console" },
+    { id:"posthog", label:"PostHog" },
+    { id:"github",  label:"GitHub traffic" }
+  ];
+  var EXP_TRANSITIONS = {
+    proposed: [ { to:"running",  label:"Start" } ],
+    running:  [ { to:"extended", label:"Extend" }, { to:"killed", label:"Kill", verdict:true }, { to:"scaled", label:"Scale", verdict:true } ],
+    extended: [ { to:"killed",   label:"Kill", verdict:true }, { to:"scaled", label:"Scale", verdict:true } ]
+  };
+
+  var state = {
+    campaigns: [], channels: [], scorecard: [], experiments: [], proposals: [], runs: [],
+    content: [],            // content items: from GET /content when available, else session-created
+    contentListed: false,   // true once GET /content succeeded (list survives reload)
+    openCamp: null,         // expanded campaign id
+    tab: "board"
+  };
+
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ var d=document.createElement("div"); d.textContent=s==null?"":String(s); return d.innerHTML; }
+  function escAttr(s){ return esc(s).replace(/"/g,"&quot;"); }
+  function api(path, opts){
+    return fetch(API+path, Object.assign(
+      { credentials:"same-origin", headers:{ "Content-Type":"application/json", Accept:"application/json" } },
+      opts||{}));
+  }
+  function parse(r){ return r.json().catch(function(){ return {}; }).then(function(j){ return { status:r.status, ok:r.ok, j:j }; }); }
+
+  // ── honest error rendering: the SERVER's refusal, in the user's terms ─────────────────────
+  // 409 not_connected      → point at Connectors; 503 no_hosted_brain → point at Settings;
+  // 428 confirmation_required → the confirm dialog (never auto-confirmed); everything else verbatim.
+  function errText(res, ctx){
+    var j = res.j || {};
+    var chan = (ctx && ctx.channel) ? (CHLABEL[ctx.channel] || ctx.channel) : "the channel";
+    if (j.error === "not_connected")            return "Connect " + chan + " in Connectors (/utilities) — this publish used no fallback and sent nothing.";
+    if (j.error === "no_hosted_brain")          return "Add an AI provider in Settings — the app's bots run on your own hosted/BYO brain." + (j.hint ? " (" + j.hint + ")" : "");
+    if (j.error === "channel_unavailable")      return (CHLABEL[ctx && ctx.channel] || "Channel") + " is unavailable: " + (j.hint || "the core connector spec is missing this action.");
+    if (j.error === "email_from_unconfigured")  return "Email sending isn't configured — the deployment needs MARKETING_EMAIL_FROM set.";
+    if (j.error === "not_authenticated")        return "You're signed out — sign in and reload this page.";
+    if (res.status === 428)                     return j.message || "This action requires confirm: true. No write was attempted.";
+    return j.message || j.error || ("Request failed (HTTP " + res.status + ")");
+  }
+  function showInlineErr(el, text){ el.innerHTML = esc(text); el.classList.add("show"); }
+  function clearInlineErr(el){ el.textContent=""; el.classList.remove("show"); }
+
+  var toastTimer=null;
+  function toast(msg, ok){
+    var t=$("toast"); t.className="toast show "+(ok===false?"err":"ok");
+    t.querySelector("use").setAttribute("href", ok===false?"#i-warn":"#i-check");
+    $("toastMsg").textContent=msg;
+    clearTimeout(toastTimer); toastTimer=setTimeout(function(){ t.classList.remove("show"); }, 3800);
+  }
+  function ago(iso){
+    if(!iso) return "";
+    var d=new Date(iso); if(isNaN(d)) return "";
+    var s=(Date.now()-d.getTime())/1000;
+    if(s<60) return "just now";
+    if(s<3600) return Math.floor(s/60)+"m ago";
+    if(s<86400) return Math.floor(s/3600)+"h ago";
+    return d.toLocaleDateString(undefined,{month:"short",day:"numeric"});
+  }
+  function fmtDate(iso){ var d=new Date(iso); return isNaN(d)?"":d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}); }
+
+  // ── generic confirm dialog: cb receives {confirm:true, to?, verdict?} ─────────────────────
+  var cfState = null;
+  function showConfirm(opts){
+    cfState = opts;
+    $("cfTitleText").textContent = opts.title || "Confirm";
+    $("cfMsg").innerHTML = esc(opts.message || "");
+    var prev=$("cfPreview");
+    if(opts.preview){ prev.textContent=opts.preview; prev.style.display="block"; } else { prev.style.display="none"; }
+    $("cfEmailFld").style.display = opts.requireEmail ? "block" : "none";
+    $("cfVerdictFld").style.display = opts.askVerdict ? "block" : "none";
+    $("cfEmail").value=""; $("cfVerdict").value="";
+    $("cfGoText").textContent = opts.goLabel || "Confirm";
+    clearInlineErr($("cfErr"));
+    $("cfScrim").classList.add("show");
+  }
+  function hideConfirm(){ $("cfScrim").classList.remove("show"); cfState=null; }
+  $("cfCancel").addEventListener("click", hideConfirm);
+  $("cfGo").addEventListener("click", function(){
+    if(!cfState) return;
+    var extra = { confirm:true };
+    if(cfState.requireEmail){
+      var em = $("cfEmail").value.trim();
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){ showInlineErr($("cfErr"), "Enter one valid recipient address."); return; }
+      extra.to = em;
+    }
+    if(cfState.askVerdict){
+      var v=$("cfVerdict").value.trim();
+      if(v) extra.verdict=v;
+    }
+    var btn=$("cfGo"); btn.disabled=true;
+    Promise.resolve(cfState.onConfirm(extra)).then(function(result){
+      btn.disabled=false;
+      if(result && result.error){ showInlineErr($("cfErr"), result.error); return; }
+      hideConfirm();
+    }).catch(function(e){ btn.disabled=false; showInlineErr($("cfErr"), (e && e.message) || "Request failed"); });
+  });
+
+  // ── data loading ──────────────────────────────────────────────────────────────────────────
+  function loadOverview(){
+    return api("/overview").then(parse).then(function(res){
+      if(!res.ok){
+        $("bannerMsg").textContent = "Couldn't load the marketing overview — " + errText(res, null);
+        $("banner").classList.add("show");
+        return;
+      }
+      $("banner").classList.remove("show");
+      var j=res.j||{};
+      state.campaigns   = j.campaigns || [];
+      state.channels    = j.channels || [];
+      state.scorecard   = j.scorecard || [];
+      state.proposals   = j.pendingProposals || [];
+      state.experiments = j.experiments || [];
+      state.runs        = j.recentRuns || [];
+      renderAll();
+    }).catch(function(e){
+      $("bannerMsg").textContent = "Couldn't reach " + API + " — " + ((e&&e.message)||e);
+      $("banner").classList.add("show");
+    });
+  }
+  // Content listing: GET /content when the backend offers it; otherwise fall back to
+  // session-created items only (drafts still appear the moment a bot writes them).
+  function loadContent(){
+    return api("/content").then(parse).then(function(res){
+      if(res.ok && res.j && Array.isArray(res.j.items)){ state.content = res.j.items; state.contentListed = true; }
+      else if(res.ok && Array.isArray(res.j)){ state.content = res.j; state.contentListed = true; }
+      renderCampaigns();
+    }).catch(function(){ /* endpoint absent → session drafts only */ });
+  }
+  function loadScorecard(){
+    return api("/scorecard?weeks=8").then(parse).then(function(res){
+      if(!res.ok){ showInlineErr($("scErr"), errText(res, null)); return; }
+      clearInlineErr($("scErr"));
+      state.scorecard = (res.j && (res.j.weeks || res.j.scorecard)) || res.j || [];
+      if(!Array.isArray(state.scorecard)) state.scorecard = [];
+      renderScorecard();
+    }).catch(function(e){ showInlineErr($("scErr"), "Scorecard request failed — " + ((e&&e.message)||e)); });
+  }
+  function loadExperiments(){
+    return api("/experiments").then(parse).then(function(res){
+      if(!res.ok) return;
+      state.experiments = (res.j && res.j.experiments) || [];
+      renderExperiments();
+    }).catch(function(){});
+  }
+  function loadProposals(){
+    return api("/budget/proposals").then(parse).then(function(res){
+      if(!res.ok) return;
+      state.proposals = (res.j && res.j.proposals) || [];
+      renderApprovals();
+    }).catch(function(){});
+  }
+  function refresh(){ loadOverview().then(loadContent); }
+
+  // ── tabs ──────────────────────────────────────────────────────────────────────────────────
+  var TABS = ["board","scorecard","channels","experiments","approvals"];
+  TABS.forEach(function(t){
+    $("tab-"+t).addEventListener("click", function(){
+      state.tab=t;
+      TABS.forEach(function(u){
+        $("tab-"+u).classList.toggle("on", u===t);
+        $("pane-"+u).classList.toggle("on", u===t);
+      });
+      if(t==="scorecard") loadScorecard();
+      if(t==="experiments") loadExperiments();
+      if(t==="approvals") loadProposals();
+    });
+  });
+  $("refreshBtn").addEventListener("click", function(){
+    refresh();
+    if(state.tab==="scorecard") loadScorecard();
+    if(state.tab==="experiments") loadExperiments();
+    if(state.tab==="approvals") loadProposals();
+  });
+
+  function renderAll(){
+    renderCampaigns(); renderChannels(); renderScorecard(); renderExperiments(); renderApprovals(); renderLedger();
+    $("cntBoard").textContent = state.campaigns.length;
+    $("cntExp").textContent = state.experiments.filter(function(e){ return e.status!=="killed" && e.status!=="scaled"; }).length;
+    $("cntAppr").textContent = state.proposals.filter(function(p){ return p.status==="proposed"; }).length;
+  }
+
+  // ══ BOARD ═════════════════════════════════════════════════════════════════════════════════
+  function statusBadge(s){
+    var cls = s==="active"?"ok" : s==="draft"?"" : s==="paused"?"warn" : "";
+    return '<span class="badge '+cls+'">'+esc(s)+'</span>';
+  }
+  function contentFor(campId){
+    return state.content.filter(function(c){ return String(c.campaign_id||c.campaignId||"")===String(campId); });
+  }
+  function renderCampaigns(){
+    var host=$("campList");
+    if(!state.campaigns.length){
+      host.innerHTML = '<div class="empty">No campaigns yet — create one, or import a campaign definition (content only; nothing switches on).</div>';
+      return;
+    }
+    host.innerHTML = state.campaigns.map(function(c){
+      var open = state.openCamp===c.campaign_id;
+      var h = '<div class="card" data-camp="'+escAttr(c.campaign_id)+'">';
+      h += '<div class="rowline" style="cursor:pointer" data-toggle="1">';
+      h += '<h3>'+esc(c.name)+'</h3>';
+      h += '<span class="badge acc">'+esc(c.product)+'</span>';
+      h += '<span class="badge">'+esc(c.motion)+'</span>';
+      h += statusBadge(c.status);
+      h += '<span style="flex:1"></span><span class="metaline" style="margin:0">updated '+esc(ago(c.updated_at))+'</span>';
+      h += '</div>';
+      h += '<div class="metaline">slug '+esc(c.slug)
+         + (c.budget_monthly_usd && Number(c.budget_monthly_usd)>0 ? ' · budget $'+esc(c.budget_monthly_usd)+'/mo' : ' · $0 budget')
+         + (c.target_cpa_usd ? ' · target CPA $'+esc(c.target_cpa_usd) : '')
+         + ' · channels: '+esc((c.channels&&c.channels.length? c.channels.join(", ") : "none")) + '</div>';
+      h += '<div class="detail'+(open?' show':'')+'">';
+      // stage gate chips
+      h += '<div class="rowline" style="margin-bottom:11px"><span class="badge">stage gate</span><div class="stages">';
+      STAGES.forEach(function(s){
+        h += '<button class="stg'+(Number(c.stage)===s.n?' on':'')+'" data-stage="'+s.n+'" title="'+escAttr(s.hint)+'">'+esc(s.label)+'</button>';
+      });
+      h += '</div></div>';
+      // status control
+      h += '<div class="rowline" style="margin-bottom:11px"><span class="badge">status</span><select data-status="1">';
+      ["draft","active","paused","archived"].forEach(function(s){
+        h += '<option value="'+s+'"'+(c.status===s?' selected':'')+'>'+s+'</option>';
+      });
+      h += '</select></div>';
+      // bot actions
+      h += '<div class="actions">'
+         + '<button class="btn" data-act="research"><svg><use href="#i-bot"/></svg> Research (ICP)</button>'
+         + '<button class="btn" data-act="draft"><svg><use href="#i-bot"/></svg> Draft content</button>'
+         + '<button class="btn" data-act="checklist"><svg><use href="#i-bot"/></svg> Launch checklist</button>'
+         + '</div>';
+      h += '<div class="inline-err" data-err="1"></div>';
+      // ICP + message map
+      var icp = c.icp && Object.keys(c.icp).length ? JSON.stringify(c.icp, null, 2) : "";
+      var mm  = c.message_map && Object.keys(c.message_map).length ? JSON.stringify(c.message_map, null, 2) : "";
+      h += '<div class="grid2">';
+      h += '<div><div class="sechead" style="margin-top:4px">ICP card</div>'+(icp? '<div class="kv">'+esc(icp)+'</div>' : '<span class="badge nodata">NO DATA — run Research</span>')+'</div>';
+      h += '<div><div class="sechead" style="margin-top:4px">Message map</div>'+(mm? '<div class="kv">'+esc(mm)+'</div>' : '<span class="badge nodata">NO DATA</span>')+'</div>';
+      h += '</div>';
+      // content items
+      var items = contentFor(c.campaign_id);
+      h += '<div class="sechead">Content ('+items.length+')'+(state.contentListed? '' : ' — this session only')+'</div>';
+      if(!items.length) h += '<div class="metaline">No content yet — Draft content writes channel copy as drafts for your review.</div>';
+      items.forEach(function(it){
+        var st = it.status||"draft";
+        var stCls = st==="published"?"ok" : st==="approved"?"acc" : st==="rejected"?"err" : "";
+        h += '<div class="citem" data-item="'+escAttr(it.item_id||it.itemId||"")+'">';
+        h += '<div class="rowline"><span class="badge">'+esc(CHLABEL[it.channel]||it.channel)+'</span><span class="badge '+stCls+'">'+esc(st)+'</span>';
+        if(it.title) h += '<b style="font-size:13px">'+esc(it.title)+'</b>';
+        h += '<span style="flex:1"></span>';
+        if(it.channel==="launch"){
+          h += '<span class="badge warn" title="HN / Reddit / Product Hunt posts are never bot-posted — copy the draft and post it yourself">human-posted only</span>';
+        } else if(st==="draft" || st==="approved"){
+          h += '<button class="btn sm primary" data-pub="1"><svg><use href="#i-send"/></svg> Publish…</button>';
+        }
+        if(st==="published" && it.published_ref) h += '<span class="metaline" style="margin:0">ref '+esc(it.published_ref)+'</span>';
+        h += '</div>';
+        h += '<div class="cbody">'+esc(it.body||"")+'</div>';
+        h += '<div class="inline-err" data-puberr="1"></div>';
+        h += '</div>';
+      });
+      h += '</div></div>';
+      return h;
+    }).join("");
+
+    // wire the cards
+    Array.prototype.forEach.call(host.querySelectorAll(".card[data-camp]"), function(card){
+      var id = card.getAttribute("data-camp");
+      var camp = state.campaigns.find(function(c){ return String(c.campaign_id)===id; });
+      if(!camp) return;
+      card.querySelector("[data-toggle]").addEventListener("click", function(){
+        state.openCamp = (state.openCamp===id) ? null : id;
+        renderCampaigns();
+      });
+      var errEl = card.querySelector("[data-err]");
+      Array.prototype.forEach.call(card.querySelectorAll(".stg"), function(b){
+        b.addEventListener("click", function(){
+          var n = Number(b.getAttribute("data-stage"));
+          if(n===Number(camp.stage)) return;
+          patchCampaign(camp, { stage:n }, errEl, "Stage moved to "+n+" — recorded in the budget ledger");
+        });
+      });
+      var sel = card.querySelector("select[data-status]");
+      if(sel) sel.addEventListener("change", function(){ patchCampaign(camp, { status:sel.value }, errEl, "Status set to "+sel.value); });
+      Array.prototype.forEach.call(card.querySelectorAll("[data-act]"), function(b){
+        b.addEventListener("click", function(){
+          var act=b.getAttribute("data-act");
+          if(act==="draft"){ openDraftModal(camp); return; }
+          runBotAction(camp, act, b, errEl);
+        });
+      });
+      Array.prototype.forEach.call(card.querySelectorAll("[data-pub]"), function(b){
+        var itemEl = b.closest("[data-item]");
+        var itemId = itemEl.getAttribute("data-item");
+        var item = state.content.find(function(x){ return String(x.item_id||x.itemId)===itemId; });
+        if(item) b.addEventListener("click", function(){ openPublishConfirm(item, itemEl.querySelector("[data-puberr]")); });
+      });
+    });
+  }
+
+  function patchCampaign(camp, patch, errEl, okMsg){
+    clearInlineErr(errEl);
+    api("/campaigns/"+encodeURIComponent(camp.campaign_id), { method:"PATCH", body:JSON.stringify(patch) })
+      .then(parse).then(function(res){
+        if(!res.ok){ showInlineErr(errEl, errText(res, null)); return; }
+        toast(okMsg); refresh();
+      }).catch(function(e){ showInlineErr(errEl, "Request failed — "+((e&&e.message)||e)); });
+  }
+
+  // research / launch-checklist — bot runs on the caller's hosted/BYO brain
+  function runBotAction(camp, act, btn, errEl){
+    clearInlineErr(errEl);
+    var path = act==="research" ? "/research" : "/launch-checklist";
+    var was = btn.innerHTML;
+    btn.disabled=true; btn.innerHTML='<svg class="spin"><use href="#i-refresh"/></svg> Working…';
+    api(path, { method:"POST", body:JSON.stringify({ campaignId: camp.campaign_id }) })
+      .then(parse).then(function(res){
+        btn.disabled=false; btn.innerHTML=was;
+        if(!res.ok){ showInlineErr(errEl, errText(res, null)); return; }
+        var got = res.j && (res.j.item || (res.j.item_id ? res.j : null));
+        if(act==="checklist" && got){ upsertContent(got); }
+        toast(act==="research" ? "ICP research merged into the campaign" : "Launch checklist drafted — it is human-posted, never published from here");
+        refresh();
+      }).catch(function(e){ btn.disabled=false; btn.innerHTML=was; showInlineErr(errEl, "Request failed — "+((e&&e.message)||e)); });
+  }
+
+  function upsertContent(item){
+    var id = String(item.item_id||item.itemId||"");
+    var i = state.content.findIndex(function(x){ return String(x.item_id||x.itemId)===id; });
+    if(i>=0) state.content[i]=item; else state.content.push(item);
+    renderCampaigns();
+  }
+
+  // ── draft modal ───────────────────────────────────────────────────────────────────────────
+  var draftCamp=null;
+  function openDraftModal(camp){
+    draftCamp=camp;
+    $("dfCamp").textContent=camp.name;
+    $("dfBrief").value=""; clearInlineErr($("dfErr"));
+    $("draftScrim").classList.add("show");
+  }
+  $("dfCancel").addEventListener("click", function(){ $("draftScrim").classList.remove("show"); });
+  $("dfGo").addEventListener("click", function(){
+    if(!draftCamp) return;
+    var brief=$("dfBrief").value.trim();
+    if(!brief){ showInlineErr($("dfErr"), "Write a brief — the bot drafts from it, it does not invent one."); return; }
+    var btn=$("dfGo"); btn.disabled=true;
+    api("/drafts", { method:"POST", body:JSON.stringify({ campaignId:draftCamp.campaign_id, channel:$("dfChannel").value, brief:brief }) })
+      .then(parse).then(function(res){
+        btn.disabled=false;
+        if(!res.ok){ showInlineErr($("dfErr"), errText(res, { channel:$("dfChannel").value })); return; }
+        $("draftScrim").classList.remove("show");
+        var got = res.j && (res.j.item || (res.j.item_id ? res.j : null));
+        if(got) upsertContent(got);
+        state.openCamp=draftCamp.campaign_id;
+        toast("Draft written — review it, then Publish when it's right");
+        renderCampaigns();
+      }).catch(function(e){ btn.disabled=false; showInlineErr($("dfErr"), "Request failed — "+((e&&e.message)||e)); });
+  });
+
+  // ── publish: confirm dialog → POST with confirm:true; errors rendered honestly ────────────
+  function openPublishConfirm(item, errEl){
+    clearInlineErr(errEl);
+    showConfirm({
+      title: "Publish to " + (CHLABEL[item.channel]||item.channel),
+      message: "This sends the exact text below on your own connected " + (CHLABEL[item.channel]||item.channel)
+             + " account. It counts against the channel's daily cap and lands in the run ledger.",
+      preview: item.body || "",
+      requireEmail: item.channel==="email",
+      goLabel: "Publish",
+      onConfirm: function(extra){
+        var body = { confirm:true };
+        if(extra.to) body.to = extra.to;
+        return api("/content/"+encodeURIComponent(item.item_id||item.itemId)+"/publish", { method:"POST", body:JSON.stringify(body) })
+          .then(parse).then(function(res){
+            if(!res.ok){
+              var msg = errText(res, { channel:item.channel });
+              showInlineErr(errEl, msg);
+              return { error: msg };
+            }
+            toast("Published to " + (CHLABEL[item.channel]||item.channel));
+            refresh();
+            return null;
+          });
+      }
+    });
+  }
+
+  // ── new campaign ──────────────────────────────────────────────────────────────────────────
+  function buildChanChips(hostId){
+    var host=$(hostId); host.innerHTML="";
+    CHANNELS.forEach(function(ch){
+      var b=document.createElement("button");
+      b.type="button"; b.className="chip"; b.textContent=CHLABEL[ch]; b.setAttribute("data-ch",ch);
+      b.addEventListener("click", function(){ b.classList.toggle("on"); });
+      host.appendChild(b);
+    });
+  }
+  buildChanChips("ncChans");
+  $("newCampBtn").addEventListener("click", function(){
+    $("ncProduct").value=""; $("ncName").value=""; $("ncMotion").value="adoption";
+    Array.prototype.forEach.call($("ncChans").children, function(b){ b.classList.remove("on"); });
+    clearInlineErr($("ncErr"));
+    $("newScrim").classList.add("show");
+  });
+  $("ncCancel").addEventListener("click", function(){ $("newScrim").classList.remove("show"); });
+  $("ncCreate").addEventListener("click", function(){
+    var product=$("ncProduct").value.trim(), name=$("ncName").value.trim();
+    if(!product || !name){ showInlineErr($("ncErr"), "Product and name are both required."); return; }
+    var chans=[];
+    Array.prototype.forEach.call($("ncChans").children, function(b){ if(b.classList.contains("on")) chans.push(b.getAttribute("data-ch")); });
+    var btn=$("ncCreate"); btn.disabled=true;
+    api("/campaigns", { method:"POST", body:JSON.stringify({ product:product, name:name, motion:$("ncMotion").value, channels:chans }) })
+      .then(parse).then(function(res){
+        btn.disabled=false;
+        if(!res.ok){ showInlineErr($("ncErr"), errText(res, null)); return; }
+        $("newScrim").classList.remove("show");
+        toast("Campaign created at stage 0 — validate");
+        refresh();
+      }).catch(function(e){ btn.disabled=false; showInlineErr($("ncErr"), "Request failed — "+((e&&e.message)||e)); });
+  });
+
+  // ── import (content only — the server strips consent/budget/stage; the dialog says so) ────
+  $("importBtn").addEventListener("click", function(){ $("impJson").value=""; clearInlineErr($("impErr")); $("impScrim").classList.add("show"); });
+  $("impCancel").addEventListener("click", function(){ $("impScrim").classList.remove("show"); });
+  $("impGo").addEventListener("click", function(){
+    var raw=$("impJson").value.trim();
+    var obj;
+    try { obj=JSON.parse(raw); } catch(e){ showInlineErr($("impErr"), "That isn't valid JSON."); return; }
+    var btn=$("impGo"); btn.disabled=true;
+    api("/campaigns/import", { method:"POST", body:JSON.stringify({ campaign: obj }) })
+      .then(parse).then(function(res){
+        btn.disabled=false;
+        if(!res.ok){ showInlineErr($("impErr"), errText(res, null)); return; }
+        $("impScrim").classList.remove("show");
+        toast("Imported — content only; every channel stays OFF until you enable it");
+        refresh();
+      }).catch(function(e){ btn.disabled=false; showInlineErr($("impErr"), "Request failed — "+((e&&e.message)||e)); });
+  });
+
+  // ── UTM builder ───────────────────────────────────────────────────────────────────────────
+  $("utmBtn").addEventListener("click", function(){
+    clearInlineErr($("utmErr")); $("utmOut").textContent=""; $("utmCopy").style.display="none";
+    var q = "url="+encodeURIComponent($("utmUrl").value.trim())
+          + "&source="+encodeURIComponent($("utmSource").value.trim())
+          + "&medium="+encodeURIComponent($("utmMedium").value.trim())
+          + "&campaign="+encodeURIComponent($("utmCampaign").value.trim());
+    var content=$("utmContent").value.trim();
+    if(content) q += "&content="+encodeURIComponent(content);
+    api("/utm?"+q).then(parse).then(function(res){
+      if(!res.ok){ showInlineErr($("utmErr"), errText(res, null)); return; }
+      var u=(res.j&&res.j.utmUrl)||"";
+      $("utmOut").textContent=u;
+      if(u) $("utmCopy").style.display="inline-flex";
+    }).catch(function(e){ showInlineErr($("utmErr"), "Request failed — "+((e&&e.message)||e)); });
+  });
+  $("utmCopy").addEventListener("click", function(){
+    var u=$("utmOut").textContent;
+    if(navigator.clipboard && u) navigator.clipboard.writeText(u).then(function(){ toast("Link copied"); });
+  });
+
+  // ══ SCORECARD ═════════════════════════════════════════════════════════════════════════════
+  function sourceCell(week, srcId){
+    var sources = week.sources || {};
+    var s = sources[srcId];
+    if(!s || s.status!=="ok") return '<span class="badge nodata">NO DATA</span>';
+    // never render an invented figure — only what the rollup recorded for this source
+    var data = week.data || {};
+    var d = data[srcId];
+    if(d==null) return '<span class="badge nodata">NO DATA</span>';
+    if(typeof d==="number") return '<span class="tnum">'+esc(d)+'</span>';
+    if(typeof d==="object"){
+      var parts=[];
+      Object.keys(d).forEach(function(k){
+        var v=d[k];
+        if(typeof v==="number" || typeof v==="string") parts.push(esc(k)+" <b class=\"tnum\">"+esc(v)+"</b>");
+      });
+      return parts.length? '<span style="font-size:12.5px">'+parts.join(" · ")+'</span>' : '<span class="badge nodata">NO DATA</span>';
+    }
+    return esc(String(d));
+  }
+  function renderScorecard(){
+    var host=$("scWrap");
+    if(!state.scorecard.length){
+      host.innerHTML='<div class="empty">No scorecard weeks yet — the daily ingest fills events and the Monday rollup writes the first week. Rebuild current week computes one from your events now.</div>';
+      return;
+    }
+    var extraKeys={};
+    state.scorecard.forEach(function(w){
+      Object.keys(w.data||{}).forEach(function(k){
+        if(!SOURCES.some(function(s){ return s.id===k; })) extraKeys[k]=true;
+      });
+    });
+    var extras=Object.keys(extraKeys);
+    var h='<div class="tblwrap"><table class="tbl"><thead><tr><th>Week of</th>';
+    SOURCES.forEach(function(s){ h+='<th>'+esc(s.label)+'</th>'; });
+    extras.forEach(function(k){ h+='<th>'+esc(k)+'</th>'; });
+    h+='<th>Computed</th></tr></thead><tbody>';
+    state.scorecard.forEach(function(w){
+      h+='<tr><td class="tnum"><b>'+esc(fmtDate(w.week_start||w.weekStart))+'</b></td>';
+      SOURCES.forEach(function(s){ h+='<td>'+sourceCell(w, s.id)+'</td>'; });
+      extras.forEach(function(k){
+        var d=(w.data||{})[k];
+        h+='<td>'+(d==null? '<span class="badge nodata">NO DATA</span>'
+          : (typeof d==="object"? esc(JSON.stringify(d)) : '<span class="tnum">'+esc(d)+'</span>'))+'</td>';
+      });
+      h+='<td class="metaline" style="margin:0">'+esc(ago(w.computed_at||w.computedAt))+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+    h+='<p class="subline" style="margin-top:12px; font-size:12.5px">A <span class="badge nodata">NO DATA</span> source is unconfigured or failed on ingest — connect it (Search Console via the Google connector + reconnect; PostHog connector; GitHub traffic token in the deployment env) and the next ingest fills it in.</p>';
+    host.innerHTML=h;
+  }
+  $("rebuildBtn").addEventListener("click", function(){
+    var btn=$("rebuildBtn"); btn.disabled=true;
+    api("/scorecard/rebuild", { method:"POST", body:JSON.stringify({}) })
+      .then(parse).then(function(res){
+        btn.disabled=false;
+        if(!res.ok){ showInlineErr($("scErr"), errText(res, null)); return; }
+        toast("Current week rebuilt from your events");
+        loadScorecard();
+      }).catch(function(e){ btn.disabled=false; showInlineErr($("scErr"), "Request failed — "+((e&&e.message)||e)); });
+  });
+
+  // ══ CHANNELS ══════════════════════════════════════════════════════════════════════════════
+  function channelRow(ch){
+    var row = state.channels.find(function(r){ return r.channel===ch; }) || { channel:ch, enabled:false, standing_authorization:false, daily_cap:0 };
+    return row;
+  }
+  function renderChannels(){
+    var host=$("chanList");
+    host.innerHTML = CHANNELS.map(function(ch){
+      var r=channelRow(ch);
+      var h='<div class="card chrow" data-chan="'+escAttr(ch)+'">';
+      h+='<div><h3>'+esc(CHLABEL[ch])+'</h3><div class="metaline">'
+        + (r.enabled? '<span class="badge ok">enabled</span>' : '<span class="badge">OFF</span>')
+        + (r.standing_authorization? '<span class="badge warn">standing auth</span>' : '')
+        + (r.paused_reason? '<span class="badge err" title="'+escAttr(r.paused_reason)+'">paused: '+esc(r.paused_reason)+'</span>' : '')
+        + '</div></div>';
+      h+='<div>';
+      h+='<div class="swlab" style="margin-bottom:9px"><input type="checkbox" class="sw" data-en="1"'+(r.enabled?' checked':'')+'/> <span>Enabled — permits <b>manual, per-item</b> publishes (each one still confirm-gated)</span></div>';
+      h+='<div class="swlab" style="margin-bottom:9px"><input type="checkbox" class="sw" data-sa="1"'+(r.standing_authorization?' checked':'')+'/> <span>Standing authorization — reserved for the future autonomous scheduler (inert in v0.1.0: nothing posts autonomously) <span class="badge warn">requires confirm</span></span></div>';
+      h+='<div class="swlab"><span>Daily cap</span> <input type="number" min="0" step="1" class="capin tnum" data-cap="1" value="'+escAttr(r.daily_cap!=null? r.daily_cap : 0)+'"/> <button class="btn sm" data-capsave="1">Save cap</button> <span class="metaline" style="margin:0">0 = never; standing auth needs ≥ 1</span></div>';
+      h+='<div class="inline-err" data-cherr="1"></div>';
+      h+='</div></div>';
+      return h;
+    }).join("");
+
+    Array.prototype.forEach.call(host.querySelectorAll("[data-chan]"), function(card){
+      var ch=card.getAttribute("data-chan");
+      var errEl=card.querySelector("[data-cherr]");
+      var en=card.querySelector("[data-en]");
+      var sa=card.querySelector("[data-sa]");
+      var cap=card.querySelector("[data-cap]");
+
+      function put(body, okMsg){
+        clearInlineErr(errEl);
+        return api("/channels/"+encodeURIComponent(ch), { method:"PUT", body:JSON.stringify(body) })
+          .then(parse).then(function(res){
+            if(!res.ok){
+              showInlineErr(errEl, errText(res, { channel:ch }));
+              renderChannels(); // snap the switches back to server truth
+              return res;
+            }
+            toast(okMsg);
+            return loadOverview().then(function(){ return res; });
+          });
+      }
+
+      en.addEventListener("change", function(){
+        if(en.checked) put({ enabled:true }, CHLABEL[ch]+" enabled — manual publishes only, each confirm-gated");
+        else put({ enabled:false }, CHLABEL[ch]+" disabled");
+      });
+
+      sa.addEventListener("change", function(){
+        if(!sa.checked){ put({ standingAuthorization:false }, "Standing authorization revoked for "+CHLABEL[ch]); return; }
+        sa.checked=false; // never arm from the click alone — the confirm dialog is the switch
+        var capVal=parseInt(cap.value,10);
+        if(!(capVal>=1)){ showInlineErr(errEl, "Standing authorization needs a daily cap of at least 1 — set the cap first."); return; }
+        showConfirm({
+          title: "Standing authorization — "+CHLABEL[ch],
+          message: "This lets SCHEDULED runs publish to "+CHLABEL[ch]+" without a per-item click, up to "+capVal+"/day. "
+                 + "Drafts still come from bots you've already gated; every send lands in the run ledger. You can revoke it any time.",
+          goLabel: "Grant standing authorization",
+          onConfirm: function(extra){
+            return put({ standingAuthorization:true, dailyCap:capVal, confirm:extra.confirm }, "Standing authorization granted for "+CHLABEL[ch]+" (cap "+capVal+"/day)")
+              .then(function(res){ return (res && !res.ok) ? { error: errText(res, { channel:ch }) } : null; });
+          }
+        });
+      });
+
+      card.querySelector("[data-capsave]").addEventListener("click", function(){
+        var capVal=parseInt(cap.value,10);
+        if(!(capVal>=0)){ showInlineErr(errEl, "The cap must be a whole number ≥ 0."); return; }
+        put({ dailyCap:capVal }, CHLABEL[ch]+" daily cap set to "+capVal);
+      });
+    });
+  }
+
+  function renderLedger(){
+    var host=$("ledgerWrap");
+    if(!state.runs.length){ host.innerHTML='<div class="empty">No runs yet — the ledger records every outward attempt, including consent and cap refusals.</div>'; return; }
+    var h='<div class="tblwrap"><table class="tbl"><thead><tr><th>When</th><th>Channel</th><th>Action</th><th>Outcome</th><th>Detail</th></tr></thead><tbody>';
+    state.runs.forEach(function(r){
+      var o=r.outcome||"";
+      var cls = o==="published"?"ok" : o==="error"?"err" : (o.indexOf("skipped")===0?"warn":"");
+      var detail="";
+      if(r.detail && typeof r.detail==="object" && Object.keys(r.detail).length) detail=JSON.stringify(r.detail);
+      h+='<tr><td class="tnum">'+esc(ago(r.ts))+'</td><td>'+esc(CHLABEL[r.channel]||r.channel)+'</td><td>'+esc(r.action)+'</td>'
+        +'<td><span class="badge '+cls+'">'+esc(o)+'</span></td><td style="font-size:12px; color:var(--muted); word-break:break-all">'+esc(detail)+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+    host.innerHTML=h;
+  }
+
+  // ══ EXPERIMENTS ═══════════════════════════════════════════════════════════════════════════
+  ["exI","exC","exE"].forEach(function(id){
+    var s=$(id);
+    for(var i=1;i<=10;i++){ var o=document.createElement("option"); o.value=i; o.textContent=i; if(i===5) o.selected=true; s.appendChild(o); }
+  });
+  function iceScore(e){ return (Number(e.ice_impact)||0)*(Number(e.ice_confidence)||0)*(Number(e.ice_ease)||0); }
+  function renderExperiments(){
+    // campaign select for the create form
+    var sel=$("exCamp"); var cur=sel.value;
+    sel.innerHTML='<option value="">—</option>'+state.campaigns.map(function(c){
+      return '<option value="'+escAttr(c.campaign_id)+'">'+esc(c.name)+'</option>';
+    }).join("");
+    sel.value=cur;
+
+    var host=$("expList");
+    if(!state.experiments.length){ host.innerHTML='<div class="empty">No experiments yet — one variable per test, ICE-scored, verdict recorded when it ends.</div>'; return; }
+    var sorted=state.experiments.slice().sort(function(a,b){ return iceScore(b)-iceScore(a); });
+    host.innerHTML=sorted.map(function(e){
+      var stCls = e.status==="running"?"ok" : e.status==="scaled"?"acc" : e.status==="killed"?"err" : e.status==="extended"?"warn" : "";
+      var camp = state.campaigns.find(function(c){ return String(c.campaign_id)===String(e.campaign_id); });
+      var h='<div class="card" data-exp="'+escAttr(e.experiment_id)+'">';
+      h+='<div class="rowline"><span class="badge acc tnum" title="impact × confidence × ease">ICE '+iceScore(e)+'</span>';
+      h+='<span class="badge '+stCls+'">'+esc(e.status)+'</span>';
+      if(camp) h+='<span class="badge">'+esc(camp.name)+'</span>';
+      h+='<span style="flex:1"></span><span class="metaline" style="margin:0">'
+        + esc(e.ice_impact)+'i · '+esc(e.ice_confidence)+'c · '+esc(e.ice_ease)+'e'
+        + (e.window_start? ' · '+esc(fmtDate(e.window_start))+' → '+esc(e.window_end? fmtDate(e.window_end) : "…") : '')
+        + '</span></div>';
+      h+='<div style="font-size:13.5px; margin-top:8px">'+esc(e.hypothesis)+'</div>';
+      h+='<div class="metaline">variable: '+esc(e.variable)+'</div>';
+      if(e.verdict) h+='<div class="metaline">verdict: '+esc(e.verdict)+'</div>';
+      var trans=EXP_TRANSITIONS[e.status]||[];
+      if(trans.length){
+        h+='<div class="actions" style="margin-bottom:0">';
+        trans.forEach(function(t){
+          h+='<button class="btn sm'+(t.to==="killed"?" danger":"")+'" data-to="'+t.to+'" data-verdict="'+(t.verdict?1:0)+'">'+esc(t.label)+'</button>';
+        });
+        h+='</div>';
+      }
+      h+='<div class="inline-err" data-experr="1"></div>';
+      h+='</div>';
+      return h;
+    }).join("");
+
+    Array.prototype.forEach.call(host.querySelectorAll("[data-exp]"), function(card){
+      var id=card.getAttribute("data-exp");
+      var errEl=card.querySelector("[data-experr]");
+      Array.prototype.forEach.call(card.querySelectorAll("[data-to]"), function(b){
+        b.addEventListener("click", function(){
+          var to=b.getAttribute("data-to");
+          var needsVerdict=b.getAttribute("data-verdict")==="1";
+          function send(body){
+            return api("/experiments/"+encodeURIComponent(id), { method:"PATCH", body:JSON.stringify(body) })
+              .then(parse).then(function(res){
+                if(!res.ok){ showInlineErr(errEl, errText(res, null)); return { error:errText(res, null) }; }
+                toast("Experiment → "+to);
+                loadExperiments();
+                return null;
+              });
+          }
+          if(needsVerdict){
+            showConfirm({
+              title:(to==="killed"?"Kill":"Scale")+" this experiment",
+              message:"Record what the data showed — the verdict is the experiment's lasting artifact. Cite real numbers; if the window produced none, say NO DATA.",
+              askVerdict:true, goLabel: to==="killed"?"Kill it":"Scale it",
+              onConfirm:function(extra){ return send({ status:to, verdict: extra.verdict||"NO DATA" }); }
+            });
+          } else {
+            send({ status:to });
+          }
+        });
+      });
+    });
+  }
+  $("exAddBtn").addEventListener("click", function(){
+    clearInlineErr($("exErr"));
+    var hyp=$("exHyp").value.trim(), variable=$("exVar").value.trim();
+    if(!hyp || !variable){ showInlineErr($("exErr"), "Hypothesis and variable are both required."); return; }
+    var body={ hypothesis:hyp, variable:variable,
+      iceImpact:parseInt($("exI").value,10), iceConfidence:parseInt($("exC").value,10), iceEase:parseInt($("exE").value,10) };
+    if($("exCamp").value) body.campaignId=$("exCamp").value;
+    var btn=$("exAddBtn"); btn.disabled=true;
+    api("/experiments", { method:"POST", body:JSON.stringify(body) })
+      .then(parse).then(function(res){
+        btn.disabled=false;
+        if(!res.ok){ showInlineErr($("exErr"), errText(res, null)); return; }
+        $("exHyp").value=""; $("exVar").value="";
+        toast("Experiment proposed");
+        loadExperiments();
+      }).catch(function(e){ btn.disabled=false; showInlineErr($("exErr"), "Request failed — "+((e&&e.message)||e)); });
+  });
+
+  // ══ APPROVALS ═════════════════════════════════════════════════════════════════════════════
+  function renderApprovals(){
+    var host=$("apprList");
+    if(!state.proposals.length){ host.innerHTML='<div class="empty">No budget proposals — the campaign director writes them in the weekly review; they wait here for your decision.</div>'; return; }
+    var pending=state.proposals.filter(function(p){ return p.status==="proposed"; });
+    var decided=state.proposals.filter(function(p){ return p.status!=="proposed"; });
+    var h="";
+    function row(p, withActions){
+      var camp=state.campaigns.find(function(c){ return String(c.campaign_id)===String(p.campaign_id); });
+      var stCls = p.status==="applied"||p.status==="approved"?"ok" : p.status==="rejected"?"err" : "warn";
+      var r='<div class="card" data-prop="'+escAttr(p.entry_id)+'">';
+      r+='<div class="rowline"><span class="badge '+stCls+'">'+esc(p.status)+'</span>';
+      if(camp) r+='<b style="font-size:13.5px">'+esc(camp.name)+'</b>';
+      if(p.channel) r+='<span class="badge">'+esc(CHLABEL[p.channel]||p.channel)+'</span>';
+      r+='<span style="flex:1"></span><span class="metaline" style="margin:0">by '+esc(p.proposed_by||"bot")+' · '+esc(ago(p.created_at))+'</span></div>';
+      r+='<div style="font-size:13.5px; margin-top:8px"><code>'+esc(p.field)+'</code>: '
+        +'<span style="color:var(--muted)">'+esc(p.old_value==null?"—":p.old_value)+'</span> → <b>'+esc(p.new_value)+'</b></div>';
+      if(withActions){
+        r+='<div class="actions" style="margin-bottom:0">'
+          +'<button class="btn sm primary" data-approve="1"><svg><use href="#i-check"/></svg> Approve &amp; apply…</button>'
+          +'<button class="btn sm danger" data-reject="1"><svg><use href="#i-x"/></svg> Reject</button></div>';
+        r+='<div class="inline-err" data-properr="1"></div>';
+      } else if(p.decided_by){
+        r+='<div class="metaline">decided by '+esc(p.decided_by)+(p.decided_at? ' · '+esc(ago(p.decided_at)) : '')+'</div>';
+      }
+      r+='</div>';
+      return r;
+    }
+    if(pending.length){ h+='<div class="sechead" style="margin-top:0">Awaiting your decision ('+pending.length+')</div>'; pending.forEach(function(p){ h+=row(p,true); }); }
+    if(decided.length){ h+='<div class="sechead">Decided</div>'; decided.forEach(function(p){ h+=row(p,false); }); }
+    host.innerHTML=h;
+
+    Array.prototype.forEach.call(host.querySelectorAll("[data-prop]"), function(card){
+      var id=card.getAttribute("data-prop");
+      var p=state.proposals.find(function(x){ return String(x.entry_id)===id; });
+      if(!p) return;
+      var errEl=card.querySelector("[data-properr]");
+      function decide(body){
+        return api("/budget/proposals/"+encodeURIComponent(id)+"/decide", { method:"POST", body:JSON.stringify(body) })
+          .then(parse).then(function(res){
+            if(!res.ok){ var m=errText(res, { channel:p.channel }); if(errEl) showInlineErr(errEl, m); return { error:m }; }
+            toast(body.decision==="approve" ? "Approved and applied" : "Rejected");
+            loadProposals(); refresh();
+            return null;
+          });
+      }
+      var ap=card.querySelector("[data-approve]");
+      if(ap) ap.addEventListener("click", function(){
+        showConfirm({
+          title:"Approve this change",
+          message:"Approving APPLIES it to the campaign: "+p.field+" becomes "+p.new_value+". This is a real budget/allocation change on your account.",
+          goLabel:"Approve & apply",
+          onConfirm:function(extra){ return decide({ decision:"approve", confirm:extra.confirm }); }
+        });
+      });
+      var rj=card.querySelector("[data-reject]");
+      if(rj) rj.addEventListener("click", function(){ if(errEl) clearInlineErr(errEl); decide({ decision:"reject" }); });
+    });
+  }
+
+  // close modals on scrim click (never the confirm's Go path)
+  ["newScrim","impScrim","draftScrim","cfScrim"].forEach(function(id){
+    $(id).addEventListener("click", function(ev){ if(ev.target===$(id)) $(id).classList.remove("show"); });
+  });
+
+  // ── boot ──────────────────────────────────────────────────────────────────────────────────
+  refresh();
+})();
+</script>
+</body>
+</html>

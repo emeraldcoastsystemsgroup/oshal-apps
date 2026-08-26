@@ -1,0 +1,172 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com   | Marketing Engine v0.1.0: campaign board, per-channel
+#     consent (default OFF), deterministic metrics ingest, weekly backlog-gated review tickets,
+#     four inline concierge bots. Per oshal docs/business/marketing-engine-spec.md + ADR-131.
+#     Publishing rides existing rails (LinkedIn action, Mastodon action, Bluesky fixed op, Resend
+#     action); campaign import NEVER arms spend or consent (the series-pump import rule).
+
+name: marketing-engine
+displayName: Marketing Engine
+description: >-
+  Takes a built oshal product to traffic, users, and revenue: campaign board with stage-gated
+  intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic
+  metrics scorecard, experiment registry, budget proposals a human approves, and weekly review
+  tickets worked by inline concierge bots only after human approval.
+version: 0.1.0
+status: active
+suite: ai-productivity
+theme: midnight
+scope: public
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: marketing-engine
+  ref: main
+
+uses:
+  - notifications
+
+dependencies:
+  apps: []
+  tools: []
+  # The complete connector allow-list this app's surfaces may offer (ADR-133).
+  # twitter + meta-business are offered for account connection and measurement context only —
+  # publishing to X/Facebook stays on the Switchboard desk; no marketing-engine code path posts there.
+  connectors:
+    - linkedin
+    - mastodon
+    - bluesky
+    - resend
+    - google
+    - google-search-console
+    - posthog
+    - twitter
+    - meta-business
+
+guestTier: blocked
+
+bots:
+  # All four are INLINE concierges: no container key on purpose (reasoning rides the caller's
+  # hosted/BYO brain via executeBotOrInline; connector reads/writes happen in routes, never on
+  # the bot). capabilities lists are the FULL identity — manifest reload clobbers the array.
+  - agentId: cadf0000-0000-4000-8000-000000000001
+    name: campaign-director
+    persona: personas/campaign-director.yaml
+    role: marketing/campaign-strategy
+    capabilities:
+      - campaign-planning
+      - marketing-scorecard-review
+      - budget-proposals
+      - experiment-review
+      - content-briefing
+  - agentId: cadf0000-0000-4000-8000-000000000002
+    name: market-analyst
+    persona: personas/market-analyst.yaml
+    role: marketing/market-research
+    capabilities:
+      - icp-research
+      - competitor-scan
+      - keyword-research
+      - pricing-comparables
+  - agentId: cadf0000-0000-4000-8000-000000000003
+    name: growth-analyst
+    persona: personas/growth-analyst.yaml
+    role: marketing/measurement
+    capabilities:
+      - funnel-analysis
+      - scorecard-narrative
+      - anomaly-flagging
+  - agentId: cadf0000-0000-4000-8000-000000000004
+    name: launch-coordinator
+    persona: personas/launch-coordinator.yaml
+    role: marketing/launches
+    capabilities:
+      - launch-checklists
+      - community-post-drafts
+      - press-outreach-drafts
+      - launch-retro
+
+chatBot: campaign-director
+
+# ONE ticket queue: the weekly review + any ad-hoc campaign work. NO autoStart — tickets wait in
+# backlog until a human approves them (the front gate for bot work; operator directive 2026-07-24).
+ticketType: marketing-campaign
+workflow:
+  name: marketing-campaign-review
+  workerBot: campaign-director
+
+schedules:
+  # Deterministic, no-LLM. Consent rows gate every outward action; ingest only READS sources.
+  - id: daily-metrics-ingest
+    cron: "20 6 * * *"
+    scope: framework
+    description: Pull configured metrics sources (Search Console, PostHog, GitHub traffic) into the owner-scoped marketing_events store. Reads only; sources missing config are recorded as NO DATA, never invented.
+    target: service-route
+    route: /api/marketing-ops/ingest
+    handler: runMarketingDailyIngest
+  - id: weekly-campaign-review
+    cron: "0 12 * * 1"
+    scope: framework
+    description: Roll up the weekly scorecard and open ONE backlog review ticket per owner with active campaigns. No bot runs and nothing publishes until a human approves the ticket in the cockpit.
+    target: service-route
+    route: /api/marketing-ops/weekly
+    handler: runMarketingWeeklyReview
+
+routes:
+  - module: routes/marketing-routes.js
+    factory: createMarketingRoutes
+    mountPath: /api/marketing
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+  - module: routes/marketing-ops-routes.js
+    factory: createMarketingOpsRoutes
+    mountPath: /api/marketing-ops
+    auth: service
+    requiresContext: true
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/marketing-engine/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/marketing-engine/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
+ui:
+  static:
+    - toolName: marketing-engine
+      label: Marketing
+      icon: codicon codicon-megaphone
+      iframeUrl: /api/marketing
+      section: top
+    - toolName: marketing-content-studio
+      label: Content Studio
+      icon: codicon codicon-edit
+      iframeUrl: /api/content/studio
+      section: top
+    - toolName: marketing-linkedin-assistant
+      label: LinkedIn Assistant
+      icon: codicon codicon-comment-discussion
+      iframeUrl: /api/linkedin-assistant/panel
+      section: top
+
+ribbon:
+  defaultView: marketing-engine
+
+migrations:
+  - migrations/001-marketing-core.sql
+  - migrations/002-marketing-metrics.sql

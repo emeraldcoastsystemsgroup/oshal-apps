@@ -161,15 +161,15 @@ test('catalog validation mutation-tests missing, noncanonical, and mismatched re
 test('the real store has one canonical truthfully pending record per catalog app', () => {
   const report = validatePackageAuditCatalog(process.cwd(), 'compatible');
   assert.deepEqual(report.errors, []);
-  assert.equal(report.records.length, 47);
-  assert.equal(report.records.filter(({ record }) => record.status === 'pending').length, 47);
+  assert.equal(report.records.length, 48);
+  assert.equal(report.records.filter(({ record }) => record.status === 'pending').length, 48);
   assert.equal(report.records.filter(({ decision }) => decision.verified).length, 0);
-  assert.equal(report.warnings.length, 47);
+  assert.equal(report.warnings.length, 48);
 });
 
 test('the real pending store cannot accidentally claim enforce readiness', () => {
   const report = validatePackageAuditCatalog(process.cwd(), 'enforce');
-  assert.equal(report.records.length, 47);
-  assert.ok(report.errors.length >= 47);
+  assert.equal(report.records.length, 48);
+  assert.ok(report.errors.length >= 48);
   assert.ok(report.records.every(({ decision }) => decision.allowed === false));
 });
