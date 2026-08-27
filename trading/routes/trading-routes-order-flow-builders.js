@@ -118,14 +118,15 @@ function registerTradingOrderFlowRoutes(router, ctx, placeDecisionOrder) {
         }
         try {
             await (0, trading_schema_1.ensureTradingSchema)(ctx.pool);
-            const mode = (0, trading_routes_helpers_1.resolveMode)(b.mode);
+            const book = await (0, trading_routes_helpers_1.resolveBook)(ctx.pool, sub, b.book ?? b.mode);
+            const mode = book.kind;
             const symbols = Array.isArray(b.symbols) ? b.symbols.map((s) => String(s).toUpperCase()) : [];
             const artifact = JSON.stringify({ source, externalId: b.externalId, author: b.author, title: b.title, body: b.body, url: b.url });
             const contentHash = crypto.createHash('sha256').update(artifact).digest('hex');
-            const row = (await ctx.pool.query(`INSERT INTO oshal_trading_signals (user_sub, mode, source, external_id, author, url, title, body, symbols, indicators, content_hash)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-         ON CONFLICT (user_sub, mode, content_hash) DO UPDATE SET observed_at = oshal_trading_signals.observed_at
-         RETURNING signal_id, observed_at`, [sub, mode, source, b.externalId || null, b.author || null, b.url || null, b.title || null, b.body || null,
+            const row = (await ctx.pool.query(`INSERT INTO oshal_trading_signals (user_sub, mode, book_id, source, external_id, author, url, title, body, symbols, indicators, content_hash)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+         ON CONFLICT (user_sub, book_id, content_hash) DO UPDATE SET observed_at = oshal_trading_signals.observed_at
+         RETURNING signal_id, observed_at`, [sub, mode, book.bookId, source, b.externalId || null, b.author || null, b.url || null, b.title || null, b.body || null,
                 symbols, b.indicators ? JSON.stringify(b.indicators) : null, contentHash])).rows[0];
             res.json({ ok: true, signalId: row.signal_id, observedAt: row.observed_at });
         }
@@ -143,10 +144,11 @@ function registerTradingOrderFlowRoutes(router, ctx, placeDecisionOrder) {
         }
         try {
             await (0, trading_schema_1.ensureTradingSchema)(ctx.pool);
-            const mode = (0, trading_routes_helpers_1.resolveMode)(req.query.mode);
+            const book = await (0, trading_routes_helpers_1.resolveBook)(ctx.pool, sub, req.query.book ?? req.query.mode);
+            const mode = book.kind;
             const rows = (await ctx.pool.query(`SELECT signal_id, source, author, title, body, url, symbols, indicators, observed_at
-           FROM oshal_trading_signals WHERE user_sub=$1 AND mode=$2 ORDER BY observed_at DESC LIMIT 50`, [sub, mode])).rows;
-            res.json({ mode, signals: rows });
+           FROM oshal_trading_signals WHERE user_sub=$1 AND book_id=$2 ORDER BY observed_at DESC LIMIT 50`, [sub, book.bookId])).rows;
+            res.json({ mode, book: book.ref, signals: rows });
         }
         catch (err) {
             logger.error({ err }, 'trading signals list failed');
@@ -169,14 +171,14 @@ function registerTradingOrderFlowRoutes(router, ctx, placeDecisionOrder) {
         }
         try {
             await (0, trading_schema_1.ensureTradingSchema)(ctx.pool);
-            const mode = (0, trading_routes_helpers_1.resolveMode)(b.mode);
+            const book = await (0, trading_routes_helpers_1.resolveBook)(ctx.pool, sub, b.book ?? b.mode);
             const signals = (await ctx.pool.query(`SELECT signal_id, source, author, title, body, url, symbols, indicators, observed_at
-           FROM oshal_trading_signals WHERE user_sub=$1 AND mode=$2 AND signal_id = ANY($3::uuid[])`, [sub, mode, signalIds])).rows;
+           FROM oshal_trading_signals WHERE user_sub=$1 AND book_id=$2 AND signal_id = ANY($3::uuid[])`, [sub, book.bookId, signalIds])).rows;
             if (!signals.length) {
                 res.status(404).json({ error: 'signals_not_found', message: 'No matching signals for this book.' });
                 return;
             }
-            const { decisionId, createdAt, decision } = await (0, trading_engine_1.analyzeAndRecordDecision)(ctx, sub, mode, signals);
+            const { decisionId, createdAt, decision } = await (0, trading_engine_1.analyzeAndRecordDecision)(ctx, sub, book, signals);
             res.json({ ok: true, decisionId, createdAt, decision });
         }
         catch (err) {
@@ -203,8 +205,8 @@ function registerTradingOrderFlowRoutes(router, ctx, placeDecisionOrder) {
         }
         try {
             await (0, trading_schema_1.ensureTradingSchema)(ctx.pool);
-            const mode = (0, trading_routes_helpers_1.resolveMode)(b.mode);
-            const result = await placeDecisionOrder(ctx.pool, sub, mode, String(b.decisionId), String(b.requestId), b.confirm === true);
+            const book = await (0, trading_routes_helpers_1.resolveBook)(ctx.pool, sub, b.book ?? b.mode);
+            const result = await placeDecisionOrder(ctx.pool, sub, book, String(b.decisionId), String(b.requestId), b.confirm === true);
             res.json({ ok: true, order: result });
         }
         catch (err) {
@@ -225,11 +227,12 @@ function registerTradingOrderFlowRoutes(router, ctx, placeDecisionOrder) {
         }
         try {
             await (0, trading_schema_1.ensureTradingSchema)(ctx.pool);
-            const mode = (0, trading_routes_helpers_1.resolveMode)(req.query.mode);
+            const book = await (0, trading_routes_helpers_1.resolveBook)(ctx.pool, sub, req.query.book ?? req.query.mode);
+            const mode = book.kind;
             const rows = (await ctx.pool.query(`SELECT order_id, decision_id, broker, broker_order_id, symbol, side, qty, order_type, limit_price,
                 status, filled_qty, filled_avg_price, realized_pnl, reject_reason, created_at, updated_at
-           FROM oshal_trading_orders WHERE user_sub=$1 AND mode=$2 ORDER BY created_at DESC LIMIT 100`, [sub, mode])).rows;
-            res.json({ mode, orders: rows });
+           FROM oshal_trading_orders WHERE user_sub=$1 AND book_id=$2 ORDER BY created_at DESC LIMIT 100`, [sub, book.bookId])).rows;
+            res.json({ mode, book: book.ref, orders: rows });
         }
         catch (err) {
             logger.error({ err }, 'trading orders list failed');
@@ -373,14 +376,15 @@ function registerTradingOrderFlowRoutes(router, ctx, placeDecisionOrder) {
         }
         try {
             await (0, trading_schema_1.ensureTradingSchema)(ctx.pool);
-            const mode = (0, trading_routes_helpers_1.resolveMode)(req.query.mode);
+            const book = await (0, trading_routes_helpers_1.resolveBook)(ctx.pool, sub, req.query.book ?? req.query.mode);
+            const mode = book.kind;
             const orders = (await ctx.pool.query(`SELECT o.order_id, o.symbol, o.side, o.qty, o.order_type, o.limit_price, o.stop_price,
                 o.trail_price, o.trail_percent, o.status, o.filled_qty, o.filled_avg_price,
                 o.realized_pnl, o.reject_reason, o.created_at,
                 d.decision_id, d.action, d.rationale, d.confidence, d.signal_ids
            FROM oshal_trading_orders o
            JOIN oshal_trading_decisions d ON d.decision_id = o.decision_id
-          WHERE o.user_sub=$1 AND o.mode=$2 ORDER BY o.created_at DESC LIMIT 100`, [sub, mode])).rows;
+          WHERE o.user_sub=$1 AND o.book_id=$2 ORDER BY o.created_at DESC LIMIT 100`, [sub, book.bookId])).rows;
             // Fetch every referenced signal once, then stitch onto each trade.
             const allIds = [...new Set(orders.flatMap((o) => (o.signal_ids || [])))];
             const sigById = new Map();

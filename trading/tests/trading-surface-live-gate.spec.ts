@@ -28,7 +28,9 @@ describe('trading surface live gates (carved WITH the app — coverage never dro
     expect(trading).toContain("status: mode === 'paper' ? 'approved' : 'backlog'");
     expect(trading).toContain("note: 'Live trades require approval");
     // The paper inline loop must never pass a live confirm.
-    expect(trading).toContain('placeDecisionOrder(ctx.pool, sub, mode, decisionId, ticket.ticketId, false)');
+    // ADR-134: the paper inline loop places on the resolved BOOK; the load-bearing part of this
+    // guard is the trailing `false` — the paper path may NEVER pass the live confirm.
+    expect(trading).toContain('placeDecisionOrder(ctx.pool, sub, book, decisionId, ticket.ticketId, false)');
   });
 
   it('POST /orders only forwards an EXPLICIT boolean confirm to the kernel engine gate', () => {

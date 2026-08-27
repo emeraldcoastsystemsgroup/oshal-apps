@@ -21,7 +21,11 @@ exports.performanceFromEquitySeries = performanceFromEquitySeries;
 exports.registerTradingBookReadRoutes = registerTradingBookReadRoutes;
 const logger_1 = require("@/shared/logger");
 const trading_1 = require("@/features/trading");
+// ADR-134 PR3: every read resolves the BOOK (query.book, falling back to legacy ?mode= aliases via
+// resolveBook) — with two live books both mode='live', an unconverted read would merge BOTH books'
+// rows and the account switcher would switch nothing.
 const trading_routes_helpers_1 = require("@/app/routes/trading-routes-helpers");
+const trading_accounts_routes_1 = require("./trading-accounts-routes");
 const trading_schema_1 = require("@/app/trading-schema");
 const trading_daily_equity_store_1 = require("@/app/trading-daily-equity-store");
 // Same module tag as the entry file so structured log output is unchanged by the split.
@@ -105,7 +109,8 @@ function registerTradingBookReadRoutes(router, ctx, apiDir) {
         }
         try {
             await (0, trading_schema_1.ensureTradingSchema)(ctx.pool);
-            const mode = (0, trading_routes_helpers_1.resolveMode)(req.query.mode);
+            const book = await (0, trading_accounts_routes_1.routeBook)(ctx, sub, req);
+            const mode = book.kind;
             let paperConfigured = false, liveConfigured = false;
             try {
                 paperConfigured = (0, trading_1.getBrokerReader)('paper', sub).configured();
@@ -117,12 +122,12 @@ function registerTradingBookReadRoutes(router, ctx, apiDir) {
             }
             catch { /* rail unset */ }
             const counts = (await ctx.pool.query(`SELECT
-           (SELECT COUNT(*)::int FROM oshal_trading_signals  WHERE user_sub=$1 AND mode=$2) AS signals,
-           (SELECT COUNT(*)::int FROM oshal_trading_decisions WHERE user_sub=$1 AND mode=$2) AS decisions,
-           (SELECT COUNT(*)::int FROM oshal_trading_orders    WHERE user_sub=$1 AND mode=$2) AS orders`, [sub, mode])).rows[0];
+           (SELECT COUNT(*)::int FROM oshal_trading_signals  WHERE user_sub=$1 AND book_id=$2) AS signals,
+           (SELECT COUNT(*)::int FROM oshal_trading_decisions WHERE user_sub=$1 AND book_id=$2) AS decisions,
+           (SELECT COUNT(*)::int FROM oshal_trading_orders    WHERE user_sub=$1 AND book_id=$2) AS orders`, [sub, book.bookId])).rows[0];
             res.json({
                 provider: process.env.BROKER_PROVIDER || 'alpaca',
-                mode, liveEnabled: (0, trading_1.liveTradingEnabled)(),
+                mode, book: book.ref, liveEnabled: (0, trading_1.liveTradingEnabled)(),
                 paperConfigured, liveConfigured,
                 guardrails: (0, trading_routes_helpers_1.guardrails)(),
                 counts: { signals: counts?.signals || 0, decisions: counts?.decisions || 0, orders: counts?.orders || 0 },
@@ -141,13 +146,14 @@ function registerTradingBookReadRoutes(router, ctx, apiDir) {
             return;
         }
         try {
-            const mode = (0, trading_routes_helpers_1.resolveMode)(req.query.mode);
-            const broker = (0, trading_1.getBrokerReader)(mode, sub); // read — account balances readable with just a connection
+            const book = await (0, trading_accounts_routes_1.routeBook)(ctx, sub, req);
+            const mode = book.kind;
+            const broker = (0, trading_1.getBrokerReader)(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined);
             if (!broker.configured()) {
                 res.status(503).json({ error: 'broker_not_configured', message: `Set the ${mode} broker keys (e.g. ALPACA_${mode.toUpperCase()}_KEY_ID / _SECRET_KEY).` });
                 return;
             }
-            res.json({ mode, account: await broker.getAccount() });
+            res.json({ mode, book: book.ref, account: await broker.getAccount() });
         }
         catch (err) {
             logger.error({ err }, 'trading account failed');
@@ -162,13 +168,14 @@ function registerTradingBookReadRoutes(router, ctx, apiDir) {
             return;
         }
         try {
-            const mode = (0, trading_routes_helpers_1.resolveMode)(req.query.mode);
-            const broker = (0, trading_1.getBrokerReader)(mode, sub); // read — positions readable with just a connection
+            const book = await (0, trading_accounts_routes_1.routeBook)(ctx, sub, req);
+            const mode = book.kind;
+            const broker = (0, trading_1.getBrokerReader)(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined);
             if (!broker.configured()) {
                 res.status(503).json({ error: 'broker_not_configured' });
                 return;
             }
-            res.json({ mode, positions: await broker.getPositions() });
+            res.json({ mode, book: book.ref, positions: await broker.getPositions() });
         }
         catch (err) {
             logger.error({ err }, 'trading positions failed');
@@ -189,7 +196,7 @@ function registerTradingBookReadRoutes(router, ctx, apiDir) {
             return;
         }
         try {
-            const mode = (0, trading_routes_helpers_1.resolveMode)(req.query.mode);
+            const mode = (await (0, trading_accounts_routes_1.routeBook)(ctx, sub, req)).kind;
             const md = (0, trading_1.getMarketData)(mode, sub);
             if (!md.configured()) {
                 res.status(503).json({ error: 'market_data_not_configured', source: md.kind });
@@ -211,8 +218,9 @@ function registerTradingBookReadRoutes(router, ctx, apiDir) {
             return;
         }
         try {
-            const mode = (0, trading_routes_helpers_1.resolveMode)(req.query.mode);
-            const broker = (0, trading_1.getBrokerReader)(mode, sub); // read — equity curve
+            const book = await (0, trading_accounts_routes_1.routeBook)(ctx, sub, req);
+            const mode = book.kind;
+            const broker = (0, trading_1.getBrokerReader)(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined);
             if (!broker.configured()) {
                 res.status(503).json({ error: 'broker_not_configured' });
                 return;
@@ -229,12 +237,12 @@ function registerTradingBookReadRoutes(router, ctx, apiDir) {
             // response from OUR recorded daily-equity series instead — the actual fix for the missing tiles.
             if (!broker.portfolioHistory) {
                 const [series, acct, spyCloses, spyNow] = await Promise.all([
-                    (0, trading_daily_equity_store_1.loadDailyEquitySeries)(ctx.pool, sub, mode, sel.days),
+                    (0, trading_daily_equity_store_1.loadDailyEquitySeries)(ctx.pool, sub, book, sel.days),
                     broker.getAccount().catch(() => null),
                     (0, trading_1.dailyCloses)('SPY', sel.n).catch(() => []),
                     (0, trading_1.latestPrice)('SPY').catch(() => null),
                 ]);
-                const allTime = await (0, trading_daily_equity_store_1.loadDailyEquitySeries)(ctx.pool, sub, mode, 0).catch(() => series);
+                const allTime = await (0, trading_daily_equity_store_1.loadDailyEquitySeries)(ctx.pool, sub, book, 0).catch(() => series);
                 const inceptionBase = allTime.length ? allTime[0].equity : (series[0]?.equity ?? 0);
                 const liveEquity = Number(acct?.equity || 0) || (series.length ? series[series.length - 1].equity : 0);
                 const payload = performanceFromEquitySeries(series, liveEquity, spyCloses, spyNow, inceptionBase, periodReq, mode, Math.floor(Date.now() / 1000));
@@ -328,7 +336,8 @@ function registerTradingBookReadRoutes(router, ctx, apiDir) {
         }
         try {
             await (0, trading_schema_1.ensureTradingSchema)(ctx.pool);
-            const mode = (0, trading_routes_helpers_1.resolveMode)(req.query.mode);
+            const book = await (0, trading_accounts_routes_1.routeBook)(ctx, sub, req);
+            const mode = book.kind;
             const win = async (clause) => (await ctx.pool.query(`SELECT count(*)::int trades,
                 count(*) FILTER (WHERE realized_pnl > 0)::int wins,
                 count(*) FILTER (WHERE realized_pnl < 0)::int losses,
@@ -338,7 +347,7 @@ function registerTradingBookReadRoutes(router, ctx, apiDir) {
                 COALESCE(round(max(realized_pnl)::numeric,2),0) biggest_win,
                 COALESCE(round(min(realized_pnl)::numeric,2),0) biggest_loss
            FROM oshal_trading_orders
-          WHERE user_sub=$1 AND mode=$2 AND side='sell' AND realized_pnl IS NOT NULL AND ${clause}`, [sub, mode])).rows[0];
+          WHERE user_sub=$1 AND book_id=$2 AND side='sell' AND realized_pnl IS NOT NULL AND ${clause}`, [sub, book.bookId])).rows[0];
             const today = await win(`created_at::date = CURRENT_DATE`);
             const d30 = await win(`created_at >= now() - interval '30 days'`);
             const winRate = (r) => r.trades ? Math.round((r.wins / r.trades) * 100) : null;
@@ -359,8 +368,9 @@ function registerTradingBookReadRoutes(router, ctx, apiDir) {
             return;
         }
         try {
-            const mode = (0, trading_routes_helpers_1.resolveMode)(req.query.mode);
-            const broker = (0, trading_1.getBrokerReader)(mode, sub);
+            const book = await (0, trading_accounts_routes_1.routeBook)(ctx, sub, req);
+            const mode = book.kind;
+            const broker = (0, trading_1.getBrokerReader)(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined);
             if (!broker.configured() || !broker.getTransactions) {
                 res.status(503).json({ error: 'transactions_not_supported' });
                 return;

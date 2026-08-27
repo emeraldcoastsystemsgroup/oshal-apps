@@ -56,12 +56,13 @@ import type { AppContext } from '@/app/composition/app-context';
 import { registerSchwabTokenResolver, type OrderResult } from '@/features/trading';
 import { getValidAccessToken } from '@/app/routes/connectors-routes';
 import { CreateInternalTicketSchema } from '@/entities/ticket';
-import { callerSub, resolveMode, TradingError, type SignalRow } from '@/app/routes/trading-routes-helpers';
+import { callerSub, resolveMode, resolveBook, TradingError, type SignalRow } from '@/app/routes/trading-routes-helpers';
 import { ensureTradingSchema } from '@/app/trading-schema';
 import { placeDecisionOrder, analyzeAndRecordDecision } from '@/app/trading-engine';
 import { registerTradingBookReadRoutes } from './trading-routes-book-read-builders';
 import { registerTradingOrderFlowRoutes } from './trading-routes-order-flow-builders';
 import { registerTradingAlgoRoutes, registerTradingTuningRoutes } from './trading-routes-algo-builders';
+import { registerTradingAccountRoutes } from './trading-accounts-routes';
 
 const logger = createChildLogger({ module: 'trading-routes' });
 
@@ -98,11 +99,26 @@ export function createTradingRoutes(ctx: AppContext): Router {
   // Wire the Schwab LIVE rail's per-user token lookup (ADR-036 brokered creds): the trading feature
   // slice can't import the app-layer connector store (FSD), so it calls back through this resolver to
   // decrypt/refresh the caller's Schwab access token. No-op for the Alpaca (paper/autopilot) rail.
-  registerSchwabTokenResolver((_mode, sub) => getValidAccessToken(ctx.pool, sub, 'schwab'));
+  // ADR-134 D5.6: the resolver is connectionKey-CAPABLE (3-arg — the core factory's fail-closed
+  // guard checks Function.length): a book bound to a specific Schwab LOGIN passes its connection_key
+  // (= oshal_connections.account_key), which maps to that login's connection row; no key = the
+  // default connection, exactly today's behavior for legacy/unbound books.
+  registerSchwabTokenResolver(async (_mode, sub, connectionKey) => {
+    if (!connectionKey || connectionKey === 'default') return getValidAccessToken(ctx.pool, sub, 'schwab');
+    const row = (await ctx.pool.query(
+      `SELECT connection_id FROM oshal_connections WHERE user_sub=$1 AND provider='schwab' AND account_key=$2 LIMIT 1`,
+      [sub, connectionKey])).rows[0];
+    // FAIL CLOSED: a bound book whose login connection is gone gets NO token (the fire skips) —
+    // never a silent fallback onto a different login's token against a bound account.
+    if (!row) return null;
+    return getValidAccessToken(ctx.pool, sub, 'schwab', { connectionId: String(row.connection_id) });
+  });
 
   // Route groups register in the ORIGINAL pre-split order (surface/reads → signal→decision→order
   // flow → POST /trigger below → algo engine → tuning). Paths are all distinct, but the order is
   // preserved anyway so the mounted surface is exactly what it was before the decomposition.
+  // ADR-134 PR3: the accounts/books/summary family registers FIRST (most-specific paths).
+  registerTradingAccountRoutes(router, ctx);
   registerTradingBookReadRoutes(router, ctx, apiDir);
   registerTradingOrderFlowRoutes(router, ctx, placeDecisionOrder);
 
@@ -118,16 +134,17 @@ export function createTradingRoutes(ctx: AppContext): Router {
   router.post('/trigger', async (req: Request, res: Response) => {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
-    const b = (req.body || {}) as { mode?: string; signalIds?: string[] };
+    const b = (req.body || {}) as { mode?: string; book?: string; signalIds?: string[] };
     const signalIds = Array.isArray(b.signalIds) ? b.signalIds.map(String) : [];
     if (!signalIds.length) { res.status(400).json({ error: 'signal_ids_required', message: 'Provide at least one captured signalId to trigger a decision ticket.' }); return; }
     try {
       await ensureTradingSchema(ctx.pool);
-      const mode = resolveMode(b.mode);
+      const book = await resolveBook(ctx.pool, sub, b.book ?? b.mode);
+      const mode = book.kind;
       const signals = (await ctx.pool.query(
         `SELECT signal_id, source, author, title, body, url, symbols, indicators, observed_at
-           FROM oshal_trading_signals WHERE user_sub=$1 AND mode=$2 AND signal_id = ANY($3::uuid[])`,
-        [sub, mode, signalIds])).rows as SignalRow[];
+           FROM oshal_trading_signals WHERE user_sub=$1 AND book_id=$2 AND signal_id = ANY($3::uuid[])`,
+        [sub, book.bookId, signalIds])).rows as SignalRow[];
       if (!signals.length) { res.status(404).json({ error: 'signals_not_found', message: 'No matching captured signals for this book.' }); return; }
       const syms = [...new Set(signals.flatMap((s) => (s.symbols || []) as string[]))];
       const lead = signals[0];
@@ -152,10 +169,10 @@ export function createTradingRoutes(ctx: AppContext): Router {
 
       // PAPER: run the loop now, no approval. Decide → (if actionable) place → complete the ticket.
       try {
-        const { decisionId, decision } = await analyzeAndRecordDecision(ctx, sub, mode, signals);
+        const { decisionId, decision } = await analyzeAndRecordDecision(ctx, sub, book, signals);
         let order: OrderResult | null = null;
         if (decision.action !== 'hold') {
-          order = await placeDecisionOrder(ctx.pool, sub, mode, decisionId, ticket.ticketId, false);
+          order = await placeDecisionOrder(ctx.pool, sub, book, decisionId, ticket.ticketId, false);
         }
         await ctx.ticketService.updateStatus(ticket.ticketId, 'complete').catch(() => { /* status best-effort */ });
         res.status(201).json({

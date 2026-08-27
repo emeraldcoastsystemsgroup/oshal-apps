@@ -177,6 +177,7 @@
       <div class="switch" id="bookSwitch">
         <button data-mode="paper" class="on" id="paperBtn">Paper</button>
         <button data-mode="live" id="liveBtn">Live</button>
+        <select id="bookSel" hidden title="Switch trading book (account)" style="margin-left:6px"></select>
       </div>
       <button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">C</button>
       <button class="btn ghost sm" id="refreshBtn">Refresh</button>
@@ -196,6 +197,11 @@
 const $ = (id) => document.getElementById(id);
 const main = $('main');
 let MODE = 'paper';
+/* ADR-134: the BOOK is the unit every fetch scopes to. Legacy refs 'paper'/'live' ARE the two
+   classic books; discovered-account books carry 'b-xxxxxxxx' refs. The server's resolveBook
+   accepts all three shapes, so ?book= replaces ?mode= without breaking anything. */
+let BOOK = 'paper';
+let BOOKS = [];   // [{bookId, ref, kind, enabled, ...}] from GET /accounts
 let STATUS = { liveEnabled:false, paperConfigured:false, liveConfigured:false, guardrails:{} };
 let STATE = { equity:0, positions:[], posSort:{ key:'marketValue', dir:-1 } };
 let UNIVERSE = {};          // symbol -> { symbol, price, changePct, conviction, stance, held, avg, signals }
@@ -206,7 +212,7 @@ let PERF_PERIOD = '1M';
    strategy strip + external links use this to land on the Strategy Lab. */
 let TAB = (function(){ try {
   const q = new URLSearchParams(location.search).get('tab') || (location.hash.match(/tab=([a-z]+)/i)||[])[1] || 'journal';
-  return ['journal','lab','tuning','perf','reco','algos','capture'].includes(q) ? q : 'journal';
+  return ['journal','lab','tuning','perf','reco','algos','capture','accounts','summary'].includes(q) ? q : 'journal';
 } catch { return 'journal'; } })();
 
 const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(Number(n||0)).toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -227,7 +233,9 @@ const dollarPctCell = (d, p) => {
 
 async function api(path, opts) {
   const sep = path.includes('?') ? '&' : '?';
-  const r = await fetch('/api/trading' + path + sep + 'mode=' + MODE, Object.assign({ credentials: 'include' }, opts || {}));
+  // book= scopes every read/write to the selected book (server-side resolveBook maps the legacy
+  // 'paper'/'live' aliases to the classic books — flag-off behavior is byte-identical).
+  const r = await fetch('/api/trading' + path + sep + 'book=' + encodeURIComponent(BOOK) + '&mode=' + MODE, Object.assign({ credentials: 'include' }, opts || {}));
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.message || j.error || ('HTTP ' + r.status));
   return j;
@@ -245,7 +253,33 @@ function wireSwitch() {
   $('settings').addEventListener('click', (e) => { if (e.target === $('settings')) closeSettings(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSettings(); });
 }
-function setMode(m) { MODE = m; $('paperBtn').className = m==='paper'?'on':''; $('liveBtn').className = m==='live'?'on live':''; render(); }
+function setMode(m) { setBook(m, m); }
+/* ADR-134: fast account switching — no reload; every subsequent fetch re-scopes via api(). */
+function setBook(ref, kind) {
+  BOOK = ref; MODE = kind;
+  $('paperBtn').className = (ref==='paper')?'on':'';
+  $('liveBtn').className = (ref==='live')?'on live':'';
+  const sel = $('bookSel'); if (sel && !sel.hidden) sel.value = ref;
+  render();
+}
+/* Populate the switcher from the discovered-account books; hidden until a non-legacy book exists. */
+async function loadBookSwitcher() {
+  try {
+    const j = await api('/accounts');
+    BOOKS = j.books || [];
+    const extra = BOOKS.filter(b => b.ref !== 'paper' && b.ref !== 'live');
+    const sel = $('bookSel');
+    if (!extra.length) { sel.hidden = true; return; }
+    sel.hidden = false;
+    sel.innerHTML = '<option value="paper">Paper</option><option value="live">Live (legacy)</option>' +
+      extra.map(b => '<option value="' + esc(b.ref) + '">' + esc(b.ref) + (b.enabled?'':' (disabled)') + '</option>').join('');
+    sel.value = BOOK;
+    sel.onchange = () => {
+      const b = BOOKS.find(x => x.ref === sel.value) || { ref: sel.value, kind: sel.value==='paper'?'paper':'live' };
+      setBook(b.ref, b.kind);
+    };
+  } catch { /* accounts surface unavailable → the classic two-button switch stands alone */ }
+}
 function openSettings() {
   const g = STATUS.guardrails || {};
   $('settingsBody').innerHTML =
@@ -285,6 +319,7 @@ async function render() {
       '<div class="panel" id="focus"><div class="foot" style="padding:22px 6px;text-align:center">Select a position above to open its chart, signal model and order ticket.</div></div>' +
       '<div class="tabbar" id="tabbar"></div><div id="tabpanel"></div>';
     renderTabs();
+    loadBookSwitcher();             // ADR-134: populate the account/book dropdown (async)
     loadStrategyStrip();            // the hub's "what strategy is my profile on?" strip (async)
     await loadKpisAndPositions();   // KPI strip + STATE.positions + render the positions table (hero)
     annotatePositionSignals();      // annotate each position with its current stored signal (async, DB)
@@ -640,7 +675,7 @@ async function loadStrategyStrip() {
 }
 
 /* ── tabs ────────────────────────────────────────────────────── */
-const TABS = [['journal','Trade journal'],['lab','Strategy Lab'],['studio','Strategy Studio'],['tuning','Tuning'],['perf','Performance'],['reco','Recommendations'],['algos','Algorithms'],['capture','Capture & signals']];
+const TABS = [['journal','Trade journal'],['summary','All accounts'],['accounts','Accounts & books'],['lab','Strategy Lab'],['studio','Strategy Studio'],['tuning','Tuning'],['perf','Performance'],['reco','Recommendations'],['algos','Algorithms'],['capture','Capture & signals']];
 function renderTabs() {
   $('tabbar').innerHTML = TABS.map(([k,l]) => '<button data-tab="'+k+'"'+(k===TAB?' class="on"':'')+'>'+l+'</button>').join('');
   $('tabbar').querySelectorAll('button').forEach(b => b.onclick = () => selectTab(b.getAttribute('data-tab')));
@@ -656,6 +691,95 @@ function selectTab(k) {
   else if (k==='reco') loadReco();
   else if (k==='algos') loadAlgos();
   else if (k==='capture') { renderCapture(); loadFeed(); }
+  else if (k==='accounts') loadAccountsTab();
+  else if (k==='summary') loadSummaryTab();
+}
+
+/* ── All accounts — the consolidated Schwab-style rollup (ADR-134) ─────────── */
+async function loadSummaryTab() {
+  const host = $('tabbody'); if (!host) return;
+  host.innerHTML = '<div class="spin"><span class="dot"></span> Reading every account…</div>';
+  try {
+    const j = await api('/summary');
+    const dayCell = (d, p) => d == null ? '<span class="foot">n/a</span>' : dollarPctCell(d, p);
+    host.innerHTML =
+      '<div class="kpis">' +
+        '<div class="kpi"><div class="l">Total value (all accounts)</div><div class="v">' + money(j.totalValue) + '</div></div>' +
+        '<div class="kpi"><div class="l">Day change</div><div class="v">' + (j.totalDayChange==null?'<span class="foot">n/a</span>':dollarPctCell(j.totalDayChange, null)) + '</div></div>' +
+      '</div>' +
+      '<div class="panel"><h2>Accounts</h2><table><thead><tr><th>Book</th><th>Kind</th><th class="num">Value</th><th class="num">Day change</th><th class="num">Cash</th><th></th></tr></thead><tbody>' +
+      (j.accounts||[]).map(a => a.error
+        ? '<tr><td>' + esc(a.ref) + '</td><td>' + esc(a.kind) + '</td><td colspan="4" class="err">' + esc(a.error) + '</td></tr>'
+        : '<tr><td><a href="#" onclick="setBook(\'' + esc(a.ref) + '\',\'' + esc(a.kind) + '\');return false">' + esc(a.ref) + '</a></td>' +
+          '<td>' + esc(a.kind) + (a.enabled===false?' <span class="foot">(disabled)</span>':'') + '</td>' +
+          '<td class="num">' + money(a.equity) + '</td><td class="num">' + dayCell(a.dayChange, a.dayChangePct) + '</td>' +
+          '<td class="num">' + money(a.cash) + '</td><td class="foot">switch →</td></tr>').join('') +
+      '</tbody></table></div>' +
+      '<div class="panel"><h2>Positions across all accounts</h2><table><thead><tr><th>Symbol</th><th class="num">Qty</th><th class="num">Market value</th><th>Held in</th></tr></thead><tbody>' +
+      (j.positionsRollup||[]).slice(0, 60).map(p =>
+        '<tr><td><strong>' + esc(p.symbol) + '</strong></td><td class="num">' + p.qty + '</td><td class="num">' + money(p.marketValue) + '</td>' +
+        '<td class="foot">' + p.perBook.map(x => esc(x.ref) + ' (' + x.qty + ')').join(' · ') + '</td></tr>').join('') +
+      '</tbody></table></div>';
+  } catch (e) { host.innerHTML = '<div class="panel err">' + esc(e.message) + '</div>'; }
+}
+
+/* ── Accounts & books — discovery, book CRUD, per-book strategy (ADR-134) ──── */
+async function loadAccountsTab() {
+  const host = $('tabbody'); if (!host) return;
+  host.innerHTML = '<div class="spin"><span class="dot"></span> Loading accounts…</div>';
+  try {
+    const j = await api('/accounts');
+    BOOKS = j.books || [];
+    const acct = (a) =>
+      '<tr><td><strong>' + esc(a.accountMasked) + '</strong>' + (a.nickname ? ' <span class="foot">' + esc(a.nickname) + '</span>' : '') + '</td>' +
+      '<td>' + esc(a.broker) + (a.connectionMissing ? ' <span class="err" title="This Schwab login is no longer connected — re-connect it under Settings → Connections">login missing</span>' : '') + '</td>' +
+      '<td>' + esc(a.accountType || '—') + '</td>' +
+      '<td class="foot">' + fmtDate(a.lastSeenAt) + '</td>' +
+      '<td>' + (a.book
+        ? '<span class="ok">book ' + esc(a.book.ref) + '</span>' + (a.book.enabled ? '' : ' <span class="foot">(disabled)</span>')
+        : '<button class="btn ghost sm" onclick="makeBook(\'' + esc(a.accountId) + '\',\'' + esc(a.accountMasked) + '\')">Create book…</button>') + '</td></tr>';
+    const bookRow = (b) =>
+      '<tr><td><strong>' + esc(b.ref) + '</strong>' + (b.learn ? ' <span class="foot" title="This book trains the signal weights">learn</span>' : '') + '</td>' +
+      '<td>' + esc(b.kind) + '</td>' +
+      '<td>' + (b.enabled ? '<span class="ok">enabled</span>' : '<span class="foot">disabled</span>') + '</td>' +
+      '<td class="num">' + (b.capitalCapUsd != null ? money(b.capitalCapUsd) : '—') + '</td>' +
+      '<td>' + (b.ref === 'paper' || b.ref === 'live' ? '<span class="foot">legacy</span>'
+        : '<button class="btn ghost sm" onclick="toggleBook(\'' + esc(b.bookId) + '\',' + (!b.enabled) + ')">' + (b.enabled ? 'Disable' : 'Enable…') + '</button>') + '</td></tr>';
+    host.innerHTML =
+      (j.multiAccountEnabled ? '' :
+        '<div class="panel"><div class="foot">Multi-account dispatch is <strong>not armed yet</strong> (TRADING_MULTI_ACCOUNT is off — the ADR-134 cutover flips it). ' +
+        'Discovery and book setup work now; per-account trading starts at cutover.</div></div>') +
+      '<div class="panel"><div class="panel head2"><h2 style="margin:0">Discovered accounts</h2>' +
+        '<button class="btn ghost sm" style="margin-left:auto" id="discoverBtn">Discover accounts</button></div>' +
+        '<div class="foot" style="margin-bottom:8px">Log into Schwab once (Settings → Connections) and every account under that login pulls in here. Re-run discovery after connecting a new login — and check <strong>all accounts</strong> on Schwab’s consent screen.</div>' +
+        '<table><thead><tr><th>Account</th><th>Broker</th><th>Type</th><th>Last seen</th><th>Book</th></tr></thead><tbody>' +
+        ((j.accounts||[]).map(acct).join('') || '<tr><td colspan="5" class="foot">No accounts discovered yet — hit “Discover accounts” (needs a connected Schwab login).</td></tr>') +
+        '</tbody></table></div>' +
+      '<div class="panel"><h2>Trading books</h2>' +
+        '<div class="foot" style="margin-bottom:8px">A book = one account × one strategy. Assign a strategy from the <strong>Strategy Lab</strong> tab (Apply… → pick the book). New live books are born disabled; enabling one is an explicit action.</div>' +
+        '<table><thead><tr><th>Book</th><th>Kind</th><th>State</th><th class="num">Capital cap</th><th></th></tr></thead><tbody>' +
+        BOOKS.map(bookRow).join('') + '</tbody></table></div>';
+    $('discoverBtn').onclick = async () => {
+      $('discoverBtn').disabled = true; $('discoverBtn').textContent = 'Discovering…';
+      try {
+        const r = await api('/accounts/discover', { method: 'POST' });
+        alert('Discovery: ' + r.accounts + ' account(s) across ' + r.connections + ' login(s)' + (r.errors.length ? '\nErrors:\n' + r.errors.join('\n') : ''));
+      } catch (e) { alert('Discovery failed: ' + e.message); }
+      loadAccountsTab(); loadBookSwitcher();
+    };
+  } catch (e) { host.innerHTML = '<div class="panel err">' + esc(e.message) + '</div>'; }
+}
+async function makeBook(accountId, label) {
+  const name = prompt('Label for the new trading book on ' + label + ':', label);
+  if (!name) return;
+  if (!confirm('Create a live trading book on ' + label + '?\nIt is created DISABLED — you enable it explicitly after assigning a strategy.')) return;
+  try { await api('/accounts/books', jbody({ accountId, label: name, confirm: true })); } catch (e) { alert(e.message); }
+  loadAccountsTab(); loadBookSwitcher();
+}
+async function toggleBook(bookId, enable) {
+  if (enable && !confirm('Enable this book?\nWith multi-account dispatch armed, the engine will TRADE this account with its assigned strategy.')) return;
+  try { await api('/accounts/books/' + bookId, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: enable }) }); } catch (e) { alert(e.message); }
+  loadAccountsTab(); loadBookSwitcher();
 }
 
 /* ── Strategy Lab — tab (ADR-092) ────────────────────────────── */

@@ -21,8 +21,8 @@ import type { Router, Request, Response } from 'express';
 import * as crypto from 'crypto';
 import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
-import { getBrokerReader, type TradingMode, type OrderResult } from '@/features/trading';
-import { callerSub, resolveMode, TradingError, type SignalRow } from '@/app/routes/trading-routes-helpers';
+import { getBrokerReader, type TradingMode, type TradingBook, type OrderResult } from '@/features/trading';
+import { callerSub, resolveMode, resolveBook, TradingError, type SignalRow } from '@/app/routes/trading-routes-helpers';
 import { ensureTradingSchema } from '@/app/trading-schema';
 import { analyzeAndRecordDecision, recordOrder, rebindOrder } from '@/app/trading-engine';
 import { recordDailyEquity, loadPriorCloseEquity } from '@/app/trading-daily-equity-store';
@@ -37,7 +37,7 @@ const logger = createChildLogger({ module: 'trading-routes' });
  * engine in app/trading-engine.ts where its live-gate strings stay source-guarded).
  */
 export type PlaceDecisionOrderFn = (
-  pool: AppContext['pool'], sub: string, mode: TradingMode, decisionId: string, requestId: string, confirm: boolean,
+  pool: AppContext['pool'], sub: string, bookOrMode: TradingBook | TradingMode, decisionId: string, requestId: string, confirm: boolean,
 ) => Promise<OrderResult>;
 
 /**
@@ -83,16 +83,17 @@ export function registerTradingOrderFlowRoutes(router: Router, ctx: AppContext, 
     if (!source) { res.status(400).json({ error: 'source_required', message: 'source is required (news|x|inbox|manual).' }); return; }
     try {
       await ensureTradingSchema(ctx.pool);
-      const mode = resolveMode(b.mode);
+      const book = await resolveBook(ctx.pool, sub, (b.book as string | undefined) ?? (b.mode as string | undefined));
+      const mode = book.kind;
       const symbols = Array.isArray(b.symbols) ? (b.symbols as unknown[]).map((s) => String(s).toUpperCase()) : [];
       const artifact = JSON.stringify({ source, externalId: b.externalId, author: b.author, title: b.title, body: b.body, url: b.url });
       const contentHash = crypto.createHash('sha256').update(artifact).digest('hex');
       const row = (await ctx.pool.query(
-        `INSERT INTO oshal_trading_signals (user_sub, mode, source, external_id, author, url, title, body, symbols, indicators, content_hash)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-         ON CONFLICT (user_sub, mode, content_hash) DO UPDATE SET observed_at = oshal_trading_signals.observed_at
+        `INSERT INTO oshal_trading_signals (user_sub, mode, book_id, source, external_id, author, url, title, body, symbols, indicators, content_hash)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+         ON CONFLICT (user_sub, book_id, content_hash) DO UPDATE SET observed_at = oshal_trading_signals.observed_at
          RETURNING signal_id, observed_at`,
-        [sub, mode, source, b.externalId || null, b.author || null, b.url || null, b.title || null, b.body || null,
+        [sub, mode, book.bookId, source, b.externalId || null, b.author || null, b.url || null, b.title || null, b.body || null,
          symbols, b.indicators ? JSON.stringify(b.indicators) : null, contentHash])).rows[0];
       res.json({ ok: true, signalId: row.signal_id, observedAt: row.observed_at });
     } catch (err) {
@@ -107,11 +108,12 @@ export function registerTradingOrderFlowRoutes(router: Router, ctx: AppContext, 
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     try {
       await ensureTradingSchema(ctx.pool);
-      const mode = resolveMode(req.query.mode);
+      const book = await resolveBook(ctx.pool, sub, (req.query.book as string | undefined) ?? (req.query.mode as string | undefined));
+      const mode = book.kind;
       const rows = (await ctx.pool.query(
         `SELECT signal_id, source, author, title, body, url, symbols, indicators, observed_at
-           FROM oshal_trading_signals WHERE user_sub=$1 AND mode=$2 ORDER BY observed_at DESC LIMIT 50`, [sub, mode])).rows;
-      res.json({ mode, signals: rows });
+           FROM oshal_trading_signals WHERE user_sub=$1 AND book_id=$2 ORDER BY observed_at DESC LIMIT 50`, [sub, book.bookId])).rows;
+      res.json({ mode, book: book.ref, signals: rows });
     } catch (err) {
       logger.error({ err }, 'trading signals list failed');
       res.status(500).json({ error: (err as Error).message });
@@ -123,18 +125,18 @@ export function registerTradingOrderFlowRoutes(router: Router, ctx: AppContext, 
   router.post('/decide', async (req: Request, res: Response) => {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
-    const b = (req.body || {}) as { mode?: string; signalIds?: string[] };
+    const b = (req.body || {}) as { mode?: string; book?: string; signalIds?: string[] };
     const signalIds = Array.isArray(b.signalIds) ? b.signalIds.map(String) : [];
     if (!signalIds.length) { res.status(400).json({ error: 'signal_ids_required', message: 'Provide at least one signalId to reason over.' }); return; }
     try {
       await ensureTradingSchema(ctx.pool);
-      const mode = resolveMode(b.mode);
+      const book = await resolveBook(ctx.pool, sub, (b.book as string | undefined) ?? (b.mode as string | undefined));
       const signals = (await ctx.pool.query(
         `SELECT signal_id, source, author, title, body, url, symbols, indicators, observed_at
-           FROM oshal_trading_signals WHERE user_sub=$1 AND mode=$2 AND signal_id = ANY($3::uuid[])`,
-        [sub, mode, signalIds])).rows as SignalRow[];
+           FROM oshal_trading_signals WHERE user_sub=$1 AND book_id=$2 AND signal_id = ANY($3::uuid[])`,
+        [sub, book.bookId, signalIds])).rows as SignalRow[];
       if (!signals.length) { res.status(404).json({ error: 'signals_not_found', message: 'No matching signals for this book.' }); return; }
-      const { decisionId, createdAt, decision } = await analyzeAndRecordDecision(ctx, sub, mode, signals);
+      const { decisionId, createdAt, decision } = await analyzeAndRecordDecision(ctx, sub, book, signals);
       res.json({ ok: true, decisionId, createdAt, decision });
     } catch (err) {
       logger.error({ err }, 'trading decide failed');
@@ -147,13 +149,13 @@ export function registerTradingOrderFlowRoutes(router: Router, ctx: AppContext, 
   router.post('/orders', async (req: Request, res: Response) => {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
-    const b = (req.body || {}) as { mode?: string; decisionId?: string; requestId?: string; confirm?: boolean };
+    const b = (req.body || {}) as { mode?: string; book?: string; decisionId?: string; requestId?: string; confirm?: boolean };
     if (!b.decisionId) { res.status(400).json({ error: 'decision_required', message: 'A decisionId is required — every trade must be justified.' }); return; }
     if (!b.requestId) { res.status(400).json({ error: 'request_id_required', message: 'A client requestId is required for idempotency.' }); return; }
     try {
       await ensureTradingSchema(ctx.pool);
-      const mode = resolveMode(b.mode);
-      const result = await placeDecisionOrder(ctx.pool, sub, mode, String(b.decisionId), String(b.requestId), b.confirm === true);
+      const book = await resolveBook(ctx.pool, sub, (b.book as string | undefined) ?? (b.mode as string | undefined));
+      const result = await placeDecisionOrder(ctx.pool, sub, book, String(b.decisionId), String(b.requestId), b.confirm === true);
       res.json({ ok: true, order: result });
     } catch (err) {
       if (err instanceof TradingError) { res.status(err.httpStatus).json({ error: err.code, message: err.message }); return; }
@@ -168,12 +170,13 @@ export function registerTradingOrderFlowRoutes(router: Router, ctx: AppContext, 
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     try {
       await ensureTradingSchema(ctx.pool);
-      const mode = resolveMode(req.query.mode);
+      const book = await resolveBook(ctx.pool, sub, (req.query.book as string | undefined) ?? (req.query.mode as string | undefined));
+      const mode = book.kind;
       const rows = (await ctx.pool.query(
         `SELECT order_id, decision_id, broker, broker_order_id, symbol, side, qty, order_type, limit_price,
                 status, filled_qty, filled_avg_price, realized_pnl, reject_reason, created_at, updated_at
-           FROM oshal_trading_orders WHERE user_sub=$1 AND mode=$2 ORDER BY created_at DESC LIMIT 100`, [sub, mode])).rows;
-      res.json({ mode, orders: rows });
+           FROM oshal_trading_orders WHERE user_sub=$1 AND book_id=$2 ORDER BY created_at DESC LIMIT 100`, [sub, book.bookId])).rows;
+      res.json({ mode, book: book.ref, orders: rows });
     } catch (err) {
       logger.error({ err }, 'trading orders list failed');
       res.status(500).json({ error: (err as Error).message });
@@ -296,7 +299,8 @@ export function registerTradingOrderFlowRoutes(router: Router, ctx: AppContext, 
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     try {
       await ensureTradingSchema(ctx.pool);
-      const mode = resolveMode(req.query.mode);
+      const book = await resolveBook(ctx.pool, sub, (req.query.book as string | undefined) ?? (req.query.mode as string | undefined));
+      const mode = book.kind;
       const orders = (await ctx.pool.query(
         `SELECT o.order_id, o.symbol, o.side, o.qty, o.order_type, o.limit_price, o.stop_price,
                 o.trail_price, o.trail_percent, o.status, o.filled_qty, o.filled_avg_price,
@@ -304,7 +308,7 @@ export function registerTradingOrderFlowRoutes(router: Router, ctx: AppContext, 
                 d.decision_id, d.action, d.rationale, d.confidence, d.signal_ids
            FROM oshal_trading_orders o
            JOIN oshal_trading_decisions d ON d.decision_id = o.decision_id
-          WHERE o.user_sub=$1 AND o.mode=$2 ORDER BY o.created_at DESC LIMIT 100`, [sub, mode])).rows;
+          WHERE o.user_sub=$1 AND o.book_id=$2 ORDER BY o.created_at DESC LIMIT 100`, [sub, book.bookId])).rows;
       // Fetch every referenced signal once, then stitch onto each trade.
       const allIds = [...new Set(orders.flatMap((o) => (o.signal_ids || []) as string[]))];
       const sigById = new Map<string, unknown>();

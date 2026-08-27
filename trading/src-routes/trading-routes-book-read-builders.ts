@@ -22,7 +22,11 @@ import type { AppContext } from '@/app/composition/app-context';
 import {
   getBrokerReader, liveTradingEnabled, getMarketData, dailyCloses, latestPrice,
 } from '@/features/trading';
+// ADR-134 PR3: every read resolves the BOOK (query.book, falling back to legacy ?mode= aliases via
+// resolveBook) — with two live books both mode='live', an unconverted read would merge BOTH books'
+// rows and the account switcher would switch nothing.
 import { callerSub, resolveMode, servePage, guardrails } from '@/app/routes/trading-routes-helpers';
+import { routeBook } from './trading-accounts-routes';
 import { ensureTradingSchema } from '@/app/trading-schema';
 import { loadDailyEquitySeries } from '@/app/trading-daily-equity-store';
 
@@ -122,20 +126,21 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     try {
       await ensureTradingSchema(ctx.pool);
-      const mode = resolveMode(req.query.mode);
+      const book = await routeBook(ctx, sub, req);
+      const mode = book.kind;
       let paperConfigured = false, liveConfigured = false;
       try { paperConfigured = getBrokerReader('paper', sub).configured(); } catch { /* provider unset */ }
       // Reader (not gated): report whether the LIVE rail is wired regardless of the live-enable switch.
       try { liveConfigured = getBrokerReader('live', sub).configured(); } catch { /* rail unset */ }
       const counts = (await ctx.pool.query(
         `SELECT
-           (SELECT COUNT(*)::int FROM oshal_trading_signals  WHERE user_sub=$1 AND mode=$2) AS signals,
-           (SELECT COUNT(*)::int FROM oshal_trading_decisions WHERE user_sub=$1 AND mode=$2) AS decisions,
-           (SELECT COUNT(*)::int FROM oshal_trading_orders    WHERE user_sub=$1 AND mode=$2) AS orders`,
-        [sub, mode])).rows[0];
+           (SELECT COUNT(*)::int FROM oshal_trading_signals  WHERE user_sub=$1 AND book_id=$2) AS signals,
+           (SELECT COUNT(*)::int FROM oshal_trading_decisions WHERE user_sub=$1 AND book_id=$2) AS decisions,
+           (SELECT COUNT(*)::int FROM oshal_trading_orders    WHERE user_sub=$1 AND book_id=$2) AS orders`,
+        [sub, book.bookId])).rows[0];
       res.json({
         provider: process.env.BROKER_PROVIDER || 'alpaca',
-        mode, liveEnabled: liveTradingEnabled(),
+        mode, book: book.ref, liveEnabled: liveTradingEnabled(),
         paperConfigured, liveConfigured,
         guardrails: guardrails(),
         counts: { signals: counts?.signals || 0, decisions: counts?.decisions || 0, orders: counts?.orders || 0 },
@@ -151,10 +156,11 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     try {
-      const mode = resolveMode(req.query.mode);
-      const broker = getBrokerReader(mode, sub); // read — account balances readable with just a connection
+      const book = await routeBook(ctx, sub, req);
+      const mode = book.kind;
+      const broker = getBrokerReader(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined);
       if (!broker.configured()) { res.status(503).json({ error: 'broker_not_configured', message: `Set the ${mode} broker keys (e.g. ALPACA_${mode.toUpperCase()}_KEY_ID / _SECRET_KEY).` }); return; }
-      res.json({ mode, account: await broker.getAccount() });
+      res.json({ mode, book: book.ref, account: await broker.getAccount() });
     } catch (err) {
       logger.error({ err }, 'trading account failed');
       res.status(502).json({ error: (err as Error).message });
@@ -166,10 +172,11 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     try {
-      const mode = resolveMode(req.query.mode);
-      const broker = getBrokerReader(mode, sub); // read — positions readable with just a connection
+      const book = await routeBook(ctx, sub, req);
+      const mode = book.kind;
+      const broker = getBrokerReader(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined);
       if (!broker.configured()) { res.status(503).json({ error: 'broker_not_configured' }); return; }
-      res.json({ mode, positions: await broker.getPositions() });
+      res.json({ mode, book: book.ref, positions: await broker.getPositions() });
     } catch (err) {
       logger.error({ err }, 'trading positions failed');
       res.status(502).json({ error: (err as Error).message });
@@ -184,7 +191,7 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
     const symbol = String(req.query.symbol || '').trim().toUpperCase();
     if (!symbol) { res.status(400).json({ error: 'symbol_required', message: 'symbol is required.' }); return; }
     try {
-      const mode = resolveMode(req.query.mode);
+      const mode = (await routeBook(ctx, sub, req)).kind;
       const md = getMarketData(mode, sub);
       if (!md.configured()) { res.status(503).json({ error: 'market_data_not_configured', source: md.kind }); return; }
       const price = await md.latestPrice(symbol);
@@ -200,8 +207,9 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     try {
-      const mode = resolveMode(req.query.mode);
-      const broker = getBrokerReader(mode, sub); // read — equity curve
+      const book = await routeBook(ctx, sub, req);
+      const mode = book.kind;
+      const broker = getBrokerReader(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined);
       if (!broker.configured()) { res.status(503).json({ error: 'broker_not_configured' }); return; }
       const periodReq = String(req.query.period || '1M').toUpperCase();
       // period → (Alpaca period code, resolution, SPY daily bars to fetch).
@@ -215,12 +223,12 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
       // response from OUR recorded daily-equity series instead — the actual fix for the missing tiles.
       if (!broker.portfolioHistory) {
         const [series, acct, spyCloses, spyNow] = await Promise.all([
-          loadDailyEquitySeries(ctx.pool, sub, mode, sel.days),
+          loadDailyEquitySeries(ctx.pool, sub, book, sel.days),
           broker.getAccount().catch(() => null),
           dailyCloses('SPY', sel.n).catch(() => [] as number[]),
           latestPrice('SPY').catch(() => null),
         ]);
-        const allTime = await loadDailyEquitySeries(ctx.pool, sub, mode, 0).catch(() => series);
+        const allTime = await loadDailyEquitySeries(ctx.pool, sub, book, 0).catch(() => series);
         const inceptionBase = allTime.length ? allTime[0].equity : (series[0]?.equity ?? 0);
         const liveEquity = Number(acct?.equity || 0) || (series.length ? series[series.length - 1].equity : 0);
         const payload = performanceFromEquitySeries(series, liveEquity, spyCloses, spyNow, inceptionBase, periodReq, mode, Math.floor(Date.now() / 1000));
@@ -296,7 +304,8 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     try {
       await ensureTradingSchema(ctx.pool);
-      const mode = resolveMode(req.query.mode);
+      const book = await routeBook(ctx, sub, req);
+      const mode = book.kind;
       const win = async (clause: string) => (await ctx.pool.query(
         `SELECT count(*)::int trades,
                 count(*) FILTER (WHERE realized_pnl > 0)::int wins,
@@ -307,8 +316,8 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
                 COALESCE(round(max(realized_pnl)::numeric,2),0) biggest_win,
                 COALESCE(round(min(realized_pnl)::numeric,2),0) biggest_loss
            FROM oshal_trading_orders
-          WHERE user_sub=$1 AND mode=$2 AND side='sell' AND realized_pnl IS NOT NULL AND ${clause}`,
-        [sub, mode])).rows[0];
+          WHERE user_sub=$1 AND book_id=$2 AND side='sell' AND realized_pnl IS NOT NULL AND ${clause}`,
+        [sub, book.bookId])).rows[0];
       const today = await win(`created_at::date = CURRENT_DATE`);
       const d30 = await win(`created_at >= now() - interval '30 days'`);
       const winRate = (r: { trades: number; wins: number }) => r.trades ? Math.round((r.wins / r.trades) * 100) : null;
@@ -326,8 +335,9 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     try {
-      const mode = resolveMode(req.query.mode);
-      const broker = getBrokerReader(mode, sub);
+      const book = await routeBook(ctx, sub, req);
+      const mode = book.kind;
+      const broker = getBrokerReader(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined);
       if (!broker.configured() || !broker.getTransactions) { res.status(503).json({ error: 'transactions_not_supported' }); return; }
       const days = Math.min(365, Math.max(1, Number(req.query.days) || 90));
       const symbol = req.query.symbol ? String(req.query.symbol).toUpperCase() : undefined;
