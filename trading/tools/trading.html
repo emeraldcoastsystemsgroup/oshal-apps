@@ -262,23 +262,45 @@ function setBook(ref, kind) {
   const sel = $('bookSel'); if (sel && !sel.hidden) sel.value = ref;
   render();
 }
-/* Populate the switcher from the discovered-account books; hidden until a non-legacy book exists. */
+/* Populate the switcher from EVERY book (visibility is automatic — the operator must always be
+   able to flip to any connected account; view-only books say so). Also paints the connected-
+   accounts strip on the hub so "what is connected" never hides in a tab. */
 async function loadBookSwitcher() {
   try {
     const j = await api('/accounts');
     BOOKS = j.books || [];
     const extra = BOOKS.filter(b => b.ref !== 'paper' && b.ref !== 'live');
     const sel = $('bookSel');
-    if (!extra.length) { sel.hidden = true; return; }
-    sel.hidden = false;
-    sel.innerHTML = '<option value="paper">Paper</option><option value="live">Live (legacy)</option>' +
-      extra.map(b => '<option value="' + esc(b.ref) + '">' + esc(b.ref) + (b.enabled?'':' (disabled)') + '</option>').join('');
-    sel.value = BOOK;
-    sel.onchange = () => {
-      const b = BOOKS.find(x => x.ref === sel.value) || { ref: sel.value, kind: sel.value==='paper'?'paper':'live' };
-      setBook(b.ref, b.kind);
-    };
+    const optLabel = (b) => esc(b.label && b.label !== b.ref ? b.label : b.ref) + (b.accountMasked ? ' ' + esc(b.accountMasked) : '') + (b.enabled ? '' : ' — view only');
+    sel.hidden = !extra.length && !(j.accounts||[]).length;
+    if (!sel.hidden) {
+      sel.innerHTML = '<option value="paper">Paper book</option><option value="live">Live ' +
+        (BOOKS.find(b=>b.ref==='live')?.accountMasked ? esc(BOOKS.find(b=>b.ref==='live').accountMasked) : '(legacy)') + '</option>' +
+        extra.map(b => '<option value="' + esc(b.ref) + '">' + optLabel(b) + '</option>').join('');
+      sel.value = BOOK;
+      sel.onchange = () => {
+        const b = BOOKS.find(x => x.ref === sel.value) || { ref: sel.value, kind: sel.value==='paper'?'paper':'live' };
+        setBook(b.ref, b.kind);
+      };
+    }
+    renderAccountsStrip(j);
   } catch { /* accounts surface unavailable → the classic two-button switch stands alone */ }
+}
+/* The hub's always-visible "what is connected" line. Totals fill in async from /summary. */
+function renderAccountsStrip(j) {
+  const host = $('accountsStrip'); if (!host) return;
+  const accts = j.accounts || [];
+  if (!accts.length) { host.innerHTML = ''; return; }
+  const bits = accts.map(a => {
+    const tag = a.book ? (a.book.enabled ? '<span class="ok">trading</span>' : '<span class="foot">view-only</span>') : '<span class="foot">no book</span>';
+    return '<strong>' + esc(a.accountMasked) + '</strong>' + (a.accountType ? ' ' + esc(a.accountType) : '') + ' ' + tag +
+      (a.connectionMissing ? ' <span class="err">login missing</span>' : '');
+  });
+  host.innerHTML = '<div class="panel" style="padding:10px 14px"><span class="foot">CONNECTED ACCOUNTS (' + accts.length + ')</span> &nbsp; ' +
+    bits.join(' &nbsp;·&nbsp; ') + ' &nbsp;·&nbsp; <span class="foot" id="stripTotal">totaling…</span> ' +
+    '<a href="#" style="margin-left:8px" onclick="selectTab(\'summary\');return false">All accounts →</a></div>';
+  api('/summary').then(s => { const t = $('stripTotal'); if (t) t.textContent = 'total ' + money(s.totalValue); })
+    .catch(() => { const t = $('stripTotal'); if (t) t.textContent = ''; });
 }
 function openSettings() {
   const g = STATUS.guardrails || {};
@@ -313,6 +335,11 @@ async function render() {
       '<div id="kpis" class="kpis"></div>' +
       // WHAT the book is running (env defaults vs an applied lab strategy) — always visible on the hub.
       '<div id="stratStrip"></div>' +
+      // ADR-134: "what is connected" is ALWAYS on the hub — never hidden in a tab.
+      '<div id="accountsStrip"></div>' +
+      // ADR-134: the tab bar ALSO renders up top — on a 20+ position live book the bottom bar sits
+      // several screens below the fold and the Accounts/Summary tabs were effectively invisible.
+      '<div class="tabbar" id="tabbarTop"></div>' +
       // LEAD with the open positions — the whole book up top, full width.
       '<div id="positionsHero"><div class="panel"><div class="spin"><span class="dot"></span> Loading positions…</div></div></div>' +
       // The detail pane (chart + signal model + ticket) reveals below when you click a position.
@@ -677,11 +704,20 @@ async function loadStrategyStrip() {
 /* ── tabs ────────────────────────────────────────────────────── */
 const TABS = [['journal','Trade journal'],['summary','All accounts'],['accounts','Accounts & books'],['lab','Strategy Lab'],['studio','Strategy Studio'],['tuning','Tuning'],['perf','Performance'],['reco','Recommendations'],['algos','Algorithms'],['capture','Capture & signals']];
 function renderTabs() {
-  $('tabbar').innerHTML = TABS.map(([k,l]) => '<button data-tab="'+k+'"'+(k===TAB?' class="on"':'')+'>'+l+'</button>').join('');
-  $('tabbar').querySelectorAll('button').forEach(b => b.onclick = () => selectTab(b.getAttribute('data-tab')));
+  const html = TABS.map(([k,l]) => '<button data-tab="'+k+'"'+(k===TAB?' class="on"':'')+'>'+l+'</button>').join('');
+  for (const id of ['tabbar','tabbarTop']) {
+    const bar = $(id); if (!bar) continue;
+    bar.innerHTML = html;
+    bar.querySelectorAll('button').forEach(b => b.onclick = () => {
+      selectTab(b.getAttribute('data-tab'));
+      // From the TOP bar the panel lives below the positions hero — bring it into view.
+      if (id === 'tabbarTop') { const p = $('tabpanel'); if (p) p.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    });
+  }
 }
 function selectTab(k) {
-  TAB = k; $('tabbar').querySelectorAll('button').forEach(b => b.className = b.getAttribute('data-tab')===k?'on':'');
+  TAB = k;
+  for (const id of ['tabbar','tabbarTop']) { const bar = $(id); if (bar) bar.querySelectorAll('button').forEach(b => b.className = b.getAttribute('data-tab')===k?'on':''); }
   const panel = $('tabpanel'); panel.innerHTML = '<div id="tabbody"></div>';
   if (k==='journal') loadJournal();
   else if (k==='lab') loadLab();
@@ -708,12 +744,18 @@ async function loadSummaryTab() {
         '<div class="kpi"><div class="l">Day change</div><div class="v">' + (j.totalDayChange==null?'<span class="foot">n/a</span>':dollarPctCell(j.totalDayChange, null)) + '</div></div>' +
       '</div>' +
       '<div class="panel"><h2>Accounts</h2><table><thead><tr><th>Book</th><th>Kind</th><th class="num">Value</th><th class="num">Day change</th><th class="num">Cash</th><th></th></tr></thead><tbody>' +
-      (j.accounts||[]).map(a => a.error
-        ? '<tr><td>' + esc(a.ref) + '</td><td>' + esc(a.kind) + '</td><td colspan="4" class="err">' + esc(a.error) + '</td></tr>'
-        : '<tr><td><a href="#" onclick="setBook(\'' + esc(a.ref) + '\',\'' + esc(a.kind) + '\');return false">' + esc(a.ref) + '</a></td>' +
+      (j.accounts||[]).map(a => {
+        const label = a.ref ? esc(a.ref) : esc(a.accountMasked || '?');
+        if (a.error) return '<tr><td>' + label + '</td><td>' + esc(a.kind) + '</td><td colspan="4" class="err">' + esc(a.error) + '</td></tr>';
+        if (a.notTrading) return '<tr><td><strong>' + label + '</strong>' + (a.accountType ? ' <span class="foot">' + esc(a.accountType) + '</span>' : '') + '</td>' +
+          '<td>live <span class="foot">(not trading — no book yet)</span></td>' +
+          '<td class="num">' + money(a.equity) + '</td><td class="num">' + dayCell(a.dayChange, a.dayChangePct) + '</td>' +
+          '<td class="num">' + money(a.cash) + '</td><td class="foot"><a href="#" onclick="selectTab(\'accounts\');return false">create book →</a></td></tr>';
+        return '<tr><td><a href="#" onclick="setBook(\'' + label + '\',\'' + esc(a.kind) + '\');return false">' + label + '</a></td>' +
           '<td>' + esc(a.kind) + (a.enabled===false?' <span class="foot">(disabled)</span>':'') + '</td>' +
           '<td class="num">' + money(a.equity) + '</td><td class="num">' + dayCell(a.dayChange, a.dayChangePct) + '</td>' +
-          '<td class="num">' + money(a.cash) + '</td><td class="foot">switch →</td></tr>').join('') +
+          '<td class="num">' + money(a.cash) + '</td><td class="foot">switch →</td></tr>';
+      }).join('') +
       '</tbody></table></div>' +
       '<div class="panel"><h2>Positions across all accounts</h2><table><thead><tr><th>Symbol</th><th class="num">Qty</th><th class="num">Market value</th><th>Held in</th></tr></thead><tbody>' +
       (j.positionsRollup||[]).slice(0, 60).map(p =>

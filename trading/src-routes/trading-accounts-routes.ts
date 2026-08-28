@@ -31,6 +31,7 @@ import {
   listBooks, createBook, updateBook, deleteBook, loadBook, resetBreaker, ensureLegacyBooks, multiAccountEnabled,
 } from '@/app/trading-books-store';
 import { getActiveOverride, applyOverride, revertOverride } from '@/app/trading-config-overrides';
+import { decryptToken } from '@/app/routes/connector-token-crypto';
 import { loadPriorCloseEquity } from '@/app/trading-daily-equity-store';
 import { recordStrategyJournal } from '@/app/trading-strategy-journal';
 import type { StrategyConfig } from '@/app/trading-strategy-lab-sim';
@@ -77,18 +78,25 @@ export function registerTradingAccountRoutes(router: Router, ctx: AppContext): v
         const b = books.find((x) => x.bookId === String(r.book_id));
         if (b) bookByAccount.set(String(r.account_id), b);
       }
+      const labels = new Map<string, { label: string; last4: string | null }>(
+        (await ctx.pool.query(
+          `SELECT b.book_id, b.label, a.account_last4
+             FROM oshal_trading_books b LEFT JOIN oshal_trading_accounts a ON a.account_id = b.account_id AND a.user_sub = b.user_sub
+            WHERE b.user_sub = $1`, [s])).rows
+          .map((r) => [String(r.book_id), { label: String(r.label), last4: r.account_last4 ? String(r.account_last4) : null }]));
       res.json({
         multiAccountEnabled: multiAccountEnabled(),
         accounts: accounts.map((a) => {
           const book = bookByAccount.get(a.accountId) ?? null;
           return {
             ...a,
-            book: book ? { bookId: book.bookId, ref: book.ref, label: (book as TradingBook & { label?: string }).ref, enabled: book.enabled } : null,
+            book: book ? { bookId: book.bookId, ref: book.ref, label: labels.get(book.bookId)?.label ?? book.ref, enabled: book.enabled } : null,
             connectionMissing: !liveKeys.has(a.connectionKey),
           };
         }),
         books: books.map((b) => ({
           bookId: b.bookId, ref: b.ref, kind: b.kind, enabled: b.enabled, learn: b.learn,
+          label: labels.get(b.bookId)?.label ?? b.ref, accountMasked: labels.get(b.bookId)?.last4 ? `…${labels.get(b.bookId)?.last4}` : null,
           capitalCapUsd: b.capitalCapUsd, connectionMissing: b.connectionKey ? !liveKeys.has(b.connectionKey) : false,
         })),
       });
@@ -249,6 +257,34 @@ export function registerTradingAccountRoutes(router: Router, ctx: AppContext): v
           }
         } catch (err) {
           rows.push({ bookId: book.bookId, ref: book.ref, kind: book.kind, error: (err as Error).message.slice(0, 200) });
+        }
+      }
+      // Discovered-but-UNBOOKED accounts (ADR-134 R6 amendment): Schwab's own summary shows every
+      // account under the login, so ours does too — read-only rows flagged notTrading, in the
+      // totals. Binding decrypts at point of use; a per-row failure degrades to an error entry.
+      const unbooked = (await ctx.pool.query(
+        `SELECT a.account_id, a.account_number_enc, a.account_last4, a.connection_key, a.account_type
+           FROM oshal_trading_accounts a
+          WHERE a.user_sub = $1 AND a.broker = 'schwab'
+            AND NOT EXISTS (SELECT 1 FROM oshal_trading_books b WHERE b.user_sub = a.user_sub AND b.account_id = a.account_id)`,
+        [s])).rows;
+      if (unbooked.length) {
+        for (const a of unbooked) {
+          try {
+            const num = await decryptToken(ctx.pool, s, String(a.account_number_enc));
+            const reader = getBrokerReader('live', s, { accountNumber: num, connectionKey: a.connection_key ? String(a.connection_key) : null });
+            if (!reader.configured()) continue;
+            const account = await reader.getAccount();
+            totalValue += account.equity;
+            rows.push({
+              accountMasked: `…${a.account_last4}`, kind: 'live', notTrading: true,
+              accountType: a.account_type ? String(a.account_type) : null,
+              equity: account.equity, cash: account.cash, buyingPower: account.buyingPower,
+              dayChange: null, dayChangePct: null, // no internal series yet — "n/a", never a fabricated 0
+            });
+          } catch (err) {
+            rows.push({ accountMasked: `…${a.account_last4}`, kind: 'live', notTrading: true, error: (err as Error).message.slice(0, 200) });
+          }
         }
       }
       res.json({

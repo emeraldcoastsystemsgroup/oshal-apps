@@ -29,6 +29,7 @@ const trading_routes_helpers_1 = require("@/app/routes/trading-routes-helpers");
 const trading_accounts_store_1 = require("@/app/trading-accounts-store");
 const trading_books_store_1 = require("@/app/trading-books-store");
 const trading_config_overrides_1 = require("@/app/trading-config-overrides");
+const connector_token_crypto_1 = require("@/app/routes/connector-token-crypto");
 const trading_daily_equity_store_1 = require("@/app/trading-daily-equity-store");
 const trading_strategy_journal_1 = require("@/app/trading-strategy-journal");
 const logger = (0, logger_1.createChildLogger)({ module: 'trading-accounts-routes' });
@@ -78,18 +79,23 @@ function registerTradingAccountRoutes(router, ctx) {
                 if (b)
                     bookByAccount.set(String(r.account_id), b);
             }
+            const labels = new Map((await ctx.pool.query(`SELECT b.book_id, b.label, a.account_last4
+             FROM oshal_trading_books b LEFT JOIN oshal_trading_accounts a ON a.account_id = b.account_id AND a.user_sub = b.user_sub
+            WHERE b.user_sub = $1`, [s])).rows
+                .map((r) => [String(r.book_id), { label: String(r.label), last4: r.account_last4 ? String(r.account_last4) : null }]));
             res.json({
                 multiAccountEnabled: (0, trading_books_store_1.multiAccountEnabled)(),
                 accounts: accounts.map((a) => {
                     const book = bookByAccount.get(a.accountId) ?? null;
                     return {
                         ...a,
-                        book: book ? { bookId: book.bookId, ref: book.ref, label: book.ref, enabled: book.enabled } : null,
+                        book: book ? { bookId: book.bookId, ref: book.ref, label: labels.get(book.bookId)?.label ?? book.ref, enabled: book.enabled } : null,
                         connectionMissing: !liveKeys.has(a.connectionKey),
                     };
                 }),
                 books: books.map((b) => ({
                     bookId: b.bookId, ref: b.ref, kind: b.kind, enabled: b.enabled, learn: b.learn,
+                    label: labels.get(b.bookId)?.label ?? b.ref, accountMasked: labels.get(b.bookId)?.last4 ? `…${labels.get(b.bookId)?.last4}` : null,
                     capitalCapUsd: b.capitalCapUsd, connectionMissing: b.connectionKey ? !liveKeys.has(b.connectionKey) : false,
                 })),
             });
@@ -337,6 +343,34 @@ function registerTradingAccountRoutes(router, ctx) {
                 }
                 catch (err) {
                     rows.push({ bookId: book.bookId, ref: book.ref, kind: book.kind, error: err.message.slice(0, 200) });
+                }
+            }
+            // Discovered-but-UNBOOKED accounts (ADR-134 R6 amendment): Schwab's own summary shows every
+            // account under the login, so ours does too — read-only rows flagged notTrading, in the
+            // totals. Binding decrypts at point of use; a per-row failure degrades to an error entry.
+            const unbooked = (await ctx.pool.query(`SELECT a.account_id, a.account_number_enc, a.account_last4, a.connection_key, a.account_type
+           FROM oshal_trading_accounts a
+          WHERE a.user_sub = $1 AND a.broker = 'schwab'
+            AND NOT EXISTS (SELECT 1 FROM oshal_trading_books b WHERE b.user_sub = a.user_sub AND b.account_id = a.account_id)`, [s])).rows;
+            if (unbooked.length) {
+                for (const a of unbooked) {
+                    try {
+                        const num = await (0, connector_token_crypto_1.decryptToken)(ctx.pool, s, String(a.account_number_enc));
+                        const reader = (0, trading_1.getBrokerReader)('live', s, { accountNumber: num, connectionKey: a.connection_key ? String(a.connection_key) : null });
+                        if (!reader.configured())
+                            continue;
+                        const account = await reader.getAccount();
+                        totalValue += account.equity;
+                        rows.push({
+                            accountMasked: `…${a.account_last4}`, kind: 'live', notTrading: true,
+                            accountType: a.account_type ? String(a.account_type) : null,
+                            equity: account.equity, cash: account.cash, buyingPower: account.buyingPower,
+                            dayChange: null, dayChangePct: null, // no internal series yet — "n/a", never a fabricated 0
+                        });
+                    }
+                    catch (err) {
+                        rows.push({ accountMasked: `…${a.account_last4}`, kind: 'live', notTrading: true, error: err.message.slice(0, 200) });
+                    }
                 }
             }
             res.json({
