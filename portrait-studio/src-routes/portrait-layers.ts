@@ -4,6 +4,7 @@
  * DATE/TIME           | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-17 20:10:00 | roger.murphy@emeraldcoastsystemsgroup.com   | The big catalog (operator request: "100 profiles, 100 backdrops, 10000 permutations"): EXACTLY 100 backgrounds across 8 groups (studio, corporate, city, nature, home & life, work environments, historical, fantasy), 70 clothing styles, 30 headwear, 26 props (NEW interchangeable layer — pitchfork to espresso cup), 12 finishes, 4 framings. Every entry grouped for optgroup pickers. Counts are ENFORCED by the package test suite so the catalog can't silently decay.
+ * 2026-08-29 10:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Catalog v2 (operator: "lots of different backdrops … a lot more options"): +100 backgrounds (Sun & Sea, Sports & Action, World & Travel, Season & Weather, Sci-Fi & Space, Fantasy Realms, Retro & Pop, Grand & Formal → 200), +40 clothing (→110), +20 headwear (→50), +34 props (→60), +8 finishes (→20) and a `wide` scene framing (→5). Every prior id untouched (gallery rows reference them); the new counts are the test-enforced contract.
  */
 
 /** @description One selectable catalog card: `prompt` is the fragment the builder composes. */
@@ -16,7 +17,7 @@ export interface CatalogItem {
   prompt: string;
 }
 
-/** @description EXACTLY 100 interchangeable backgrounds (test-enforced). */
+/** @description EXACTLY 200 interchangeable backgrounds (test-enforced). */
 export const BACKGROUNDS: readonly CatalogItem[] = [
   // ── Studio (10) ──────────────────────────────────────────────────────────
   { id: 'studio-gray', label: 'Studio Gray', icon: '🎞️', group: 'Studio', prompt: 'a seamless neutral gray studio backdrop with a soft vignette' },
@@ -126,6 +127,114 @@ export const BACKGROUNDS: readonly CatalogItem[] = [
   { id: 'circus-ring', label: 'Circus Ring', icon: '🎪', group: 'Fantasy & Fun', prompt: 'a big-top circus ring with sawdust and a spotlight beam' },
   { id: 'moon-base', label: 'Moon Base', icon: '🌕', group: 'Fantasy & Fun', prompt: 'a lunar base window overlooking gray craters and the blue Earth' },
   { id: 'underwater-reef', label: 'Coral Reef', icon: '🐠', group: 'Fantasy & Fun', prompt: 'a sunlit coral reef teeming with fish, shafts of light from above' },
+  // ── Sun & Sea (15) ───────────────────────────────────────────────────────
+  { id: 'sunny-boardwalk', label: 'Sunny Boardwalk', icon: '🌞', group: 'Sun & Sea', prompt: 'a sunlit seaside boardwalk with striped umbrellas and a bright blue sky' },
+  { id: 'tide-pools', label: 'Tide Pools', icon: '🦀', group: 'Sun & Sea', prompt: 'rocky tide pools at low tide glittering in midday sun' },
+  { id: 'surf-break', label: 'Surf Break', icon: '🌊', group: 'Sun & Sea', prompt: 'a sun-drenched beach with a rolling surf break and sea spray behind' },
+  { id: 'sailboat-deck', label: 'Sailboat Deck', icon: '⛵', group: 'Sun & Sea', prompt: 'the teak deck of a sailboat under full sail on a bright blue sea' },
+  { id: 'pool-deck', label: 'Resort Pool', icon: '🏊', group: 'Sun & Sea', prompt: 'a resort pool deck with turquoise water, loungers and palm shadows' },
+  { id: 'tiki-bar', label: 'Tiki Bar', icon: '🍹', group: 'Sun & Sea', prompt: 'a thatched beach tiki bar strung with lights at golden hour' },
+  { id: 'lighthouse-point', label: 'Lighthouse Point', icon: '🗼', group: 'Sun & Sea', prompt: 'a white lighthouse on a sunny headland with gulls and whitecaps' },
+  { id: 'pier-noon', label: 'Pier at Noon', icon: '🎣', group: 'Sun & Sea', prompt: 'a long wooden pier stretching into sparkling water under high noon sun' },
+  { id: 'palm-promenade', label: 'Palm Promenade', icon: '🌴', group: 'Sun & Sea', prompt: 'a palm-lined seaside promenade in bright tropical light' },
+  { id: 'catamaran-bow', label: 'Catamaran Bow', icon: '🛥️', group: 'Sun & Sea', prompt: 'the bow netting of a catamaran over clear turquoise shallows' },
+  { id: 'beach-bonfire', label: 'Beach Bonfire', icon: '🔥', group: 'Sun & Sea', prompt: 'a beach bonfire at sunset with an orange sky and lapping waves' },
+  { id: 'dune-grass', label: 'Dune Grass', icon: '🌾', group: 'Sun & Sea', prompt: 'wind-blown dune grass and a pale sandy path down to the sea' },
+  { id: 'snorkel-lagoon', label: 'Snorkel Lagoon', icon: '🐠', group: 'Sun & Sea', prompt: 'a shallow tropical lagoon of glassy turquoise water and white sand' },
+  { id: 'fishing-pier-dawn', label: 'Pier at Dawn', icon: '🌅', group: 'Sun & Sea', prompt: 'a quiet fishing pier at dawn with a pink sky and calm water' },
+  { id: 'marina-sunset', label: 'Marina Sunset', icon: '🌇', group: 'Sun & Sea', prompt: 'a marina of moored yachts glowing in warm sunset light' },
+  // ── Sports & Action (15) ─────────────────────────────────────────────────
+  { id: 'stadium-lights', label: 'Stadium Lights', icon: '🏟️', group: 'Sports & Action', prompt: 'a packed stadium under floodlights with a roaring blurred crowd' },
+  { id: 'boxing-ring', label: 'Boxing Ring', icon: '🥊', group: 'Sports & Action', prompt: 'a boxing ring under a hard overhead light, ropes in the foreground' },
+  { id: 'basketball-court', label: 'Basketball Court', icon: '🏀', group: 'Sports & Action', prompt: 'a polished hardwood basketball court with a hoop and arena lights behind' },
+  { id: 'baseball-dugout', label: 'Baseball Dugout', icon: '⚾', group: 'Sports & Action', prompt: 'a baseball dugout rail with the green diamond and stands beyond' },
+  { id: 'pit-lane', label: 'Pit Lane', icon: '🏁', group: 'Sports & Action', prompt: 'a race-track pit lane with garages, tire stacks and grandstands behind' },
+  { id: 'ski-slope', label: 'Ski Slope', icon: '⛷️', group: 'Sports & Action', prompt: 'a sunlit alpine ski slope with fresh powder and jagged peaks' },
+  { id: 'skate-park', label: 'Skate Park', icon: '🛹', group: 'Sports & Action', prompt: 'a concrete skate park bowl with graffiti and afternoon sun' },
+  { id: 'climbing-wall', label: 'Climbing Wall', icon: '🧗', group: 'Sports & Action', prompt: 'an indoor climbing wall of bright holds and chalk dust' },
+  { id: 'hockey-rink', label: 'Hockey Rink', icon: '🏒', group: 'Sports & Action', prompt: 'a hockey rink of bright white ice, boards and glass, arena lights above' },
+  { id: 'golf-fairway', label: 'Golf Fairway', icon: '⛳', group: 'Sports & Action', prompt: 'a manicured golf fairway at golden hour with a flag on the green beyond' },
+  { id: 'tennis-court', label: 'Tennis Court', icon: '🎾', group: 'Sports & Action', prompt: 'a clay tennis court in bright sun with a low net and white lines' },
+  { id: 'iron-gym', label: 'Iron Gym', icon: '🏋️', group: 'Sports & Action', prompt: 'a gritty iron gym of racks, chalk and shafts of window light' },
+  { id: 'velodrome', label: 'Velodrome', icon: '🚴', group: 'Sports & Action', prompt: 'a steep wooden velodrome track curving under bright lights' },
+  { id: 'marathon-finish', label: 'Marathon Finish', icon: '🏃', group: 'Sports & Action', prompt: 'a marathon finish line with banners, confetti and a cheering crowd' },
+  { id: 'night-football', label: 'Friday Night Lights', icon: '🏈', group: 'Sports & Action', prompt: 'a football field at night under stadium lights with fog on the grass' },
+  // ── World & Travel (15) ──────────────────────────────────────────────────
+  { id: 'tokyo-crossing', label: 'Tokyo Crossing', icon: '🗼', group: 'World & Travel', prompt: 'a neon-lit Tokyo crossing at night, crowds and signs softly blurred' },
+  { id: 'paris-cafe', label: 'Paris Café', icon: '🥐', group: 'World & Travel', prompt: 'a Parisian café terrace with wicker chairs and a boulevard of stone façades' },
+  { id: 'santorini-terrace', label: 'Santorini', icon: '🇬🇷', group: 'World & Travel', prompt: 'a whitewashed Santorini terrace with blue domes over the caldera' },
+  { id: 'venice-canal', label: 'Venice Canal', icon: '🚣', group: 'World & Travel', prompt: 'a Venetian canal with gondolas, ochre walls and a stone bridge' },
+  { id: 'moroccan-souk', label: 'Moroccan Souk', icon: '🏮', group: 'World & Travel', prompt: 'a Moroccan souk of hanging lanterns, spice sacks and patterned rugs' },
+  { id: 'black-sand-beach', label: 'Black Sand Beach', icon: '🌑', group: 'World & Travel', prompt: 'an Icelandic black-sand beach with basalt stacks and grey surf' },
+  { id: 'kyoto-gate', label: 'Kyoto Torii', icon: '⛩️', group: 'World & Travel', prompt: 'a vermilion Kyoto shrine gate in a tunnel of torii with maple leaves' },
+  { id: 'inca-terraces', label: 'Cloud Terraces', icon: '🏔️', group: 'World & Travel', prompt: 'misty green mountain terraces of ancient stone under drifting cloud' },
+  { id: 'desert-oasis', label: 'Desert Oasis', icon: '🏜️', group: 'World & Travel', prompt: 'a palm-fringed desert oasis with a still pool and golden dunes beyond' },
+  { id: 'havana-street', label: 'Havana Street', icon: '🚗', group: 'World & Travel', prompt: 'a pastel Havana street with vintage cars and peeling colonial balconies' },
+  { id: 'alpine-village', label: 'Alpine Village', icon: '🏘️', group: 'World & Travel', prompt: 'a wooden alpine village with flower boxes and snowy peaks behind' },
+  { id: 'highland-glen', label: 'Highland Glen', icon: '🏴', group: 'World & Travel', prompt: 'a Scottish highland glen of heather, mist and a distant loch' },
+  { id: 'great-wall', label: 'The Great Wall', icon: '🧱', group: 'World & Travel', prompt: 'a stone wall winding over green ridges under a hazy sky' },
+  { id: 'amalfi-cliffs', label: 'Amalfi Cliffs', icon: '🍋', group: 'World & Travel', prompt: 'pastel cliffside villages tumbling to a turquoise Amalfi sea' },
+  { id: 'safari-savanna', label: 'Safari Savanna', icon: '🦁', group: 'World & Travel', prompt: 'a golden savanna at dusk with acacia trees and distant herds' },
+  // ── Season & Weather (10) ────────────────────────────────────────────────
+  { id: 'first-snow', label: 'First Snow', icon: '🌨️', group: 'Season & Weather', prompt: 'a quiet street under the first snowfall, streetlamps glowing' },
+  { id: 'summer-storm', label: 'Summer Storm', icon: '⛈️', group: 'Season & Weather', prompt: 'a dramatic summer thunderstorm sky over open fields, lightning far off' },
+  { id: 'fog-harbor', label: 'Fog Harbor', icon: '🌫️', group: 'Season & Weather', prompt: 'a fog-bound harbor at dawn, masts fading into the mist' },
+  { id: 'monsoon-street', label: 'Monsoon Street', icon: '🌧️', group: 'Season & Weather', prompt: 'a rain-slick street in warm monsoon rain with glowing reflections' },
+  { id: 'midnight-sun', label: 'Midnight Sun', icon: '🌞', group: 'Season & Weather', prompt: 'a midnight-sun coastline of low gold light and pastel sky' },
+  { id: 'aurora-sky', label: 'Aurora', icon: '🌌', group: 'Season & Weather', prompt: 'a green and violet aurora rippling over a snowy night landscape' },
+  { id: 'harvest-moon', label: 'Harvest Moon', icon: '🌕', group: 'Season & Weather', prompt: 'a huge orange harvest moon rising over stubble fields' },
+  { id: 'spring-rain', label: 'Spring Rain', icon: '🌸', group: 'Season & Weather', prompt: 'a blossoming garden in soft spring rain, petals on wet stone' },
+  { id: 'indian-summer', label: 'Indian Summer', icon: '🍂', group: 'Season & Weather', prompt: 'a hazy late-summer afternoon of golden leaves and long shadows' },
+  { id: 'winter-market', label: 'Winter Market', icon: '🎄', group: 'Season & Weather', prompt: 'a snowy Christmas market of wooden stalls, lights and steam' },
+  // ── Sci-Fi & Space (12) ──────────────────────────────────────────────────
+  { id: 'starship-bridge', label: 'Starship Bridge', icon: '🖖', group: 'Sci-Fi & Space', prompt: 'the bridge of a starship with glowing consoles and a viewport of stars' },
+  { id: 'cyberpunk-alley', label: 'Cyberpunk Alley', icon: '🌆', group: 'Sci-Fi & Space', prompt: 'a rain-soaked cyberpunk alley of neon signs, holograms and steam' },
+  { id: 'hangar-bay', label: 'Hangar Bay', icon: '🚀', group: 'Sci-Fi & Space', prompt: 'a cavernous spacecraft hangar bay with landing lights and mist' },
+  { id: 'alien-jungle', label: 'Alien Jungle', icon: '🪐', group: 'Sci-Fi & Space', prompt: 'an alien jungle of bioluminescent plants under twin moons' },
+  { id: 'orbital-window', label: 'Orbital Window', icon: '🌍', group: 'Sci-Fi & Space', prompt: 'a space station observation window with Earth curving below' },
+  { id: 'mech-hangar', label: 'Mech Hangar', icon: '🤖', group: 'Sci-Fi & Space', prompt: 'a hangar of towering mechs, scaffolding and welding sparks' },
+  { id: 'desert-planet', label: 'Desert Planet', icon: '🪐', group: 'Sci-Fi & Space', prompt: 'a wind-carved desert planet with rust-red rock and two suns' },
+  { id: 'cryo-lab', label: 'Cryo Lab', icon: '🧊', group: 'Sci-Fi & Space', prompt: 'a frosted cryogenic laboratory of glowing pods and cold blue light' },
+  { id: 'neo-tokyo', label: 'Neo Megacity', icon: '🏙️', group: 'Sci-Fi & Space', prompt: 'a futuristic megacity skyline of floating ads and flying vehicles' },
+  { id: 'mars-dome', label: 'Mars Dome', icon: '🔴', group: 'Sci-Fi & Space', prompt: 'a Mars colony dome with red terrain outside the glass' },
+  { id: 'asteroid-outpost', label: 'Asteroid Outpost', icon: '☄️', group: 'Sci-Fi & Space', prompt: 'a mining outpost on an asteroid with drilling rigs and a starry void' },
+  { id: 'holodeck-grid', label: 'Holo Grid', icon: '🟩', group: 'Sci-Fi & Space', prompt: 'a glowing holographic grid room dissolving into a simulated vista' },
+  // ── Fantasy Realms (12) ──────────────────────────────────────────────────
+  { id: 'wizard-tower', label: 'Wizard Tower', icon: '🔮', group: 'Fantasy Realms', prompt: 'the top of a wizard tower crowded with books, orreries and stained glass' },
+  { id: 'elven-glade', label: 'Elven Glade', icon: '🧝', group: 'Fantasy Realms', prompt: 'a sunlit elven glade of silver trees and drifting motes' },
+  { id: 'dwarven-forge', label: 'Dwarven Forge', icon: '⚒️', group: 'Fantasy Realms', prompt: 'a vast dwarven forge hall of pillars, molten channels and anvils' },
+  { id: 'floating-islands', label: 'Floating Islands', icon: '☁️', group: 'Fantasy Realms', prompt: 'floating sky islands with waterfalls pouring into the clouds' },
+  { id: 'crystal-cave', label: 'Crystal Cave', icon: '💎', group: 'Fantasy Realms', prompt: 'a cavern of glowing violet and teal crystals' },
+  { id: 'haunted-manor', label: 'Haunted Manor', icon: '🕯️', group: 'Fantasy Realms', prompt: 'a moonlit haunted manor hall with cobwebs and flickering candles' },
+  { id: 'faerie-ring', label: 'Faerie Ring', icon: '🍄', group: 'Fantasy Realms', prompt: 'a moonlit faerie ring of mushrooms and fireflies in a mossy wood' },
+  { id: 'ice-palace', label: 'Ice Palace', icon: '❄️', group: 'Fantasy Realms', prompt: 'a shimmering ice palace hall of frozen pillars and blue light' },
+  { id: 'volcano-forge', label: 'Volcano Forge', icon: '🌋', group: 'Fantasy Realms', prompt: 'a lava-lit volcanic forge with rivers of magma below' },
+  { id: 'mushroom-forest', label: 'Mushroom Forest', icon: '🍄', group: 'Fantasy Realms', prompt: 'a forest of giant glowing mushrooms in a misty twilight' },
+  { id: 'sky-temple', label: 'Sky Temple', icon: '🛕', group: 'Fantasy Realms', prompt: 'a temple above the clouds with golden spires and prayer flags' },
+  { id: 'underworld-river', label: 'Underworld River', icon: '⚰️', group: 'Fantasy Realms', prompt: 'a dark underworld river with a lantern-lit boat and mist' },
+  // ── Retro & Pop (10) ─────────────────────────────────────────────────────
+  { id: 'fifties-diner', label: '50s Diner', icon: '🍔', group: 'Retro & Pop', prompt: 'a chrome 1950s diner with red booths, checkerboard floor and neon' },
+  { id: 'disco-floor', label: 'Disco Floor', icon: '🪩', group: 'Retro & Pop', prompt: 'a 1970s disco with a mirror ball, light-up floor and haze' },
+  { id: 'eighties-mall', label: '80s Mall', icon: '📼', group: 'Retro & Pop', prompt: 'a 1980s shopping mall of neon signs, palms and pastel tile' },
+  { id: 'drive-in', label: 'Drive-In', icon: '🎬', group: 'Retro & Pop', prompt: 'a drive-in movie lot at dusk with a glowing screen and classic cars' },
+  { id: 'roller-rink', label: 'Roller Rink', icon: '🛼', group: 'Retro & Pop', prompt: 'a roller rink of colored lights, wooden floor and disco haze' },
+  { id: 'jukebox-bar', label: 'Jukebox Corner', icon: '🎶', group: 'Retro & Pop', prompt: 'a dim bar corner with a glowing jukebox and vinyl booths' },
+  { id: 'vintage-gas-station', label: 'Vintage Gas Station', icon: '⛽', group: 'Retro & Pop', prompt: 'a retro roadside gas station with round pumps at sunset' },
+  { id: 'soda-fountain', label: 'Soda Fountain', icon: '🥤', group: 'Retro & Pop', prompt: 'a vintage soda fountain counter with chrome stools and glass jars' },
+  { id: 'record-store', label: 'Record Store', icon: '💿', group: 'Retro & Pop', prompt: 'a crowded record store of vinyl crates and gig posters' },
+  { id: 'boardwalk-arcade', label: 'Boardwalk Arcade', icon: '🎯', group: 'Retro & Pop', prompt: 'a boardwalk arcade of flashing cabinets and prize counters' },
+  // ── Grand & Formal (11) ──────────────────────────────────────────────────
+  { id: 'opera-box', label: 'Opera Box', icon: '🎭', group: 'Grand & Formal', prompt: 'a gilded opera house box with velvet drapes and the glowing hall beyond' },
+  { id: 'grand-staircase', label: 'Grand Staircase', icon: '🪜', group: 'Grand & Formal', prompt: 'a sweeping marble grand staircase under a crystal chandelier' },
+  { id: 'ballroom', label: 'Ballroom', icon: '💃', group: 'Grand & Formal', prompt: 'a glittering ballroom of chandeliers, mirrors and parquet floor' },
+  { id: 'museum-hall', label: 'Museum Hall', icon: '🖼️', group: 'Grand & Formal', prompt: 'a grand art museum hall of marble columns and framed masterpieces' },
+  { id: 'palace-garden', label: 'Palace Garden', icon: '🌹', group: 'Grand & Formal', prompt: 'a formal palace garden of clipped hedges, fountains and gravel paths' },
+  { id: 'embassy-reception', label: 'Embassy Reception', icon: '🏳️', group: 'Grand & Formal', prompt: 'an embassy reception room with flags, gilt frames and chandeliers' },
+  { id: 'yacht-club', label: 'Yacht Club', icon: '⚓', group: 'Grand & Formal', prompt: 'a yacht club veranda with white railings and moored sailboats' },
+  { id: 'wine-cellar', label: 'Wine Cellar', icon: '🍷', group: 'Grand & Formal', prompt: 'a vaulted stone wine cellar of oak barrels and candlelight' },
+  { id: 'rooftop-gala', label: 'Rooftop Gala', icon: '🥂', group: 'Grand & Formal', prompt: 'a rooftop gala at night with string lights and a glittering skyline' },
+  { id: 'cloister', label: 'Cloister', icon: '⛪', group: 'Grand & Formal', prompt: 'a Gothic cathedral cloister of stone arches and a sunlit garth' },
+  { id: 'conservatory', label: 'Conservatory', icon: '🪴', group: 'Grand & Formal', prompt: 'a Victorian glass conservatory of ferns, palms and iron tracery' },
 ];
 
 /** @description 70 interchangeable clothing styles (test-enforced). */
@@ -206,6 +315,49 @@ export const CLOTHING: readonly CatalogItem[] = [
   { id: 'toga', label: 'Roman Toga', icon: '🏺', group: 'Costume & History', prompt: 'a draped white toga with a purple senatorial stripe' },
   { id: 'pirate-coat', label: 'Pirate Coat', icon: '🏴‍☠️', group: 'Costume & History', prompt: 'a weathered captain frock coat with a wide leather baldric' },
   { id: 'gatsby-tux', label: '1920s Tux', icon: '🥃', group: 'Costume & History', prompt: 'a 1920s white-tie tuxedo with slicked styling' },
+  // ── Sun & Sport (15) ─────────────────────────────────────────────────────
+  { id: 'rash-guard', label: 'Surf Rash Guard', icon: '🏄', group: 'Sun & Sport', prompt: 'a fitted surf rash guard and board shorts' },
+  { id: 'linen-open-shirt', label: 'Open Linen Shirt', icon: '🌴', group: 'Sun & Sport', prompt: 'an open linen shirt over a white tee and board shorts' },
+  { id: 'sailing-jacket', label: 'Sailing Jacket', icon: '⛵', group: 'Sun & Sport', prompt: 'a red sailing jacket with white trim' },
+  { id: 'tennis-whites', label: 'Tennis Whites', icon: '🎾', group: 'Sun & Sport', prompt: 'crisp tennis whites with a collared polo' },
+  { id: 'basketball-jersey', label: 'Basketball Jersey', icon: '🏀', group: 'Sun & Sport', prompt: 'a basketball jersey over a warm-up shirt, no logos' },
+  { id: 'baseball-uniform', label: 'Baseball Uniform', icon: '⚾', group: 'Sun & Sport', prompt: 'a pinstriped baseball uniform with no logos' },
+  { id: 'hockey-jersey', label: 'Hockey Jersey', icon: '🏒', group: 'Sun & Sport', prompt: 'a hockey jersey with shoulder pads beneath, no logos' },
+  { id: 'racing-suit', label: 'Racing Suit', icon: '🏁', group: 'Sun & Sport', prompt: 'a plain racing driver fire suit with no sponsor logos' },
+  { id: 'ski-jacket', label: 'Ski Jacket', icon: '⛷️', group: 'Sun & Sport', prompt: 'a bright insulated ski jacket' },
+  { id: 'boxing-robe', label: 'Boxing Robe', icon: '🥊', group: 'Sun & Sport', prompt: 'a satin boxing robe with the hood down' },
+  { id: 'karate-gi', label: 'Martial Arts Gi', icon: '🥋', group: 'Sun & Sport', prompt: 'a crisp white martial-arts gi with a black belt' },
+  { id: 'wetsuit', label: 'Scuba Wetsuit', icon: '🤿', group: 'Sun & Sport', prompt: 'a sleek black scuba wetsuit, unzipped at the collar' },
+  { id: 'rugby-kit', label: 'Rugby Kit', icon: '🏉', group: 'Sun & Sport', prompt: 'a striped rugby jersey with a raised collar' },
+  { id: 'jockey-silks', label: 'Jockey Silks', icon: '🏇', group: 'Sun & Sport', prompt: 'bright jockey racing silks' },
+  { id: 'fencing-whites', label: 'Fencing Whites', icon: '🤺', group: 'Sun & Sport', prompt: 'fencing whites with a padded jacket' },
+  // ── Warriors & Sci-Fi (12) ───────────────────────────────────────────────
+  { id: 'samurai-armor', label: 'Samurai Armor', icon: '🏯', group: 'Warriors & Sci-Fi', prompt: 'lacquered samurai o-yoroi armor with silk cords' },
+  { id: 'kung-fu-silk', label: 'Kung Fu Silk', icon: '🐉', group: 'Warriors & Sci-Fi', prompt: 'a mandarin-collar silk kung-fu jacket with frog buttons' },
+  { id: 'ninja-shozoku', label: 'Ninja Shozoku', icon: '🥷', group: 'Warriors & Sci-Fi', prompt: 'a dark ninja shozoku with wrapped forearms' },
+  { id: 'superhero-suit', label: 'Superhero Suit', icon: '🦸', group: 'Warriors & Sci-Fi', prompt: 'a sleek superhero suit with a bold two-tone chest emblem and a short cape' },
+  { id: 'team-supersuit', label: 'Team Super Suit', icon: '🦸‍♀️', group: 'Warriors & Sci-Fi', prompt: 'a matching team superhero uniform with a chest emblem and gauntlets' },
+  { id: 'paladin-armor', label: 'Paladin Armor', icon: '✨', group: 'Warriors & Sci-Fi', prompt: 'gleaming paladin armor with a white tabard' },
+  { id: 'space-marine', label: 'Power Armor', icon: '🛡️', group: 'Warriors & Sci-Fi', prompt: 'heavy sci-fi power armor with glowing seams' },
+  { id: 'cyberpunk-jacket', label: 'Cyberpunk Jacket', icon: '🌆', group: 'Warriors & Sci-Fi', prompt: 'a neon-trimmed cyberpunk jacket with tech details' },
+  { id: 'starfleet-tunic', label: 'Starship Tunic', icon: '🖖', group: 'Warriors & Sci-Fi', prompt: 'a fitted sci-fi crew tunic with a metallic collar insignia' },
+  { id: 'bomber-jacket', label: 'Bomber Jacket', icon: '🧥', group: 'Warriors & Sci-Fi', prompt: 'a shearling-collared leather bomber jacket' },
+  { id: 'safari-khakis', label: 'Safari Khakis', icon: '🦁', group: 'Warriors & Sci-Fi', prompt: 'a khaki safari shirt with rolled sleeves and a belt' },
+  { id: 'expedition-parka', label: 'Expedition Parka', icon: '🧊', group: 'Warriors & Sci-Fi', prompt: 'a heavy fur-trimmed expedition parka' },
+  // ── Retro & Occasion (13) ────────────────────────────────────────────────
+  { id: 'letterman-jacket', label: 'Letterman Jacket', icon: '🏫', group: 'Retro & Occasion', prompt: 'a 1950s wool letterman jacket' },
+  { id: 'flapper-dress', label: 'Flapper Dress', icon: '💃', group: 'Retro & Occasion', prompt: 'a beaded 1920s flapper dress with a feather trim' },
+  { id: 'disco-suit', label: 'Disco Suit', icon: '🕺', group: 'Retro & Occasion', prompt: 'a white 1970s disco suit with a wide-collared black shirt' },
+  { id: 'neon-windbreaker', label: 'Neon Windbreaker', icon: '📼', group: 'Retro & Occasion', prompt: 'a color-block 1980s neon windbreaker' },
+  { id: 'grunge-denim', label: '90s Denim', icon: '🎸', group: 'Retro & Occasion', prompt: 'an oversized 1990s denim jacket over a plain tee' },
+  { id: 'victorian-gown', label: 'Victorian Gown', icon: '🕰️', group: 'Retro & Occasion', prompt: 'a high-collared Victorian gown with lace' },
+  { id: 'tailcoat', label: 'White-Tie Tailcoat', icon: '🎩', group: 'Retro & Occasion', prompt: 'a formal white-tie tailcoat with a wing collar' },
+  { id: 'ballgown', label: 'Ballgown', icon: '👗', group: 'Retro & Occasion', prompt: 'a sweeping satin ballgown' },
+  { id: 'mariachi-suit', label: 'Mariachi Suit', icon: '🎺', group: 'Retro & Occasion', prompt: 'an embroidered charro mariachi suit' },
+  { id: 'matador-suit', label: 'Matador Suit', icon: '🌹', group: 'Retro & Occasion', prompt: 'a gold-embroidered matador traje de luces' },
+  { id: 'steampunk-waistcoat', label: 'Steampunk Waistcoat', icon: '⚙️', group: 'Retro & Occasion', prompt: 'a brass-buttoned steampunk waistcoat with goggles on a strap' },
+  { id: 'elven-leathers', label: 'Elven Leathers', icon: '🧝', group: 'Retro & Occasion', prompt: 'fitted green elven leather armor with leaf tooling' },
+  { id: 'royal-robes', label: 'Royal Robes', icon: '👑', group: 'Retro & Occasion', prompt: 'ermine-trimmed crimson royal robes' },
 ];
 
 /** @description 30 interchangeable headwear items (test-enforced). 'none' composes to nothing. */
@@ -240,6 +392,28 @@ export const HEADWEAR: readonly CatalogItem[] = [
   { id: 'tricorn', label: 'Pirate Tricorn', icon: '🏴‍☠️', group: 'Fantasy & History', prompt: 'a weathered leather tricorn hat' },
   { id: 'deerstalker', label: 'Deerstalker', icon: '🔎', group: 'Fantasy & History', prompt: 'a checked deerstalker cap' },
   { id: 'nemes', label: 'Pharaoh Nemes', icon: '𓂀', group: 'Fantasy & History', prompt: 'a striped gold-and-lapis pharaoh nemes headdress' },
+  // ── Sun & Sport (10) ─────────────────────────────────────────────────────
+  { id: 'sombrero', label: 'Sombrero', icon: '🎺', group: 'Sun & Sport', prompt: 'a wide embroidered sombrero' },
+  { id: 'bucket-hat', label: 'Bucket Hat', icon: '🪣', group: 'Sun & Sport', prompt: 'a canvas bucket hat' },
+  { id: 'visor', label: 'Sports Visor', icon: '🎾', group: 'Sun & Sport', prompt: 'a sports visor' },
+  { id: 'bandana', label: 'Bandana', icon: '🏴‍☠️', group: 'Sun & Sport', prompt: 'a folded bandana tied over the head' },
+  { id: 'headband', label: 'Headband', icon: '🏃', group: 'Sun & Sport', prompt: 'a sweat headband' },
+  { id: 'snapback', label: 'Snapback', icon: '🧢', group: 'Sun & Sport', prompt: 'a flat-brim snapback cap' },
+  { id: 'motorcycle-helmet', label: 'Motorcycle Helmet', icon: '🏍️', group: 'Sun & Sport', prompt: 'a glossy motorcycle helmet with the visor up' },
+  { id: 'racing-helmet', label: 'Racing Helmet', icon: '🏁', group: 'Sun & Sport', prompt: 'a racing helmet with the visor raised' },
+  { id: 'ski-goggles', label: 'Beanie + Goggles', icon: '⛷️', group: 'Sun & Sport', prompt: 'a knit beanie with ski goggles pushed up' },
+  { id: 'sailor-cap', label: 'Sailor Cap', icon: '⚓', group: 'Sun & Sport', prompt: 'a white sailor cap' },
+  // ── World & Story (10) ───────────────────────────────────────────────────
+  { id: 'panama-hat', label: 'Panama Hat', icon: '🌴', group: 'World & Story', prompt: 'a straw panama hat with a black band' },
+  { id: 'ushanka', label: 'Ushanka', icon: '🧊', group: 'World & Story', prompt: 'a fur ushanka with the flaps up' },
+  { id: 'conical-hat', label: 'Conical Straw Hat', icon: '🎋', group: 'World & Story', prompt: 'a woven conical straw hat' },
+  { id: 'fez', label: 'Fez', icon: '🏮', group: 'World & Story', prompt: 'a maroon felt fez with a black tassel' },
+  { id: 'ninja-hood', label: 'Ninja Hood', icon: '🥷', group: 'World & Story', prompt: 'a dark ninja hood leaving the face visible' },
+  { id: 'domino-mask', label: 'Domino Mask', icon: '🦸', group: 'World & Story', prompt: 'a slim superhero domino mask that leaves the face fully recognizable' },
+  { id: 'space-helmet-open', label: 'Space Helmet (open)', icon: '🚀', group: 'World & Story', prompt: 'a space helmet with the visor open' },
+  { id: 'cavalier-hat', label: 'Cavalier Hat', icon: '🪶', group: 'World & Story', prompt: 'a feathered cavalier hat' },
+  { id: 'ice-crown', label: 'Ice Crown', icon: '❄️', group: 'World & Story', prompt: 'a crown of glittering ice crystals' },
+  { id: 'hooded-cloak', label: 'Hooded Cloak', icon: '🕯️', group: 'World & Story', prompt: 'a deep hooded cloak with the hood up and the face lit' },
 ];
 
 /** @description 26 interchangeable props — each is a full hands/pose line (test-enforced). */
@@ -270,6 +444,44 @@ export const PROPS: readonly CatalogItem[] = [
   { id: 'smith-hammer', label: 'Smith Hammer', icon: '🔨', group: 'Trades & Adventure', prompt: 'a blacksmith hammer resting head-down under one hand like a gavel' },
   { id: 'longsword', label: 'Longsword', icon: '⚔️', group: 'Trades & Adventure', prompt: 'both hands resting on the pommel of a point-down longsword' },
   { id: 'wizard-staff', label: 'Wizard Staff', icon: '🧙', group: 'Trades & Adventure', prompt: 'one hand holding a carved wooden staff, the other cradling a faintly glowing orb' },
+  // ── Sun & Sport (15) ─────────────────────────────────────────────────────
+  { id: 'surfboard', label: 'Surfboard', icon: '🏄', group: 'Sun & Sport', prompt: 'a surfboard tucked under one arm' },
+  { id: 'beach-ball', label: 'Beach Ball', icon: '🏐', group: 'Sun & Sport', prompt: 'a striped beach ball held on one hip' },
+  { id: 'snorkel-mask', label: 'Snorkel + Fins', icon: '🤿', group: 'Sun & Sport', prompt: 'a snorkel mask and fins held in one hand' },
+  { id: 'fishing-net', label: 'Fishing Net', icon: '🕸️', group: 'Sun & Sport', prompt: 'a fishing net gathered over one shoulder' },
+  { id: 'tropical-drink', label: 'Tropical Drink', icon: '🍹', group: 'Sun & Sport', prompt: 'a tall tropical drink with a paper umbrella raised in one hand' },
+  { id: 'ice-cream', label: 'Ice Cream Cone', icon: '🍦', group: 'Sun & Sport', prompt: 'an ice cream cone held in one hand' },
+  { id: 'basketball', label: 'Basketball', icon: '🏀', group: 'Sun & Sport', prompt: 'a basketball spun on one fingertip' },
+  { id: 'baseball-bat', label: 'Baseball Bat', icon: '⚾', group: 'Sun & Sport', prompt: 'a baseball bat resting across the shoulders' },
+  { id: 'hockey-stick', label: 'Hockey Stick', icon: '🏒', group: 'Sun & Sport', prompt: 'a hockey stick held upright in both hands' },
+  { id: 'tennis-racket', label: 'Tennis Racket', icon: '🎾', group: 'Sun & Sport', prompt: 'a tennis racket resting on one shoulder' },
+  { id: 'golf-club', label: 'Golf Club', icon: '⛳', group: 'Sun & Sport', prompt: 'a golf club planted like a cane under both hands' },
+  { id: 'boxing-gloves', label: 'Boxing Gloves', icon: '🥊', group: 'Sun & Sport', prompt: 'gloved fists raised in a boxing guard' },
+  { id: 'football', label: 'Football', icon: '🏈', group: 'Sun & Sport', prompt: 'a football tucked under one arm' },
+  { id: 'skateboard', label: 'Skateboard', icon: '🛹', group: 'Sun & Sport', prompt: 'a skateboard held upright at the side' },
+  { id: 'ski-poles', label: 'Ski Poles', icon: '⛷️', group: 'Sun & Sport', prompt: 'ski poles planted in both hands' },
+  // ── Warriors & Magic (9) ─────────────────────────────────────────────────
+  { id: 'katana-sheathed', label: 'Sheathed Katana', icon: '🏯', group: 'Warriors & Magic', prompt: 'a sheathed katana held at the side in one hand' },
+  { id: 'bo-staff', label: 'Bo Staff', icon: '🎋', group: 'Warriors & Magic', prompt: 'a wooden bo staff held upright in one hand' },
+  { id: 'round-shield', label: 'Round Shield', icon: '🛡️', group: 'Warriors & Magic', prompt: 'a painted round shield on one arm' },
+  { id: 'longbow', label: 'Longbow', icon: '🏹', group: 'Warriors & Magic', prompt: 'a longbow held at the side, one hand at the quiver' },
+  { id: 'crystal-orb', label: 'Crystal Orb', icon: '🔮', group: 'Warriors & Magic', prompt: 'a glowing crystal orb cradled in both hands' },
+  { id: 'spellbook', label: 'Spellbook', icon: '📖', group: 'Warriors & Magic', prompt: 'an open spellbook held in one hand, the other hand raised' },
+  { id: 'potion-flask', label: 'Potion Flask', icon: '🧪', group: 'Warriors & Magic', prompt: 'a glowing potion flask raised in one hand' },
+  { id: 'dragon-egg', label: 'Dragon Egg', icon: '🥚', group: 'Warriors & Magic', prompt: 'a large scaled dragon egg cradled in both arms' },
+  { id: 'plasma-blade', label: 'Energy Blade', icon: '⚡', group: 'Warriors & Magic', prompt: 'a glowing energy blade held upright in one hand' },
+  // ── Sci-Fi & Friends (3) ─────────────────────────────────────────────────
+  { id: 'ray-gun', label: 'Retro Ray Gun', icon: '🔫', group: 'Sci-Fi & Friends', prompt: 'a chrome retro toy ray gun held at the hip' },
+  { id: 'robot-buddy', label: 'Robot Buddy', icon: '🤖', group: 'Sci-Fi & Friends', prompt: 'a small hovering robot companion perched on one hand' },
+  { id: 'puppy', label: 'Puppy', icon: '🐶', group: 'Sci-Fi & Friends', prompt: 'a small puppy cradled in both arms' },
+  // ── Music & Craft II (7) ─────────────────────────────────────────────────
+  { id: 'acoustic-guitar', label: 'Acoustic Guitar', icon: '🎸', group: 'Music & Craft', prompt: 'an acoustic guitar held across the body' },
+  { id: 'saxophone', label: 'Saxophone', icon: '🎷', group: 'Music & Craft', prompt: 'a saxophone held in both hands' },
+  { id: 'drumsticks', label: 'Drumsticks', icon: '🥁', group: 'Music & Craft', prompt: 'a pair of drumsticks crossed in one hand' },
+  { id: 'vintage-camera', label: 'Vintage Camera', icon: '📷', group: 'Music & Craft', prompt: 'a vintage film camera raised in both hands' },
+  { id: 'paint-palette', label: 'Paint Palette', icon: '🎨', group: 'Music & Craft', prompt: 'a paint palette in one hand and a brush in the other' },
+  { id: 'champagne-flute', label: 'Champagne Flute', icon: '🥂', group: 'Music & Craft', prompt: 'a champagne flute raised in one hand' },
+  { id: 'megaphone', label: 'Megaphone', icon: '📣', group: 'Music & Craft', prompt: 'a megaphone raised in one hand' },
 ];
 
 /** @description 12 interchangeable finishes (test-enforced). */
@@ -286,6 +498,15 @@ export const FINISHES: readonly CatalogItem[] = [
   { id: 'pastel', label: 'Pastel', icon: '🌸', group: 'Painterly', prompt: 'a soft pastel illustration with gentle grain' },
   { id: 'charcoal', label: 'Charcoal Sketch', icon: '✏️', group: 'Painterly', prompt: 'a charcoal portrait sketch with bold strokes on toned paper' },
   { id: 'pop-art', label: 'Pop Art', icon: '🟡', group: 'Painterly', prompt: 'a bold pop-art illustration with flat colors and halftone dots' },
+  // ── Illustrated (6) + Photographic II (2) ────────────────────────────────
+  { id: 'comic-ink', label: 'Comic Book', icon: '💥', group: 'Illustrated', prompt: 'a bold comic-book illustration with ink outlines and flat dynamic color' },
+  { id: 'anime-cel', label: 'Anime Cel', icon: '🎌', group: 'Illustrated', prompt: 'a clean anime cel-shaded illustration with crisp lines' },
+  { id: 'claymation', label: 'Claymation', icon: '🧱', group: 'Illustrated', prompt: 'a charming stop-motion claymation render with fingerprint texture' },
+  { id: 'storybook', label: 'Storybook', icon: '📚', group: 'Illustrated', prompt: 'a warm children\'s storybook illustration with soft gouache texture' },
+  { id: 'stained-glass', label: 'Stained Glass', icon: '⛪', group: 'Illustrated', prompt: 'a luminous stained-glass window composition with leaded outlines' },
+  { id: 'graphic-poster', label: 'Screen-Print Poster', icon: '🖨️', group: 'Illustrated', prompt: 'a bold screen-printed poster with limited colors and halftone shading' },
+  { id: 'film-70s', label: '70s Film', icon: '🎞️', group: 'Photographic', prompt: 'a warm 1970s film photograph with faded color and soft grain' },
+  { id: 'cyanotype', label: 'Cyanotype', icon: '🟦', group: 'Photographic', prompt: 'a deep Prussian-blue cyanotype print' },
 ];
 
 /** @description 4 interchangeable framings (test-enforced). */
@@ -294,4 +515,5 @@ export const FRAMINGS: readonly CatalogItem[] = [
   { id: 'half-body', label: 'Half Body', icon: '🧍', group: 'Framing', prompt: 'half-body framing from the waist up with hands relaxed and visible' },
   { id: 'three-quarter', label: 'Three-Quarter', icon: '🖼️', group: 'Framing', prompt: 'three-quarter-length framing with hands visible' },
   { id: 'full-length', label: 'Full Length', icon: '🚶', group: 'Framing', prompt: 'full-length framing, the entire figure visible with hands in frame' },
+  { id: 'wide', label: 'Wide Scene', icon: '🎬', group: 'Framing', prompt: 'wide cinematic framing with the full scene visible and the subjects prominent in the foreground, hands in frame' },
 ];

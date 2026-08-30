@@ -3,7 +3,7 @@
 Open work on the packaged portrait app. Every entry has a done-when so scope does not have to be
 guessed later.
 
-**Posture:** the package ships and runs (v1.4.0). Camera capture landed — Step 1 now takes a photo
+**Posture:** the package ships and runs (v1.5.0 — group mode + catalog v2). Camera capture landed — Step 1 now takes a photo
 from a file, a live in-page camera, or the OS camera app, all through one validation rule and one
 crop stage (see [README.md](README.md)). What is left is the Drive source and one honest gap in how
 the camera work is guarded.
@@ -75,3 +75,18 @@ a framework checkout is present, instead of every package inventing its own answ
 
 **Done when:** the store repo documents one convention for package-level browser tests, and this
 package either adopts it or records why it opts out.
+
+---
+
+## D. Auto-find faces everywhere, not just where `FaceDetector` exists
+
+Group mode's **✨ Find faces** rides the Shape Detection API, which today ships in Chrome on
+Android and sits behind a flag on desktop. Everywhere else the button never renders and every box
+is placed by hand — honest, and a click per face is fast, but a six-face group shot is six clicks
+the browser could have done.
+
+**Done when:** a bundled, dependency-free face detector (a small model the surface loads from the
+package, not a CDN — the CSP is `'self'`) places the boxes on desktop Chrome, Firefox and Safari
+without flags; `tests/capture.spec.js` covers the detector-to-box path it feeds
+(`detectionsToBoxes`) unchanged; and the by-hand path stays exactly as it is for when detection
+misses a face.

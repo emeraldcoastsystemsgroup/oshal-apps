@@ -88,3 +88,6 @@ temp/
 
 # Local handover / session notes
 **/HANDOVER.md
+
+# per-package tsc emit (src-routes/tsconfig.json) — the shipped artifact is routes/*.js
+routes-build/

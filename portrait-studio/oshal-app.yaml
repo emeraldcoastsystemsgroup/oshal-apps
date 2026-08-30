@@ -6,6 +6,9 @@
 #   • Character mode — the fun side: the subject's face (person OR pet) on a
 #     human-type body, hands in frame, in a themed scene — American Gothic with
 #     a pitchfork, steel-mill worker, Renaissance noble, astronaut, …
+#   • Group mode — box every face in ONE photo (2–6); the browser tiles them into
+#     a numbered reference sheet and one generation places all of them in a
+#     scene: superhero team, pirate crew, samurai clan, band album cover, …
 #
 # ADR-085 package: self-contained, installed from the oshal-apps store,
 # nothing compiled into the swarm core. Every path below is package-relative.
@@ -16,10 +19,11 @@ suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own cate
 displayName: Portrait Studio
 description: >-
   Turn any photo into a portrait worth framing — a professional studio
-  headshot, or your pet's face on a human body holding a pitchfork.
-  Take the photo with your camera or upload one, crop the head, pick a
-  style, generate.
-version: 1.4.1
+  headshot, your pet's face on a human body holding a pitchfork, or the
+  whole crew from one group shot placed in a scene as a superhero team.
+  Take the photo with your camera or upload one, crop the head (or every
+  head), pick a style, generate.
+version: 1.5.0
 status: active
 # Deployment-wide tile visibility (the little-monsters lesson: person-scope hid
 # the installed row from every other user). Portrait DATA stays strictly

@@ -3,6 +3,7 @@
  * -----------------------------------------------------------------------------
  * DATE/TIME           | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 2026-08-29 10:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Group-mode geometry guard: the face-count rule (2..6, catalog ceiling wins), the reference-sheet layout (reading order, no overlaps, all tiles inside, 2 columns to 4 faces then 3), clampBox/boxAt/nextFaceBox/faceBoxFromDetection/detectionsToBoxes (aspect-true, inside the image, unclaimed placement, detected face contained with headroom, left-to-right numbering, capped), and `group` → rear lens.
  * 2026-08-12 09:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Camera-source guard: asserts the live/file-capture/upload-only decision over every capability combination (insecure page, no getUserMedia, no canvas.toBlob, no capture attribute), that the shared photo rule refuses the same things for a captured frame as for an upload, honest permission/unavailability messages, facing-mode + non-exact constraints, camera labelling/picker thresholds, and the un-letterboxed frame box. Runs against tools/portrait-capture.js — the SAME file the surface loads.
  */
 
@@ -178,6 +179,92 @@ module.exports = async function run() {
   assert.match(cap.emptyMessage('google-drive'), /per-file access/i);
   assert.doesNotMatch(cap.emptyMessage('google-drive'), /^No images in this folder\.$/);
   checks += 3;
+
+  // ── group mode: face count, reference-sheet layout, box placement ─────────
+  assert.strictEqual(cap.subjectsRejectReason(2), null);
+  assert.strictEqual(cap.subjectsRejectReason(6), null);
+  assert.match(cap.subjectsRejectReason(1), /at least 2/);
+  assert.match(cap.subjectsRejectReason(7), /at most 6/);
+  assert.match(cap.subjectsRejectReason(4, 3), /at most 3/, 'the catalog ceiling wins over the module default');
+  assert.match(cap.subjectsRejectReason(2.5), /whole number/);
+  assert.match(cap.subjectsRejectReason(NaN), /whole number/);
+  assert.strictEqual(cap.MIN_GROUP_SUBJECTS, 2);
+  assert.strictEqual(cap.MAX_GROUP_SUBJECTS, 6);
+  assert.strictEqual(cap.facingModeFor('group'), 'environment', 'a group shot points at the room');
+  checks += 10;
+
+  // sheet layout: reading order (left→right, top→bottom), no overlaps, every tile inside the sheet
+  for (let n = 1; n <= 6; n++) {
+    const L = cap.sheetLayout(n, 640, 800, 8);
+    assert.strictEqual(L.tiles.length, n);
+    assert.strictEqual(L.cols, n <= 1 ? 1 : n <= 4 ? 2 : 3, `column rule broken for n=${n}`);
+    assert.strictEqual(L.rows, Math.ceil(n / L.cols));
+    L.tiles.forEach((t, i) => {
+      assert.strictEqual(t.number, i + 1, 'badge numbers are 1-based and sequential');
+      assert.ok(t.x >= 0 && t.y >= 0 && t.x + t.w <= L.width && t.y + t.h <= L.height, `tile ${i} outside the sheet for n=${n}`);
+      if (i > 0) {
+        const prev = L.tiles[i - 1];
+        assert.ok(prev.y < t.y || prev.x + prev.w <= t.x, `tile ${i} not in reading order for n=${n}`);
+      }
+      L.tiles.slice(0, i).forEach((o) => {
+        const overlap = t.x < o.x + o.w && o.x < t.x + t.w && t.y < o.y + o.h && o.y < t.y + t.h;
+        assert.ok(!overlap, `tiles overlap for n=${n}`);
+      });
+    });
+  }
+  assert.deepStrictEqual(cap.sheetLayout(4, 100, 125, 0).tiles.map((t) => [t.x, t.y]), [[0, 0], [100, 0], [0, 125], [100, 125]]);
+  checks += 7;
+
+  // clampBox: aspect kept, inside the image, shrinks before it moves
+  const W = 1600, H = 1200, A = 0.8;
+  const inside = (b) => b.x >= 0 && b.y >= 0 && b.x + b.w <= W + 1e-6 && b.y + b.h <= H + 1e-6;
+  const aspectOk = (b) => Math.abs(b.w / b.h - A) < 1e-6;
+  let b = cap.clampBox({ x: -50, y: -50, w: 400 }, W, H, A);
+  assert.ok(inside(b) && aspectOk(b));
+  assert.strictEqual(b.x, 0); assert.strictEqual(b.y, 0);
+  b = cap.clampBox({ x: 0, y: 0, w: 5000 }, W, H, A);
+  assert.ok(inside(b) && aspectOk(b), 'an oversized box is shrunk into the image');
+  checks += 3;
+
+  // boxAt: centred on the click, smaller than the solo default, inside even at the edge
+  b = cap.boxAt(800, 600, W, H, A);
+  assert.ok(inside(b) && aspectOk(b));
+  assert.ok(Math.abs((b.x + b.w / 2) - 800) < 1e-6 && Math.abs((b.y + b.h / 2) - 600) < 1e-6, 'box must be centred on the click');
+  assert.ok(b.h < H * 0.85, 'a group face box is smaller than the solo default box');
+  assert.ok(inside(cap.boxAt(0, 0, W, H, A)), 'a click at the corner still lands inside');
+  checks += 4;
+
+  // nextFaceBox: lands on unclaimed picture, never centred inside an existing box, never outside
+  const first = cap.nextFaceBox([], W, H, A);
+  assert.ok(inside(first) && aspectOk(first));
+  const second = cap.nextFaceBox([first], W, H, A);
+  const cx2 = second.x + second.w / 2, cy2 = second.y + second.h / 2;
+  assert.ok(!(cx2 > first.x && cx2 < first.x + first.w && cy2 > first.y && cy2 < first.y + first.h), 'second box must not be centred inside the first');
+  const full = [cap.clampBox({ x: 0, y: 0, w: W }, W, H, A)];
+  assert.ok(inside(cap.nextFaceBox(full, W, H, A)), 'when everything is claimed it still returns a box inside the image');
+  checks += 3;
+
+  // faceBoxFromDetection: contains the face, headroom above, more room below (shoulders), aspect-true, inside
+  const face = { x: 700, y: 300, width: 200, height: 240 };
+  b = cap.faceBoxFromDetection(face, W, H, A);
+  assert.ok(inside(b) && aspectOk(b));
+  assert.ok(b.x <= face.x && b.x + b.w >= face.x + face.width && b.y <= face.y && b.y + b.h >= face.y + face.height, 'crop must contain the detected face');
+  assert.ok(face.y - b.y > 0, 'headroom above the face');
+  assert.ok((b.y + b.h) - (face.y + face.height) > face.y - b.y, 'more room below the face than above it');
+  assert.ok(inside(cap.faceBoxFromDetection({ x: 1500, y: 1100, width: 200, height: 240 }, W, H, A)), 'a face at the edge is clamped in');
+  checks += 5;
+
+  // detectionsToBoxes: left-to-right numbering, empties dropped, capped at the ceiling
+  const rects = [
+    { x: 900, y: 300, width: 150, height: 180 }, { x: 100, y: 320, width: 150, height: 180 },
+    { x: 500, y: 310, width: 0, height: 0 }, { x: 1300, y: 300, width: 150, height: 180 },
+  ];
+  const ordered = cap.detectionsToBoxes(rects, W, H, A);
+  assert.strictEqual(ordered.length, 3, 'empty rectangles are dropped');
+  assert.ok(ordered[0].x < ordered[1].x && ordered[1].x < ordered[2].x, 'left-to-right numbering');
+  assert.strictEqual(cap.detectionsToBoxes(rects, W, H, A, 2).length, 2, 'capped at the group ceiling');
+  assert.deepStrictEqual(cap.detectionsToBoxes(null, W, H, A), []);
+  checks += 4;
 
   return checks;
 };

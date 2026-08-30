@@ -8,6 +8,7 @@
  * 2026-07-17 11:30:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Industrial hardening: stuck-row sweep (boot + throttled lazy — an api restart mid-generation can no longer strand a spinner), retry-with-backoff on transient vendor errors + hard per-attempt timeout, process-wide generation semaphore + per-user in-flight cap (burst control), vendor-reported cost captured on the row (cost_usd) AND in the canonical ledger via recordStoryboardImageCost (chat_tasks + oshal_cost_events, attributed to portrait-artist + the caller), /provider now runs the provider's REAL healthCheck (key validity + credit) instead of key-presence.
  * 2026-08-12 09:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Serve the camera-source decision module at GET /capture.js from the package tools dir, so the surface's live-camera Step 1 runs the SAME file the package test suite requires — no inline copy that can drift from the tested fallback logic.
  * 2026-08-22 00:30:00 | maintainer@emeraldcoastsystemsgroup.com     | Thread the caller's sub into resolveStoryboardImageProvider (generation + /provider probe). The ADR-130 codex-cli provider — the demo-mode default that renders on the swarm's own codex harness — authorizes per caller via the SEC-05 demo carve, so a resolve without userSub reads unavailable and fails closed. Other providers ignore the field. (1.4.1)
+ * 2026-08-29 10:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Group mode (1.5.0): mode=group is accepted alongside professional/character; the face count arrives as a multipart `subjects` field, validated fail-closed by the catalog (2..6, refused outside group mode) and stored in options.subjects for the prompt and the gallery (list now returns `subjects`). The uploaded photo in group mode is the browser-built numbered reference sheet — still ONE anchor, so the provider contract and every guard around it are unchanged.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -299,7 +300,7 @@ function createPortraitStudioRoutes(ctx) {
             res.json({ configured: false, hint: err instanceof Error ? err.message : String(err) });
         }
     });
-    /** POST /portraits — cropped photo (multipart 'photo') + mode/style/options → queue a generation. */
+    /** POST /portraits — cropped photo (multipart 'photo'; in group mode the browser-built numbered reference sheet) + mode/style/options (+ 'subjects' in group mode) → queue a generation. */
     router.post('/portraits', upload.single('photo'), async (req, res) => {
         const started = Date.now();
         try {
@@ -319,7 +320,7 @@ function createPortraitStudioRoutes(ctx) {
             }
             const mode = String(req.body?.mode || 'professional');
             const style = String(req.body?.style || '');
-            if (mode !== 'professional' && mode !== 'character') {
+            if (!(0, portrait_catalog_1.isPortraitMode)(mode)) {
                 res.status(400).json({ error: `unknown mode: ${mode}` });
                 return;
             }
@@ -337,6 +338,17 @@ function createPortraitStudioRoutes(ctx) {
                 res.status(400).json({ error: badOverride });
                 return;
             }
+            // Group mode: the face count rides as its own multipart field and is the ONLY source of
+            // truth — a `subjects` inside the JSON options blob is discarded, never trusted.
+            const subjectsRaw = req.body?.subjects;
+            const badSubjects = (0, portrait_catalog_1.validateSubjects)(mode, subjectsRaw === undefined || subjectsRaw === '' ? undefined : subjectsRaw);
+            if (badSubjects) {
+                res.status(400).json({ error: badSubjects });
+                return;
+            }
+            delete options.subjects;
+            if (mode === 'group')
+                options.subjects = Number(subjectsRaw);
             const capRow = await ctx.pool.query(`SELECT COUNT(*)::int AS n,
                 COUNT(*) FILTER (WHERE status IN ('queued','generating'))::int AS active
          FROM ps_portraits WHERE user_sub = $1 AND created_at > NOW() - INTERVAL '24 hours'`, [sub]);
@@ -356,7 +368,7 @@ function createPortraitStudioRoutes(ctx) {
             fs.writeFileSync(sourcePath, file.buffer);
             await ctx.pool.query(`UPDATE ps_portraits SET source_path = $2, updated_at = NOW() WHERE portrait_id = $1`, [id, sourcePath]);
             void runGeneration(ctx, id, sub, prompt, file.buffer);
-            logger.info({ portraitId: id, mode, style, bytes: file.buffer.length, durationMs: Date.now() - started }, 'portrait queued');
+            logger.info({ portraitId: id, mode, style, subjects: options.subjects ?? 1, bytes: file.buffer.length, durationMs: Date.now() - started }, 'portrait queued');
             res.status(202).json({ portraitId: id, status: 'queued' });
         }
         catch (err) {
@@ -373,7 +385,8 @@ function createPortraitStudioRoutes(ctx) {
                 return;
             }
             await sweepStuckRows(ctx);
-            const r = await ctx.pool.query(`SELECT portrait_id, mode, style, status, error, model, cost_usd, created_at, updated_at
+            const r = await ctx.pool.query(`SELECT portrait_id, mode, style, status, error, model, cost_usd, created_at, updated_at,
+                (options->>'subjects')::int AS subjects
          FROM ps_portraits WHERE user_sub = $1 ORDER BY created_at DESC LIMIT 60`, [sub]);
             res.json({ portraits: r.rows });
         }
@@ -455,4 +468,3 @@ function createPortraitStudioRoutes(ctx) {
     });
     return router;
 }
-//# sourceMappingURL=portrait-studio-routes.js.map

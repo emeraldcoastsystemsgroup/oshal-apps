@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                    | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Camera-source decision module for Step 1: capability probe, live/file-capture/upload-only mode choice, honest unavailability + permission messages, facing-mode preference per portrait mode, device labelling, and the ONE photo-validation rule shared by upload and capture. Pure functions only (no DOM writes, no stream handling) so the zero-dep node runner can cover the fallback branches the surface cannot test inline. Loaded by the surface via <script src="/api/portrait-studio/capture.js">.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Group mode geometry: the face-count rule (2..MAX, the server's validateSubjects is the authority), the reference-sheet layout (numbered tiles, 2 columns up to 4 faces then 3), box placement helpers (a click-placed box, the next free box, a detector rectangle expanded into a head-and-shoulders crop, all clamped into the image at the crop aspect), and `group` now prefers the rear lens. Pure functions — covered by tests/capture.spec.js like everything else here.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Extend to the connected-asset picker over the framework's one storage rail (/api/files/roots|browse|download — OSHAL Storage, Career, Dropbox, Google Drive, GitHub): image filtering with a counted "hidden" line instead of a silently short list, MIME derived from the name because the download route streams octet-stream, HEIC-class formats flagged rather than failing as a mystery, provider-agnostic breadcrumbs (Drive's name~id segments collapse to the same shape), and an empty-folder message that names the drive.file scope as the cause instead of claiming there are no photos.
  */
 
@@ -133,12 +134,13 @@
 
   /**
    * @description Preferred lens for a portrait mode: a professional headshot is a self-portrait
-   * (front camera), a character portrait is usually pointed at someone — or a pet — in the room.
-   * @param {string} portraitMode `professional` or `character`.
+   * (front camera); a character portrait is usually pointed at someone — or a pet — in the room,
+   * and a group shot always is.
+   * @param {string} portraitMode `professional`, `character` or `group`.
    * @returns {'user'|'environment'}
    */
   function facingModeFor(portraitMode) {
-    return portraitMode === 'character' ? 'environment' : 'user';
+    return portraitMode === 'character' || portraitMode === 'group' ? 'environment' : 'user';
   }
 
   /**
@@ -325,8 +327,151 @@
     return 'No images in this folder.';
   }
 
+
+  // ── Group mode: several faces from ONE photo → a numbered reference sheet ──
+  // The image engine takes exactly one anchor image, so the browser tiles every face crop into
+  // a single contact sheet with a number badge per tile. The server's validateSubjects is the
+  // authority on the count; these bounds only stop the client uploading a sheet it would refuse.
+
+  /** Fewer than this is a solo portrait — the solo modes do that better. */
+  var MIN_GROUP_SUBJECTS = 2;
+  /** The default ceiling (the catalog's groupLimits.max overrides it when loaded). */
+  var MAX_GROUP_SUBJECTS = 6;
+
+  /**
+   * @description Why this face count cannot be generated, in the operator's words — or null.
+   * @param {number} n Number of face boxes placed.
+   * @param {number} [max] The server-declared ceiling (catalog groupLimits.max).
+   * @returns {string|null}
+   */
+  function subjectsRejectReason(n, max) {
+    var cap = typeof max === 'number' && max > 0 ? max : MAX_GROUP_SUBJECTS;
+    if (typeof n !== 'number' || !isFinite(n) || Math.floor(n) !== n) return 'Face count must be a whole number.';
+    if (n < MIN_GROUP_SUBJECTS) {
+      return 'A group needs at least ' + MIN_GROUP_SUBJECTS + ' faces — add another box, or switch to Professional or Character for one person.';
+    }
+    if (n > cap) return 'A group can have at most ' + cap + ' faces — remove one.';
+    return null;
+  }
+
+  /**
+   * @description Where each numbered tile goes on the reference sheet: two columns up to four
+   * faces (a 2×2 sheet), three columns beyond that. Tiles read left-to-right, top-to-bottom, which
+   * is the order the prompt tells the engine to read them in.
+   * @param {number} n Face count.
+   * @param {number} tileW Tile width in pixels.
+   * @param {number} tileH Tile height in pixels.
+   * @param {number} [gap] Gutter between tiles in pixels (default 0).
+   * @returns {{cols:number,rows:number,width:number,height:number,tiles:Array<{index:number,number:number,x:number,y:number,w:number,h:number}>}}
+   */
+  function sheetLayout(n, tileW, tileH, gap) {
+    var count = Math.max(1, Math.floor(n || 1));
+    var g = typeof gap === 'number' && gap > 0 ? gap : 0;
+    var cols = count <= 1 ? 1 : count <= 4 ? 2 : 3;
+    var rows = Math.ceil(count / cols);
+    var tiles = [];
+    for (var i = 0; i < count; i++) {
+      var c = i % cols, r = Math.floor(i / cols);
+      tiles.push({ index: i, number: i + 1, x: c * (tileW + g), y: r * (tileH + g), w: tileW, h: tileH });
+    }
+    return { cols: cols, rows: rows, width: cols * tileW + (cols - 1) * g, height: rows * tileH + (rows - 1) * g, tiles: tiles };
+  }
+
+  /**
+   * @description Force a box to the crop aspect and inside the image (shrinking before moving).
+   * @param {{x:number,y:number,w:number}} box Candidate box (h is derived from w and aspect).
+   * @param {number} iw Image width. @param {number} ih Image height. @param {number} aspect w/h.
+   * @returns {{x:number,y:number,w:number,h:number}}
+   */
+  function clampBox(box, iw, ih, aspect) {
+    var w = Math.max(1, box.w), h = w / aspect;
+    if (w > iw) { w = iw; h = w / aspect; }
+    if (h > ih) { h = ih; w = h * aspect; }
+    var x = Math.min(Math.max(0, box.x), iw - w);
+    var y = Math.min(Math.max(0, box.y), ih - h);
+    return { x: x, y: y, w: w, h: h };
+  }
+
+  /**
+   * @description A face box centred on a point — what a click on open image places in group mode.
+   * Sized for a face in a group shot (smaller than the solo default box), never larger than the image.
+   * @param {number} cx Centre x (image px). @param {number} cy Centre y (image px).
+   * @param {number} iw Image width. @param {number} ih Image height. @param {number} aspect w/h.
+   * @param {number} [scale] Height as a fraction of the largest aspect-true box (default 0.45).
+   * @returns {{x:number,y:number,w:number,h:number}}
+   */
+  function boxAt(cx, cy, iw, ih, aspect, scale) {
+    var h = Math.min(ih, iw / aspect) * (scale || 0.45);
+    var w = h * aspect;
+    return clampBox({ x: cx - w / 2, y: cy - h / 2, w: w }, iw, ih, aspect);
+  }
+
+  /**
+   * @description Where the "+ Add face" button puts the next box: the first cell of a coarse grid
+   * whose centre is not already inside a placed box, so new boxes land on unclaimed picture rather
+   * than stacking on the last one. When every cell is claimed it cascades off the last box.
+   * @param {Array<{x:number,y:number,w:number,h:number}>} existing Boxes already placed.
+   * @param {number} iw Image width. @param {number} ih Image height. @param {number} aspect w/h.
+   * @returns {{x:number,y:number,w:number,h:number}}
+   */
+  function nextFaceBox(existing, iw, ih, aspect) {
+    var boxes = existing || [];
+    var h = Math.min(ih, iw / aspect) * 0.45, w = h * aspect;
+    var cols = Math.max(1, Math.floor(iw / w)), rows = Math.max(1, Math.floor(ih / h));
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        var cx = (c + 0.5) * (iw / cols), cy = (r + 0.5) * (ih / rows);
+        var taken = boxes.some(function (b) { return cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h; });
+        if (!taken) return boxAt(cx, cy, iw, ih, aspect);
+      }
+    }
+    var last = boxes[boxes.length - 1];
+    return clampBox({ x: last.x + last.w * 0.5, y: last.y + last.h * 0.25, w: w }, iw, ih, aspect);
+  }
+
+  /**
+   * @description Expand a face detector's rectangle (just the face) into a head-and-shoulders crop
+   * at the studio aspect: headroom above, shoulders below, the face sitting in the upper middle.
+   * @param {{x:number,y:number,width:number,height:number}} rect Detector bounding box (image px).
+   * @param {number} iw Image width. @param {number} ih Image height. @param {number} aspect w/h.
+   * @returns {{x:number,y:number,w:number,h:number}}
+   */
+  function faceBoxFromDetection(rect, iw, ih, aspect) {
+    var fw = Math.max(1, rect.width), fh = Math.max(1, rect.height);
+    var w = fw * 1.9, h = w / aspect;
+    if (h < fh * 2.1) { h = fh * 2.1; w = h * aspect; }
+    var cx = rect.x + fw / 2, cy = rect.y + fh / 2;
+    return clampBox({ x: cx - w / 2, y: cy - h * 0.42, w: w }, iw, ih, aspect);
+  }
+
+  /**
+   * @description Turn detector rectangles into ordered face boxes: left-to-right (so the sheet
+   * numbering matches how people stand), capped at the group ceiling, empties dropped.
+   * @param {Array<{x:number,y:number,width:number,height:number}>} rects Detector bounding boxes.
+   * @param {number} iw Image width. @param {number} ih Image height. @param {number} aspect w/h.
+   * @param {number} [max] Group ceiling (default MAX_GROUP_SUBJECTS).
+   * @returns {Array<{x:number,y:number,w:number,h:number}>}
+   */
+  function detectionsToBoxes(rects, iw, ih, aspect, max) {
+    var cap = typeof max === 'number' && max > 0 ? max : MAX_GROUP_SUBJECTS;
+    return (rects || [])
+      .filter(function (r) { return r && r.width > 0 && r.height > 0; })
+      .sort(function (a, b) { return a.x - b.x; })
+      .slice(0, cap)
+      .map(function (r) { return faceBoxFromDetection(r, iw, ih, aspect); });
+  }
+
   return {
     MAX_PHOTO_BYTES: MAX_PHOTO_BYTES,
+    MIN_GROUP_SUBJECTS: MIN_GROUP_SUBJECTS,
+    MAX_GROUP_SUBJECTS: MAX_GROUP_SUBJECTS,
+    subjectsRejectReason: subjectsRejectReason,
+    sheetLayout: sheetLayout,
+    clampBox: clampBox,
+    boxAt: boxAt,
+    nextFaceBox: nextFaceBox,
+    faceBoxFromDetection: faceBoxFromDetection,
+    detectionsToBoxes: detectionsToBoxes,
     imageMimeFromName: imageMimeFromName,
     isRiskyImage: isRiskyImage,
     partitionEntries: partitionEntries,

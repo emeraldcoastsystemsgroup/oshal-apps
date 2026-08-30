@@ -10,11 +10,47 @@ Turn any photo into a portrait worth framing.
   on a human-type body, hands deliberately in frame, in a themed scene —
   American Gothic gripping a pitchfork, a steel-mill worker in sparks, a
   Renaissance noble, an astronaut, a sea captain, a knight, and more.
-- **Everything is interchangeable** — presets are just starting points. Five
-  swappable layers on every generation: **16 backgrounds × 20 clothing styles ×
-  13 hats × 6 finishes × 3 framings**, validated fail-closed server-side
-  (`validateOverrides`); only the free-text notes field is prose, and it is
-  sanitized. Put the crown on the LinkedIn headshot. We won't judge.
+- **Group mode** (v1.5.0) — one photo, every face: put a numbered box on each
+  head (click a face to add one, or **Find faces** where the browser has a
+  detector), pick a **scene** — Superhero Team, Pirate Crew, Samurai Clan,
+  Starship Crew, Rock Band, Heist Crew, Knights of the Round Table, Holiday
+  Card, Board of Directors, forty in all — and one generation puts the whole
+  crew in it. Two to six faces.
+- **Everything is interchangeable** — presets are just starting points. Six
+  swappable layers on every generation: **200 backgrounds × 110 clothing styles ×
+  50 hats × 60 props × 20 finishes × 5 framings** behind **225 presets** (80
+  professional profiles, 105 characters, 40 group scenes), validated fail-closed
+  server-side (`validateOverrides`); only the free-text notes field is prose, and
+  it is sanitized. Those counts are the test-enforced contract
+  (`tests/catalog-invariants.spec.js`), not a brochure number. Put the crown on
+  the LinkedIn headshot. We won't judge.
+
+## Group mode (v1.5.0)
+
+The image engine takes exactly **one** anchor image, and that contract is not
+changed here. Group mode works *inside* it:
+
+1. In the crop stage every face gets its own aspect-locked box — click a face to
+   drop a box on it, drag to move, drag a corner to resize, **＋ Add face** for the
+   next free spot, **✕ Remove this face** for the active one. Boxes are numbered
+   in the order they were added. Where the browser exposes a face detector
+   (`FaceDetector` — Chrome on Android today; desktop Chrome behind a flag) a
+   **✨ Find faces** button places them automatically, left to right; elsewhere
+   the button never renders and the boxes are placed by hand.
+2. On **Generate** the browser tiles the crops into a **numbered reference
+   sheet** — two columns up to four faces, three beyond, each tile with a badge
+   — and uploads that single PNG plus a `subjects` count.
+3. The route validates the count fail-closed (`validateSubjects`: 2–6, refused
+   outside group mode, the multipart field is the only source of truth) and the
+   prompt tells the engine exactly what it is looking at: N labeled tiles read
+   left-to-right, top-to-bottom; every one of the N in the scene **exactly
+   once**, nobody missing, nobody duplicated, no extra people; two hands per
+   person; and no badges carried over. The preset's `pose` is the group's
+   **arrangement** and always stays; a prop override is applied to every member
+   (in the solo modes a prop *replaces* the pose).
+
+The gallery row carries the face count (`subjects`) so a group portrait reads
+as one. The sheet is what the model saw, so the row's `source` is honest.
 
 ## Getting the photo in (v1.4.0)
 
@@ -61,7 +97,8 @@ rendered dead.
 ## How it works
 
 1. The studio surface (`/api/portrait-studio/app`, a ribbon tile) does the
-   capture-or-upload + interactive crop client-side and POSTs the cropped PNG.
+   capture-or-upload + interactive crop client-side and POSTs the cropped PNG
+   (in group mode: the numbered reference sheet of every face box).
    The source-selection logic is served at `/api/portrait-studio/capture.js` —
    the same file the test suite requires, so a fallback branch cannot pass in the
    test and differ in the page.
@@ -124,14 +161,23 @@ generations per user per 24 h.
   combination, the shared photo rule, honest permission and insecure-page
   messages, lens preference, device labelling, frame box, and the connected-asset
   picker's image filter, hidden counts, provider-agnostic breadcrumbs and
-  empty-folder causes). `tests/browser/camera-proof.js` is the hand-run browser
-  proof of the DOM wiring — see [BACKLOG.md](BACKLOG.md).
+  empty-folder causes), and the group-mode geometry (face-count rule, sheet
+  layout in reading order with no overlaps, box placement clamped into the image,
+  detector rectangles expanded into head-and-shoulders crops, left-to-right
+  numbering). `tests/browser/camera-proof.js` is the hand-run browser proof of
+  the DOM wiring — see [BACKLOG.md](BACKLOG.md).
 
 ## Package layout
 
 Standard ADR-085 package: `oshal-app.yaml`, `personas/portrait-artist.yaml`,
-`src-routes/*.ts` → compiled `routes/*.js` (via `node scripts/oshal-app.js build
-portrait-studio --framework <oshal checkout>`), `migrations/001-portrait-studio.sql`,
-`tools/portrait-studio.html`.
+`src-routes/*.ts` → compiled `routes/*.js`, `migrations/001-portrait-studio.sql`,
+`tools/portrait-studio.html`. Build with the per-package tsconfig (the same idiom
+as marketing-engine — `@/` aliases stay intact for the runtime loader, framework
+types come from `src-routes/core-modules.d.ts`):
+
+```
+node <oshal checkout>/node_modules/typescript/bin/tsc -p portrait-studio/src-routes/tsconfig.json
+cp portrait-studio/routes-build/portrait-*.js portrait-studio/routes/     # never package-smoke.js (canonical copy)
+```
 
 Install: `node scripts/oshal-app.js install portrait-studio`
