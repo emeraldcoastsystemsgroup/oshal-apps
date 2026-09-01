@@ -148,7 +148,24 @@
   .g-item .meta button, .g-item .meta a { background: var(--panel2); border: 1px solid var(--line); color: var(--dim); border-radius: 7px; padding: 4px 8px; font-size: 12px; cursor: pointer; text-decoration: none; }
   .g-item .meta a:hover, .g-item .meta button:hover { color: var(--text); }
   .g-item .failed { color: var(--err); font-size: 12px; padding: 8px 10px; }
+  .g-item .acts { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 11px 10px; }
+  .g-item .acts a, .g-item .acts button { background: var(--panel2); border: 1px solid var(--line); color: var(--dim); border-radius: 7px; padding: 4px 8px; font-size: 11.5px; cursor: pointer; text-decoration: none; }
+  .g-item .acts a:hover, .g-item .acts button:hover { color: var(--text); }
   .empty { color: var(--dim); font-size: 13px; padding: 18px; text-align: center; border: 1px dashed var(--line); border-radius: var(--radius); }
+
+  /* Email modal */
+  #emailModal { display: none; position: fixed; inset: 0; z-index: 40; background: rgba(4,8,12,.82); align-items: center; justify-content: center; padding: 18px; }
+  #emailModal.open { display: flex; }
+  .em-inner { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; width: min(440px, 100%); }
+  .em-inner h3 { margin: 0 0 12px; font-size: 15px; }
+  .em-inner label { display: block; color: var(--dim); font-size: 12px; margin: 10px 0 4px; }
+  .em-inner input, .em-inner select, .em-inner textarea { width: 100%; box-sizing: border-box; background: var(--panel2); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 8px 10px; font-size: 13px; font-family: inherit; }
+  .em-inner textarea { resize: vertical; min-height: 54px; }
+  .em-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+  .em-actions button { border: 1px solid var(--line); border-radius: 8px; padding: 7px 14px; font-size: 13px; cursor: pointer; background: var(--panel2); color: var(--dim); }
+  .em-actions #emailSend { background: var(--accent); border-color: var(--accent); color: #08131c; font-weight: 600; }
+  .em-actions button:disabled { opacity: .6; cursor: default; }
+  #emailStatus { margin-top: 10px; font-size: 12.5px; min-height: 16px; }
 </style>
 </head>
 <body class="mode-professional">
@@ -283,6 +300,29 @@
     <div id="fpCrumbs"></div>
     <div id="fpList"></div>
     <div id="fpFoot"></div>
+  </div>
+</div>
+
+<!-- Email-a-portrait — sends over the caller's OWN connected mailbox (Gmail or Microsoft 365);
+     the server enforces the confirm:true gate, ownership, and the closed passport-size set. -->
+<div id="emailModal" role="dialog" aria-modal="true" aria-label="Email this portrait">
+  <div class="em-inner">
+    <h3>✉️ Email this portrait</h3>
+    <label for="emailTo">To</label>
+    <input type="email" id="emailTo" placeholder="name@example.com" autocomplete="email">
+    <label for="emailSizeSel">Size</label>
+    <select id="emailSizeSel">
+      <option value="">Original</option>
+      <option value="600">Passport 600×600</option>
+      <option value="300">Passport 300×300</option>
+    </select>
+    <label for="emailNote">Note (optional)</label>
+    <textarea id="emailNote" maxlength="2000" placeholder="A line to go with it…"></textarea>
+    <div class="em-actions">
+      <button type="button" id="emailCancel">Cancel</button>
+      <button type="button" id="emailSend">Send</button>
+    </div>
+    <div id="emailStatus"></div>
   </div>
 </div>
 
@@ -1074,8 +1114,14 @@
         }
         el.innerHTML = box +
           '<div class="meta"><span class="lbl">' + styleLabel(row) + '<span class="sub2">' + when + '</span></span>' +
-          (row.status === 'done' ? '<a href="' + API + '/portraits/' + row.portrait_id + '/image?download=1" download>⬇</a>' : '') +
-          '<button data-del="' + row.portrait_id + '" title="Delete">🗑</button></div>';
+          (row.status === 'done' ? '<a href="' + API + '/portraits/' + row.portrait_id + '/image?download=1" download title="Download the original">⬇</a>' : '') +
+          '<button data-del="' + row.portrait_id + '" title="Delete">🗑</button></div>' +
+          (row.status === 'done' ?
+            '<div class="acts">' +
+            '<a href="' + API + '/portraits/' + row.portrait_id + '/export?size=600" download title="Passport 600×600 PNG">🪪 600</a>' +
+            '<a href="' + API + '/portraits/' + row.portrait_id + '/export?size=300" download title="Passport 300×300 PNG">🪪 300</a>' +
+            '<button data-email="' + row.portrait_id + '" title="Email this portrait">✉️ Email</button>' +
+            '</div>' : '');
         grid.appendChild(el);
       });
       grid.querySelectorAll('button[data-del]').forEach(function (b) {
@@ -1083,9 +1129,64 @@
           fetch(API + '/portraits/' + b.dataset.del, { method: 'DELETE' }).then(function () { refreshGallery(); });
         };
       });
+      grid.querySelectorAll('button[data-email]').forEach(function (b) {
+        b.onclick = function () { openEmailModal(b.dataset.email); };
+      });
       if (pending || startPolling) schedulePoll();
     }).catch(function () { /* transient — next poll retries */ });
   }
+
+  // ── email a portrait (server: confirm-gated, caller's own mailbox) ─────────
+  var emailPortraitId = null;
+
+  function emailStatus(msg, isError) {
+    var s = $('emailStatus');
+    s.textContent = msg || '';
+    s.style.color = isError ? 'var(--err)' : 'var(--ok, #4ecf8a)';
+  }
+
+  function openEmailModal(id) {
+    emailPortraitId = id;
+    emailStatus('');
+    $('emailSend').disabled = false;
+    $('emailModal').classList.add('open');
+    $('emailTo').focus();
+  }
+
+  function closeEmailModal() {
+    emailPortraitId = null;
+    $('emailModal').classList.remove('open');
+  }
+
+  $('emailCancel').onclick = closeEmailModal;
+  $('emailModal').onclick = function (e) { if (e.target === $('emailModal')) closeEmailModal(); };
+  $('emailSend').onclick = function () {
+    var to = $('emailTo').value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) { emailStatus('Enter a valid email address.', true); return; }
+    var body = { confirm: true, to: to };
+    if ($('emailSizeSel').value) body.size = $('emailSizeSel').value;
+    if ($('emailNote').value.trim()) body.note = $('emailNote').value.trim();
+    $('emailSend').disabled = true;
+    emailStatus('Sending…');
+    fetch(API + '/portraits/' + emailPortraitId + '/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, j: j }; }); })
+      .then(function (res) {
+        if (res.ok) {
+          emailStatus('Sent ✓ (via ' + (res.j.via || 'your mailbox') + ')');
+          setTimeout(closeEmailModal, 1400);
+          return;
+        }
+        $('emailSend').disabled = false;
+        emailStatus(res.j.message || res.j.error || ('Send failed (' + res.status + ')'), true);
+      })
+      .catch(function () {
+        $('emailSend').disabled = false;
+        emailStatus('Send failed — check your connection and try again.', true);
+      });
+  };
 
   function schedulePoll() {
     if (state.pollTimer) return;

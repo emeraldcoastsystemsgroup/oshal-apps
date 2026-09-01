@@ -387,13 +387,13 @@
       "name": "portrait-studio",
       "suite": "ai-creative",
       "displayName": "Portrait Studio",
-      "description": "Turn any photo into a portrait worth framing — take it with your camera or upload one, then 225 presets × 200 backdrops: business, slice of life, sun & sea, sports, world travel, sci-fi, history and fantasy, with interchangeable clothing, hats, props and finishes. Group mode boxes every face in one photo and puts the whole crew in a scene — superhero team, pirate crew, samurai clan, band cover.",
-      "version": "1.5.0",
+      "description": "Turn any photo into a portrait worth framing — take it with your camera or upload one, then 225 presets × 200 backdrops: business, slice of life, sun & sea, sports, world travel, sci-fi, history and fantasy, with interchangeable clothing, hats, props and finishes. Group mode boxes every face in one photo and puts the whole crew in a scene — superhero team, pirate crew, samurai clan, band cover. Export passport-size squares (300×300 / 600×600) or email a portrait straight from the gallery over your own connected mailbox.",
+      "version": "1.6.0",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
         "tools": [],
-        "connectors": []
+        "connectors": ["google", "microsoft"]
       },
       "source": {
         "type": "git-subdir",

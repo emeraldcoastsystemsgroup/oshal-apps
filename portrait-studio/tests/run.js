@@ -13,6 +13,7 @@ async function main() {
     ['catalog-invariants', require('./catalog-invariants.spec.js')],
     ['ops', require('./ops.spec.js')],
     ['capture', require('./capture.spec.js')],
+    ['export-email', require('./export-email.spec.js')],
   ];
   let failed = 0;
   for (const [name, run] of suites) {

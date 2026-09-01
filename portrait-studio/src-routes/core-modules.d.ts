@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Ambient declarations for the framework `@/` modules this package imports (the marketing-engine/switchboard idiom): the oshal loader resolves `@/` at RUNTIME; declaring the surfaces here lets `tsc -p src-routes` type-check AND emit only this package's files. Deliberately minimal — only what portrait-studio's modules actually use.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Passport export + email (1.6.0): declare the surfaces the two new routes ride — sharp (square resize, in the core image already), the sendGmail/sendOutlookMail senders + getValidAccessToken (the ADR-108 "email it" rail presentations proved), and the explicit-write-confirmation gate.
  */
 
 declare module '@/shared/logger' {
@@ -59,4 +60,42 @@ declare module '@/features/video-generation' {
   export function recordStoryboardImageCost(pool: unknown, event: {
     taskId: string; agentId: string; ownerSub: string; providerId: string; model: string; costUsd: number;
   }): Promise<void>;
+}
+
+declare module '@/shared/security/explicit-write-confirmation' {
+  /** @description True only when the body carries the literal `confirm: true`. */
+  export function hasExplicitWriteConfirmation(body: unknown): boolean;
+  /** @description The standard 428 payload for a write attempted without confirm: true. */
+  export function confirmationRequiredPayload(guard: string, action: string): Record<string, unknown>;
+}
+
+declare module '@/app/routes/connectors-routes' {
+  /** @description A fresh access token for the caller's connection to `provider`, or null when not connected. */
+  export function getValidAccessToken(pool: unknown, userSub: string, provider: string): Promise<string | null>;
+}
+
+declare module '@/app/routes/email-routes' {
+  /** One outbound message + optional single attachment — the shape both vendor senders share. */
+  export interface OutboundMailMessage {
+    to: string;
+    subject: string;
+    body: string;
+    attachment?: { filename: string; contentBase64: string; mimeType?: string };
+  }
+  /** @description Send over Gmail (users.messages.send) with the core header-injection fence. */
+  export function sendGmail(token: string, m: OutboundMailMessage): Promise<{ id: string }>;
+  /** @description Send over Microsoft Graph (users/me/sendMail) — same call shape as sendGmail. */
+  export function sendOutlookMail(token: string, m: OutboundMailMessage): Promise<{ id: string }>;
+}
+
+declare module 'sharp' {
+  /** The one pipeline surface this package uses: square cover-resize → PNG bytes. */
+  interface SharpPipeline {
+    resize(width: number, height: number, opts?: { fit?: 'cover' | 'contain' | 'fill' | 'inside' | 'outside'; position?: string }): SharpPipeline;
+    png(): SharpPipeline;
+    toBuffer(): Promise<Buffer>;
+  }
+  /** @description Open an image (path or bytes) as a sharp pipeline. */
+  function sharp(input: Buffer | string): SharpPipeline;
+  export = sharp;
 }

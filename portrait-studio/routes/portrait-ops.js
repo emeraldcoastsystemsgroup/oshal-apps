@@ -5,12 +5,15 @@
  * DATE/TIME           | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-17 11:20:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Industrial-strength ops primitives for the generate path: retry-with-backoff (transient vendor errors only), a hard per-attempt timeout, and a process-wide concurrency semaphore. Pure module — no framework imports — so the package test suite can exercise it under plain node.
+ * 2026-08-31 12:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Passport export + email input validation (1.6.0): passportSize (fail-closed to the two sanctioned square sizes, 300/600) and isValidEmailAddress — pure here so the export/email routes stay thin and the plain-node spec suite covers the reject paths.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Semaphore = void 0;
+exports.PASSPORT_SIZES = exports.Semaphore = void 0;
 exports.withRetries = withRetries;
 exports.isTransientVendorError = isTransientVendorError;
 exports.withTimeout = withTimeout;
+exports.passportSize = passportSize;
+exports.isValidEmailAddress = isValidEmailAddress;
 /**
  * @description Run `fn` with exponential backoff, retrying ONLY errors `isRetryable` accepts.
  * A permanent error (bad request, auth) throws immediately — retrying it would just triple
@@ -108,3 +111,35 @@ class Semaphore {
     }
 }
 exports.Semaphore = Semaphore;
+/** The two sanctioned passport export sizes (square, pixels). */
+exports.PASSPORT_SIZES = [300, 600];
+/**
+ * @description Parse a requested passport export size, fail-closed to the sanctioned set —
+ * a query string or JSON body may hand us anything, and an arbitrary integer would turn the
+ * export route into a free-form image resizer.
+ *
+ * @param raw - The size as it arrived (query/body value of any shape).
+ * @returns The validated size, or null when it is not exactly one of {@link PASSPORT_SIZES}.
+ */
+function passportSize(raw) {
+    if (raw === undefined || raw === null)
+        return null;
+    if (typeof raw !== 'string' && typeof raw !== 'number')
+        return null;
+    const n = Number(String(raw).trim());
+    return exports.PASSPORT_SIZES.includes(n) ? n : null;
+}
+/**
+ * @description Is this a plausible single email recipient? Deliberately the same shape the
+ * sibling packages use (one non-space local part, one @, a dotted domain) — the mail vendor
+ * does the real verification; this only refuses garbage and header-injection shapes early.
+ *
+ * @param raw - The candidate recipient (any shape — non-strings are refused).
+ * @returns True when the value can be handed to the mail rail as a recipient.
+ */
+function isValidEmailAddress(raw) {
+    if (typeof raw !== 'string')
+        return false;
+    const s = raw.trim();
+    return s.length >= 6 && s.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}

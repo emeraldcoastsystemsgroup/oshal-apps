@@ -23,7 +23,7 @@ description: >-
   whole crew from one group shot placed in a scene as a superhero team.
   Take the photo with your camera or upload one, crop the head (or every
   head), pick a style, generate.
-version: 1.5.0
+version: 1.6.0
 status: active
 # Deployment-wide tile visibility (the little-monsters lesson: person-scope hid
 # the installed row from every other user). Portrait DATA stays strictly
@@ -57,10 +57,13 @@ uses:
   - media-generation
   - tool-registry
 
+# Runtime connector allow-list (the presentations idiom): the email-a-portrait leg sends over
+# the caller's OWN connected mailbox — Gmail when Google is connected, else Microsoft Graph.
+# Neither is required to install or generate; without one the email route answers 409.
 dependencies:
   apps: []
   tools: []
-  connectors: []
+  connectors: [google, microsoft]
 
 ragCollections: []
 
