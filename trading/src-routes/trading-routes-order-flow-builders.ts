@@ -23,6 +23,7 @@ import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
 import { getBrokerReader, type TradingMode, type TradingBook, type OrderResult } from '@/features/trading';
 import { callerSub, resolveMode, resolveBook, TradingError, type SignalRow } from '@/app/routes/trading-routes-helpers';
+import { loadBook } from '@/app/trading-books-store';
 import { ensureTradingSchema } from '@/app/trading-schema';
 import { analyzeAndRecordDecision, recordOrder, rebindOrder } from '@/app/trading-engine';
 import { recordDailyEquity, loadPriorCloseEquity } from '@/app/trading-daily-equity-store';
@@ -64,7 +65,15 @@ export function registerTradingOrderFlowRoutes(router: Router, ctx: AppContext, 
     if (apply && !isOperatorIdentity(sub)) { res.status(403).json({ error: 'operator_only', message: 'apply=true is operator-only; dry-run is open to the owner.' }); return; }
     try {
       await ensureTradingSchema(ctx.pool);
-      const mode = resolveMode(req.query.mode);
+      // ADR-134 honest limit: the venue-transaction reconcile still rides the LEGACY account
+      // binding. Refuse non-legacy books rather than reconcile the wrong account's transactions
+      // (PR4-hardening lifts this by threading the book through reconcileLedger's venue reads).
+      const rbook = await resolveBook(ctx.pool, sub, (req.query.book as string | undefined) ?? (req.query.mode as string | undefined));
+      if (rbook.ref !== 'paper' && rbook.ref !== 'live') {
+        res.status(400).json({ error: 'book_not_supported', message: `Ledger reconcile supports the legacy books for now — '${rbook.ref}' would be reconciled against the wrong venue account.` });
+        return;
+      }
+      const mode = rbook.kind;
       const b = (req.body || {}) as { symbols?: string[]; manualCloses?: ManualClose[] };
       const report = await reconcileLedger(ctx, sub, mode, { apply, symbols: b.symbols, manualCloses: b.manualCloses });
       res.json(report);
@@ -189,12 +198,16 @@ export function registerTradingOrderFlowRoutes(router: Router, ctx: AppContext, 
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     try {
       const row = (await ctx.pool.query(
-        `SELECT mode, decision_id, client_order_id, broker_order_id FROM oshal_trading_orders
+        `SELECT mode, book_id, decision_id, client_order_id, broker_order_id FROM oshal_trading_orders
            WHERE order_id=$1 AND user_sub=$2`, [String(req.params.orderId), sub])).rows[0];
       if (!row || !row.broker_order_id) { res.status(404).json({ error: 'not_found' }); return; }
-      const broker = getBrokerReader(row.mode as TradingMode, sub); // read — refresh one order's status
+      // ADR-134: the refresh reads the order's OWN book's venue account — an unbound reader would
+      // query the legacy account for a non-legacy book's order (the wrong-balances class).
+      const rowBook = row.book_id ? await loadBook(ctx.pool, sub, String(row.book_id)) : null;
+      const broker = getBrokerReader(row.mode as TradingMode, sub,
+        rowBook?.accountNumber ? { accountNumber: rowBook.accountNumber, connectionKey: rowBook.connectionKey } : undefined);
       const result = await broker.getOrder(String(row.broker_order_id));
-      await recordOrder(ctx.pool, sub, row.mode as TradingMode, String(row.decision_id), String(row.client_order_id), result);
+      await recordOrder(ctx.pool, sub, rowBook ?? (row.mode as TradingMode), String(row.decision_id), String(row.client_order_id), result);
       res.json({ order: result });
     } catch (err) {
       logger.error({ err }, 'trading order refresh failed');
@@ -216,21 +229,25 @@ export function registerTradingOrderFlowRoutes(router: Router, ctx: AppContext, 
     }
   });
 
-  /** GET /ledger?mode= — the book header: account + positions + recent orders, one call. */
+  /** GET /ledger?book=|mode= — the book header: account + positions + recent orders, one call.
+   *  ADR-134: THE hub's data source — an unconverted mode-only read here showed the LEGACY live
+   *  account's balances on every live-kind book (the operator's "wrong balances" bug). The reader
+   *  binds to the BOOK's account and every DB read/write keys the book. */
   router.get('/ledger', async (req: Request, res: Response) => {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     try {
       await ensureTradingSchema(ctx.pool);
-      const mode = resolveMode(req.query.mode);
-      const broker = getBrokerReader(mode, sub); // read — the ledger header (account + positions)
+      const book = await resolveBook(ctx.pool, sub, (req.query.book as string | undefined) ?? (req.query.mode as string | undefined));
+      const mode = book.kind;
+      const broker = getBrokerReader(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined);
       const configured = broker.configured();
       const [account, positions] = configured
         ? await Promise.all([broker.getAccount().catch(() => null), broker.getPositions().catch(() => [])])
         : [null, []];
       const orders = (await ctx.pool.query(
         `SELECT order_id, decision_id, symbol, side, qty, order_type, status, filled_qty, filled_avg_price, created_at
-           FROM oshal_trading_orders WHERE user_sub=$1 AND mode=$2 ORDER BY created_at DESC LIMIT 25`, [sub, mode])).rows;
+           FROM oshal_trading_orders WHERE user_sub=$1 AND book_id=$2 ORDER BY created_at DESC LIMIT 25`, [sub, book.bookId])).rows;
       // ONE honest, consolidated day P&L = current equity − the prior session's close. We trust our OWN
       // daily snapshot (recorded each fire/read) — Alpaca's lastEquity / portfolio-history latest row can be
       // a phantom (observed lastEquity $105,694 vs a real ~$102,315 prior close on a flat day). Record
@@ -240,8 +257,8 @@ export function registerTradingOrderFlowRoutes(router: Router, ctx: AppContext, 
       try {
         const eq = account && Number.isFinite(Number(account.equity)) ? Number(account.equity) : null;
         if (eq != null) {
-          await recordDailyEquity(ctx.pool, sub, mode, eq);
-          let priorClose = await loadPriorCloseEquity(ctx.pool, sub, mode);
+          await recordDailyEquity(ctx.pool, sub, book, eq);
+          let priorClose = await loadPriorCloseEquity(ctx.pool, sub, book);
           if (priorClose == null && configured && broker.portfolioHistory) {
             const ph = await broker.portfolioHistory('1M', '1D').catch(() => null);
             if (ph) {
@@ -259,7 +276,7 @@ export function registerTradingOrderFlowRoutes(router: Router, ctx: AppContext, 
           }
         }
       } catch { /* leave day null — the cockpit falls back to the intraday sum */ }
-      res.json({ mode, configured, account, positions, orders, day });
+      res.json({ mode, book: book.ref, configured, account, positions, orders, day });
     } catch (err) {
       logger.error({ err }, 'trading ledger failed');
       res.status(502).json({ error: (err as Error).message });

@@ -69,6 +69,26 @@ describe('the switcher actually switches — UI threads book= on every fetch', (
   });
 });
 
+describe('no unbound broker readers — the wrong-balances class (operator-reported 2026-08-28)', () => {
+  it('every account-data getBrokerReader call in src-routes carries a binding argument', () => {
+    for (const f of ['src-routes/trading-routes-book-read-builders.ts', 'src-routes/trading-routes-order-flow-builders.ts', 'src-routes/trading-accounts-routes.ts']) {
+      const text = src(f);
+      // Two-arg reader calls are allowed ONLY for configured() capability probes; any call that
+      // goes on to read account/positions/orders must pass the third (binding) argument, else a
+      // non-legacy book renders the LEGACY account's balances (the /ledger bug).
+      const twoArg = (text.match(/getBrokerReader\([^)]*\bsub\)(?!\.configured)/g) || [])
+        .filter((m) => !/['"](paper|live)['"], sub\)$/.test(m));
+      expect(twoArg, `${f} has unbound account-data reader calls: ${twoArg.join(' | ')}`).toEqual([]);
+    }
+  });
+
+  it('/ledger resolves the BOOK and keys its orders by book_id', () => {
+    const flow = src('src-routes/trading-routes-order-flow-builders.ts');
+    expect(flow).toMatch(/\/ledger[\s\S]{0,700}resolveBook\(/);
+    expect(flow).toMatch(/\/ledger[\s\S]{0,1600}book_id=\$2 ORDER BY created_at DESC LIMIT 25/);
+  });
+});
+
 describe('compiled twins are in lockstep with src-routes', () => {
   it('the built routes/ twins carry the ADR-134 markers', () => {
     expect(src('routes/trading-accounts-routes.js')).toContain('reset-breaker');
