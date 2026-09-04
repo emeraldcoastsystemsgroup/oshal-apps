@@ -15,6 +15,7 @@
  * 2026-07-19 23:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | Carved out of OSHAL core into the trading app package (ADR-085 Wave 3). Relative kernel imports flip to @/ aliases — the lab sim/ops/store, config-overrides, schedule-dispatch, free-tier-rotation, and inline-bot-execution ALL stay kernel (the lab dispatch leg and the blend/config engines import them). Route bodies byte-identical incl. the apply confirm guard — zero behavior change.
  * 2026-07-24 13:20:00 | roger.murphy@emeraldcoastsystemsgroup.com | Strategy Studio: POST /studio — a conversational quant analyst that grounds a design in cited peer-reviewed research (trading-strategy-research.ts), drafts a StrategyConfig, INJECTS it as a candidate, backtests ~2y, and narrates with sources. Reuses the /draft bot path + createStrategy + backtestStrategy; citations validated against the curated corpus so no invented paper survives.
  * 2026-07-25 21:55:00 | roger.murphy@emeraldcoastsystemsgroup.com | Studio REFINE-IN-PLACE (the workflow-assistant contract): /studio with a strategyId feeds the CURRENT config back into the prompt and updateStrategy()s the SAME row (store resets forward walk + baseline) instead of minting a new strategy every turn; a reply with no parseable JSON returns {needsInput, message} — a clarifying question — instead of 502; blends are refused conversationally (embedded snapshots); response flags refined and warns when the refined strategy is live-APPLIED (the override keeps its old snapshot until re-applied). Prompt/parse helpers moved to trading-strategy-studio-prompt.ts so the spec imports them without this module's kernel chain.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 D6 event playbooks: /studio resolves the SELECTED book query-first and branches on isEventIntent (or a strategyId that is an event plan) BEFORE the rotation flow — the Studio refused "the Anthropic IPO" because a single listing is not a rotation. The branch lives in trading-event-plan-routes.ts (respondEventStudioTurn); the rotation/ensemble flow is otherwise byte-identical.
  *
  * @module trading-strategy-lab-routes
  */
@@ -38,10 +39,13 @@ import {
   type ConfigOverrideRow,
 } from '@/app/trading-config-overrides';
 import { coreConfig, rotationConfig } from '@/app/trading-schedule-dispatch';
+import { resolveBook } from '@/app/routes/trading-routes-helpers';
 import { resolveUserLlmConnection } from '@/app/routes/free-tier-rotation';
 import { executeBotOrInline } from '@/app/routes/inline-bot-execution';
+import { ensureEventPlansSchema, getEventPlan } from '@/app/trading-event-plans';
 import { selectResearch } from './trading-strategy-research';
-import { parseStudioReply, stripBotFences, studioPrompt } from './trading-strategy-studio-prompt';
+import { isEventIntent, parseStudioReply, stripBotFences, studioPrompt } from './trading-strategy-studio-prompt';
+import { respondEventStudioTurn, equityForBook } from './trading-event-plan-routes';
 
 const logger = createChildLogger({ module: 'trading-strategy-lab-routes' });
 
@@ -165,12 +169,14 @@ function logRowMarkdown(action: 'APPLIED' | 'REVERTED', row: ConfigOverrideRow |
   }
   return `### ${day} (~${hm} CT) — Strategy Library APPLY: "${row.strategyName}" @ ${row.applyPct}% of profile\n`
     + `- ${knobSummary(row.config, row.applyPct)}\n`
-    + `- Applied via the Strategy Lab UI; overrides env knobs on BOTH books until reverted (audit: trading_config_overrides).${note ? `\n- Note: ${note}` : ''}`;
+    + `- Applied via the Strategy Lab UI; overrides env knobs on the TARGETED BOOK until reverted (audit: trading_config_overrides).${note ? `\n- Note: ${note}` : ''}`;
 }
 
-/** What the profile runs when NO override is active — the env-default side of the comparison. */
-function envDefaultsSummary(): Record<string, unknown> {
-  const pol = riskPolicy('paper');
+/** What the book runs when NO override is active — the production-baseline side of the comparison.
+ *  Takes the book's KIND so a live book shows TRADING_RISK_POSTURE_LIVE, not the paper posture
+ *  (surface-audit 2026-09-03: the baseline panel showed paper knobs for the live book). */
+function envDefaultsSummary(kind: 'paper' | 'live' = 'paper'): Record<string, unknown> {
+  const pol = riskPolicy(kind);
   const rot = rotationConfig(null);
   const core = coreConfig(null);
   return {
@@ -205,11 +211,26 @@ export function createTradingStrategyLabRoutes(ctx: AppContext): Router {
   /** GET /knobs — the knob + formula reference the UI renders. */
   router.get('/knobs', (_req: Request, res: Response) => { res.json(KNOBS_REFERENCE); });
 
-  /** GET /strategies — the caller's strategies with latest metrics + forward tallies. */
+  /** GET /strategies — the caller's strategies with latest metrics + forward tallies, plus the
+   *  TRUTH about application: appliedOn = the book refs whose ACTIVE override snapshots came from
+   *  this strategy (the stored 'armed' status is a lab-lifecycle label, not an application fact —
+   *  it once read as "this is what production runs" while nothing was applied anywhere). */
   router.get('/strategies', async (req: Request, res: Response) => {
     const s = sub(req, res); if (!s) return;
-    try { await ensureLabSchema(pool); res.json({ strategies: await listStrategies(pool, s) }); }
-    catch (err) { fail(res, err); }
+    try {
+      await ensureLabSchema(pool);
+      const strategies = await listStrategies(pool, s);
+      const applied = (await pool.query(
+        `SELECT o.strategy_id, b.ref FROM trading_config_overrides o
+           JOIN oshal_trading_books b ON b.book_id = o.book_id AND b.user_sub = o.user_sub
+          WHERE o.user_sub = $1 AND o.active AND o.strategy_id IS NOT NULL`, [s])).rows;
+      const refsByStrategy = new Map<string, string[]>();
+      for (const r of applied) {
+        const k = String(r.strategy_id);
+        refsByStrategy.set(k, [...(refsByStrategy.get(k) ?? []), String(r.ref)]);
+      }
+      res.json({ strategies: strategies.map((st) => ({ ...st, appliedOn: refsByStrategy.get(st.id) ?? [] })) });
+    } catch (err) { fail(res, err); }
   });
 
   /** POST /strategies — create a variation. Body: { name, description?, config }. */
@@ -271,9 +292,14 @@ export function createTradingStrategyLabRoutes(ctx: AppContext): Router {
   router.post('/strategies/:id/backtest', async (req: Request, res: Response) => {
     const s = sub(req, res); if (!s) return;
     const windowDays = Number((req.body || {}).windowDays) || undefined;
+    // startCash sizes the walk to a real account (whole shares: $20K and $500K do not trade alike).
+    // Bounded so a typo cannot request a nonsensical book; absent = the $100K reference.
+    const rawCash = Number((req.body || {}).startCash);
+    if (Number.isFinite(rawCash) && rawCash !== 0 && (rawCash < 1_000 || rawCash > 100_000_000)) { res.status(400).json({ error: 'start_cash_out_of_range', message: 'startCash must be between $1,000 and $100,000,000.' }); return; }
+    const startCash = Number.isFinite(rawCash) && rawCash >= 1_000 ? Math.round(rawCash) : undefined;
     try {
       const strategy = await requireStrategy(pool, s, String(req.params.id));
-      const run = await backtestStrategy(pool, s, strategy, windowDays);
+      const run = await backtestStrategy(pool, s, strategy, windowDays, startCash);
       res.status(run.status === 'failed' ? 502 : 201).json({ run });
     } catch (err) { fail(res, err, (err as Error).message === 'strategy not found' ? 404 : 500); }
   });
@@ -366,16 +392,19 @@ export function createTradingStrategyLabRoutes(ctx: AppContext): Router {
     catch (err) { fail(res, err); }
   });
 
-  /** GET /apply — what the profile currently runs: the active override (or null = env defaults),
-   *  the env-default summary for comparison, and the apply/revert audit history. */
+  /** GET /apply — what THE SELECTED BOOK currently runs: its active override (or null = env
+   *  defaults), the env-default summary for comparison, and the apply/revert audit history
+   *  (history stays user-wide — it is the audit trail across books). */
   router.get('/apply', async (req: Request, res: Response) => {
     const s = sub(req, res); if (!s) return;
     try {
-      const [active, history] = await Promise.all([getActiveOverride(pool, s), listOverrideHistory(pool, s)]);
+      const book = await resolveBook(pool, s, (req.query.book as string | undefined) ?? (req.query.mode as string | undefined));
+      const [active, history] = await Promise.all([getActiveOverride(pool, s, book.bookId), listOverrideHistory(pool, s)]);
       res.json({
+        book: book.ref,
         active,
         activeSummary: active ? knobSummary(active.config, active.applyPct) : null,
-        envDefaults: envDefaultsSummary(),
+        envDefaults: envDefaultsSummary(book.kind),
         history,
       });
     } catch (err) { fail(res, err); }
@@ -386,21 +415,27 @@ export function createTradingStrategyLabRoutes(ctx: AppContext): Router {
    *  guard exists because this changes what the LIVE autopilot trades on its next fire. */
   router.post('/strategies/:id/apply', async (req: Request, res: Response) => {
     const s = sub(req, res); if (!s) return;
-    const b = (req.body || {}) as { applyPct?: number; note?: string; confirm?: boolean };
+    const b = (req.body || {}) as { applyPct?: number; note?: string; confirm?: boolean; book?: string };
     if (b.confirm !== true) {
       res.status(400).json({ error: 'confirm_required', message: 'Applying changes what the autopilot trades on its next fire — resend with confirm:true.' });
       return;
     }
     const applyPct = Math.round(Math.max(1, Math.min(100, Number(b.applyPct) || 100)));
     try {
+      // ADR-134: apply targets THE SELECTED BOOK (query.book rides every surface fetch; body.book
+      // wins when set). Without this the lab was the last two-book surface — Apply silently cloned
+      // to the legacy paper+live pair no matter which account the operator was looking at
+      // ("the software only works for a single account and everything else is mangled").
+      const book = await resolveBook(pool, s, b.book ?? (req.query.book as string | undefined) ?? (req.query.mode as string | undefined));
       const strategy = await requireStrategy(pool, s, String(req.params.id));
       const config = normalizeConfig(strategy.config); // defensive re-normalize of the stored knobs
       const row = await applyOverride(pool, s, {
         strategyId: strategy.id, strategyName: strategy.name, config, applyPct, note: String(b.note || ''),
+        bookId: book.bookId, bookRef: book.ref,
       });
       if (strategy.status !== 'armed') await updateStrategy(pool, s, strategy.id, { status: 'armed' });
-      const policy = riskPolicy('paper', policyOverrideOf(row));
-      logger.info({ sub: s, strategy: strategy.name, applyPct }, 'strategy APPLIED to profile');
+      const policy = riskPolicy(book.kind, policyOverrideOf(row));
+      logger.info({ sub: s, strategy: strategy.name, applyPct, bookRef: book.ref }, 'strategy APPLIED to book');
       res.status(201).json({
         override: row,
         effective: {
@@ -416,11 +451,12 @@ export function createTradingStrategyLabRoutes(ctx: AppContext): Router {
     } catch (err) { fail(res, err, (err as Error).message === 'strategy not found' ? 404 : 500); }
   });
 
-  /** POST /apply/revert — back to env defaults on the next fire. Body: { note? }. */
+  /** POST /apply/revert — the SELECTED book back to env defaults on the next fire. Body: { note?, book? }. */
   router.post('/apply/revert', async (req: Request, res: Response) => {
     const s = sub(req, res); if (!s) return;
     try {
-      const row = await revertOverride(pool, s);
+      const book = await resolveBook(pool, s, String((req.body || {}).book ?? req.query.book ?? req.query.mode ?? '') || undefined);
+      const row = await revertOverride(pool, s, book.bookId, book.ref);
       res.json({
         reverted: !!row,
         was: row,
@@ -460,11 +496,21 @@ export function createTradingStrategyLabRoutes(ctx: AppContext): Router {
    */
   router.post('/studio', async (req: Request, res: Response) => {
     const s = sub(req, res); if (!s) return;
-    const b = (req.body || {}) as { message?: string; strategyId?: string };
+    const b = (req.body || {}) as { message?: string; strategyId?: string; book?: string; mode?: string };
     const message = String(b.message || '').trim().slice(0, 4000);
     if (!message) { res.status(400).json({ error: 'message_required' }); return; }
     try {
       await ensureLabSchema(pool);
+      // ADR-136 D6: an EVENT playbook (an IPO, a listing day) is not a rotation — branch BEFORE the
+      // rotation flow. The book is the SELECTED account, resolved query-first (the 2026-09-03
+      // paper-routing class); a strategyId that names an event plan is a refinement of that plan.
+      const book = await resolveBook(pool, s, (req.query.book as string | undefined) ?? b.book ?? (req.query.mode as string | undefined) ?? b.mode);
+      await ensureEventPlansSchema(pool);
+      const existingPlan = b.strategyId ? await getEventPlan(pool, s, String(b.strategyId)) : null;
+      if (existingPlan || isEventIntent(message)) {
+        await respondEventStudioTurn(ctx, res, { sub: s, book, message, existingPlan, botClient, agentId: TRADING_AGENT_ID });
+        return;
+      }
       // A stale/foreign strategyId degrades to a fresh design turn — same as the workflow assist.
       const existing = b.strategyId ? await getStrategy(pool, s, String(b.strategyId)) : null;
       if (existing && (existing.config as { kind?: string }).kind === 'blend') {
@@ -504,7 +550,10 @@ export function createTradingStrategyLabRoutes(ctx: AppContext): Router {
         const name = `${parsed.name} · ${Date.now().toString(36).slice(-4)}`.slice(0, 80);
         row = await createStrategy(pool, s, name, parsed.description, config);
       }
-      const run = await backtestStrategy(pool, s, row, config.windowDays);
+      // Size the Studio's backtest to the SELECTED account's real equity (null → the $100K reference):
+      // whole-share sizing means a $20K account and a $500K account do not trade the same design alike.
+      const equity = await equityForBook(s, book);
+      const run = await backtestStrategy(pool, s, row, config.windowDays, equity != null && equity >= 1000 ? Math.round(equity) : undefined);
       const full = await getRun(pool, s, run.id);
       const active = existing ? await getActiveOverride(pool, s) : null;
       logger.info({ sub: s, strategyId: row.id, refined: !!existing, kind: config.kind, cites: parsed.citations.map((c) => c.id) }, 'studio strategy designed + backtested');

@@ -127,7 +127,7 @@ function registerTradingOrderFlowRoutes(router, ctx, placeDecisionOrder) {
         }
         try {
             await (0, trading_schema_1.ensureTradingSchema)(ctx.pool);
-            const book = await (0, trading_routes_helpers_1.resolveBook)(ctx.pool, sub, b.book ?? b.mode);
+            const book = await (0, trading_routes_helpers_1.resolveBook)(ctx.pool, sub, req.query.book ?? b.book ?? req.query.mode ?? b.mode);
             const mode = book.kind;
             const symbols = Array.isArray(b.symbols) ? b.symbols.map((s) => String(s).toUpperCase()) : [];
             const artifact = JSON.stringify({ source, externalId: b.externalId, author: b.author, title: b.title, body: b.body, url: b.url });
@@ -180,7 +180,7 @@ function registerTradingOrderFlowRoutes(router, ctx, placeDecisionOrder) {
         }
         try {
             await (0, trading_schema_1.ensureTradingSchema)(ctx.pool);
-            const book = await (0, trading_routes_helpers_1.resolveBook)(ctx.pool, sub, b.book ?? b.mode);
+            const book = await (0, trading_routes_helpers_1.resolveBook)(ctx.pool, sub, req.query.book ?? b.book ?? req.query.mode ?? b.mode);
             const signals = (await ctx.pool.query(`SELECT signal_id, source, author, title, body, url, symbols, indicators, observed_at
            FROM oshal_trading_signals WHERE user_sub=$1 AND book_id=$2 AND signal_id = ANY($3::uuid[])`, [sub, book.bookId, signalIds])).rows;
             if (!signals.length) {
@@ -214,7 +214,7 @@ function registerTradingOrderFlowRoutes(router, ctx, placeDecisionOrder) {
         }
         try {
             await (0, trading_schema_1.ensureTradingSchema)(ctx.pool);
-            const book = await (0, trading_routes_helpers_1.resolveBook)(ctx.pool, sub, b.book ?? b.mode);
+            const book = await (0, trading_routes_helpers_1.resolveBook)(ctx.pool, sub, req.query.book ?? b.book ?? req.query.mode ?? b.mode);
             const result = await placeDecisionOrder(ctx.pool, sub, book, String(b.decisionId), String(b.requestId), b.confirm === true);
             res.json({ ok: true, order: result });
         }

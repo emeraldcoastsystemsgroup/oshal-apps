@@ -92,7 +92,7 @@ export function registerTradingOrderFlowRoutes(router: Router, ctx: AppContext, 
     if (!source) { res.status(400).json({ error: 'source_required', message: 'source is required (news|x|inbox|manual).' }); return; }
     try {
       await ensureTradingSchema(ctx.pool);
-      const book = await resolveBook(ctx.pool, sub, (b.book as string | undefined) ?? (b.mode as string | undefined));
+      const book = await resolveBook(ctx.pool, sub, (req.query.book as string | undefined) ?? (b.book as string | undefined) ?? (req.query.mode as string | undefined) ?? (b.mode as string | undefined));
       const mode = book.kind;
       const symbols = Array.isArray(b.symbols) ? (b.symbols as unknown[]).map((s) => String(s).toUpperCase()) : [];
       const artifact = JSON.stringify({ source, externalId: b.externalId, author: b.author, title: b.title, body: b.body, url: b.url });
@@ -139,7 +139,7 @@ export function registerTradingOrderFlowRoutes(router: Router, ctx: AppContext, 
     if (!signalIds.length) { res.status(400).json({ error: 'signal_ids_required', message: 'Provide at least one signalId to reason over.' }); return; }
     try {
       await ensureTradingSchema(ctx.pool);
-      const book = await resolveBook(ctx.pool, sub, (b.book as string | undefined) ?? (b.mode as string | undefined));
+      const book = await resolveBook(ctx.pool, sub, (req.query.book as string | undefined) ?? (b.book as string | undefined) ?? (req.query.mode as string | undefined) ?? (b.mode as string | undefined));
       const signals = (await ctx.pool.query(
         `SELECT signal_id, source, author, title, body, url, symbols, indicators, observed_at
            FROM oshal_trading_signals WHERE user_sub=$1 AND book_id=$2 AND signal_id = ANY($3::uuid[])`,
@@ -163,7 +163,7 @@ export function registerTradingOrderFlowRoutes(router: Router, ctx: AppContext, 
     if (!b.requestId) { res.status(400).json({ error: 'request_id_required', message: 'A client requestId is required for idempotency.' }); return; }
     try {
       await ensureTradingSchema(ctx.pool);
-      const book = await resolveBook(ctx.pool, sub, (b.book as string | undefined) ?? (b.mode as string | undefined));
+      const book = await resolveBook(ctx.pool, sub, (req.query.book as string | undefined) ?? (b.book as string | undefined) ?? (req.query.mode as string | undefined) ?? (b.mode as string | undefined));
       const result = await placeDecisionOrder(ctx.pool, sub, book, String(b.decisionId), String(b.requestId), b.confirm === true);
       res.json({ ok: true, order: result });
     } catch (err) {

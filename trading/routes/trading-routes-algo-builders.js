@@ -78,7 +78,8 @@ async function recordPredictions(pool, sub, mode, symbol, price, signals, ens) {
 }
 /** Run the algorithms over live market data and fold them into a DETERMINISTIC decision (no LLM).
  *  Captures the scan as a provenance signal so the order still chains signal → decision → order. */
-async function algoEnsembleDecision(pool, sub, mode, symbol) {
+async function algoEnsembleDecision(pool, sub, book, symbol) {
+    const mode = book.kind;
     // Per-mode data source: paper reads Alpaca (IEX), the live book reads the caller's Schwab feed.
     const md = (0, trading_1.getMarketData)(mode, sub);
     if (!md.configured())
@@ -96,18 +97,21 @@ async function algoEnsembleDecision(pool, sub, mode, symbol) {
     await recordPredictions(pool, sub, mode, SYM, price, signals, ens);
     const artifact = JSON.stringify({ source: 'algo-scan', symbol: SYM, price, signals, ensemble: ens });
     const hash = crypto.createHash('sha256').update(artifact).digest('hex');
-    const sig = (await pool.query(`INSERT INTO oshal_trading_signals (user_sub, mode, source, title, body, symbols, indicators, content_hash)
-       VALUES ($1,$2,'algo-scan',$3,$4,$5,$6,$7)
-     ON CONFLICT (user_sub, mode, content_hash) DO UPDATE SET observed_at = oshal_trading_signals.observed_at
-     RETURNING signal_id`, [sub, mode, `Algo scan ${SYM} @ ${price}`, JSON.stringify({ signals, ensemble: ens }), [SYM], JSON.stringify({ price, signals, ensemble: ens }), hash])).rows[0];
+    // book_id explicit (surface-audit 2026-09-03): without it the trigger stamps the legacy book of
+    // `mode`, so a b-book's algo signal/decision landed under the legacy live book and POST /orders
+    // on the b-book 404'd — the deterministic ticket was dead on account books.
+    const sig = (await pool.query(`INSERT INTO oshal_trading_signals (user_sub, mode, book_id, source, title, body, symbols, indicators, content_hash)
+       VALUES ($1,$2,$3,'algo-scan',$4,$5,$6,$7,$8)
+     ON CONFLICT (user_sub, book_id, content_hash) DO UPDATE SET observed_at = oshal_trading_signals.observed_at
+     RETURNING signal_id`, [sub, mode, book.bookId, `Algo scan ${SYM} @ ${price}`, JSON.stringify({ signals, ensemble: ens }), [SYM], JSON.stringify({ price, signals, ensemble: ens }), hash])).rows[0];
     const g = (0, trading_routes_helpers_1.guardrails)();
     const qty = Number(process.env.TRADING_ALGO_QTY || 1);
     const rationale = `Deterministic ensemble of ${signals.length} algos — score ${ens.score}, confidence ${ens.confidence}: `
         + signals.map((s) => `${s.algo}:${s.dir}(${s.confidence.toFixed(2)})`).join(', ') + '.';
     const row = (await pool.query(`INSERT INTO oshal_trading_decisions
-       (user_sub, mode, signal_ids, agent_id, action, symbol, side, qty, order_type, confidence, rationale, indicators, guardrails)
-     VALUES ($1,$2,$3::uuid[],'algo-ensemble',$4,$5,$6,$7,'market',$8,$9,$10,$11)
-     RETURNING decision_id`, [sub, mode, [sig.signal_id], ens.action, ens.action === 'hold' ? null : SYM, ens.side,
+       (user_sub, mode, book_id, signal_ids, agent_id, action, symbol, side, qty, order_type, confidence, rationale, indicators, guardrails)
+     VALUES ($1,$2,$3,$4::uuid[],'algo-ensemble',$5,$6,$7,$8,'market',$9,$10,$11,$12)
+     RETURNING decision_id`, [sub, mode, book.bookId, [sig.signal_id], ens.action, ens.action === 'hold' ? null : SYM, ens.side,
         ens.action === 'hold' ? null : qty, ens.confidence, rationale, JSON.stringify(signals), JSON.stringify(g)])).rows[0];
     return { decisionId: row.decision_id, decision: { action: ens.action, symbol: SYM, side: ens.side, qty: ens.action === 'hold' ? null : qty, confidence: ens.confidence, score: ens.score, rationale }, signals, ensemble: ens, price };
 }
@@ -242,7 +246,8 @@ function registerTradingAlgoRoutes(router, ctx) {
         }
         try {
             await (0, trading_schema_1.ensureTradingSchema)(ctx.pool);
-            const out = await algoEnsembleDecision(ctx.pool, sub, (0, trading_routes_helpers_1.resolveMode)(b.mode), String(b.symbol));
+            const book = await (0, trading_routes_helpers_1.resolveBook)(ctx.pool, sub, req.query.book ?? b.book ?? req.query.mode ?? b.mode);
+            const out = await algoEnsembleDecision(ctx.pool, sub, book, String(b.symbol));
             res.json({ ok: true, ...out });
         }
         catch (err) {

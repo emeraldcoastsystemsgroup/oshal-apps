@@ -32,6 +32,8 @@ import {
 } from '@/app/trading-books-store';
 import { getActiveOverride, applyOverride, revertOverride } from '@/app/trading-config-overrides';
 import { decryptToken } from '@/app/routes/connector-token-crypto';
+import { getStrategy } from '@/app/trading-strategy-lab-store';
+import { normalizeConfig } from '@/app/trading-strategy-lab-sim';
 import { loadPriorCloseEquity } from '@/app/trading-daily-equity-store';
 import { recordStrategyJournal } from '@/app/trading-strategy-journal';
 import type { StrategyConfig } from '@/app/trading-strategy-lab-sim';
@@ -78,6 +80,14 @@ export function registerTradingAccountRoutes(router: Router, ctx: AppContext): v
         const b = books.find((x) => x.bookId === String(r.book_id));
         if (b) bookByAccount.set(String(r.account_id), b);
       }
+      // Each book's CURRENT strategy — the answer to "what is this account running", shown on the
+      // roster itself (operator doctrine 2026-09-02: strategy selection lives with the ACCOUNT,
+      // not inside the research lab).
+      const activeByBook = new Map<string, { name: string; applyPct: number }>(
+        (await ctx.pool.query(
+          `SELECT book_id, strategy_name, apply_pct FROM trading_config_overrides
+            WHERE user_sub = $1 AND active AND book_id IS NOT NULL`, [s])).rows
+          .map((r) => [String(r.book_id), { name: String(r.strategy_name), applyPct: Number(r.apply_pct) }]));
       const labels = new Map<string, { label: string; last4: string | null }>(
         (await ctx.pool.query(
           `SELECT b.book_id, b.label, a.account_last4
@@ -97,6 +107,7 @@ export function registerTradingAccountRoutes(router: Router, ctx: AppContext): v
         books: books.map((b) => ({
           bookId: b.bookId, ref: b.ref, kind: b.kind, enabled: b.enabled, learn: b.learn,
           label: labels.get(b.bookId)?.label ?? b.ref, accountMasked: labels.get(b.bookId)?.last4 ? `…${labels.get(b.bookId)?.last4}` : null,
+          strategy: activeByBook.get(b.bookId) ?? null,
           capitalCapUsd: b.capitalCapUsd, connectionMissing: b.connectionKey ? !liveKeys.has(b.connectionKey) : false,
         })),
       });
@@ -124,7 +135,14 @@ export function registerTradingAccountRoutes(router: Router, ctx: AppContext): v
    *  once traded — re-pointing carries the old HWM onto a new account, the phantom-drawdown class). */
   router.patch('/accounts/books/:bookId', async (req: Request, res: Response) => {
     const s = sub(req, res); if (!s) return;
-    const b = (req.body || {}) as { label?: string; enabled?: boolean; capitalCapUsd?: number | null };
+    const b = (req.body || {}) as { label?: string; enabled?: boolean; capitalCapUsd?: number | null; confirm?: boolean };
+    // ARMING a live account to trade real money needs a server-side confirm, not just the browser
+    // dialog (surface-audit 2026-09-03): every sibling risk action (create book, apply strategy,
+    // reset breaker) is 428-gated; enabling a live book was the one that trusted the client alone.
+    if (b.enabled === true && b.confirm !== true) {
+      res.status(428).json({ error: 'confirm_required', message: 'Turning ON trading for a live account trades REAL money — resend with confirm:true.' });
+      return;
+    }
     try {
       const book = await updateBook(ctx.pool, s, String(req.params.bookId), {
         label: b.label != null ? String(b.label) : undefined,
@@ -143,19 +161,29 @@ export function registerTradingAccountRoutes(router: Router, ctx: AppContext): v
     catch (err) { fail(res, err); }
   });
 
-  /** POST /accounts/books/:bookId/strategy {strategyId?, strategyName, config, applyPct, note, confirm:true}
-   *  — apply a Strategy Library snapshot to THIS book (the ADR-095 rail, book-scoped). */
+  /** POST /accounts/books/:bookId/strategy — SET this account's strategy (the plain control the
+   *  roster exposes). Body: { strategyId, applyPct?, note?, confirm:true } — the server loads the
+   *  saved Strategy Library row itself (owner-checked) so the UI never ships config blobs; the
+   *  legacy full-snapshot body { strategyName, config, ... } still works for the mix editor. */
   router.post('/accounts/books/:bookId/strategy', async (req: Request, res: Response) => {
     const s = sub(req, res); if (!s) return;
     const b = (req.body || {}) as { strategyId?: string | null; strategyName?: string; config?: unknown; applyPct?: number; note?: string; confirm?: boolean };
     if (b.confirm !== true) { res.status(428).json({ error: 'confirm_required' }); return; }
-    if (!b.strategyName || !b.config) { res.status(400).json({ error: 'strategy_required' }); return; }
     try {
       const book = await loadBook(ctx.pool, s, String(req.params.bookId));
       if (!book) { res.status(404).json({ error: 'unknown_book' }); return; }
+      let strategyId: string | null = b.strategyId ? String(b.strategyId) : null;
+      let strategyName = b.strategyName ? String(b.strategyName) : '';
+      let config = b.config as StrategyConfig | undefined;
+      if (strategyId && !config) {
+        const strat = await getStrategy(ctx.pool, s, strategyId);
+        if (!strat) { res.status(404).json({ error: 'unknown_strategy' }); return; }
+        strategyName = strat.name;
+        config = normalizeConfig(strat.config);
+      }
+      if (!strategyName || !config) { res.status(400).json({ error: 'strategy_required' }); return; }
       const row = await applyOverride(ctx.pool, s, {
-        strategyId: b.strategyId ? String(b.strategyId) : null, strategyName: String(b.strategyName),
-        config: b.config as StrategyConfig, applyPct: Number(b.applyPct) || 100,
+        strategyId, strategyName, config, applyPct: Number(b.applyPct) || 100,
         note: String(b.note || ''), bookId: book.bookId, bookRef: book.ref,
       });
       res.json({ override: row });
@@ -234,8 +262,19 @@ export function registerTradingAccountRoutes(router: Router, ctx: AppContext): v
       const rows: Array<Record<string, unknown>> = [];
       const rollup = new Map<string, { symbol: string; qty: number; marketValue: number; perBook: Array<{ ref: string; qty: number; marketValue: number }> }>();
       let totalValue = 0; let totalDayChange = 0; let sawDayChange = false;
-      for (const book of books) {
+      for (const listed of books) {
         try {
+          // THE WRONG-BALANCES ROOT (operator-caught twice, 2026-09-01/02): listBooks rows omit the
+          // decrypted account binding BY DESIGN, so a reader built from a list row silently falls
+          // back to the legacy env account — every live-kind book rendered …6771's balances and the
+          // day-change math exploded against each book's own (correct) prior close. Readers may
+          // ONLY be built from a LOADED book. loadBook decrypts the binding at point of use.
+          // NEVER fall back to the list row (surface-audit 2026-09-03): a list row's binding is
+          // null, so `?? listed` would rebuild an unbound reader = the legacy account's balances
+          // under this book (the wrong-balances class). If the book vanished between listBooks and
+          // here, skip it with an error row rather than show another account's money.
+          const book = await loadBook(ctx.pool, s, listed.bookId);
+          if (!book) { rows.push({ bookId: listed.bookId, ref: listed.ref, kind: listed.kind, error: 'book_unavailable' }); continue; }
           const reader = getBrokerReader(book.kind, s, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined);
           if (!reader.configured()) { rows.push({ bookId: book.bookId, ref: book.ref, kind: book.kind, error: 'broker_not_configured' }); continue; }
           const [account, positions] = await Promise.all([reader.getAccount(), reader.getPositions()]);
@@ -256,7 +295,7 @@ export function registerTradingAccountRoutes(router: Router, ctx: AppContext): v
             rollup.set(key, cur);
           }
         } catch (err) {
-          rows.push({ bookId: book.bookId, ref: book.ref, kind: book.kind, error: (err as Error).message.slice(0, 200) });
+          rows.push({ bookId: listed.bookId, ref: listed.ref, kind: listed.kind, error: (err as Error).message.slice(0, 200) });
         }
       }
       // Discovered-but-UNBOOKED accounts (ADR-134 R6 amendment): Schwab's own summary shows every
@@ -268,8 +307,15 @@ export function registerTradingAccountRoutes(router: Router, ctx: AppContext): v
           WHERE a.user_sub = $1 AND a.broker = 'schwab'
             AND NOT EXISTS (SELECT 1 FROM oshal_trading_books b WHERE b.user_sub = a.user_sub AND b.account_id = a.account_id)`,
         [s])).rows;
+      // DOUBLE-COUNT GUARD (surface-audit 2026-09-03): the legacy 'live' book is UNBOUND, so it
+      // reads whatever SCHWAB_ACCOUNT_NUMBER pins (…the env account). The physically same account,
+      // once discovered, is also an unbooked row here — counting both inflated the total by a whole
+      // account. Skip any discovered account whose last4 matches the env pin: the legacy live row
+      // already represents it.
+      const envPinLast4 = String(process.env.SCHWAB_ACCOUNT_NUMBER || '').trim().slice(-4);
       if (unbooked.length) {
         for (const a of unbooked) {
+          if (envPinLast4 && String(a.account_last4) === envPinLast4) continue; // legacy live row covers it
           try {
             const num = await decryptToken(ctx.pool, s, String(a.account_number_enc));
             const reader = getBrokerReader('live', s, { accountNumber: num, connectionKey: a.connection_key ? String(a.connection_key) : null });

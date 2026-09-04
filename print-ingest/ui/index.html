@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Print Inbox</title>
+<!--
+  CHANGE LOG
+  ---------------------------------------------------------------------------
+  SEQ | AUTHOR                                    | DESCRIPTION
+  ---------------------------------------------------------------------------
+  1   | maintainer@emeraldcoastsystemsgroup.com   | ADR-135 P1 inbox surface. A view over the package's store (ADR-036): it renders the recommendation and posts a decision, and holds no domain logic of its own. Two things are deliberate. Every destination is shown, including the ones NOT recommended and their reason, because hiding a low-confidence option is a decision made for someone without telling them. And each destination states who can read it at the point of choice, since a bot corpus is routing, not privacy.
+-->
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #fff; --ink: #16181d; --ink-2: #555c68; --ink-3: #7c8493;
+    --rule: #dcdfe5; --accent: #0a6e7c; --accent-wash: #e2f0f2;
+    --warn: #8a5a0b; --warn-wash: #f8efdb; --danger: #9c2233;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171c; --card: #1b1f26; --ink: #e6e9ee; --ink-2: #b0b7c3; --ink-3: #838b99;
+      --rule: #2c323b; --accent: #4cb8c7; --accent-wash: #16292d;
+      --warn: #d8ab5c; --warn-wash: #2a2214; --danger: #e5808e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 26px 20px 80px; }
+  h1 { font-size: 21px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--ink-3); margin: 0 0 22px; font-size: 14px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 18px; flex-wrap: wrap; }
+  .tab { border: 1px solid var(--rule); background: var(--card); color: var(--ink-2);
+         padding: 6px 13px; border-radius: 999px; cursor: pointer; font-size: 13px; }
+  .tab[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .doc { background: var(--card); border: 1px solid var(--rule); border-radius: 8px;
+         padding: 18px 20px; margin-bottom: 14px; }
+  .doc h2 { font-size: 17px; margin: 0 0 6px; }
+  .meta { color: var(--ink-3); font-size: 12.5px; margin-bottom: 12px;
+          font-variant-numeric: tabular-nums; }
+  .preview { background: var(--bg); border-left: 3px solid var(--rule); padding: 9px 12px;
+             font-size: 13.5px; color: var(--ink-2); margin-bottom: 16px;
+             max-height: 92px; overflow: hidden; white-space: pre-wrap; }
+  label.dest { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start;
+               padding: 9px 11px; border: 1px solid var(--rule); border-radius: 6px;
+               margin-bottom: 7px; cursor: pointer; }
+  label.dest.rec { border-color: var(--accent); background: var(--accent-wash); }
+  .dest .name { font-weight: 600; font-size: 14.5px; }
+  .dest .why { color: var(--ink-2); font-size: 13px; }
+  .dest .who { color: var(--ink-3); font-size: 12px; margin-top: 2px; }
+  .conf { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+          color: var(--ink-3); margin-left: 6px; }
+  .title-edit { width: 100%; padding: 7px 10px; font: inherit; margin-bottom: 14px;
+                border: 1px solid var(--rule); border-radius: 5px;
+                background: var(--bg); color: var(--ink); }
+  .actions { display: flex; gap: 9px; margin-top: 14px; flex-wrap: wrap; }
+  button { font: inherit; padding: 8px 16px; border-radius: 6px; cursor: pointer; border: 1px solid var(--rule); }
+  .approve { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .reject { background: transparent; color: var(--danger); border-color: var(--rule); }
+  button[disabled] { opacity: .55; cursor: progress; }
+  .empty { color: var(--ink-3); background: var(--card); border: 1px dashed var(--rule);
+           border-radius: 8px; padding: 34px; text-align: center; }
+  .banner { padding: 10px 13px; border-radius: 6px; margin-bottom: 14px; font-size: 13.5px;
+            background: var(--warn-wash); color: var(--warn); }
+  .fanout { font-size: 13px; color: var(--ink-2); }
+  .fanout li { margin-bottom: 3px; }
+  .bad { color: var(--danger); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Print Inbox</h1>
+  <p class="sub">Documents printed to the swarm. Nothing is filed until you approve it.</p>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" data-state="awaiting_approval" aria-selected="true">Awaiting approval</button>
+    <button class="tab" role="tab" data-state="" aria-selected="false">All</button>
+  </div>
+  <div id="list"></div>
+</div>
+<script>
+'use strict';
+const API = '/api/print-ingest';
+const list = document.getElementById('list');
+let state = 'awaiting_approval';
+
+/** Escape text for safe insertion — printed content is untrusted input. */
+function esc(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
+function metaLine(doc) {
+  const s = doc.sidecar || {};
+  return [s.originatingComputer || 'unknown machine', s.printerName, doc.textChars + ' characters',
+    doc.createdAt ? new Date(doc.createdAt).toLocaleString() : null]
+    .filter(Boolean).map(esc).join(' · ');
+}
+
+function destinationRow(p) {
+  return '<label class="dest' + (p.recommended ? ' rec' : '') + '">'
+    + '<input type="checkbox" value="' + esc(p.id) + '"' + (p.recommended ? ' checked' : '') + '>'
+    + '<span><span class="name">' + esc(p.label) + '</span>'
+    + '<span class="conf">' + esc(p.confidence) + '</span>'
+    + '<div class="why">' + esc(p.reason) + '</div>'
+    + '<div class="who">Readable by ' + esc(p.readableBy) + '</div></span></label>';
+}
+
+function decidedView(doc) {
+  const copies = Array.isArray(doc.fanout) ? doc.fanout : [];
+  if (!copies.length) return '<p class="fanout">No copies were written.</p>';
+  return '<ul class="fanout">' + copies.map((c) =>
+    '<li class="' + (c.ok ? '' : 'bad') + '">' + esc(c.label) + ' — '
+    + (c.ok ? 'filed' : 'failed: ' + esc(c.error)) + '</li>').join('') + '</ul>';
+}
+
+function render(documents) {
+  if (!documents.length) {
+    list.innerHTML = '<div class="empty">Nothing here. Print something to the swarm printer and it will appear.</div>';
+    return;
+  }
+  list.innerHTML = documents.map((doc) => {
+    const pending = doc.state === 'awaiting_approval';
+    const rec = doc.recommendation || {};
+    const proposals = Array.isArray(rec.proposals) ? rec.proposals : [];
+    const ruleNote = rec.appliedRule
+      ? '<div class="banner">Matched the rule &ldquo;' + esc(rec.appliedRule.label) + '&rdquo;, which pre-ticked destinations. It cannot approve on its own.</div>'
+      : '';
+    return '<article class="doc" data-id="' + esc(doc.intakeId) + '">'
+      + '<h2>' + esc(doc.title) + '</h2>'
+      + '<div class="meta">' + metaLine(doc) + ' · ' + esc(doc.state.replace(/_/g, ' ')) + '</div>'
+      + (pending ? ruleNote : '')
+      + (pending
+        ? '<input class="title-edit" value="' + esc(doc.title) + '" aria-label="Document title">'
+          + proposals.map(destinationRow).join('')
+          + '<div class="actions"><button class="approve">Approve</button>'
+          + '<button class="reject">Reject</button></div>'
+        : decidedView(doc))
+      + '</article>';
+  }).join('');
+}
+
+async function load() {
+  const res = await fetch(API + '/documents' + (state ? '?state=' + encodeURIComponent(state) : ''));
+  if (!res.ok) { list.innerHTML = '<div class="empty">Could not load the inbox.</div>'; return; }
+  render((await res.json()).documents || []);
+}
+
+async function decide(article, action) {
+  const id = article.dataset.id;
+  const buttons = article.querySelectorAll('button');
+  buttons.forEach((b) => { b.disabled = true; });
+  const body = action === 'approve'
+    ? {
+      destinations: Array.from(article.querySelectorAll('input[type=checkbox]:checked')).map((i) => i.value),
+      title: article.querySelector('.title-edit').value,
+    }
+    : {};
+  const res = await fetch(API + '/documents/' + encodeURIComponent(id) + '/' + action, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    article.insertAdjacentHTML('beforeend',
+      '<div class="banner">' + esc(err.detail || err.error || 'That did not work.') + '</div>');
+    buttons.forEach((b) => { b.disabled = false; });
+    return;
+  }
+  load();
+}
+
+list.addEventListener('click', (event) => {
+  const article = event.target.closest('.doc');
+  if (!article) return;
+  if (event.target.classList.contains('approve')) decide(article, 'approve');
+  if (event.target.classList.contains('reject')) decide(article, 'reject');
+});
+
+document.querySelectorAll('.tab').forEach((tab) => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t === tab)));
+    state = tab.dataset.state;
+    load();
+  });
+});
+
+load();
+</script>
+</body>
+</html>

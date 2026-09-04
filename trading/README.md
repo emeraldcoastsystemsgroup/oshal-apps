@@ -29,6 +29,76 @@ Signal-justified stock trading (ADR-052) — carved out of OSHAL core 2026-07-20
   `trading-surface-live-gate.spec.ts` (the surface's live/confirm gates), and
   `trading-strategy-studio-refine.spec.ts` (the Studio refine-in-place contract).
 
+## Using the surface (ADR-136)
+
+The surface (`tools/trading.html` + `tools/ui/*.js`, served at `/api/trading/`) has four top-level
+views — **Accounts · Strategies · Research · Reports** — in the header nav, plus one account-detail
+screen reached by clicking a tile. There is no ten-tab bar and no "Accounts & books" tab; every tab
+the surface used to carry lives in exactly one of the five screens below.
+
+- **Accounts (landing).** One tile per account: equity, day P&L, the strategy it runs (or
+  "Production baseline" if none is set), a TRADING / VIEW-ONLY pill, and Start/Stop for a live
+  account. Above the tiles: a consolidated total value and day change across every account. Below:
+  a cross-account open-positions rollup (which account each position is held in) and the discovered
+  Schwab accounts roster with **Discover accounts**. Click a tile to open that account; Paper is one
+  tile like any other, labelled "Paper (reference book)".
+- **Account detail** (a tile, or the header's account switcher/`← All accounts`). Holds only that
+  account's concerns: KPI strip; **Buy a stock**; open positions; the focus pane (chart, signal
+  model, order ticket — opens when you click a position); and the account's own Trade journal +
+  Performance sub-tabs. The header shows the account's strategy line with an inline **Set** /
+  **Reset** control next to it — changing strategy never requires leaving the account.
+- **Strategies.** The **Account strategies** roster is the first sub-tab — one row per account, what
+  it runs, and Set/Reset — because this is where you choose what each account trades. Every account
+  always runs exactly one strategy: a saved one from the Strategy Library, or the Production
+  baseline by default. Strategy Lab, Strategy Studio, and Tuning follow as the remaining sub-tabs
+  (design/backtest/apply and the conversational Studio described below).
+- **Research** (market-wide, not account-scoped). Recommendations, Algorithms, and Capture &
+  signals. A signal or decision made from here files against the account currently selected in the
+  header's account switcher.
+- **Reports.** Performance and Trade journal, each with its own account selector so you can flip
+  accounts without leaving Reports. Cross-account positions live on the Accounts landing page, not
+  here.
+
+Deep links: `?view=accounts|strategies|research|reports` for the four top-level views, and
+`?view=account&book=<ref>&sub=journal|perf` for a specific account's journal or performance sub-tab.
+Legacy `?tab=` links (`journal`, `perf`, `lab`, `studio`, `tuning`, `accounts`, `reco`, `algos`,
+`capture`, `summary`) still resolve — they map onto the view above that now holds that content.
+
+### Buy a stock (direct trades, ADR-136 D3)
+
+**Buy a stock** on an account's detail page opens a 3-step ticket:
+
+1. **Pick the stock** — type a ticker and look it up (`GET /api/trading/quote`); the chart and
+   signal model open alongside while you size the order.
+2. **Size & price rule** — shares or a dollar amount (rounded down to whole shares), and a
+   plain-word price rule that maps onto the same order types the broker already runs:
+   - *Buy now at market* → `market`
+   - *Only if it drops to a price* → `limit`
+   - *Only once it breaks above a price* → `stop`
+   - *Break above, but not more than* → `stop_limit`
+   - *Protect with a trailing stop* (sell-side only) → `trailing_stop`
+   Time in force is **Today only (day)** or **Until cancelled (GTC)**.
+3. **Confirm** — names the account and shows the order in one sentence plus the estimated total. A
+   live account requires an explicit confirm before anything is sent.
+
+Direct trades do **not** follow the account's strategy — there is no signal generation involved —
+but they pass through the identical guardrails, live gate, submission-reservation arbiter, and
+disabled-book refusal as every strategy-originated order; there is one order path, not two.
+
+### API added in 1.6.0
+
+- `GET /api/trading/quote?symbol=` — latest price for the selected account's book (Alpaca for paper,
+  Schwab for a live account); 503 if market data isn't connected for that book.
+- `POST /api/trading/decisions/manual` — mints the operator-authored decision the ticket then
+  executes with the existing `POST /api/trading/orders`. Body: `symbol`, `side` (`buy`/`sell`),
+  exactly one of `qty` or `notional`, `orderType` (`market`/`limit`/`stop`/`stop_limit`/
+  `trailing_stop`), the matching `limitPrice`/`stopPrice`/`trailPercent`/`trailPrice`,
+  `timeInForce` (`day`/`gtc`), optional `rationale`, and `book`/`mode` (also accepted as query
+  params, query wins). Returns `decisionId`, `refPrice`, `estNotional`, and `requiresConfirm`.
+- Static UI modules at `/api/trading/ui/*` (`app.js`, `ticket.js`, `shared-positions.js`,
+  `view-accounts.js`, `view-account.js`, `view-strategies.js`, `view-research.js`,
+  `view-reports.js`) — same-origin, auth-gated the same way as the rest of the surface.
+
 ## Strategy Studio (conversational design + refine-in-place)
 
 The **Strategy Studio** tab is a chat (typed or spoken) with the trading-analyst bot.

@@ -128,10 +128,15 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
       await ensureTradingSchema(ctx.pool);
       const book = await routeBook(ctx, sub, req);
       const mode = book.kind;
-      let paperConfigured = false, liveConfigured = false;
+      let paperConfigured = false, liveConfigured = false, bookConfigured = false;
       try { paperConfigured = getBrokerReader('paper', sub).configured(); } catch { /* provider unset */ }
       // Reader (not gated): report whether the LIVE rail is wired regardless of the live-enable switch.
       try { liveConfigured = getBrokerReader('live', sub).configured(); } catch { /* rail unset */ }
+      // bookConfigured = whether THIS book's own bound reader is wired (surface-audit 2026-09-03):
+      // a b-book's Schwab connection can be healthy while the legacy-rail liveConfigured is false,
+      // and vice-versa — the hub's broker-not-connected gate must key on the selected book, not the
+      // env rail. The SPA prefers this field.
+      try { bookConfigured = getBrokerReader(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined).configured(); } catch { /* rail unset */ }
       const counts = (await ctx.pool.query(
         `SELECT
            (SELECT COUNT(*)::int FROM oshal_trading_signals  WHERE user_sub=$1 AND book_id=$2) AS signals,
@@ -140,8 +145,8 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
         [sub, book.bookId])).rows[0];
       res.json({
         provider: process.env.BROKER_PROVIDER || 'alpaca',
-        mode, book: book.ref, liveEnabled: liveTradingEnabled(),
-        paperConfigured, liveConfigured,
+        mode, book: book.ref, bookEnabled: book.enabled, liveEnabled: liveTradingEnabled(),
+        paperConfigured, liveConfigured, bookConfigured,
         guardrails: guardrails(),
         counts: { signals: counts?.signals || 0, decisions: counts?.decisions || 0, orders: counts?.orders || 0 },
       });

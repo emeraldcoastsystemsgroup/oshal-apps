@@ -44,11 +44,12 @@
  * 2026-07-11 05:05:00 | roger.murphy@emeraldcoastsystemsgroup.com | 1000-line cap decomposition (1186 code lines → split): moved shared helpers, the schema bootstrap, the analyst/order core, and the book-read / order-flow / algo+tuning route groups into sibling trading-routes-* modules, all handler code verbatim. This file remains the entry: createTradingRoutes keeps its exact signature and registration order, placeDecisionOrder + POST /trigger stay here (live-gate strings are source-guarded in this file), and the entire prior public API is re-exported so no consumer import changes. Zero route/behavior change.
  * 2026-07-19 16:55:00 | roger.murphy@emeraldcoastsystemsgroup.com | Trading engine extraction (ADR-085 pre-carve): placeDecisionOrder moved VERBATIM to app/trading-engine.ts (with trading-routes-core.ts and the schema bootstrap → app/trading-schema.ts), because 8 kernel dispatch/reconcile loops need the engine and must not import the carvable route surface. This file is now pure surface: createTradingRoutes (unchanged signature + registration order) + POST /trigger (its live-approval gate stays here, source-guarded). The pre-split re-export block removed — every consumer now imports the engine modules directly. Pure code motion — zero route/behavior change.
  * 2026-07-19 23:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | Carved out of OSHAL core into the trading app package (ADR-085 Wave 3, "skill with a surface"). Standard (ctx) factory (the ManifestRouteMounter contract); the surface serves trading.html from ctx.appPackageDir/tools (load-time env fallback, D10) through the kernel's servePage helper. Relative imports flip to @/ aliases: @/app/routes/trading-routes-helpers (callerSub/resolveMode/servePage/guardrails — global-search + the engine also import them, they stay kernel), @/app/routes/connectors-routes (getValidAccessToken), @/app/trading-{schema,engine} (the ENGINE — stays kernel, the 8 dispatch/reconcile loops import it; D8 verified NOT orphaned). Route bodies byte-identical: POST /trigger keeps its route-level live-approval gate VERBATIM (live tickets park in backlog — source-guarded by this package's tests/trading-surface-live-gate.spec.ts; the engine's env-level live_blocked gate stays kernel-guarded in risky-write-guards.spec.ts).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 D6 event playbooks: register the /events/plans route family (trading-event-plan-routes.ts) right after the direct-trade routes — the operator's surface over the kernel event-plan store (IPO watch/entry/exit), book-scoped query-first like every 2026-09-03-audited route.
  *
  * @module trading-routes
  */
 
-import { Router, type Request, type Response } from 'express';
+import { Router, static as serveStatic, type Request, type Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
 import { createChildLogger } from '@/shared/logger';
@@ -63,6 +64,8 @@ import { registerTradingBookReadRoutes } from './trading-routes-book-read-builde
 import { registerTradingOrderFlowRoutes } from './trading-routes-order-flow-builders';
 import { registerTradingAlgoRoutes, registerTradingTuningRoutes } from './trading-routes-algo-builders';
 import { registerTradingAccountRoutes } from './trading-accounts-routes';
+import { registerTradingManualOrderRoutes } from './trading-manual-order-routes';
+import { registerTradingEventPlanRoutes } from './trading-event-plan-routes';
 
 const logger = createChildLogger({ module: 'trading-routes' });
 
@@ -119,6 +122,17 @@ export function createTradingRoutes(ctx: AppContext): Router {
   // preserved anyway so the mounted surface is exactly what it was before the decomposition.
   // ADR-134 PR3: the accounts/books/summary family registers FIRST (most-specific paths).
   registerTradingAccountRoutes(router, ctx);
+  // ADR-136 D2: the surface is a thin shell + per-view modules under tools/ui, served same-origin
+  // behind the SAME auth posture as the surface (this router is mounted service-or-oidc). no-cache
+  // so a redeploy is picked up on the next load without a cache-busting rename; ETags keep it cheap.
+  router.use('/ui', serveStatic(path.join(apiDir, 'ui'), {
+    etag: true, maxAge: 0, index: false, fallthrough: false,
+    setHeaders: (res) => { res.setHeader('Cache-Control', 'no-cache'); },
+  }));
+  // ADR-136 D3: direct trades — operator-authored decisions + quotes (before the generic flow).
+  registerTradingManualOrderRoutes(router, ctx);
+  // ADR-136 D6: event playbooks — the IPO watch/entry/exit plans (before the generic flow).
+  registerTradingEventPlanRoutes(router, ctx);
   registerTradingBookReadRoutes(router, ctx, apiDir);
   registerTradingOrderFlowRoutes(router, ctx, placeDecisionOrder);
 

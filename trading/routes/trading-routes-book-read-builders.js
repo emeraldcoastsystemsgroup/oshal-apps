@@ -111,7 +111,7 @@ function registerTradingBookReadRoutes(router, ctx, apiDir) {
             await (0, trading_schema_1.ensureTradingSchema)(ctx.pool);
             const book = await (0, trading_accounts_routes_1.routeBook)(ctx, sub, req);
             const mode = book.kind;
-            let paperConfigured = false, liveConfigured = false;
+            let paperConfigured = false, liveConfigured = false, bookConfigured = false;
             try {
                 paperConfigured = (0, trading_1.getBrokerReader)('paper', sub).configured();
             }
@@ -121,14 +121,22 @@ function registerTradingBookReadRoutes(router, ctx, apiDir) {
                 liveConfigured = (0, trading_1.getBrokerReader)('live', sub).configured();
             }
             catch { /* rail unset */ }
+            // bookConfigured = whether THIS book's own bound reader is wired (surface-audit 2026-09-03):
+            // a b-book's Schwab connection can be healthy while the legacy-rail liveConfigured is false,
+            // and vice-versa — the hub's broker-not-connected gate must key on the selected book, not the
+            // env rail. The SPA prefers this field.
+            try {
+                bookConfigured = (0, trading_1.getBrokerReader)(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined).configured();
+            }
+            catch { /* rail unset */ }
             const counts = (await ctx.pool.query(`SELECT
            (SELECT COUNT(*)::int FROM oshal_trading_signals  WHERE user_sub=$1 AND book_id=$2) AS signals,
            (SELECT COUNT(*)::int FROM oshal_trading_decisions WHERE user_sub=$1 AND book_id=$2) AS decisions,
            (SELECT COUNT(*)::int FROM oshal_trading_orders    WHERE user_sub=$1 AND book_id=$2) AS orders`, [sub, book.bookId])).rows[0];
             res.json({
                 provider: process.env.BROKER_PROVIDER || 'alpaca',
-                mode, book: book.ref, liveEnabled: (0, trading_1.liveTradingEnabled)(),
-                paperConfigured, liveConfigured,
+                mode, book: book.ref, bookEnabled: book.enabled, liveEnabled: (0, trading_1.liveTradingEnabled)(),
+                paperConfigured, liveConfigured, bookConfigured,
                 guardrails: (0, trading_routes_helpers_1.guardrails)(),
                 counts: { signals: counts?.signals || 0, decisions: counts?.decisions || 0, orders: counts?.orders || 0 },
             });

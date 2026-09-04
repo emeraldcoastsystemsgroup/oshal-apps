@@ -1,0 +1,116 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — Print Ingest
+#
+# Printing becomes an intake gesture. A document printed to the oshal virtual
+# printer arrives here as recovered TEXT, a `print-queue` ticket asks where it
+# belongs, and a human approves the answer before anything is written to a
+# corpus. Approved documents can be filed to SEVERAL destinations at once, on
+# purpose: retrieval ranks within a collection, so a copy close to the bot that
+# needs it is found where a single copy in a large corpus is buried.
+#
+# ADR-135. Installs INACTIVE — nothing is ingested until an operator enables it.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: print-ingest
+suite: ai-knowledge   # ADR-097: primary catalog shelf
+displayName: Print Ingest
+description: >-
+  Print a document to the swarm and decide where it belongs. Everything lands in
+  one inbox with a recommended filing — a bot's corpus, the swarm's shared
+  knowledge, or private to you — and nothing is written until you approve it.
+version: 0.1.0
+# ADR-135 D11 + the standing automation directive: a fresh install does nothing
+# until an operator explicitly activates it.
+status: inactive
+scope: public
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: print-ingest
+  ref: main
+
+# CORE-05 install readiness: reads package metadata only. No user data, no
+# provider call, no state change, no tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/print-ingest/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
+# ── Kernel skills this app calls (ADR-090 D8) — derived from actual imports ──
+#   @/features/rag → rag (the corpus this app files into)
+uses:
+  - rag
+
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+# Lifecycle ownership only (NOT access control — ADR-135 amendment A). Declares
+# the namespace an optional package-owned destination would use, so an operator's
+# `?dropData=true` uninstall can reclaim it. Documents filed to the three shared
+# levels live in collections this app does not own and cannot reclaim, which is
+# why the fan-out set is recorded per document instead.
+ragCollections:
+  - print-drop-*
+
+# ── The classification ticket (ADR-135 D14) ─────────────────────────────────
+# The ticket's job is to answer WHERE a document belongs and have a human
+# confirm it; ingestion is what happens after approval. `graph` is the pipeline
+# that actually executes an approval gate — the interim `staged` executor was
+# retired and silently drops its gates.
+ticketType: print-queue
+workflow:
+  name: Print Queue
+  pipeline: graph
+  workerBot: print-ingest-bot
+
+# ── The bot that owns the domain (ADR-036) ──────────────────────────────────
+# Reason-only concierge: it classifies and proposes. It never files anything —
+# the human approves and the package writes. No container, so it runs inline.
+bots:
+  - agentId: b7c1e340-5a92-4f18-9d63-2f80c4a1e551
+    name: print-ingest-bot
+    persona: personas/print-ingest-bot.yaml
+    role: Print Intake Specialist
+    capabilities:
+      - document-triage
+      - corpus-classification
+      - provenance-review
+
+migrations:
+  - migrations/001-print-ingest.sql
+
+# ── Routes — compiled JS bundled in this package, mounted in-process ─────────
+# service-or-oidc: a person approves in the browser via OIDC; the edge printer
+# and internal callers pass X-Service-Secret + X-OSHAL-User-Sub, which the
+# mounter resolves into the caller sub.
+routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/print-ingest/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/print-ingest-routes.js
+    factory: createPrintIngestRoutes
+    mountPath: /api/print-ingest
+    auth: service-or-oidc
+    requiresContext: true
+    requiresAi: false
+
+ui:
+  static:
+    - toolName: print-ingest
+      label: Print Inbox
+      icon: codicon codicon-inbox
+      iframeUrl: /api/print-ingest/app
+      section: bottom

@@ -53,19 +53,27 @@ describe('resolver — connectionKey-capable, fail-closed (ADR-134 D5.6)', () =>
   });
 });
 
-describe('the switcher actually switches — UI threads book= on every fetch', () => {
+describe('the switcher actually switches — UI threads book= on every fetch (ADR-136: runtime lives in tools/ui/app.js)', () => {
+  const app = src('tools/ui/app.js');
   const html = src('tools/trading.html');
 
-  it('api() carries book=', () => {
-    expect(html).toContain("'&mode=' + MODE");
-    expect(html).toContain("'?' : '?'".length >= 0 ? "book=" : 'book=');
-    expect(html).toMatch(/book=' \+ encodeURIComponent\(BOOK\)/);
+  it('api() carries book= in the query AND injects book+mode into JSON bodies (the 2026-09-03 paper-routing class)', () => {
+    expect(app).toContain("'&mode=' + MODE");
+    expect(app).toMatch(/book=' \+ encodeURIComponent\(BOOK\)/);
+    expect(app).toContain('if (parsed.book === undefined) parsed.book = BOOK;');
+    expect(app).toContain('if (parsed.mode === undefined) parsed.mode = MODE;');
   });
 
-  it('the accounts + summary tabs exist and are deep-linkable', () => {
-    expect(html).toContain("['accounts','Accounts & books']");
-    expect(html).toContain("['summary','All accounts']");
-    expect(html).toMatch(/'accounts','summary'\]\.includes\(q\)/);
+  it('the four top-level views exist in the shell and the router whitelists exactly them (+ account detail)', () => {
+    for (const v of ['accounts', 'strategies', 'research', 'reports']) expect(html).toContain(`data-view="${v}"`);
+    expect(app).toContain("const VIEWS = ['accounts','account','strategies','research','reports'];");
+    // legacy ?tab= deep links keep working
+    expect(app).toMatch(/summary:\['accounts', null\]/);
+    expect(app).toMatch(/accounts:\['strategies','roster'\]/);
+  });
+
+  it('navigation clears the per-symbol cache and bumps the render token (no cross-account paint)', () => {
+    expect(app).toMatch(/function navigate\([\s\S]{0,600}UNIVERSE = \{\}; CURRENT = null;[\s\S]{0,100}RENDER_TOKEN \+= 1;/);
   });
 });
 
@@ -80,6 +88,17 @@ describe('no unbound broker readers — the wrong-balances class (operator-repor
         .filter((m) => !/['"](paper|live)['"], sub\)$/.test(m));
       expect(twoArg, `${f} has unbound account-data reader calls: ${twoArg.join(' | ')}`).toEqual([]);
     }
+  });
+
+  it('/summary builds every reader from a LOADED book, never a list row (list rows omit the binding)', () => {
+    const accounts = src('src-routes/trading-accounts-routes.ts');
+    // The 2026-09-02 shape: the reader call HAD a binding argument, but the book came from
+    // listBooks — whose rows carry accountNumber:null by design — so the binding was always
+    // undefined and every live-kind book read the legacy account. The guard: inside the /summary
+    // books loop the reader's book must come from loadBook.
+    expect(accounts).toMatch(/for \(const listed of books\) \{[\s\S]{0,1200}?await loadBook\(ctx\.pool, s, listed\.bookId\)[\s\S]{0,800}?getBrokerReader\(book\.kind/);
+    // And the corrected shape must NOT fall back to the list row (the ?? listed pattern is banned).
+    expect(accounts).not.toMatch(/await loadBook\(ctx\.pool, s, listed\.bookId\)\)?\s*\?\?\s*listed/);
   });
 
   it('/ledger resolves the BOOK and keys its orders by book_id', () => {

@@ -23,9 +23,9 @@ import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
 import {
   getMarketData, scoreSymbol, ensemble, dailyCloses, latestPrice, marketDataConfigured, algoNames,
-  type TradingMode, type AlgoSignal, type EnsembleDecision,
+  type TradingMode, type TradingBook, type AlgoSignal, type EnsembleDecision,
 } from '@/features/trading';
-import { callerSub, resolveMode, guardrails, TradingError } from '@/app/routes/trading-routes-helpers';
+import { callerSub, resolveMode, resolveBook, guardrails, TradingError } from '@/app/routes/trading-routes-helpers';
 import { ensureTradingSchema } from '@/app/trading-schema';
 import { resolveMaturedPredictions } from '@/app/trading-engine';
 import { loadStrategyParams, loadStrategyParamsDetailed } from '@/app/trading-strategy-params';
@@ -54,7 +54,8 @@ async function recordPredictions(pool: AppContext['pool'], sub: string, mode: Tr
 
 /** Run the algorithms over live market data and fold them into a DETERMINISTIC decision (no LLM).
  *  Captures the scan as a provenance signal so the order still chains signal → decision → order. */
-async function algoEnsembleDecision(pool: AppContext['pool'], sub: string, mode: TradingMode, symbol: string): Promise<{ decisionId: string; decision: Record<string, unknown>; signals: AlgoSignal[]; ensemble: EnsembleDecision; price: number }> {
+async function algoEnsembleDecision(pool: AppContext['pool'], sub: string, book: TradingBook, symbol: string): Promise<{ decisionId: string; decision: Record<string, unknown>; signals: AlgoSignal[]; ensemble: EnsembleDecision; price: number }> {
+  const mode = book.kind;
   // Per-mode data source: paper reads Alpaca (IEX), the live book reads the caller's Schwab feed.
   const md = getMarketData(mode, sub);
   if (!md.configured()) throw new TradingError(503, 'market_data_not_configured', md.kind === 'schwab' ? 'Connect your Charles Schwab account for live market data.' : 'Set Alpaca data keys (ALPACA_PAPER_KEY_ID/_SECRET).');
@@ -71,22 +72,25 @@ async function algoEnsembleDecision(pool: AppContext['pool'], sub: string, mode:
 
   const artifact = JSON.stringify({ source: 'algo-scan', symbol: SYM, price, signals, ensemble: ens });
   const hash = crypto.createHash('sha256').update(artifact).digest('hex');
+  // book_id explicit (surface-audit 2026-09-03): without it the trigger stamps the legacy book of
+  // `mode`, so a b-book's algo signal/decision landed under the legacy live book and POST /orders
+  // on the b-book 404'd — the deterministic ticket was dead on account books.
   const sig = (await pool.query(
-    `INSERT INTO oshal_trading_signals (user_sub, mode, source, title, body, symbols, indicators, content_hash)
-       VALUES ($1,$2,'algo-scan',$3,$4,$5,$6,$7)
-     ON CONFLICT (user_sub, mode, content_hash) DO UPDATE SET observed_at = oshal_trading_signals.observed_at
+    `INSERT INTO oshal_trading_signals (user_sub, mode, book_id, source, title, body, symbols, indicators, content_hash)
+       VALUES ($1,$2,$3,'algo-scan',$4,$5,$6,$7,$8)
+     ON CONFLICT (user_sub, book_id, content_hash) DO UPDATE SET observed_at = oshal_trading_signals.observed_at
      RETURNING signal_id`,
-    [sub, mode, `Algo scan ${SYM} @ ${price}`, JSON.stringify({ signals, ensemble: ens }), [SYM], JSON.stringify({ price, signals, ensemble: ens }), hash])).rows[0];
+    [sub, mode, book.bookId, `Algo scan ${SYM} @ ${price}`, JSON.stringify({ signals, ensemble: ens }), [SYM], JSON.stringify({ price, signals, ensemble: ens }), hash])).rows[0];
 
   const g = guardrails(); const qty = Number(process.env.TRADING_ALGO_QTY || 1);
   const rationale = `Deterministic ensemble of ${signals.length} algos — score ${ens.score}, confidence ${ens.confidence}: `
     + signals.map((s) => `${s.algo}:${s.dir}(${s.confidence.toFixed(2)})`).join(', ') + '.';
   const row = (await pool.query(
     `INSERT INTO oshal_trading_decisions
-       (user_sub, mode, signal_ids, agent_id, action, symbol, side, qty, order_type, confidence, rationale, indicators, guardrails)
-     VALUES ($1,$2,$3::uuid[],'algo-ensemble',$4,$5,$6,$7,'market',$8,$9,$10,$11)
+       (user_sub, mode, book_id, signal_ids, agent_id, action, symbol, side, qty, order_type, confidence, rationale, indicators, guardrails)
+     VALUES ($1,$2,$3,$4::uuid[],'algo-ensemble',$5,$6,$7,$8,'market',$9,$10,$11,$12)
      RETURNING decision_id`,
-    [sub, mode, [sig.signal_id], ens.action, ens.action === 'hold' ? null : SYM, ens.side,
+    [sub, mode, book.bookId, [sig.signal_id], ens.action, ens.action === 'hold' ? null : SYM, ens.side,
      ens.action === 'hold' ? null : qty, ens.confidence, rationale, JSON.stringify(signals), JSON.stringify(g)])).rows[0];
   return { decisionId: row.decision_id, decision: { action: ens.action, symbol: SYM, side: ens.side, qty: ens.action === 'hold' ? null : qty, confidence: ens.confidence, score: ens.score, rationale }, signals, ensemble: ens, price };
 }
@@ -191,11 +195,12 @@ export function registerTradingAlgoRoutes(router: Router, ctx: AppContext): void
   router.post('/decide-algo', async (req: Request, res: Response) => {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
-    const b = (req.body || {}) as { mode?: string; symbol?: string };
+    const b = (req.body || {}) as { mode?: string; book?: string; symbol?: string };
     if (!b.symbol) { res.status(400).json({ error: 'symbol_required', message: 'A symbol is required.' }); return; }
     try {
       await ensureTradingSchema(ctx.pool);
-      const out = await algoEnsembleDecision(ctx.pool, sub, resolveMode(b.mode), String(b.symbol));
+      const book = await resolveBook(ctx.pool, sub, (req.query.book as string | undefined) ?? (b.book as string | undefined) ?? (req.query.mode as string | undefined) ?? (b.mode as string | undefined));
+      const out = await algoEnsembleDecision(ctx.pool, sub, book, String(b.symbol));
       res.json({ ok: true, ...out });
     } catch (err) {
       if (err instanceof TradingError) { res.status(err.httpStatus).json({ error: err.code, message: err.message }); return; }
