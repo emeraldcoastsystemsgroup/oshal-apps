@@ -88,7 +88,8 @@ function render() {
     tr.innerHTML =
       '<td class="name">' + esc(c.name) + '</td>' +
       '<td class="jobs">' + (c.active_jobs || 0).toLocaleString() + '</td>' +
-      '<td><span class="' + (c.ats_type ? 'pill' : 'pill none') + '">' + esc(c.ats_type || 'none') + '</span></td>' +
+      '<td><span class="' + (c.ats_type ? 'pill' : 'pill none') + '">' + esc(c.ats_type || 'none') + '</span>' +
+      (String(c.source_lists || '').includes('"user:') ? ' <span class="pill" title="added through a user\'s own target list">user-added</span>' : '') + '</td>' +
       '<td><div class="urlcell"><input class="url" value="' + esc(c.careers_url || '') + '" ' +
       'placeholder="paste careers / jobs search URL…" /><button>Resolve</button></div>' +
       '<div class="msg" hidden></div></td>';

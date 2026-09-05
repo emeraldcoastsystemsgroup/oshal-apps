@@ -4,6 +4,8 @@
  * DATE/TIME           | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-30 04:45:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial guard for the always-on scan: config layering + per-scope authority + clamping, the manifest-is-the-config contract (every knob must be declared in oshal-app.yaml), snapshot freshness, the alert gate (floors, first-seen dedup, top-N, daily budget), and two structural checks that the scan can never crawl back onto the request path.
+ * 2026-09-04 23:40:00 | roger.murphy@emeraldcoastsystemsgroup.com   | summarizeAlertRecord: settled-only counting, null rates until decided, P&L averaged over graded rows only; and a structural check that the compiled listAlerts/alertRecord really join kalshi_predictions on SCAN_STRATEGY (the outcome column is only as real as that join).
+ * 2026-09-04 23:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | contrarianExtremeRow: the rule as pre-registered (inclusive .90/.10 threshold, flip priced at 1 - our bid from the spread, +.10 claim capped at .99, zero stake, no-bid/edge-of-book refusals, fee rounding matches the engine) and a structural check that the compiled scan really registers CONTRARIAN_EXTREME_STRATEGY rows right after its own.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install) over the
  * COMPILED pure module — the same bytes the running framework requires.
@@ -25,6 +27,9 @@ const cfg = require(path.join(PKG, 'routes', 'kalshi-scan-config.js'));
 const {
   KALSHI_SCAN_DEFAULTS, SCOPE_OF, clampScanConfig, formatAlert, keysForScope,
   manifestConfigDefaults, resolveScanConfig, scanFreshness, scopedPatch, selectAlertHands,
+  summarizeAlertRecord,
+  CONTRARIAN_EXTREME_STRATEGY, CONTRARIAN_EXTREME_MIN_PROB, CONTRARIAN_CLAIMED_OVERPRICING,
+  contrarianExtremeRow, quadraticFeePerContract,
 } = cfg;
 
 /** A hand as the evaluator emits it (edgeNet is DOLLARS; the alert floor is cents). */
@@ -272,4 +277,129 @@ test('every element the surface script reaches for actually exists in the HTML',
     assert.ok(html.includes(`data-panel="${panel}"`), `missing tab panel: ${panel}`);
     assert.ok(html.includes(`data-tab="${panel}"`), `missing tab button: ${panel}`);
   }
+});
+
+/* ── The win/loss record (operator, 2026-09-04: "where is the win loss record") ─────────── */
+test('the alert record counts only settled rows; open markets are open, not losses', () => {
+  const rec = summarizeAlertRecord([
+    { settled: true, won: true, pnl_per_contract: '0.40' },
+    { settled: true, won: false, pnl_per_contract: -0.05 },
+    { settled: true, won: false, pnl_per_contract: '-0.10' },
+    { settled: false, won: null, pnl_per_contract: null },
+    { settled: null },
+    {},
+  ]);
+  assert.equal(rec.alerted, 6);
+  assert.equal(rec.settled, 3);
+  assert.equal(rec.wins, 1);
+  assert.equal(rec.losses, 2);
+  assert.equal(rec.open, 3);
+  assert.ok(Math.abs(rec.hitRate - 1 / 3) < 1e-12);
+  assert.ok(Math.abs(rec.pnlPerContract - (0.40 - 0.05 - 0.10) / 3) < 1e-12);
+  assert.ok(Math.abs(rec.pnlTotal - 0.25) < 1e-12);
+});
+
+test('a record with nothing decided reports null rates, never a 0% that reads as "always wrong"', () => {
+  const empty = summarizeAlertRecord([]);
+  assert.deepEqual(empty, { alerted: 0, settled: 0, wins: 0, losses: 0, open: 0, hitRate: null, pnlPerContract: null, pnlTotal: null });
+  const open = summarizeAlertRecord([{ settled: false }, { settled: false }]);
+  assert.equal(open.open, 2);
+  assert.equal(open.hitRate, null);
+  assert.equal(open.pnlPerContract, null);
+});
+
+test('a settled row without a grade is settled but neither a win nor a loss, and P&L averages graded rows only', () => {
+  const rec = summarizeAlertRecord([
+    { settled: true, won: null, pnl_per_contract: null },
+    { settled: true, won: true, pnl_per_contract: 0.5 },
+  ]);
+  assert.equal(rec.settled, 2);
+  assert.equal(rec.wins, 1);
+  assert.equal(rec.losses, 0);
+  assert.equal(rec.hitRate, 1);
+  assert.equal(rec.pnlPerContract, 0.5);
+});
+
+test('the compiled alert reads really join the ledger to the graded predictions on the scan strategy', () => {
+  const engine = fs.readFileSync(path.join(PKG, 'routes', 'kalshi-scan-engine.js'), 'utf8');
+  const listStart = engine.indexOf('async function listAlerts(');
+  const recordStart = engine.indexOf('async function alertRecord(');
+  assert.ok(listStart >= 0 && recordStart > listStart, 'listAlerts then alertRecord must both be compiled');
+  const list = engine.slice(listStart, recordStart);
+  const record = engine.slice(recordStart, recordStart + 1200);
+  for (const fn of [list, record]) {
+    assert.match(fn, /LEFT JOIN kalshi_predictions p ON p\.ticker = a\.ticker AND p\.strategy = \$\d/);
+    assert.match(fn, /CASE WHEN p\.settled THEN \(\(p\.side = 'yes'\) = p\.settled_yes\) END AS won/);
+    assert.match(fn, /SCAN_STRATEGY/);
+  }
+  assert.match(record, /summarizeAlertRecord\)\(rows\)/);
+});
+
+/* ── The pre-registered contrarian hypothesis (operator, 2026-09-04) ───────────────────────── */
+test('an extreme favorite flips to the other side at 1 - our bid, claimed +.10, stake zero', () => {
+  // We say 95% on YES at 93c with a 2c spread -> our bid 91c -> the NO ask is 9c.
+  const row = contrarianExtremeRow(hand({ side: 'yes', price: 0.93, trueProb: 0.95, spread: 0.02, closeTime: '2026-09-06T00:00:00.000Z' }));
+  assert.ok(row);
+  assert.equal(row.strategy, CONTRARIAN_EXTREME_STRATEGY);
+  assert.equal(row.side, 'no');
+  assert.equal(row.marketProb, 0.09);
+  assert.ok(Math.abs(row.predictedProb - 0.19) < 1e-12);
+  assert.equal(row.stakeFraction, 0);
+  assert.equal(row.seriesTicker, 'KXTEST');
+  assert.equal(row.eventTicker, 'KXTEST-26JUL30');
+  assert.equal(row.closeTime, '2026-09-06T00:00:00.000Z');
+  // fee on a 9c contract: ceil(0.07*10*0.09*0.91*100)/100/10 = 0.006
+  assert.ok(Math.abs(quadraticFeePerContract(0.09) - 0.006) < 1e-12);
+  assert.ok(Math.abs(row.edgeNet - (0.19 - 0.09 - 0.006)) < 1e-12);
+  assert.deepEqual(row.rationale, {
+    flippedFrom: 'calibration', rule: 'trueProb >= 0.9 or <= 0.1', ourSide: 'yes', ourProb: 0.95,
+    ourAsk: 0.93, ourBid: 0.91, spread: 0.02, claimedOverpricing: CONTRARIAN_CLAIMED_OVERPRICING,
+  });
+});
+
+test('an extreme longshot flips to the favorite, and the claim is capped at .99', () => {
+  // We say 5% on YES at 6c with a 3c spread -> our bid 3c -> the NO ask is 97c -> claim capped at 99%.
+  const row = contrarianExtremeRow(hand({ side: 'yes', price: 0.06, trueProb: 0.05, spread: 0.03 }));
+  assert.ok(row);
+  assert.equal(row.side, 'no');
+  assert.equal(row.marketProb, 0.97);
+  assert.equal(row.predictedProb, 0.99);
+  assert.ok(row.edgeNet > 0 && row.edgeNet < 0.02);
+});
+
+test('the threshold is inclusive at .90 / .10 and nothing in between registers', () => {
+  assert.equal(CONTRARIAN_EXTREME_MIN_PROB, 0.9);
+  assert.ok(contrarianExtremeRow(hand({ trueProb: 0.90, price: 0.85, spread: 0.02 })));
+  assert.ok(contrarianExtremeRow(hand({ trueProb: 0.10, price: 0.12, spread: 0.02 })));
+  assert.equal(contrarianExtremeRow(hand({ trueProb: 0.89, price: 0.85, spread: 0.02 })), null);
+  assert.equal(contrarianExtremeRow(hand({ trueProb: 0.11, price: 0.12, spread: 0.02 })), null);
+  assert.equal(contrarianExtremeRow(hand({ trueProb: 0.62, price: 0.55, spread: 0.02 })), null);
+});
+
+test('no bid means no flip price: spread 1 / missing spread / bid <= 0 / edge-of-book asks all refuse', () => {
+  assert.equal(contrarianExtremeRow(hand({ trueProb: 0.95, price: 0.93, spread: 1 })), null);
+  assert.equal(contrarianExtremeRow(hand({ trueProb: 0.95, price: 0.93 })), null);
+  assert.equal(contrarianExtremeRow(hand({ trueProb: 0.95, price: 0.02, spread: 0.02 })), null);
+  // our bid 0.005 -> flip ask 0.995 -> unusable
+  assert.equal(contrarianExtremeRow(hand({ trueProb: 0.05, price: 0.01, spread: 0.005 })), null);
+  assert.equal(contrarianExtremeRow(hand({ trueProb: NaN, price: 0.93, spread: 0.02 })), null);
+});
+
+test('a NO hand flips to YES', () => {
+  const row = contrarianExtremeRow(hand({ side: 'no', price: 0.92, trueProb: 0.94, spread: 0.04 }));
+  assert.equal(row.side, 'yes');
+  assert.equal(row.marketProb, 0.12);
+  assert.equal(row.rationale.ourSide, 'no');
+});
+
+test('the compiled scan registers the contrarian sibling right after its own predictions, immutably', () => {
+  const engine = fs.readFileSync(path.join(PKG, 'routes', 'kalshi-scan-engine.js'), 'utf8');
+  assert.match(engine, /await recordScanPredictions\(pool, hands\);\s*\r?\n\s*await recordContrarianPredictions\(pool, hands\);/);
+  const start = engine.indexOf('async function recordContrarianPredictions(');
+  assert.ok(start >= 0);
+  const fn = engine.slice(start, start + 1400);
+  assert.match(fn, /contrarianExtremeRow\)\(h\)/);
+  assert.match(fn, /CONTRARIAN_EXTREME_STRATEGY/);
+  assert.match(fn, /ON CONFLICT \(strategy, ticker\) DO NOTHING/);
+  assert.match(fn, /row\.stakeFraction/);
 });

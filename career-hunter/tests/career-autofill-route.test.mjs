@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { linkSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import Module from 'node:module';
+import { deploymentModeStub } from './helpers/deployment-mode-stub.mjs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -19,6 +20,7 @@ const fixtureRoot = mkdtempSync(join(tmpdir(), 'career-autofill-route-'));
 const originalLoad = Module._load;
 
 Module._load = function loadAutofillRoute(request, ...rest) {
+  if (request === '@/shared/deployment-mode') return deploymentModeStub();
   if (request === '@/shared/logger') {
     return { createChildLogger: () => ({ error() {}, info() {}, warn() {}, debug() {} }) };
   }

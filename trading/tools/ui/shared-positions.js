@@ -8,6 +8,11 @@
  * loaders predate tokens and are only ever invoked from a render that already checked the token,
  * so they are unchanged. Labels that once derived the account name from MODE now use DISP (the
  * human label of the selected book); the LIVE wording stays wherever it warns about real money.
+ *
+ * ADR-138: window.PINNED_BY_SYMBOL ({SYM: qty}, published by the account view's Protected lots card)
+ * marks a held symbol with a 'pinned N' pill in the positions table and the focus pane — those shares
+ * are ring-fenced from the autopilot. Absent map → no pill; drawFocusChart(sym) is also reused by the
+ * Research view's stock tab (it only needs a #focChart host).
  */
 
 /* ── KPI strip + positions → universe seed ───────────────────── */
@@ -138,6 +143,12 @@ function posSortVal(p) {
     default: return Number(p.marketValue)||0;
   }
 }
+/* ADR-138: 'pinned N' after a symbol whose shares (in part or whole) sit in protected lots. */
+function pinnedPill(sym) {
+  const m = window.PINNED_BY_SYMBOL, n = m && m[sym] != null ? Number(m[sym]) : 0;
+  if (!(n > 0)) return '';
+  return ' <span class="pill pinned" title="' + n + ' share' + (n === 1 ? ' is a protected lot' : 's are protected lots') + ' — ring-fenced from the autopilot">pinned ' + n + '</span>';
+}
 function renderPortfolioTable() {
   const host = $('positionsHero'); if (!host) return;
   const pos = STATE.positions || [];
@@ -154,7 +165,7 @@ function renderPortfolioTable() {
     const dayPl = p.unrealizedIntradayPl!=null?Number(p.unrealizedIntradayPl):null;
     const dayPct = p.changeToday!=null?Number(p.changeToday)*100:null;
     return '<tr data-fsym="' + esc(p.symbol) + '" class="pos-row' + (p.symbol===CURRENT?' active':'') + '" style="cursor:pointer">' +
-      '<td><strong>' + esc(p.symbol) + '</strong></td>' +
+      '<td><strong>' + esc(p.symbol) + '</strong>' + pinnedPill(p.symbol) + '</td>' +
       '<td>' + sigPill + '</td>' +
       '<td class="num">' + (p.qty) + '</td>' +
       '<td class="num">' + money(p.avgEntryPrice) + '</td>' +
@@ -216,7 +227,7 @@ function focus(sym) {
   ) : '';
   host.innerHTML =
     '<div class="det-head"><div class="det-id">' +
-      '<h2>' + esc(sym) + ' ' + stancePill + (u.held?'<span class="pill own">held ' + (u.qty||0) + '</span>':'') + '</h2>' +
+      '<h2>' + esc(sym) + ' ' + stancePill + (u.held?'<span class="pill own">held ' + (u.qty||0) + '</span>':'') + pinnedPill(sym) + '</h2>' +
       '<div class="det-price">' + (u.price?money(u.price):'—') + '</div>' +
       '<div class="det-meta">' + chg + (u.avg?('<span>avg ' + money(u.avg) + '</span>'):'') + (u.retPct!=null?('<span class="' + (u.retPct>=0?'ok':'err') + '">' + pct(u.retPct) + ' unreal</span>'):'') + '</div>' +
     '</div><div class="tf-switch" id="focTf">' + tfs.map(t => '<button data-tf="' + t + '"' + (t===FOC_TF?' class="on"':'') + '>' + t + '</button>').join('') + '</div></div>' +

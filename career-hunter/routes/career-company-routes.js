@@ -7,6 +7,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Extracted administrator-only shared-company inspection and career-board refresh routes.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Content-negotiate the admin denial. The Companies ribbon entry points an iframe at the /companies-admin SURFACE route, but the gate answered every caller with res.status(403).json(...) — so with CAREER_HUNTER_ADMIN_SUBS unset in the deployment the operator saw a raw JSON body wrapped in the browser's built-in JSON viewer ("Pretty print" checkbox) instead of a page. Browser navigations now get a themed 403 HTML page naming the env var an operator sets; fetch/XHR callers keep the JSON 403, and the status is unchanged because this is a real authorization boundary. Also logs the EMPTY-allowlist case distinctly from "caller is not an admin" — an unset env var was previously indistinguishable from a normal denial and took a live container inspection to diagnose.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Denial log records req.path, not req.originalUrl — the query string on a DENIED request is unbounded caller-controlled input (seturl carries a whole URL) and was being written into the WARN line.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | The admin list carries each company's source_lists so the portal table shows which rows arrived through a user's own target list (`user:<sub>` provenance) rather than the seeds.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isCareerAdmin = isCareerAdmin;
@@ -125,7 +126,7 @@ function listCompanies(req, res) {
         return;
     }
     try {
-        const companies = db.prepare(`SELECT c.id, c.name, c.ats_type, c.ats_token, c.careers_url, c.discover_status,
+        const companies = db.prepare(`SELECT c.id, c.name, c.ats_type, c.ats_token, c.careers_url, c.discover_status, c.source_lists,
               (SELECT COUNT(*) FROM corpus.postings_corpus p WHERE p.company_id=c.id AND p.active=1) AS active_jobs
          FROM corpus.companies c
         ORDER BY active_jobs DESC, c.name`).all();

@@ -11,7 +11,7 @@
 const assert = require('node:assert');
 const {
   buildRecommendation, proposeTitle, ruleMatches, ruleMayAutoApprove,
-  destinationCatalog, destinationsForCaller,
+  destinationCatalog, destinationsForCaller, isOperatorIdentity,
 } = require('../routes/print-classify.js');
 
 const CATALOG = [
@@ -195,6 +195,37 @@ function run() {
     assert.deepStrictEqual(destinationsForCaller(catalog, false).map((d) => d.id), ['private'],
       'a non-admin is never offered the kernel-reserved swarm level');
     assert.deepStrictEqual(destinationsForCaller(catalog, true).map((d) => d.id), ['private', 'swarm']);
+  });
+
+  // --- operator identity, from the kernel's allowlist ---------------------
+  check(() => {
+    // Regression: the first live test denied a genuine operator the swarm
+    // destination because this read an OIDC `roles` claim, and a
+    // personal-access-token session carries none. The allowlist is the signal.
+    const env = {
+      OSHAL_OPERATOR_SUBS: 'example-user-sub,auth0|second',
+      OSHAL_OPERATOR_EMAILS: 'Op@Example.com , other@example.com',
+    };
+    assert.strictEqual(isOperatorIdentity('example-user-sub', null, env), true, 'sub on the allowlist');
+    assert.strictEqual(isOperatorIdentity('auth0|second', null, env), true, 'second sub on the allowlist');
+    assert.strictEqual(isOperatorIdentity(null, 'op@example.com', env), true, 'email match is case-insensitive');
+    assert.strictEqual(isOperatorIdentity(null, '  OP@EXAMPLE.COM  ', env), true, 'and whitespace-tolerant');
+    assert.strictEqual(isOperatorIdentity('someone-else', 'nobody@example.com', env), false, 'anyone else is not');
+  });
+  check(() => {
+    // An OIDC subject is case-sensitive; treating it otherwise would admit a
+    // different principal than the one allowlisted.
+    const env = { OSHAL_OPERATOR_SUBS: 'auth0|AbC' };
+    assert.strictEqual(isOperatorIdentity('auth0|AbC', null, env), true);
+    assert.strictEqual(isOperatorIdentity('auth0|abc', null, env), false, 'subs compare exactly');
+  });
+  check(() => {
+    assert.strictEqual(isOperatorIdentity('anyone', 'anyone@example.com', {}), false,
+      'no allowlist configured means nobody is an operator - fails closed');
+    assert.strictEqual(isOperatorIdentity(null, null, { OSHAL_OPERATOR_SUBS: 'x' }), false,
+      'an anonymous caller is never an operator');
+    assert.strictEqual(isOperatorIdentity('', '', { OSHAL_OPERATOR_EMAILS: '' }), false,
+      'empty values never match an empty allowlist entry');
   });
 
   // --- ownership is never inferred ---------------------------------------

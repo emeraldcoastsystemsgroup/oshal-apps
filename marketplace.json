@@ -307,7 +307,7 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "Reads openings from employers' own public ATS job feeds into a shared corpus, scores every posting against your private career profile, and turns the best fits into a human-in-the-loop application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume + cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.",
-      "version": "1.12.3",
+      "version": "1.13.0",
       "dependencies": {
         "apps": ["portrait-studio"],
         "tools": [],
@@ -387,8 +387,8 @@
       "name": "portrait-studio",
       "suite": "ai-creative",
       "displayName": "Portrait Studio",
-      "description": "Turn any photo into a portrait worth framing — take it with your camera or upload one, then 225 presets × 200 backdrops: business, slice of life, sun & sea, sports, world travel, sci-fi, history and fantasy, with interchangeable clothing, hats, props and finishes. Group mode boxes every face in one photo and puts the whole crew in a scene — superhero team, pirate crew, samurai clan, band cover. Export passport-size squares (300×300 / 600×600) or email a portrait straight from the gallery over your own connected mailbox.",
-      "version": "1.6.0",
+      "description": "Turn any photo into a portrait worth framing — take it with your camera or upload one, then 225 presets × 200 backdrops: business, slice of life, sun & sea, sports, world travel, sci-fi, history and fantasy, with interchangeable clothing, hats, props and finishes. Group mode puts the whole crew in one scene — box every face in a group shot, or pull faces from several photos. Export passport squares (300/600) or 4×6 prints in portrait/landscape, email a portrait from the gallery over your own connected mailbox, or send it to any other swarm app — and receive images sent here from anywhere (ADR-139).",
+      "version": "1.8.0",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -835,7 +835,7 @@
       "suite": "ai-finance",
       "displayName": "Kalshi Prediction Markets",
       "description": "Find mispriced event contracts on Kalshi (ADR-094). Every open market is evaluated like a poker hand - calibrated true probability (from Kalshi's own settled-market tape, no history means no edge) versus price plus fees - and playable hands are ranked with quarter-Kelly stakes and explicit risk flags. Portfolio + order placement ride the per-user connector, confirm-gated and demo-exchange-first (KALSHI_LIVE_ENABLED gates live money; every order and refusal audited). The prediction-markets engine, the kalshi connector + broker key, the calibration/forward-test CLIs, and the default tile stay framework-resident; this package is the surface + confirm-gated order routes over them. The scan runs in the BACKGROUND on a cadence configured in the manifest (default hourly) and posts new playable hands to the user's Jarvis feed; the surface serves the last snapshot instantly instead of waiting on a feed walk, and the cadence/alert thresholds are editable from the app's Settings tab.",
-      "version": "1.1.0",
+      "version": "1.1.2",
       "theme": "midnight",
       "dependencies": {
         "apps": [],

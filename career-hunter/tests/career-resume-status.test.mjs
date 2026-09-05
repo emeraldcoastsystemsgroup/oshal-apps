@@ -14,6 +14,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import Module from 'node:module';
+import { deploymentModeStub } from './helpers/deployment-mode-stub.mjs';
 
 const require = createRequire(import.meta.url);
 const fixtureRoot = mkdtempSync(join(tmpdir(), 'career-resume-status-'));
@@ -30,6 +31,7 @@ function multerStub() {
 multerStub.memoryStorage = () => ({});
 
 Module._load = function loadWithStatusStubs(request, ...rest) {
+  if (request === '@/shared/deployment-mode') return deploymentModeStub();
   if (request === '@/shared/logger') {
     return { createChildLogger: () => ({ info() {}, warn() {}, error() {}, debug() {} }) };
   }

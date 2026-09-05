@@ -33,6 +33,15 @@
 # below, stores the result in kalshi_scan_snapshots, and posts NEW playable hands to each
 # entitled user's Jarvis feed. GET /scan serves that snapshot instantly. Before this, a
 # cold open paid a 23-second feed walk (live log: openPaged=60000 evaluable=6 ms=23125).
+# 2026-09-04 — 1.1.1: the Alerts tab shows each announced hand's settlement OUTCOME and a W-L record
+# line. The grades were always in kalshi_predictions (every alerted hand is pre-registered and graded
+# daily); the surface never showed them per alert ("where is the win/loss record").
+#
+# 2026-09-04 — 1.1.2: the "contrarian-extreme" forward test. For every scan hand with our P >= .90 or
+# <= .10 the OPPOSITE side is pre-registered at its own ask (= 1 - our bid), zero stake, graded by the
+# same daily judge. Operator: "bet against ourselves at the extremes". A hypothesis, not a strategy —
+# in-sample it made ~6c a contract on 79 hands, one survivor of fourteen variants.
+#
 # Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -45,7 +54,7 @@ description: >-
   playable hands are ranked with Kelly-sized stakes and explicit risk flags. Portfolio view and
   order placement ride the per-user connector, confirm-gated and demo-exchange-first
   (KALSHI_LIVE_ENABLED gates live money; every order and refusal is audited).
-version: 1.1.0
+version: 1.1.2
 status: active
 
 source:

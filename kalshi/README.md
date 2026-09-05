@@ -183,6 +183,21 @@ Phase 2 (order placement) is shipped and live-verified against the real exchange
 confirm-gated. Phase 1 needs no credentials (public market data), which is why the background scan
 can run for the whole deployment.
 
+**Where the win/loss record is.** Every hand the scan announces is pre-registered as a prediction
+(`kalshi_predictions`, strategy `calibration`) and graded at settlement by the daily grader in the core
+repo (`scripts/oshal-kalshi-grade.ts`, the "OSHAL Kalshi Forward Test" scheduled task). Two places show
+it: the **Scorecard** tab (per-strategy Brier vs the market, hit rate, P&L per contract — the staking
+gate) and, since 1.1.1, the **Alerts** tab (each announced hand's WIN/LOSS and one-contract P&L, plus a
+W-L record line; `GET /api/kalshi/alerts` returns `record`). It is a paper record: an alert never
+places an order.
+
+**The contrarian forward test (1.1.2).** "Bet against ourselves at the extremes" is pre-registered as
+the zero-stake strategy `contrarian-extreme`: for every scan hand with our P >= .90 or <= .10, the
+opposite side at its own ask (one minus our bid, from the hand's spread), with the claim that the market
+is 10 points too generous to our side. Rule in `src-routes/kalshi-scan-config.ts`; rows land in the same
+ledger and are graded by the same daily grader, so it shows on the Scorecard tab and stakes nothing until
+PROVEN. Its weather twin, `contrarian-weather-disagree`, lives in the core repo's forward script.
+
 **Read `docs/apps/kalshi/strategy-verdict.md` in the core repo before proposing a strategy.** Three
 strategy families have been tested and all three were falsified; the honest state is that the
 system *correctly folding* is the win. The background scan makes candidates cheap to watch — it

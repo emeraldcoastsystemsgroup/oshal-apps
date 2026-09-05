@@ -150,6 +150,14 @@
   .summary-box { background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:12px 14px; font-size:13px; line-height:1.6; }
   .summary-box b { font-size:15px; }
 
+  /* single-stock research, watchlist and protected lots (ADR-138) */
+  .research-grid { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(300px,.9fr); gap:16px; }
+  @media (max-width:1000px){ .research-grid { grid-template-columns:1fr; } }
+  .news-item { padding:8px 0; border-bottom:1px solid var(--line); }
+  .filing-row { display:flex; gap:8px; font-size:12.5px; padding:4px 0; }
+  .news-item a, .filing-row a { color:var(--accent2); }
+  .pill.pinned { color:var(--accent2); border-color:var(--accent); }
+
   table { width:100%; border-collapse:collapse; font-size:13px; }
   th { text-align:left; color:var(--muted); font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:.4px; padding:7px 8px; border-bottom:1px solid var(--line); cursor:pointer; user-select:none; }
   th.num, td.num { text-align:right; font-variant-numeric:tabular-nums; }
@@ -186,6 +194,21 @@
   .tabbar { display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 14px; border-bottom:1px solid var(--line); }
   .tabbar button { background:transparent; border:none; border-bottom:2px solid transparent; color:var(--muted); padding:10px 14px; cursor:pointer; font-size:13px; font-weight:700; }
   .tabbar button.on { color:var(--text); border-bottom-color:var(--buy2); }
+
+  /* symbol-search autocomplete (ui/symbol-search.js) */
+  .ss-wrap{position:relative}
+  .ss-drop{position:absolute;z-index:70;left:0;right:0;top:100%;max-height:300px;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 18px 40px -20px #000;margin-top:2px}
+  .ss-item{display:flex;gap:8px;align-items:baseline;padding:7px 10px;cursor:pointer;font-size:13px}
+  .ss-item:hover,.ss-item.on{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+  .ss-item b{min-width:56px}
+  .ss-item .nm{color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ss-item .ex{font-size:11px;color:var(--muted)}
+  .ss-etf{font-size:10px;border:1px solid var(--line);border-radius:10px;padding:0 6px;color:var(--muted)}
+
+  /* market-movers report tabs (view-research.js) */
+  .mv-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+  .mv-tabs button{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px;font-weight:700;color:var(--muted)}
+  .mv-tabs button.on{background:var(--buy2);color:#05130e;border-color:var(--buy2)}
 
   /* settings modal */
   .modal-overlay { position:fixed; inset:0; background:rgba(6,10,14,.62); -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px); display:grid; place-items:start center; padding-top:84px; z-index:60; }
@@ -240,6 +263,7 @@
 <!-- Runtime + one module per view (ADR-136 D2). Classic scripts, global functions — the moved
      code is byte-compatible with the pre-split page. app.js MUST load first. -->
 <script src="/api/trading/ui/app.js"></script>
+<script src="/api/trading/ui/symbol-search.js"></script>
 <script src="/api/trading/ui/shared-positions.js"></script>
 <script src="/api/trading/ui/ticket.js"></script>
 <script src="/api/trading/ui/view-accounts.js"></script>

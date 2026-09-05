@@ -30,6 +30,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import Module, { createRequire } from 'node:module';
+import { deploymentModeStub } from './helpers/deployment-mode-stub.mjs';
 import os from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
@@ -130,6 +131,8 @@ function loadSourceRunner() {
   }).outputText;
   const originalLoad = Module._load;
   Module._load = function loadRunnerDependency(request, parent, isMain) {
+    if (request === '@/shared/deployment-mode') return deploymentModeStub();
+
     if (request === '@/shared/logger') {
       return { createChildLogger: () => ({ info() {}, warn() {}, error() {}, debug() {} }) };
     }

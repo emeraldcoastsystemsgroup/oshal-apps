@@ -23,6 +23,7 @@ import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import Module from 'node:module';
+import { deploymentModeStub } from './helpers/deployment-mode-stub.mjs';
 
 const require = createRequire(import.meta.url);
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -32,7 +33,13 @@ const savedCli = process.env.JOBHUNTER_CLI;
 const savedStore = process.env.JOBHUNTER_STORE_ROOT;
 const savedSensitiveEnv = Object.fromEntries([
   'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'FIRECRAWL_API_KEY', 'SESSION_SECRET',
+  'DEMO_MODE', 'OSHAL_OPERATOR_SUBS', 'CODEX_HOME', 'CLAUDE_CONFIG_DIR',
 ].map((key) => [key, process.env[key]]));
+// The brokered-only wall is the default posture under test; the demo carve opts in per test.
+delete process.env.DEMO_MODE;
+delete process.env.OSHAL_OPERATOR_SUBS;
+delete process.env.CODEX_HOME;
+delete process.env.CLAUDE_CONFIG_DIR;
 const originalLoad = Module._load;
 let decryptBehavior = async (_pool, _userSub, blob) => {
   if (blob === 'bad-ciphertext') throw new Error('fixture decrypt failed');
@@ -58,6 +65,8 @@ if (mode === 'delay') {
     kernelSecret: process.env.SESSION_SECRET,
     claudeConfigDir: process.env.CLAUDE_CONFIG_DIR,
     codexHome: process.env.CODEX_HOME,
+    home: process.env.HOME || process.env.USERPROFILE,
+    portalLogins: process.env.OSHAL_PORTAL_LOGINS,
   })), 50);
 } else if (mode === 'noisy') {
   process.stdout.write('x'.repeat(200001) + 'OUT-TAIL');
@@ -75,6 +84,7 @@ if (mode === 'delay') {
 `, 'utf8');
 
 Module._load = function loadWithLoggerStub(request, ...rest) {
+  if (request === '@/shared/deployment-mode') return deploymentModeStub();
   if (request === '@/shared/logger') {
     return { createChildLogger: () => ({ info() {}, warn() {}, error() {}, debug() {} }) };
   }
@@ -227,7 +237,46 @@ test('a delayed real child leaves the event loop responsive and receives the sco
     extra: 'present',
     claudeConfigDir: join(fixtureDir, 'store', 'default', 'user-42', '.brokered-auth-only', 'claude'),
     codexHome: join(fixtureDir, 'store', 'default', 'user-42', '.brokered-auth-only', 'codex'),
+    home: process.env.HOME || process.env.USERPROFILE,
   });
+});
+
+test('the demo-mode operator inherits the mounted vendor logins; everyone else keeps the brokered-only wall', async () => {
+  const walled = (sub) => ({
+    claudeConfigDir: join(fixtureDir, 'store', 'default', sub, '.brokered-auth-only', 'claude'),
+    codexHome: join(fixtureDir, 'store', 'default', sub, '.brokered-auth-only', 'codex'),
+  });
+  const loginDirsOf = async (sub, extra = {}) => {
+    const result = await runner.runCliAwait(sub, ['delay'], extra);
+    assert.equal(result.ok, true, result.err);
+    const env = JSON.parse(result.out);
+    return { claudeConfigDir: env.claudeConfigDir, codexHome: env.codexHome, home: env.home, portalLogins: env.portalLogins };
+  };
+  process.env.DEMO_MODE = 'true';
+  process.env.OSHAL_OPERATOR_SUBS = ' operator-42 ,other-operator';
+  try {
+    const operator = await loginDirsOf('operator-42');
+    assert.equal(operator.claudeConfigDir, undefined, 'the demo operator must not be sandboxed away from ~/.claude');
+    assert.equal(operator.codexHome, undefined, 'the demo operator must not be sandboxed away from ~/.codex');
+    assert.ok(operator.home, 'the engine child needs HOME to find the mounted logins');
+    assert.equal(operator.portalLogins, '1', 'the launcher only lifts ITS wall on the runner\'s explicit verdict');
+    assert.equal(runner.operatorPortalFallback('operator-42'), true);
+
+    const guest = await loginDirsOf('guest-7', { [runner.PORTAL_LOGINS_ENV]: '1' });
+    assert.deepEqual({ claudeConfigDir: guest.claudeConfigDir, codexHome: guest.codexHome }, walled('guest-7'),
+      'a non-operator stays walled even in demo mode');
+    assert.equal(guest.portalLogins, undefined, 'a caller-supplied verdict is stripped — no route can smuggle the carve');
+    assert.equal(runner.operatorPortalFallback('Operator-42'), false, 'the operator match is exact and case-sensitive');
+
+    delete process.env.DEMO_MODE;
+    const offDemo = await loginDirsOf('operator-42');
+    assert.deepEqual({ claudeConfigDir: offDemo.claudeConfigDir, codexHome: offDemo.codexHome }, walled('operator-42'),
+      'off demo, even the operator stays walled (tenant posture is brokered-only)');
+    assert.equal(offDemo.portalLogins, undefined, 'off demo the verdict is never stated');
+  } finally {
+    delete process.env.DEMO_MODE;
+    delete process.env.OSHAL_OPERATOR_SUBS;
+  }
 });
 
 test('mounted dispatch brokers only the caller credentials and never spawns on decrypt failure', async () => {
@@ -257,10 +306,13 @@ test('mounted dispatch brokers only the caller credentials and never spawns on d
   assert.equal(childEnv.OSHAL_CRED_FIRECRAWL, 'plain:fire-cipher');
   assert.equal(childEnv.CAREER_HUNTER_BROKER_COMPLETE, '1');
   assert.equal(childEnv.CH_TEST, 'present');
-  assert.equal(childEnv.ANTHROPIC_API_KEY, undefined);
+  // The brokered per-user keys reach the engine under the names it reads — and ONLY those values:
+  // the controller's own keys (global-*-must-not-leak) are never in the child.
+  assert.equal(childEnv.ANTHROPIC_API_KEY, 'plain:anth-cipher');
+  assert.equal(childEnv.FIRECRAWL_API_KEY, 'plain:fire-cipher');
   assert.equal(childEnv.OPENAI_API_KEY, undefined);
-  assert.equal(childEnv.FIRECRAWL_API_KEY, undefined);
   assert.equal(childEnv.SESSION_SECRET, undefined);
+  assert.equal(childEnv.CLAUDE_CONFIG_DIR, join(fixtureDir, 'store', 'default', 'broker-user', '.brokered-auth-only', 'claude'));
   child.exitCode = 0;
   child.emit('close', 0);
 

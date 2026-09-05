@@ -131,6 +131,31 @@ export function destinationCatalog(env: NodeJS.ProcessEnv = process.env): Destin
 }
 
 /**
+ * @description Whether an identity is an operator, read from the SAME allowlist the
+ * kernel uses (`OSHAL_OPERATOR_SUBS` / `OSHAL_OPERATOR_EMAILS`). Found by live test:
+ * an OIDC `roles` claim is the wrong signal — a personal-access-token session
+ * carries no roles, so a genuine operator was silently denied the swarm
+ * destination. Subs compare exactly (an OIDC subject is case-sensitive); emails
+ * compare case-insensitively, matching how the allowlist is written.
+ * @param sub - The caller's subject, if any.
+ * @param email - The caller's email, if any.
+ * @param env - Environment to read (injectable for tests).
+ * @returns True when the identity is on the operator allowlist.
+ */
+export function isOperatorIdentity(
+  sub: string | null | undefined,
+  email: string | null | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  const list = (raw: string | undefined) =>
+    String(raw || '').split(',').map((entry) => entry.trim()).filter(Boolean);
+  if (sub && list(env.OSHAL_OPERATOR_SUBS).includes(String(sub))) return true;
+  const normalized = String(email || '').trim().toLowerCase();
+  if (!normalized) return false;
+  return list(env.OSHAL_OPERATOR_EMAILS).some((entry) => entry.toLowerCase() === normalized);
+}
+
+/**
  * @description The destinations a given caller may file into. The kernel-reserved
  * swarm level is withheld from a non-admin rather than offered and refused at
  * write time — a missing option beats a write that fails after the fact.

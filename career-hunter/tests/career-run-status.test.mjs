@@ -9,6 +9,7 @@ import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import Module from 'node:module';
+import { deploymentModeStub } from './helpers/deployment-mode-stub.mjs';
 
 const require = createRequire(import.meta.url);
 const originalLoad = Module._load;
@@ -16,6 +17,7 @@ let runResult = { ok: true, out: 'done', err: '' };
 let refreshStarts = 0;
 
 Module._load = function loadWithRunRouteStubs(request, ...rest) {
+  if (request === '@/shared/deployment-mode') return deploymentModeStub();
   if (request === '@/shared/logger') {
     return { createChildLogger: () => ({ info() {}, warn() {}, error() {}, debug() {} }) };
   }

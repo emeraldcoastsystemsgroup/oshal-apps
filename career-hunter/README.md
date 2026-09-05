@@ -18,6 +18,11 @@ ungrouped bottom tray. The `group:` key that drives this, and the rules a cross-
 follow, are written up in
 [docs/ribbon-groups-adr-085-addendum.md](docs/ribbon-groups-adr-085-addendum.md).
 
+**Operating it:** the nightly scrape, the AI scoring passes, the morning digest, the boot catch-up,
+how to see whether each ran and for whom, how to trigger them by hand, and which AI credential the
+batch uses on a demo box versus a multi-user deployment are all in
+[docs/operations.md](docs/operations.md). Read it before diagnosing "no new jobs".
+
 ## Shape
 
 - `oshal-app.yaml` declares the service-or-OIDC `/api/career-hunter` mount, OIDC graph mount,
@@ -92,6 +97,21 @@ remains the byte-identical artifact of record and every surface retains a top-le
   governs that tile.
 - **Morning brief:** the kernel's `career-brief-bridge` consumes this package's hits and skips them
   cleanly when the package is absent.
+- **Scrape targets — one portal table, one extension per user:** the shared `companies` corpus is
+  the portal admin's table (the **Companies** surface, gated by `CAREER_HUNTER_ADMIN_SUBS`, seeded
+  from `engine/seeds/`). Each user also owns a target list (`career_user_targets`, FORCE RLS) edited
+  from Career Settings: a pasted careers URL is accepted only when the engine's own URL classifier
+  (`python -m jobhunter classify`) matches a supported job-board pattern, otherwise it is rejected
+  and never stored; accepted URLs are registered in the shared corpus with `user:<sub>` provenance
+  and scraped once (`add-target`), after which the nightly chain carries them like any admin row.
+  There is no TypeScript copy of the patterns — a guard proves the supported list equals the
+  classifier's own literals. See [docs/operations.md](docs/operations.md#9-scrape-targets--the-portal-table-and-each-users-own-list).
+- **AI credentials (ADR-137 amendment A):** the engine child normally sees an empty per-user login
+  sandbox plus only that user's own brokered keys (`ANTHROPIC_API_KEY` / `FIRECRAWL_API_KEY` from
+  Career Settings). On a `DEMO_MODE` deployment the exact operator subject instead inherits the
+  deployment's mounted `~/.codex` / `~/.claude` logins — the runner states that verdict as
+  `OSHAL_PORTAL_LOGINS=1` and the launcher lifts its sandbox only on that exact value. Both halves
+  are guarded; see [docs/operations.md](docs/operations.md#5-which-ai-credential-the-batch-uses-adr-137-amendment-a).
 
 <!-- 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | Document fail-closed credential recovery after removal of the public encryption-key fallback. -->
 <!-- 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | Document the canonical framework build and dependency-free versus framework-backed Career validation commands. -->
@@ -163,3 +183,5 @@ Legacy paths containing `/` or `\\`, and raw names in the reserved `~sub-` names
 adopted automatically because ownership is ambiguous. Move those stores into a freshly resolved,
 identity-marked encoded directory only while every Career process is stopped, then rewrite any
 stored absolute artifact paths to the new prefix before restart.
+
+<!-- 2026-09-05 | maintainer@emeraldcoastsystemsgroup.com | Add the operations guide (docs/operations.md — batch schedule, admin checks, manual triggers, credential posture per ADR-137 amendment A, failure signatures, env knobs) and the credential-posture bullet after the 2026-08-10 → 09-05 scoring outage. -->

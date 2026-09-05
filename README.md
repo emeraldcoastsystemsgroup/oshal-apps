@@ -42,7 +42,7 @@ All **48 packages**, shelved by ADR-097 suite. Versions and status come from
 
 | App | Folder | Version | Status | What it is |
 |---|---|---|---|---|
-| **Intelligent Career** | [`career-hunter/`](career-hunter/) | 1.12.3 | ready | Reads openings from employers' own public ATS job feeds into a shared corpus, scores every posting against your private career profile, and turns the best fits into a human-in-the-loop application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume + cover letter. |
+| **Intelligent Career** | [`career-hunter/`](career-hunter/) | 1.13.0 | ready | Reads openings from employers' own public ATS job feeds into a shared corpus, scores every posting against your private career profile, and turns the best fits into a human-in-the-loop application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume + cover letter. |
 | **Job Apply** | [`job-apply/`](job-apply/) | 1.0.0 | ready | Submit an approved, packet-ready job application by driving your real browser on a desktop worker node — push a ticket, it queues, the career-hunter worker submits it, and the ticket passes or fails. |
 | **World Intelligence** | [`world/`](world/) | 1.0.3 | ready | Shared world intelligence (ADR-061 Layer B) - multi-source news feeds classified into a bias-aware sentiment graph (political + economic + outlet-kind axes), entity co-mention graph, and historical series. |
 
@@ -53,7 +53,7 @@ All **48 packages**, shelved by ADR-097 suite. Versions and status come from
 | **Daily Trade Recap** | [`daily-trade-recap/`](daily-trade-recap/) | 1.0.0 | ready | After the closing bell: render the day's charted trade-recap video (real Alpaca data -> PowerPoint deck -> narrated MP4) on the swarm render node, then email it to the operator with the day's numbers and the video attached as a preview. |
 | **Finance** | [`finance/`](finance/) | 1.1.1 | ready | Link your banks and brokerages via Plaid and see everything in one place — net worth, accounts, holdings, spending — with a plain-English brief. |
 | **Intelligent Trades** | [`trading/`](trading/) | 1.1.1 | ready | Signal-justified stock trading (ADR-052). |
-| **Kalshi Prediction Markets** | [`kalshi/`](kalshi/) | 1.1.0 | ready | Find mispriced event contracts on Kalshi (ADR-094). |
+| **Kalshi Prediction Markets** | [`kalshi/`](kalshi/) | 1.1.2 | ready | Find mispriced event contracts on Kalshi (ADR-094). |
 | **Payroll** | [`payroll/`](payroll/) | 2.2.0 | ready | Run payroll for your team, ADP-style, then pay, file and RECONCILE from the same place. |
 | **Venture Plan** | [`venture-plan/`](venture-plan/) | 1.0.0 | ready | Turn an idea into the venture document set a real decision needs — bill of materials, landed cost, channel margin, profit, cash and working capital, schedule, org, funding ask. |
 
@@ -68,7 +68,7 @@ All **48 packages**, shelved by ADR-097 suite. Versions and status come from
 | **Game Show** | [`game-show/`](game-show/) | 0.10.0 | ready | TV-style AI game night: Family Feud, Jeopardy, Wheel of Fortune and Whammy, each with its own television set — podium characters, sound cues and opening titles. |
 | **Games** | [`games/`](games/) | 1.1.0 | ready | A focused cockpit toolbar with direct launchers for the AI Dungeon Master and Game Show. |
 | **LoRA Studio** | [`lora/`](lora/) | 1.0.2 | ready | Train a reusable character (a "sprite") from images and captions, validate it on a fixed held-out matrix, and improve it by targeting its weak spots — every version scored so "better" is a number. |
-| **Portrait Studio** | [`portrait-studio/`](portrait-studio/) | 1.5.0 | ready | Turn any photo into a portrait worth framing — take it with your camera or upload one, then 225 presets × 200 backdrops: business, slice of life, sun & sea, sports, world travel, sci-fi, history and fantasy, with interchangeable clothing, hats, props and finishes. |
+| **Portrait Studio** | [`portrait-studio/`](portrait-studio/) | 1.8.0 | ready | Turn any photo into a portrait worth framing — take it with your camera or upload one, then 225 presets × 200 backdrops: business, slice of life, sun & sea, sports, world travel, sci-fi, history and fantasy, with interchangeable clothing, hats, props and finishes. |
 | **Pumpkin** | [`pumpkin/`](pumpkin/) | 1.2.0 | ready | Animated talking jack-o'-lantern Halloween prop - project a glowing procedural pumpkin face into an inflatable, with a lip-syncing mouth. |
 | **Video Studio** | [`video/`](video/) | 1.1.0 | ready | Make prompted short-form videos (TikTok / YouTube Shorts / Instagram Reels) from an idea - the director bot storyboards it and the studio renders a real .mp4 with voiceover and captions, saved to your Files storage; a series is written by the screenplay-writer, approval-gated on the script, then rendered one episode at a time on the remote Vids node. |
 | **Vids Studio** | [`vids/`](vids/) | 1.1.1 | ready | Turn an idea into generated video - the Veo specialist drives Google Vids by clicking, in a remote operator's logged-in Chrome: describe the shot, it generates the clip and places it on the timeline. |

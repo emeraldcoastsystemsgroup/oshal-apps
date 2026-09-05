@@ -46,13 +46,18 @@ function callerSub(req) {
  * @description Whether the caller may file into the kernel-reserved swarm level.
  * Generic ingest there is refused for non-admins, so the form must not offer it —
  * a missing option beats a write that fails after the person believed they filed.
+ * Reads the kernel's operator allowlist rather than an OIDC `roles` claim: found
+ * by live test, a personal-access-token session carries no roles, so a genuine
+ * operator was silently denied the destination.
  * @param req - The incoming request.
  * @returns True when the caller is an operator/admin.
  */
 function callerIsAdmin(req) {
-    const roles = req.oidc?.user?.roles;
-    const list = Array.isArray(roles) ? roles.map(String) : [];
-    return list.includes('operator') || list.includes('admin');
+    const user = req.oidc?.user;
+    if ((0, print_classify_1.isOperatorIdentity)(callerSub(req), user?.email))
+        return true;
+    const roles = Array.isArray(user?.roles) ? (user?.roles).map(String) : [];
+    return roles.includes('operator') || roles.includes('admin');
 }
 /**
  * @description Reduce one untrusted sidecar string to something safe to store,

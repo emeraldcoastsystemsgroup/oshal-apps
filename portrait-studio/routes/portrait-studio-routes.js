@@ -10,6 +10,7 @@
  * 2026-08-22 00:30:00 | maintainer@emeraldcoastsystemsgroup.com     | Thread the caller's sub into resolveStoryboardImageProvider (generation + /provider probe). The ADR-130 codex-cli provider — the demo-mode default that renders on the swarm's own codex harness — authorizes per caller via the SEC-05 demo carve, so a resolve without userSub reads unavailable and fails closed. Other providers ignore the field. (1.4.1)
  * 2026-08-29 10:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Group mode (1.5.0): mode=group is accepted alongside professional/character; the face count arrives as a multipart `subjects` field, validated fail-closed by the catalog (2..6, refused outside group mode) and stored in options.subjects for the prompt and the gallery (list now returns `subjects`). The uploaded photo in group mode is the browser-built numbered reference sheet — still ONE anchor, so the provider contract and every guard around it are unchanged.
  * 2026-08-31 12:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Passport export + email (1.6.0): GET /portraits/:id/export?size=300|600 square-crops the portrait with sharp (attention strategy — the crop follows the face) and downloads it as a passport-size PNG; POST /portraits/:id/email sends the portrait (original or a passport crop) as an attachment over the caller's OWN mailbox — sendGmail, else the Graph sibling, else 409 — behind the standard confirm:true 428 gate (the ADR-108 "email it" shape presentations proved). Sizes and recipient validate fail-closed in portrait-ops.
+ * 2026-08-31 16:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Orientation formats (1.7.0): export/email `size` now resolves against the closed EXPORT_FORMATS catalog — 300/600 passport squares (unchanged contract) plus `portrait` (1200×1800) and `landscape` (1800×1200) 4×6-print crops, same attention-strategy cover-crop. No route shape changed; group mode's multi-photo sourcing is browser-side only (the numbered sheet remains the one anchor).
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -248,17 +249,19 @@ function sendImage(res, filePath, download) {
     fs.createReadStream(filePath).pipe(res);
 }
 /**
- * @description Square passport-style crop of a stored portrait at size×size pixels. sharp's
- * `attention` position biases the cover-crop toward the busiest region of the image — on
- * these portraits, the face — so a 4:5 headshot becomes a centered passport square without
- * any face-detection dependency.
+ * @description Cover-crop of a stored portrait at an exact export geometry. sharp's
+ * `attention` position biases the crop toward the busiest region of the image — on these
+ * portraits, the face — so a 4:5 headshot becomes a face-centered passport square or a
+ * face-centered landscape band without any face-detection dependency.
  * @param filePath - Absolute path of the generated portrait PNG.
- * @param size - Validated passport size (px).
+ * @param width - Validated output width (px). @param height - Validated output height (px).
  * @returns The resized PNG bytes.
  */
-async function passportCrop(filePath, size) {
-    return (0, sharp_1.default)(filePath).resize(size, size, { fit: 'cover', position: 'attention' }).png().toBuffer();
+async function formatCrop(filePath, width, height) {
+    return (0, sharp_1.default)(filePath).resize(width, height, { fit: 'cover', position: 'attention' }).png().toBuffer();
 }
+/** The caller-facing list of accepted `size` values, for 400 messages. */
+const FORMAT_KEYS = Object.keys(portrait_ops_1.EXPORT_FORMATS).join(', ');
 /**
  * @description Deliver one message over whichever mailbox the caller actually connected —
  * Gmail first, else Microsoft Graph (microsoft/outlook connection ids). The ADR-108
@@ -454,8 +457,9 @@ function createPortraitStudioRoutes(ctx) {
             res.status(500).json({ error: 'portrait image serve failed' });
         }
     });
-    /** GET /portraits/:id/export?size=300|600 — passport-size square PNG download (owner only).
-     *  The size set is closed (portrait-ops) — this is a passport export, not a free-form resizer. */
+    /** GET /portraits/:id/export?size=300|600|portrait|landscape — formatted PNG download
+     *  (owner only). The format set is closed (portrait-ops EXPORT_FORMATS) — passport squares
+     *  and 4×6-print orientations, not a free-form resizer. */
     router.get('/portraits/:id/export', async (req, res) => {
         try {
             const sub = callerSub(req);
@@ -463,9 +467,9 @@ function createPortraitStudioRoutes(ctx) {
                 res.status(401).json({ error: 'unauthenticated' });
                 return;
             }
-            const size = (0, portrait_ops_1.passportSize)(req.query.size);
-            if (!size) {
-                res.status(400).json({ error: `size must be one of: ${portrait_ops_1.PASSPORT_SIZES.join(', ')}` });
+            const fmt = (0, portrait_ops_1.exportFormat)(req.query.size);
+            if (!fmt) {
+                res.status(400).json({ error: `size must be one of: ${FORMAT_KEYS}` });
                 return;
             }
             const row = await ownedRow(ctx, req.params.id, sub);
@@ -478,8 +482,8 @@ function createPortraitStudioRoutes(ctx) {
                 res.status(404).json({ error: 'image file not found' });
                 return;
             }
-            const image = await passportCrop(filePath, size);
-            res.setHeader('Content-Disposition', `attachment; filename="portrait-${String(row.portrait_id).slice(0, 8)}-${size}x${size}.png"`);
+            const image = await formatCrop(filePath, fmt.width, fmt.height);
+            res.setHeader('Content-Disposition', `attachment; filename="portrait-${String(row.portrait_id).slice(0, 8)}-${fmt.width}x${fmt.height}.png"`);
             res.setHeader('Content-Type', 'image/png');
             res.setHeader('Cache-Control', 'private, max-age=3600');
             res.end(image);
@@ -512,9 +516,9 @@ function createPortraitStudioRoutes(ctx) {
                 return;
             }
             const wantsResize = body.size !== undefined && body.size !== null && body.size !== '';
-            const size = wantsResize ? (0, portrait_ops_1.passportSize)(body.size) : null;
-            if (wantsResize && !size) {
-                res.status(400).json({ error: `size must be one of: ${portrait_ops_1.PASSPORT_SIZES.join(', ')} — or omitted to send the original` });
+            const fmt = wantsResize ? (0, portrait_ops_1.exportFormat)(body.size) : null;
+            if (wantsResize && !fmt) {
+                res.status(400).json({ error: `size must be one of: ${FORMAT_KEYS} — or omitted to send the original` });
                 return;
             }
             const row = await ownedRow(ctx, req.params.id, sub);
@@ -527,13 +531,13 @@ function createPortraitStudioRoutes(ctx) {
                 res.status(404).json({ error: 'image file not found' });
                 return;
             }
-            const image = size ? await passportCrop(filePath, size) : fs.readFileSync(filePath);
-            const fileName = size ? `portrait-${size}x${size}.png` : 'portrait.png';
+            const image = fmt ? await formatCrop(filePath, fmt.width, fmt.height) : fs.readFileSync(filePath);
+            const fileName = fmt ? `portrait-${fmt.width}x${fmt.height}.png` : 'portrait.png';
             const note = typeof body.note === 'string' ? body.note.slice(0, 2000).trim() : '';
             const mail = {
                 to,
                 subject: (typeof body.subject === 'string' && body.subject.trim() ? body.subject.trim().slice(0, 300) : 'Your portrait from oshal Portrait Studio'),
-                body: (note ? `${note}\n\n` : '') + `${size ? `The passport-size (${size}×${size}) portrait` : 'The portrait'} is attached.\n\nGenerated with oshal Portrait Studio.`,
+                body: (note ? `${note}\n\n` : '') + `${fmt ? `The ${fmt.label} portrait` : 'The portrait'} is attached.\n\nGenerated with oshal Portrait Studio.`,
                 attachment: { filename: fileName, contentBase64: image.toString('base64'), mimeType: 'image/png' },
             };
             const sent = await sendOverCallersMailbox(ctx, sub, mail);
@@ -541,8 +545,8 @@ function createPortraitStudioRoutes(ctx) {
                 res.status(409).json({ error: 'no_mail_connection', message: 'Connect Google (Gmail) or Microsoft 365 in Utilities to send email.' });
                 return;
             }
-            logger.info({ portraitId: req.params.id, via: sent.via, id: sent.id, size, bytes: image.length }, 'portrait emailed');
-            res.json({ ok: true, via: sent.via, id: sent.id, to, size });
+            logger.info({ portraitId: req.params.id, via: sent.via, id: sent.id, size: fmt?.key ?? null, bytes: image.length }, 'portrait emailed');
+            res.json({ ok: true, via: sent.via, id: sent.id, to, size: fmt?.key ?? null });
         }
         catch (err) {
             logger.error({ err, portraitId: req.params.id }, 'portrait email failed');

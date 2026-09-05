@@ -10,6 +10,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.destinationCatalog = destinationCatalog;
+exports.isOperatorIdentity = isOperatorIdentity;
 exports.destinationsForCaller = destinationsForCaller;
 exports.proposeTitle = proposeTitle;
 exports.ruleMatches = ruleMatches;
@@ -64,6 +65,27 @@ function destinationCatalog(env = process.env) {
         });
     }
     return catalog;
+}
+/**
+ * @description Whether an identity is an operator, read from the SAME allowlist the
+ * kernel uses (`OSHAL_OPERATOR_SUBS` / `OSHAL_OPERATOR_EMAILS`). Found by live test:
+ * an OIDC `roles` claim is the wrong signal — a personal-access-token session
+ * carries no roles, so a genuine operator was silently denied the swarm
+ * destination. Subs compare exactly (an OIDC subject is case-sensitive); emails
+ * compare case-insensitively, matching how the allowlist is written.
+ * @param sub - The caller's subject, if any.
+ * @param email - The caller's email, if any.
+ * @param env - Environment to read (injectable for tests).
+ * @returns True when the identity is on the operator allowlist.
+ */
+function isOperatorIdentity(sub, email, env = process.env) {
+    const list = (raw) => String(raw || '').split(',').map((entry) => entry.trim()).filter(Boolean);
+    if (sub && list(env.OSHAL_OPERATOR_SUBS).includes(String(sub)))
+        return true;
+    const normalized = String(email || '').trim().toLowerCase();
+    if (!normalized)
+        return false;
+    return list(env.OSHAL_OPERATOR_EMAILS).some((entry) => entry.toLowerCase() === normalized);
 }
 /**
  * @description The destinations a given caller may file into. The kernel-reserved

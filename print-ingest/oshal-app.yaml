@@ -18,7 +18,7 @@ description: >-
   Print a document to the swarm and decide where it belongs. Everything lands in
   one inbox with a recommended filing — a bot's corpus, the swarm's shared
   knowledge, or private to you — and nothing is written until you approve it.
-version: 0.1.0
+version: 0.1.1
 # ADR-135 D11 + the standing automation directive: a fresh install does nothing
 # until an operator explicitly activates it.
 status: inactive

@@ -121,6 +121,17 @@
     </div>
     <div id="titleOut" class="hint" style="white-space:pre-wrap"></div>
   </div>
+
+  <div class="card">
+    <h2>Target companies (your list)</h2>
+    <p class="hint">The shared company list is the portal's — an admin curates it under <b>Companies</b>. This is <b>your</b> extension of it: paste an employer's careers or jobs URL and OSHAL adds that employer to the nightly scrape. A URL is accepted only when it matches a supported job board (Greenhouse, Lever, Ashby, SmartRecruiters, Workable, Workday, iCIMS, Eightfold and the other boards the engine reads); anything else is rejected and not stored.</p>
+    <div class="row">
+      <input type="text" id="targetUrl" placeholder="https://boards.greenhouse.io/acme  ·  https://acme.wd5.myworkdayjobs.com/External">
+      <button class="btn primary" id="targetAdd">Add target</button>
+    </div>
+    <div id="targetOut" class="hint" style="white-space:pre-wrap"></div>
+    <div id="targetList" class="hint"></div>
+  </div>
 </div>
 <div class="toast" id="toast"></div>
 
@@ -216,9 +227,37 @@ $('#autoSave').onclick = async()=>{
   const r = await jpost(API+'/settings/automation',{autoGenerate:$('#autoGenerate').checked===true, autoSubmit:$('#autoSubmit').checked===true});
   toast(r.ok?'Automation settings saved':(r.error||'Failed')); refreshAutomation();
 };
+// Target companies — the user's own extension of the admin's shared list. Accept/reject is the
+// server's verdict (the engine's URL classifier); this only renders what the server decided.
+const escT=(s)=>String(s??'').replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function targetState(t){
+  if (t.status==='resolved') return 'resolved → '+escT(t.company_name||'')+(t.postings!=null?' ('+t.postings+' jobs on first scrape)':'');
+  if (t.status==='unresolved') return 'accepted, but could not be scraped: '+escT(t.reason||'unknown');
+  return 'accepted — registering and scraping now…';
+}
+async function refreshTargets(){
+  const s = await fetch(API+'/settings/targets').then(r=>r.json()).catch(()=>({targets:[]}));
+  const rows = s.targets||[]; const el=$('#targetList');
+  if(!rows.length){ el.textContent='No targets of your own yet — the portal list still applies to you.'; return; }
+  el.innerHTML = rows.map(t=>'<div class="row"><span class="pill-ok">'+escT(t.ats_type)+'</span> '
+    +'<a href="'+escT(t.url)+'" target="_blank" rel="noopener">'+escT(t.url)+'</a> <span>'+targetState(t)+'</span> '
+    +'<button class="btn" data-del="'+Number(t.id)+'">Remove</button></div>').join('');
+  el.querySelectorAll('[data-del]').forEach(b=>{ b.onclick=async()=>{
+    await fetch(API+'/settings/targets/'+b.getAttribute('data-del'),{method:'DELETE'}); toast('Removed from your list'); refreshTargets(); }; });
+}
+$('#targetAdd').onclick = async()=>{
+  const url=$('#targetUrl').value.trim(); if(!url){ toast('Paste a careers URL'); return; }
+  const o=$('#targetOut'); o.innerHTML='<span class="spin"></span> Checking the URL against the supported job boards…';
+  const r = await jpost(API+'/settings/targets',{url});
+  if(r.ok){ $('#targetUrl').value=''; o.textContent='Accepted as '+r.target.ats_type+' — registering the employer and scraping it now; the nightly run keeps it fresh from here.'; toast('Target accepted'); }
+  else if(r.rejected){ o.textContent='Rejected: '+(r.reason||'not a supported job-board URL')+'.\nSupported boards: '+((r.supported||[]).join(', ')||'see the Companies page')+'.'; toast('Not a supported job board'); }
+  else { o.textContent='Failed: '+(r.error||'unknown'); toast('Failed'); }
+  refreshTargets(); setTimeout(refreshTargets, 8000); setTimeout(refreshTargets, 30000);
+};
 refreshState();
 refreshDigest();
 refreshTitles();
 refreshAutomation();
+refreshTargets();
 </script>
 </body></html>

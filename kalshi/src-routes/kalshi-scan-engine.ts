@@ -25,6 +25,8 @@
  * DATE/TIME           | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-30 03:35:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial — runScan (moved verbatim out of the request path in kalshi-routes, now cadence/bound-driven), the durable snapshot store, the manifest+DB config resolution (reads this package's OWN oshal-app.yaml for defaults), the settings store with per-scope allow-lists, and the alert ledger (first-seen dedup + rolling-day budget).
+ * 2026-09-04 23:40:00 | roger.murphy@emeraldcoastsystemsgroup.com   | listAlerts joins each alert to its pre-registered prediction (same ticker, SCAN_STRATEGY) so the Alerts tab carries the settlement OUTCOME — settled, won, one-contract P&L — and alertRecord folds the whole ledger into a W-L line. The grades were always there (recordPredictions + the daily grader); the surface just never showed them per alert (operator, 2026-09-04: "where is the win/loss record").
+ * 2026-09-04 23:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | recordContrarianPredictions — the zero-stake "contrarian-extreme" sibling of every extreme scan hand (rule in kalshi-scan-config.ts), inserted into the same immutable ledger right after the scan's own predictions so the daily grader and the Scorecard tab treat it like any strategy. Operator, 2026-09-04: "bet against ourselves at the extremes - forward test it".
  *
  * @module kalshi-scan-engine
  */
@@ -51,6 +53,8 @@ import {
   resolveScanConfig,
   scopedPatch,
   type KalshiScanConfig,
+  summarizeAlertRecord, type AlertRecord,
+  CONTRARIAN_EXTREME_STRATEGY, contrarianExtremeRow,
 } from './kalshi-scan-config';
 
 const log = createChildLogger({ module: 'kalshi-scan-engine' });
@@ -357,6 +361,27 @@ export async function writeSnapshot(pool: AppContext['pool'], payload: ScanPaylo
   }
 }
 
+/**
+ * Pre-register the CONTRARIAN sibling of every extreme hand — the "bet against ourselves" hypothesis,
+ * rule fixed in kalshi-scan-config.ts. Same ledger, own strategy name, zero stake, immutable, so the
+ * grader scores it against the market exactly as it scores the scan, and the Scorecard can retire it.
+ */
+async function recordContrarianPredictions(pool: AppContext['pool'], hands: BetHand[]): Promise<void> {
+  for (const h of hands) {
+    const row = contrarianExtremeRow(h);
+    if (!row) continue;
+    await pool.query(
+      `INSERT INTO kalshi_predictions
+         (strategy, ticker, event_ticker, series_ticker, predicted_prob, market_prob, edge_net,
+          stake_fraction, side, rationale, close_time)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       ON CONFLICT (strategy, ticker) DO NOTHING`,
+      [CONTRARIAN_EXTREME_STRATEGY, row.ticker, row.eventTicker, row.seriesTicker, row.predictedProb, row.marketProb,
+        row.edgeNet, row.stakeFraction, row.side, JSON.stringify(row.rationale), row.closeTime],
+    ).catch((err) => log.error({ err, ticker: h.ticker }, 'contrarian prediction record failed'));
+  }
+}
+
 /* ── the scan ───────────────────────────────────────────────────────────────── */
 
 /**
@@ -406,6 +431,7 @@ export async function runScan(pool: AppContext['pool'], cfg: KalshiScanConfig): 
   let hands = rankHands(walk.markets, seriesByTicker, table);
   // Record BEFORE gating, so the prediction is judged on what the model actually believed.
   await recordScanPredictions(pool, hands);
+  await recordContrarianPredictions(pool, hands);
   const gate = await mayStrategyStake(pool, SCAN_STRATEGY);
   if (!gate.mayStake) hands = hands.map((h) => ({ ...h, stakeFraction: 0 }));
   const scorecard = await getScorecard(pool).catch(() => [] as StrategyScore[]);
@@ -510,17 +536,53 @@ export async function pruneAlertLedger(pool: AppContext['pool']): Promise<void> 
   }
 }
 
-/** @description The caller's recent alerts, newest first — the surface's Alerts list. */
+/**
+ * @description The caller's recent alerts, newest first, each carrying its graded OUTCOME — the
+ * surface's Alerts list. Every announced hand was pre-registered as a prediction (recordPredictions,
+ * strategy = SCAN_STRATEGY) and is graded at settlement by the forward-test grader, so the join IS
+ * the win/loss record: `settled`, `won` (the announced side matched settlement) and
+ * `pnl_per_contract` (one contract bought at the ask, fees included) come from kalshi_predictions;
+ * NULLs mean the market has not settled yet.
+ * @param pool - Postgres pool.
+ * @param userSub - Caller.
+ * @param limit - Rows to return (1..200).
+ * @returns Alert rows with outcome columns.
+ */
 export async function listAlerts(
   pool: AppContext['pool'], userSub: string, limit = 50,
 ): Promise<Array<Record<string, unknown>>> {
   await ensureScanSchema(pool);
   const { rows } = await pool.query(
-    `SELECT ticker, strength, edge_net, channel, delivered, detail, created_at
-       FROM kalshi_scan_alerts WHERE user_sub = $1 ORDER BY created_at DESC LIMIT $2`,
-    [userSub, Math.min(200, Math.max(1, limit))],
+    `SELECT a.ticker, a.strength, a.edge_net, a.channel, a.delivered, a.detail, a.created_at,
+            p.settled, p.settled_yes, p.side AS graded_side, p.pnl_per_contract, p.graded_at,
+            CASE WHEN p.settled THEN ((p.side = 'yes') = p.settled_yes) END AS won
+       FROM kalshi_scan_alerts a
+       LEFT JOIN kalshi_predictions p ON p.ticker = a.ticker AND p.strategy = $3
+      WHERE a.user_sub = $1 ORDER BY a.created_at DESC LIMIT $2`,
+    [userSub, Math.min(200, Math.max(1, limit)), SCAN_STRATEGY],
   );
   return rows;
+}
+
+/**
+ * @description The caller's W-L record over every alert still in the ledger (the ledger prunes
+ * itself — see pruneAlertLedger — so this is "recent", not all-time). Same join as listAlerts,
+ * folded by the pure summarizeAlertRecord so the math is pinned by the plain-node suite.
+ * @param pool - Postgres pool.
+ * @param userSub - Caller.
+ * @returns The record.
+ */
+export async function alertRecord(pool: AppContext['pool'], userSub: string): Promise<AlertRecord> {
+  await ensureScanSchema(pool);
+  const { rows } = await pool.query(
+    `SELECT p.settled, p.pnl_per_contract,
+            CASE WHEN p.settled THEN ((p.side = 'yes') = p.settled_yes) END AS won
+       FROM kalshi_scan_alerts a
+       LEFT JOIN kalshi_predictions p ON p.ticker = a.ticker AND p.strategy = $2
+      WHERE a.user_sub = $1`,
+    [userSub, SCAN_STRATEGY],
+  );
+  return summarizeAlertRecord(rows);
 }
 
 /**

@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Add APP-05 real-Chromium coverage for the compiled Kalshi Settings/Alerts route and surface through a signed local-session boundary, including caller-scoped persistence, operator-only deployment settings, cross-user isolation, and fail-closed anonymous/forged requests.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | The engine seam learns alertRecord (folded through the real summarizeAlertRecord), matching the /alerts route that now answers with the caller's W-L record beside the rows.
  */
 
 'use strict';
@@ -110,6 +111,7 @@ function buildRouteCollaborators(state) {
       return stored;
     },
     listAlerts: async (_pool, sub, limit) => (state.alerts.get(sub) || []).slice(0, limit),
+    alertRecord: async (_pool, sub) => scanConfig.summarizeAlertRecord(state.alerts.get(sub) || []),
     readSnapshot: async () => null,
     loadCalibration: () => ({ table: null, mtime: null }),
   };

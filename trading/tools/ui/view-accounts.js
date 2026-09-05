@@ -8,7 +8,9 @@
  *
  * Classic script (no import/export): app.js loads first and provides BOOK/MODE/BOOKS/ACCOUNTS,
  * api(), jbody(), esc/money/pct/dollarPctCell/spinner/fmtDate, bookLabel/bookOf, loadBooks(),
- * navigate()/openAccount(), stale(). Numbers are never invented: '…' while loading, 'n/a' for a null
+ * navigate()/openAccount(), stale(). The Watchlist panel (ADR-138) is the shared one from
+ * view-research.js — loadWatchlistPanel(hostId, false), whose rows navigate through researchSymbol();
+ * called here as a global, never defined here. Numbers are never invented: '…' while loading, 'n/a' for a null
  * day change, the row's error in red when the broker read failed, and 'balances unavailable' (never
  * zeros) when GET /summary itself fails. The hero total is labelled for what it covers: the server
  * drops every account whose read failed from totalValue, so when any row errored the hero says
@@ -21,6 +23,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — ADR-136 D1 landing view: hero total, one tile per book (+ notTrading discovered accounts), positions rollup, discovered-accounts roster + Discover action. Replaces the legacy "All accounts" summary tab and the discovered-accounts half of the old Accounts tab.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Adversarial-review fixes: 'Create book…' (tile) and 'create one →' (roster row) call makeBook(accountId, label) directly instead of navigating to a roster that has no create control; hero labels a partial total honestly ('Total of the N accounts that answered' + red 'Not included: …' line) whenever a summary row errored or a tile ended unavailable; a failed GET /accounts still paints the Paper tile beside the error panel; the re-connect copy points at the cockpit's Settings → Connections; matchSummaryRow never lets a notTrading row attach to a booked tile.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 D6 event playbooks: ONE GET /events/plans after the tiles paint (allPlans, not a call per tile) marks every tile whose book has an active IPO plan with an 'IPO plan armed' pill under the strategy line; errors (older server) leave the tiles untouched.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | ADR-138 watchlist: a compact Watchlist panel below the tiles (symbols + quotes, Research → researchSymbol, ✕ remove, add box) painted through the shared loadWatchlistPanel() from view-research.js; independent of GET /accounts so it still fills when the accounts service is down.
  */
 
 /* The tile models of the CURRENT paint, in display order — the delegated click handler resolves a
@@ -39,6 +42,7 @@ function accountsSkeleton() {
   return '<div class="panel"><div class="hero-total"><span class="n" id="heroTotal">…</span><span class="sub" id="heroSub">Total value · all accounts</span> <span id="heroDay" class="sub"></span></div>' +
       '<div class="err" id="heroMissing" style="font-size:12px;margin-top:6px" hidden></div></div>' +
     '<div class="tiles" id="tiles"><div style="grid-column:1/-1">' + spinner('Loading accounts…') + '</div></div>' +
+    '<div class="panel" id="wlHost">' + spinner('Loading watchlist…') + '</div>' +
     '<div class="panel"><h2>Positions across all accounts</h2><div id="rollup">' + spinner('Reading every account…') + '</div></div>' +
     '<div class="panel">' +
       '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><h2 style="margin:0">Connected Schwab accounts</h2>' +
@@ -463,16 +467,30 @@ function paintAccountsUnavailable(err) {
 }
 
 /**
+ * @description Fill the Watchlist panel (ADR-138) through the shared loader in view-research.js. Rows
+ * there call researchSymbol(sym) (inline = false). Says so plainly when that module did not load —
+ * never a spinner that spins forever.
+ * @returns {void}
+ */
+function paintWatchlistHost() {
+  const host = $('wlHost'); if (!host) return;
+  if (typeof loadWatchlistPanel === 'function') { loadWatchlistPanel('wlHost', false); return; }
+  host.innerHTML = '<h2>Watchlist</h2><div class="foot" style="margin:0">Watchlist unavailable — the Research module did not load.</div>';
+}
+
+/**
  * @description VIEW 'accounts' — the landing page. Paints the skeleton, refreshes the roster, shows
  * one tile per book immediately, then fills balances from GET /summary. Every async step checks
  * stale(token) before painting so a navigation away can never be overpainted. A failed roster load
- * degrades to paintAccountsUnavailable() instead of blanking the page.
+ * degrades to paintAccountsUnavailable() instead of blanking the page. The watchlist is its own
+ * route, so it is kicked off before the roster load and fills either way.
  * @param {number} token - RENDER_TOKEN at dispatch time.
  * @returns {Promise<void>}
  */
 async function renderAccountsView(token) {
   main.innerHTML = accountsSkeleton();
   wireTiles(); wireDiscovered();
+  paintWatchlistHost();
   try {
     await loadBooks();
   } catch (e) {

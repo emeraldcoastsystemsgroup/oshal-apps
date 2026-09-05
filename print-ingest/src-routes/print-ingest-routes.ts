@@ -22,6 +22,7 @@ import {
   type PrintSidecar,
   destinationCatalog,
   destinationsForCaller,
+  isOperatorIdentity,
   type Recommendation,
 } from './print-classify';
 import { executeFanout, planFanout, stateForResults, type RagIngestPort } from './print-fanout';
@@ -57,13 +58,17 @@ function callerSub(req: Request): string | null {
  * @description Whether the caller may file into the kernel-reserved swarm level.
  * Generic ingest there is refused for non-admins, so the form must not offer it —
  * a missing option beats a write that fails after the person believed they filed.
+ * Reads the kernel's operator allowlist rather than an OIDC `roles` claim: found
+ * by live test, a personal-access-token session carries no roles, so a genuine
+ * operator was silently denied the destination.
  * @param req - The incoming request.
  * @returns True when the caller is an operator/admin.
  */
 function callerIsAdmin(req: Request): boolean {
-  const roles = (req as unknown as { oidc?: { user?: { roles?: unknown } } }).oidc?.user?.roles;
-  const list = Array.isArray(roles) ? roles.map(String) : [];
-  return list.includes('operator') || list.includes('admin');
+  const user = (req as unknown as { oidc?: { user?: { email?: string; roles?: unknown } } }).oidc?.user;
+  if (isOperatorIdentity(callerSub(req), user?.email)) return true;
+  const roles = Array.isArray(user?.roles) ? (user?.roles as unknown[]).map(String) : [];
+  return roles.includes('operator') || roles.includes('admin');
 }
 
 /**

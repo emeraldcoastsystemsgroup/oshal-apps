@@ -12,6 +12,10 @@
   "Scan now" (fires an out-of-band refresh, returns immediately), an Alerts tab (what Jarvis
   has already been told), and a Settings tab rendered from the manifest's settings.schema —
   cadence for operators, alert thresholds per person.
+
+  2026-09-04 — the Alerts tab shows each announced hand's OUTCOME (settlement grade, one-contract
+  P&L) and a W-L record line over the ledger. The grades were always in kalshi_predictions (daily
+  grader); the surface just never showed them per alert ("where is the win/loss record").
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -240,14 +244,17 @@
   <section class="tab-panel" data-panel="alerts" role="tabpanel" hidden>
     <div class="panel">
       <h2>Alert history <span class="meta" style="text-transform:none;font-weight:400">— each hand is announced ONCE, the first time it clears your floor</span></h2>
+      <div class="meta" id="alert-record" style="margin-bottom:8px"></div>
       <table style="width:100%">
-        <thead><tr><th>When</th><th>Market</th><th>Hand</th><th class="num">Net edge</th><th>Sent via</th></tr></thead>
+        <thead><tr><th>When</th><th>Market</th><th>Hand</th><th class="num">Net edge</th><th>Outcome</th><th>Sent via</th></tr></thead>
         <tbody id="alert-rows"></tbody>
       </table>
       <div class="meta" id="alerts-empty" style="margin-top:8px">Nothing yet. When the background scan finds a hand that clears your alert floor, it lands in your Jarvis feed and is listed here.</div>
     </div>
     <p class="explain">
       Alerts are <b>first-seen</b>: the scan re-finds the same hand every cycle, so re-announcing it would train you to ignore it.
+      <b>Outcome</b> is the settlement grade of the hand exactly as announced — WIN or LOSS, and the P&amp;L of one contract bought at the alerted ask, fees included.
+      It is a paper record (an alert never places an order) and the same grades feed the Scorecard tab.
       Change the floor, the strength, or the daily cap on the <b>Settings</b> tab. <b>Jarvis</b> gets these in his feed —
       ask him "what did the Kalshi scan find?" and he answers from what actually happened, not a fresh scan.
     </p>
@@ -501,6 +508,32 @@
   }
 
   /* ── Alerts: what the background scan has already told this user (and Jarvis). ─────────── */
+  /* Settlement outcome of the hand exactly as it was announced. `won`/`settled` come from the
+     prediction the alert was pre-registered as; a market that has not settled is "open", never a
+     loss. P&L is one contract bought at the alerted ask, fees included — a paper number. */
+  function outcomeCell(a) {
+    if (a.settled !== true) return '<td class="meta">open</td>';
+    if (a.won !== true && a.won !== false) return '<td class="meta">settled</td>';
+    var pnl = Number(a.pnl_per_contract);
+    var money1 = isFinite(pnl) ? ' <span class="meta">' + (pnl < 0 ? '−' : '+') + '$' + Math.abs(pnl).toFixed(2) + '/contract</span>' : '';
+    return '<td style="color:' + (a.won ? 'var(--green)' : 'var(--red)') + '"><b>' + (a.won ? 'WIN' : 'LOSS') + '</b>' + money1 + '</td>';
+  }
+  /* The W-L line above the table — the record the operator asked for, over every alert still in
+     the ledger. Hidden until something has been announced; rates print "—" until something settled. */
+  function renderAlertRecord(rec) {
+    var el = $('alert-record');
+    if (!rec || !rec.alerted) { el.innerHTML = ''; return; }
+    var decided = rec.wins + rec.losses;
+    var hit = rec.hitRate === null || rec.hitRate === undefined ? '—' : Math.round(rec.hitRate * 100) + '%';
+    var avg = rec.pnlPerContract === null || rec.pnlPerContract === undefined ? '—'
+      : (rec.pnlPerContract < 0 ? '−' : '+') + '$' + Math.abs(rec.pnlPerContract).toFixed(3);
+    var total = rec.pnlTotal === null || rec.pnlTotal === undefined ? '—'
+      : (rec.pnlTotal < 0 ? '−' : '+') + '$' + Math.abs(rec.pnlTotal).toFixed(2);
+    el.innerHTML = '<b>Record:</b> <span style="color:var(--green)">' + rec.wins + ' W</span> – ' +
+      '<span style="color:var(--red)">' + rec.losses + ' L</span> (' + esc(hit) + ' hit rate over ' + decided + ' settled) · ' +
+      'avg ' + esc(avg) + ' per contract, ' + esc(total) + ' had you bought one contract on each · ' +
+      rec.open + ' still open · ' + rec.alerted + ' announced. Paper: alerts never place orders.';
+  }
   function loadAlerts() {
     return fetch('/api/kalshi/alerts', { credentials: 'same-origin' })
       .then(function (r) { return r.ok ? r.json() : { alerts: [] }; })
@@ -516,10 +549,12 @@
             '<td><span class="badge b-' + esc(a.strength || 'playable') + '">' + esc(a.strength || '—') + '</span>' +
             (d.side ? ' <span class="side-' + esc(d.side) + '">' + esc(String(d.side).toUpperCase()) + '</span>' : '') + '</td>' +
             '<td class="num edge-pos">+' + ((Number(a.edge_net) || 0) * 100).toFixed(1) + '¢</td>' +
+            outcomeCell(a) +
             '<td class="meta">' + esc(a.channel || 'none') + (a.delivered ? '' : ' <span style="color:var(--amber)">(not delivered)</span>') + '</td>';
           tb.appendChild(tr);
         });
         $('alerts-empty').style.display = rows.length ? 'none' : '';
+        renderAlertRecord(b.record);
         setBadge('badge-alerts', rows.length ? String(rows.length) : '', '');
       })
       .catch(function () { /* the tab just stays empty */ });

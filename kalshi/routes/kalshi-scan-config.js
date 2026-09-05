@@ -25,11 +25,13 @@
  * DATE/TIME           | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-30 03:20:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial — the always-on scan's config resolution (manifest→deployment→user layering with per-key scope enforcement + clamping), snapshot freshness math, and the alert gate (strength/edge floor, first-seen dedup, top-N, per-day budget) + its message formatting.
+ * 2026-09-04 23:40:00 | roger.murphy@emeraldcoastsystemsgroup.com   | summarizeAlertRecord — the win/loss fold over alerts joined to their graded predictions (settled/won/one-contract P&L). Pure, so the plain-node suite pins the math: unsettled rows are "open", a record with no settled rows has NULL rates (never 0%), and P&L averages only over rows that were actually graded.
+ * 2026-09-04 23:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | contrarianExtremeRow — the pre-registered "bet against ourselves at the extremes" forward test (operator, 2026-09-04): for a scan hand with our P >= .90 or <= .10, the OPPOSITE side at its own ask (= 1 - our bid, from the hand's spread), claimed +.10 over the market, zero stake. In-sample the 79 such flips made ~6c a contract after spread; that is a hypothesis, so it is registered as one and graded by the same judge. Pure, so the plain-node suite pins the rule.
  *
  * @module kalshi-scan-config
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SCOPE_OF = exports.KALSHI_SCAN_DEFAULTS = exports.STRENGTH_ORDER = void 0;
+exports.CONTRARIAN_CLAIMED_OVERPRICING = exports.CONTRARIAN_EXTREME_MAX_LONGSHOT = exports.CONTRARIAN_EXTREME_MIN_PROB = exports.CONTRARIAN_EXTREME_STRATEGY = exports.SCOPE_OF = exports.KALSHI_SCAN_DEFAULTS = exports.STRENGTH_ORDER = void 0;
 exports.keysForScope = keysForScope;
 exports.manifestConfigDefaults = manifestConfigDefaults;
 exports.resolveScanConfig = resolveScanConfig;
@@ -38,6 +40,9 @@ exports.scopedPatch = scopedPatch;
 exports.scanFreshness = scanFreshness;
 exports.selectAlertHands = selectAlertHands;
 exports.formatAlert = formatAlert;
+exports.summarizeAlertRecord = summarizeAlertRecord;
+exports.quadraticFeePerContract = quadraticFeePerContract;
+exports.contrarianExtremeRow = contrarianExtremeRow;
 /** Strongest → weakest. A minimum of 'playable' therefore admits monster + strong + playable. */
 exports.STRENGTH_ORDER = { monster: 0, strong: 1, playable: 2, fold: 3 };
 /** Layer 1: the in-code defaults. Hourly, alerts on, outward off. */
@@ -285,5 +290,116 @@ function formatAlert(hands, meta) {
         ? `Kalshi: ${String(top.side || '').toUpperCase()} ${top.title || top.ticker} — net edge +${cents(top.edgeNet)} (candidate, 0% stake until proven)`
         : `Kalshi: ${n} new hands, best +${cents(top.edgeNet)} (${top.title || top.ticker}). Candidates only.`;
     return { subject, body, shortText };
+}
+/**
+ * @description Fold alert rows (each joined to its graded prediction) into a W-L record. Only
+ * settled rows count; an alert whose market has not settled is "open", not a loss, and a record
+ * with nothing decided reports null rates rather than a misleading 0%.
+ * @param rows - Alert rows carrying settled/won/pnl_per_contract from the prediction join.
+ * @returns The record.
+ */
+function summarizeAlertRecord(rows) {
+    let settled = 0;
+    let wins = 0;
+    let losses = 0;
+    let pnl = 0;
+    let graded = 0;
+    for (const r of rows || []) {
+        if (!r || r.settled !== true)
+            continue;
+        settled += 1;
+        if (r.won === true)
+            wins += 1;
+        else if (r.won === false)
+            losses += 1;
+        if (r.pnl_per_contract !== null && r.pnl_per_contract !== undefined) {
+            const v = Number(r.pnl_per_contract);
+            if (Number.isFinite(v)) {
+                pnl += v;
+                graded += 1;
+            }
+        }
+    }
+    const alerted = (rows || []).length;
+    const decided = wins + losses;
+    return {
+        alerted, settled, wins, losses, open: alerted - settled,
+        hitRate: decided ? wins / decided : null,
+        pnlPerContract: graded ? pnl / graded : null,
+        pnlTotal: graded ? pnl : null,
+    };
+}
+/* ── The pre-registered contrarian hypothesis ─────────────────────────────────────────────────
+   Operator, 2026-09-04: "if it is extremely wrong then it is extremely right on the other side. Right?"
+   The graded record says slightly, not extremely: over 79 scan hands where our P was >= .90 or <= .10,
+   the other side would have made ~6c a contract after the spread — one in-sample survivor out of
+   fourteen variants tried on the data that produced it. So it is a HYPOTHESIS, registered as one:
+   zero stake, immutable, graded by the daily grader against the market's Brier like every strategy.
+   The rule is fixed here and must not drift with the data it is being tested on. */
+/** Strategy name in kalshi_predictions and on the Scorecard tab. */
+exports.CONTRARIAN_EXTREME_STRATEGY = 'contrarian-extreme';
+/** Our P for the side at or above this (or at or below 1 - this) is "extreme". */
+exports.CONTRARIAN_EXTREME_MIN_PROB = 0.90;
+/** ...or at or below this (spelled out: 1 - 0.90 is not 0.10 in floating point). */
+exports.CONTRARIAN_EXTREME_MAX_LONGSHOT = 0.10;
+/** The claim: the market is this much too generous to OUR side there (in-sample: flips hit 19% vs a 9% price). */
+exports.CONTRARIAN_CLAIMED_OVERPRICING = 0.10;
+/**
+ * @description Kalshi's quadratic taker fee per contract (7% x P x (1-P)), rounded the way the engine's
+ * feePerContract rounds it — up to the cent on a 10-lot, then per contract — so a pre-registered edge
+ * matches what the grader will charge. Duplicated here because this module must stay dependency-free
+ * for the plain-node suite.
+ * @param price - Contract price in dollars (0..1).
+ * @returns Fee per contract in dollars.
+ */
+function quadraticFeePerContract(price) {
+    const raw = 0.07 * 10 * price * (1 - price);
+    return Math.ceil(raw * 100 - 1e-9) / 100 / 10;
+}
+/**
+ * @description The contrarian sibling of one scan hand, or null when the hand is not extreme or the
+ * other side cannot be priced. Kalshi's two sides share one order book, so the other side's ask is
+ * exactly one minus OUR bid (= our ask minus the spread) — never one minus our ask, which would
+ * pretend the spread away. A hand with no bid (spread 1) has no flip price and is skipped.
+ * @param h - A scan hand.
+ * @returns The row to pre-register, or null.
+ */
+function contrarianExtremeRow(h) {
+    const p = Number(h.trueProb);
+    if (!Number.isFinite(p))
+        return null;
+    if (!(p >= exports.CONTRARIAN_EXTREME_MIN_PROB - 1e-9 || p <= exports.CONTRARIAN_EXTREME_MAX_LONGSHOT + 1e-9))
+        return null;
+    const spread = Number(h.spread);
+    const ask = Number(h.price);
+    if (!Number.isFinite(spread) || !Number.isFinite(ask) || spread >= 1 || spread < 0)
+        return null;
+    const bid = Math.round((ask - spread) * 10000) / 10000;
+    if (!(bid > 0))
+        return null;
+    const flipAsk = Math.round((1 - bid) * 10000) / 10000;
+    if (!(flipAsk > 0.01 && flipAsk < 0.99))
+        return null;
+    const side = h.side === 'yes' ? 'no' : 'yes';
+    const predictedProb = Math.min(0.99, flipAsk + exports.CONTRARIAN_CLAIMED_OVERPRICING);
+    const fee = quadraticFeePerContract(flipAsk);
+    return {
+        strategy: exports.CONTRARIAN_EXTREME_STRATEGY,
+        ticker: h.ticker,
+        eventTicker: h.eventTicker || h.ticker.split('-').slice(0, 2).join('-'),
+        seriesTicker: h.ticker.split('-')[0],
+        side,
+        predictedProb,
+        marketProb: flipAsk,
+        edgeNet: predictedProb - (flipAsk + fee),
+        stakeFraction: 0,
+        rationale: {
+            flippedFrom: 'calibration',
+            rule: `trueProb >= ${exports.CONTRARIAN_EXTREME_MIN_PROB} or <= ${exports.CONTRARIAN_EXTREME_MAX_LONGSHOT}`,
+            ourSide: h.side, ourProb: p, ourAsk: ask, ourBid: bid, spread,
+            claimedOverpricing: exports.CONTRARIAN_CLAIMED_OVERPRICING,
+        },
+        closeTime: h.closeTime ?? null,
+    };
 }
 //# sourceMappingURL=kalshi-scan-config.js.map

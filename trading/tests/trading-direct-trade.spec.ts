@@ -25,8 +25,11 @@ describe('direct trades — POST /decisions/manual (ADR-136 D3)', () => {
     expect(route).toMatch(/ON CONFLICT \(user_sub, book_id, content_hash\)/);
   });
 
-  it('refuses a BUY on a view-only book before any pricing or venue work', () => {
-    expect(route).toMatch(/if \(!book\.enabled && side === 'buy'\)[\s\S]{0,200}409[\s\S]{0,80}book_disabled/);
+  it('a MANUAL buy is allowed regardless of the autopilot flag — the route no longer refuses a view-only buy (2026-09-04)', () => {
+    // "enabled" gates the AUTOPILOT, not the operator: a human clicking Buy is explicit. The route
+    // must NOT block a manual buy on a disabled book; the engine refuses only AUTONOMOUS buys there.
+    expect(route).not.toMatch(/res\.status\(409\)\.json\(\{ error: 'book_disabled'/);
+    expect(route).toContain('A manual buy is the operator\'s explicit action');
   });
 
   it('pre-checks the engine guardrails and returns 422 guardrail_blocked with the reason', () => {

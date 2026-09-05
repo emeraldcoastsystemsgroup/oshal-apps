@@ -30,6 +30,8 @@
  * 24 | maintainer@emeraldcoastsystemsgroup.com  | Stop dropping each gap theme's interviewer question at the CLI boundary and expose the bounded enrichment audit tail. The strengthen list projection whitelisted seven fields and omitted prompt/desc, so the real per-theme question the engine has always carried never reached the surface, which substituted a generic sentence; strengthen changelog lets a caller read the bullets a detached augmentation actually wrote, whose stdout the asynchronous dispatch cannot return.
  * 25 | maintainer@emeraldcoastsystemsgroup.com  | Add the Resume Studio master-document verbs: `resume base` (straight profile-to-editor mapping, no LLM) and `resume base-save` (bounded CH_RESUME_DOC whitelist write-back through profile.replace_resume_fields), so the durable career profile has a first-class editor path.
  * 26 | maintainer@emeraldcoastsystemsgroup.com  | Bring the master-resume input ceiling under the platform limit that actually governs it: 96 KiB, not 256 KiB. CH_RESUME_DOC is delivered through execve, and Linux caps a single environment string at 128 KiB, so the old ceiling could never fire on a Linux deployment — an oversize document failed the spawn with E2BIG and surfaced an opaque error instead of the designed refusal. The guard was unreachable in production and only ever passed its test on Windows.
+ * 27 | maintainer@emeraldcoastsystemsgroup.com  | ADR-137 amendment A, launcher half: this file re-applied the .brokered-auth-only wall to the Python child on every run, so the runner's 1.12.4 operator carve never reached the engine (live 2026-09-05: "No AI auth found" after the carve shipped). The wall now yields only to the runner's explicit OSHAL_PORTAL_LOGINS=1 verdict, passing the mounted login locations (and HOME) through instead.
+ * 28 | maintainer@emeraldcoastsystemsgroup.com  | User-owned scrape targets: `classify` (pattern-only ATS gate, JSON, no DB) and `add-target` (register one validated URL in the shared corpus + scrape now, JSON) join the corpus verbs so the per-user target routes reach the engine's own URL classifier instead of a second copy of its patterns.
  *
  * Verbs (each forwards extra args to the engine):
  *   pull      -> scrape --all  then  match.rescore_recent  (nightly corpus refresh + keyword index)
@@ -232,9 +234,30 @@ function prepareStore(userSub, tenant) {
   };
 }
 
+/**
+ * Where the Python child may look for vendor logins. The runner (career-engine-runner.ts) is the
+ * only party that evaluates ADR-137 amendment A's two gates; it states its verdict as
+ * OSHAL_PORTAL_LOGINS=1, and only that exact value lifts the brokered-only wall here — the mounted
+ * ~/.codex and ~/.claude then reach the engine through HOME (plus any explicit location the
+ * controller itself runs with). Everything else gets the empty per-user sandbox.
+ */
+function vendorLoginEnv(store) {
+  if (process.env.OSHAL_PORTAL_LOGINS === '1') {
+    const passThrough = {};
+    for (const key of ['HOME', 'USERPROFILE', 'CODEX_HOME', 'CLAUDE_CONFIG_DIR']) {
+      if (process.env[key]) passThrough[key] = process.env[key];
+    }
+    return passThrough;
+  }
+  const authRoot = path.join(store.userDir, '.brokered-auth-only');
+  return {
+    CLAUDE_CONFIG_DIR: path.join(authRoot, 'claude'),
+    CODEX_HOME: path.join(authRoot, 'codex'),
+  };
+}
+
 /** Build the least-privilege Python environment and add only this user's brokered secrets. */
 async function buildEngineEnv(userSub, tenant, verb, store, deadlineAt) {
-  const authRoot = path.join(store.userDir, '.brokered-auth-only');
   const env = {
     ...inheritedEngineEnv(verb),
     PYTHONPATH: ENGINE_DIR,
@@ -246,8 +269,7 @@ async function buildEngineEnv(userSub, tenant, verb, store, deadlineAt) {
     JOBHUNTER_CORPUS_DB: store.corpusDb,
     JOBHUNTER_USER_DB: store.userDb,
     JOBHUNTER_CAREER_DB: store.careerDb,
-    CLAUDE_CONFIG_DIR: path.join(authRoot, 'claude'),
-    CODEX_HOME: path.join(authRoot, 'codex'),
+    ...vendorLoginEnv(store),
   };
   let anthropic;
   let firecrawl;
@@ -321,6 +343,8 @@ function corpusRuns(verb, rest) {
       + 'print(json.dumps({"scored":done,"skipped":skipped,"terms":len(terms)}))']];
     case 'discover': return [['-m', 'jobhunter', 'discover', ...(rest.length ? rest : ['--all-missing'])]];
     case 'seturl': return [['-m', 'jobhunter', 'seturl', ...rest]];
+    case 'classify': return [['-m', 'jobhunter', 'classify', ...rest]];
+    case 'add-target': return [['-m', 'jobhunter', 'add-target', ...rest]];
     case 'enrich': return [['-m', 'jobhunter', 'enrich', ...(rest.length ? rest : ['--missing'])]];
     default: return null;
   }

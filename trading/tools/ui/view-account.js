@@ -7,10 +7,17 @@
  *
  * Contract: app.js render() calls renderAccountView(token) with STATUS fetched for BOOK/MODE and
  * DISP = the human label. Sibling globals CALLED here, never defined: loadKpisAndPositions(),
- * annotatePositionSignals(), loadPerfSummary(), focus() [shared-positions.js]; openTicket()
- * [ticket.js]; toggleBook(), fillStrategyPickers(), setBookStrategy(), resetBookStrategy(),
- * eventPlanActive(), eventStatusPill(), eventEntryExitText() [view-strategies.js]. Every paint after
- * an await checks stale(token) — a stale response from a previous account must never paint this one.
+ * annotatePositionSignals(), loadPerfSummary(), focus(), renderPortfolioTable() [shared-positions.js];
+ * openTicket(), tktProtWords() [ticket.js]; toggleBook(), fillStrategyPickers(), setBookStrategy(),
+ * resetBookStrategy(), eventPlanActive(), eventStatusPill(), eventEntryExitText() [view-strategies.js];
+ * PENDING_TICKET [view-research.js — consumed here, read through typeof]. Every paint after an await
+ * checks stale(token) — a stale response from a previous account must never paint this one.
+ *
+ * ADR-138: the 'Protected lots' card (GET /lots) lists this account's ring-fenced purchases with a
+ * Release action, and publishes window.PINNED_BY_SYMBOL so the positions table can mark 'pinned N'.
+ *
+ * ADR-136 D4: the 'Timed orders' card (GET /dated) lists this account's scheduled operator orders with
+ * a Cancel action (POST /dated/:id/cancel) until they fire; fired/expired/cancelled rows stay as history.
  */
 
 /* ── the view ──────────────────────────────────────────────────────────────── */
@@ -18,9 +25,11 @@ async function renderAccountView(token) {
   try {
     const b = bookOf(BOOK);
     const name = esc(DISP);
-    const viewOnly = STATUS.bookEnabled === false;
-    const banner = viewOnly
-      ? '<div class="livebanner viewonly">VIEW-ONLY account (' + name + ') — balances and positions only. Trading is off; the engine cannot buy here. Use &ldquo;Start trading&rdquo; to arm it.</div>'
+    // "Autopilot off" (was "view-only"): the AUTOPILOT won't autonomously trade this account — but
+    // the operator can always buy/sell manually (2026-09-04 fix). Only autonomous trading is gated.
+    const autopilotOff = STATUS.bookEnabled === false;
+    const banner = autopilotOff
+      ? '<div class="livebanner viewonly">AUTOPILOT OFF for ' + name + ' — the engine will not trade this account on its own. You can still buy and sell manually with <b>Buy a stock</b>; use &ldquo;Start trading&rdquo; to let the autopilot run it too.</div>'
       : (MODE === 'live')
         ? '<div class="livebanner">LIVE account (' + name + ') — orders place REAL trades with REAL money. Each order asks you to confirm.</div>'
         : '';
@@ -33,20 +42,27 @@ async function renderAccountView(token) {
         '</div></div>';
       return;
     }
-    main.innerHTML = banner + accountHeader(b, viewOnly) +
+    window.PINNED_BY_SYMBOL = null; ACCT_LOTS = []; ACCT_DATED = [];  // another account's pins/timed orders must never show here
+    main.innerHTML = banner + accountHeader(b, autopilotOff) +
       '<div id="eventPlanCard"></div>' +                                // an event playbook on this account (ADR-136 D6), filled async
       '<div id="ticketHost"></div>' +                                   // the direct-trade ticket lands here (openTicket)
       '<div id="kpis" class="kpis"></div>' +
       '<div id="positionsHero"><div class="panel">' + spinner('Loading positions…') + '</div></div>' +
+      '<div id="lotsCard"></div>' +                                     // protected lots (ADR-138), filled async
+      '<div id="datedCard"></div>' +                                    // timed orders (ADR-136 D4), filled async; empty when none
       '<div class="panel" id="focus"><div class="foot" style="padding:22px 6px;text-align:center">Select a position above to open its chart, signal model and order ticket.</div></div>' +
       '<div id="viewTabs"></div>';
+    wireAccountHeader();
     renderStrategyLine(token, b);          // async — fills #stratLine when /lab/apply answers
     loadEventPlanCard(token);              // async — fills #eventPlanCard when /events/plans answers
+    loadLotsCard(token);                   // async — fills #lotsCard + PINNED_BY_SYMBOL when /lots answers
+    loadDatedCard(token);                  // async — fills #datedCard when /dated answers (ADR-136 D4)
     await loadKpisAndPositions();          // KPI strip + STATE.positions + the positions hero
     if (stale(token)) return;
     annotatePositionSignals();             // annotate each position with its stored signal (async, DB)
     loadPerfSummary();                     // total-return / vs-S&P KPI tiles without opening the tab
     if (PENDING_FOCUS) { const s = PENDING_FOCUS; PENDING_FOCUS = null; focus(s); const f = $('focus'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    if (typeof PENDING_TICKET !== 'undefined' && PENDING_TICKET) { const s = PENDING_TICKET; PENDING_TICKET = null; openTicket(s); const th = $('ticketHost'); if (th) th.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
     subTabs('viewTabs', [['journal','Trade journal'],['perf','Performance']], SUB || 'journal', (k) => {
       if (k === 'journal') loadJournal();
       else if (k === 'perf') loadPerformance();
@@ -58,23 +74,27 @@ async function renderAccountView(token) {
 
 /* ── account header ────────────────────────────────────────────────────────── */
 /* Name, kind + state pills, the actions, and the strategy line (its own full-width row, filled async). */
-function accountHeader(b, viewOnly) {
+function accountHeader(b, autopilotOff) {
   const kind = b ? b.kind : MODE;
   // The account TYPE (CASH/MARGIN/IRA…) lives on the discovered-account row, not the book row.
   const acct = b && b.bookId ? ACCOUNTS.find(a => a.book && a.book.bookId === b.bookId) : null;
   const type = (acct && acct.accountType) || (b && (b.accountType || b.type));
   const pills = '<span class="pill">' + esc(kind) + '</span>' +
     (type ? ' <span class="pill">' + esc(type) + '</span>' : '') +
-    (viewOnly ? ' <span class="pill">view-only</span>' : ' <span class="pill ok">trading</span>');
-  const buy = '<button class="btn buy" onclick="openTicket()"' +
-    (viewOnly ? ' disabled title="Trading is off for this account — Start trading to arm it"' : ' title="Place a direct order on ' + esc(DISP) + '"') +
-    '>Buy a stock</button>';
+    (autopilotOff ? ' <span class="pill">autopilot off</span>' : ' <span class="pill ok">autopilot on</span>');
+  // Buy is ALWAYS available — a manual order is the operator's own action (2026-09-04 fix).
+  const buy = '<button class="btn buy" onclick="openTicket()" title="Place a direct order on ' + esc(DISP) + '">Buy a stock</button>';
   const toggle = (MODE === 'live' && b && b.bookId)
     ? ' <button class="btn ghost" onclick="acctToggleTrading()">' + (viewOnly ? 'Start trading…' : 'Stop trading') + '</button>'
     : '';
+  const research = ' <button class="btn ghost" id="acctResearchBtn" title="Quote, chart, fundamentals, news and filings for one stock">Research a stock</button>';
   return '<div class="panel acct-head"><h2>' + esc(DISP) + '</h2>' + pills +
-    '<span class="spacer"></span>' + buy + toggle +
+    '<span class="spacer"></span>' + research + buy + toggle +
     '<div id="stratLine" class="sub" style="flex-basis:100%">Loading strategy…</div></div>';
+}
+/* The header's id'd controls — wired after the paint (no ids or labels pass through onclick strings). */
+function wireAccountHeader() {
+  const rb = $('acctResearchBtn'); if (rb) rb.onclick = () => navigate('research', { sub: 'stock' });
 }
 
 /* Start/Stop trading on the selected account. toggleBook() (view-strategies.js) owns the confirm
@@ -159,6 +179,130 @@ function eventPlanCardHtml(p) {
     '<div class="foot">' + esc(eventEntryExitText(p)) + '</div>' +
     (active && STATUS.bookEnabled === false ? '<div class="sub warn" style="margin-top:4px">&#9888; This account is view-only — the plan cannot buy until you Start trading.</div>' : '') +
     '</div>';
+}
+
+/* ── protected lots card (ADR-138) ─────────────────────────────────────────── */
+/* ── timed orders (ADR-136 D4) ─────────────────────────────────────────────── */
+/* The timed orders of the CURRENT paint — Cancel resolves an id against this array (never an onclick string). */
+let ACCT_DATED = [];
+/* GET /dated is scoped to BOOK by api(). A failure is said in red, never a silent blank; no rows = no card. */
+async function loadDatedCard(token) {
+  const el = $('datedCard'); if (!el) return;
+  let j;
+  try { j = await api('/dated'); }
+  catch (e) {
+    if (stale(token)) return;
+    el.innerHTML = '<div class="panel"><h2>Timed orders</h2><div class="err" style="font-size:13px">Timed orders unavailable: ' + esc(e.message) + '</div></div>';
+    return;
+  }
+  if (stale(token) || !$('datedCard')) return;
+  ACCT_DATED = j.dated || [];
+  el.innerHTML = datedCardHtml(ACCT_DATED);
+  el.onclick = (e) => { const b = e.target.closest('button[data-dated]'); if (!b || !el.contains(b)) return; e.preventDefault(); cancelDated(b.getAttribute('data-dated')); };
+}
+function datedCardHtml(rows) {
+  if (!rows.length) return '';
+  const pending = rows.filter(r => r.status === 'pending').length;
+  const head = '<div class="panel"><div class="panel head2" style="padding:0;margin:0 0 8px;background:none;border:0;box-shadow:none"><h2 style="margin:0">Timed orders</h2>' +
+    '<span class="foot" style="margin-left:auto">' + pending + ' pending' + (rows.length - pending ? ' · ' + (rows.length - pending) + ' done' : '') + '</span></div>';
+  return head + '<div style="overflow-x:auto"><table><thead><tr><th>Fires (ET)</th><th>Order</th><th>Status</th><th></th></tr></thead><tbody>' + rows.map(datedRowHtml).join('') + '</tbody></table></div>' +
+    '<div class="foot" style="margin-top:8px">A timed order is placed by the trading leg at its time (5-minute ticks, 9:00 AM–4:55 PM ET on trading days). Once fired it is an ordinary order in the Trade journal. A window missed by more than the grace expires unfired.</div></div>';
+}
+function datedRowHtml(r) {
+  const k = r.status === 'fired' ? 'filled' : (r.status === 'pending' ? 'pending' : ((r.status === 'error' || r.status === 'expired') ? 'rejected' : ''));
+  const detail = r.status === 'fired' ? (r.firedStatus ? ' <span class="foot" style="margin:0">(' + esc(r.firedStatus) + ')</span>' : '') : (r.error ? ' <span class="foot" style="margin:0">— ' + esc(r.error) + '</span>' : '');
+  return '<tr><td>' + esc(r.fireAtWords || fmtDate(r.fireAt)) + '</td>' +
+    '<td><strong>' + esc(String(r.side || '').toUpperCase()) + ' ' + esc(r.qty) + ' ' + esc(r.symbol) + '</strong> <span class="foot" style="margin:0">' + esc(String(r.orderType || '').replace(/_/g, ' ')) + '</span></td>' +
+    '<td><span class="pill ' + k + '">' + esc(r.status) + '</span>' + detail + '</td>' +
+    '<td style="text-align:right">' + (r.status === 'pending' ? '<button class="btn ghost sm" data-dated="' + esc(r.datedId) + '">Cancel…</button>' : '') + '</td></tr>';
+}
+/* POST /dated/:id/cancel after a confirm() naming the order; the card reloads on success, says why on failure. */
+async function cancelDated(id) {
+  const r = ACCT_DATED.find(x => String(x.datedId) === String(id)); if (!r) return;
+  if (!confirm('Cancel the timed order ' + String(r.side).toUpperCase() + ' ' + r.qty + ' ' + r.symbol + ' on ' + DISP + ' (fires ' + (r.fireAtWords || fmtDate(r.fireAt)) + ')?\nIt will not be placed.')) return;
+  const token = RENDER_TOKEN;
+  try { await api('/dated/' + encodeURIComponent(id) + '/cancel', jbody('POST', {})); }
+  catch (e) {
+    const el = $('datedCard');
+    if (el && !stale(token)) el.insertAdjacentHTML('afterbegin', '<div class="err" style="font-size:13px;margin:0 0 6px">Could not cancel: ' + esc(e.message || 'unknown error') + '</div>');
+    return;
+  }
+  if (!stale(token)) loadDatedCard(token);
+}
+
+/* The lots of the CURRENT paint — the delegated Release handler resolves a lotId against this array,
+   so the confirm() names symbol/shares from the model at call time, never from an onclick string. */
+let ACCT_LOTS = [];
+/* GET /lots is scoped to BOOK by api(). Publishes pinnedBySymbol for the positions table's 'pinned N'
+   pill and repaints that table if it is already up. A failure is said in red — the operator must know
+   when the protected lots (and their pins) cannot be shown; never a silent blank. */
+async function loadLotsCard(token) {
+  const el = $('lotsCard'); if (!el) return;
+  let j;
+  try { j = await api('/lots'); }
+  catch (e) {
+    if (stale(token)) return;
+    el.innerHTML = '<div class="panel"><h2>Protected lots</h2><div class="err" style="font-size:13px">Protected lots unavailable: ' + esc(e.message) + '</div></div>';
+    return;
+  }
+  if (stale(token) || !$('lotsCard')) return;
+  ACCT_LOTS = j.lots || [];
+  window.PINNED_BY_SYMBOL = j.pinnedBySymbol || {};
+  el.innerHTML = lotsCardHtml(ACCT_LOTS);
+  wireLotsCard(el);
+  if ((STATE.positions || []).length && typeof renderPortfolioTable === 'function') renderPortfolioTable();
+}
+function lotsCardHtml(lots) {
+  const active = lots.filter(l => l.status !== 'closed' && l.status !== 'released').length, done = lots.length - active;
+  const head = '<div class="panel"><div class="panel head2" style="padding:0;margin:0 0 8px;background:none;border:0;box-shadow:none"><h2 style="margin:0">Protected lots</h2>' +
+    (lots.length ? '<span class="foot" style="margin-left:auto">' + active + ' active' + (done ? ' · ' + done + ' closed/released' : '') + '</span>' : '') + '</div>';
+  if (!lots.length) return head + '<div class="foot" style="margin:0">No protected lots on this account.</div></div>';
+  return head + '<div style="overflow-x:auto"><table><thead><tr><th>Symbol</th><th class="num">Shares</th><th class="num">Avg</th><th>Protection</th><th>Status</th><th></th></tr></thead><tbody>' +
+    lots.map(lotRowHtml).join('') + '</tbody></table></div>' +
+    '<div class="foot" style="margin-top:8px">Protected lots are ring-fenced from the autopilot — only their own rules sell them. Release hands the shares back to the account\'s strategy.</div></div>';
+}
+/* Shares reads filled/ordered until the fill completes; Release is offered while the lot is live. */
+function lotRowHtml(l) {
+  const qty = Number(l.qty || 0), filled = l.filledQty != null ? Number(l.filledQty) : 0;
+  const shares = filled === qty ? String(qty) : filled + '/' + qty;
+  const releasable = l.status !== 'closed' && l.status !== 'released';
+  return '<tr><td><strong>' + esc(l.symbol) + '</strong></td>' +
+    '<td class="num" title="filled / ordered">' + esc(shares) + '</td>' +
+    '<td class="num">' + (l.filledAvgPrice != null ? money(l.filledAvgPrice) : '—') + '</td>' +
+    '<td style="font-size:12.5px">' + esc(lotRulesWords(l)) + '</td>' +
+    '<td>' + lotStatusPill(l.status) + '</td>' +
+    '<td style="text-align:right">' + (releasable ? '<button class="btn ghost sm" data-lot="' + esc(l.lotId) + '">Release…</button>' : '') + '</td></tr>';
+}
+/* The lot's rules in the SAME words the ticket used (tktProtWords, off the fill price), plus the exit
+   prices the server actually placed once it has them. */
+function lotRulesWords(l) {
+  const r = l.rules || {}, x = l.exits || {}, base = l.filledAvgPrice != null ? Number(l.filledAvgPrice) : null;
+  const words = typeof tktProtWords === 'function' ? tktProtWords(r, base > 0 ? base : null)
+    : Object.keys(r).map(k => k + ' ' + r[k]).join(' · ');
+  const placed = [x.tpPx != null ? 'take profit ' + money(x.tpPx) : '', x.stopPx != null ? 'stop ' + money(x.stopPx) : ''].filter(Boolean);
+  return (words || 'no exit rules (hold only)') + (placed.length ? ' — placed: ' + placed.join(', ') : '');
+}
+function lotStatusPill(s) {
+  const k = (s === 'open' || s === 'exits_placed') ? 'filled' : (s === 'pending_fill' ? 'pending' : (s === 'error' ? 'rejected' : ''));
+  return '<span class="pill ' + k + '">' + esc(String(s || 'unknown').replace(/_/g, ' ')) + '</span>';
+}
+/* One handler on the card host (assignment, so a reload never stacks a second listener). */
+function wireLotsCard(el) {
+  el.onclick = (e) => {
+    const b = e.target.closest('button[data-lot]'); if (!b || !el.contains(b)) return;
+    e.preventDefault(); releaseLot(b.getAttribute('data-lot'));
+  };
+}
+/* POST /lots/:id/release {confirm:true} after a confirm() naming the lot; the card reloads on success. */
+async function releaseLot(lotId) {
+  const l = ACCT_LOTS.find(x => String(x.lotId) === String(lotId)); if (!l) return;
+  const shares = l.filledQty != null && Number(l.filledQty) > 0 ? l.filledQty : l.qty;
+  if (!confirm('Release the protected lot of ' + shares + ' ' + l.symbol + ' on ' + DISP + '?\nIts rules stop applying and the shares return to the account\'s strategy — the autopilot may then sell them.')) return;
+  const token = RENDER_TOKEN;
+  try { await api('/lots/' + encodeURIComponent(lotId) + '/release', jbody('POST', { confirm: true })); }
+  catch (e) { if (!stale(token)) alert('Release failed: ' + e.message); return; }
+  if (stale(token)) return;
+  loadLotsCard(token);
 }
 
 /* ── performance — sub-tab (moved from the legacy page) ────────────────────── */

@@ -6,13 +6,14 @@
  * -----------------------------------------------------------------------------
  * 2026-07-17 11:20:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Industrial-strength ops primitives for the generate path: retry-with-backoff (transient vendor errors only), a hard per-attempt timeout, and a process-wide concurrency semaphore. Pure module — no framework imports — so the package test suite can exercise it under plain node.
  * 2026-08-31 12:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Passport export + email input validation (1.6.0): passportSize (fail-closed to the two sanctioned square sizes, 300/600) and isValidEmailAddress — pure here so the export/email routes stay thin and the plain-node spec suite covers the reject paths.
+ * 2026-08-31 16:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Orientation formats (1.7.0): passportSize generalizes to exportFormat over a closed EXPORT_FORMATS catalog — the two passport squares plus portrait/landscape 4×6-print crops. Same fail-closed discipline: a key outside the catalog is null, never a free-form resize.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PASSPORT_SIZES = exports.Semaphore = void 0;
+exports.EXPORT_FORMATS = exports.Semaphore = void 0;
 exports.withRetries = withRetries;
 exports.isTransientVendorError = isTransientVendorError;
 exports.withTimeout = withTimeout;
-exports.passportSize = passportSize;
+exports.exportFormat = exportFormat;
 exports.isValidEmailAddress = isValidEmailAddress;
 /**
  * @description Run `fn` with exponential backoff, retrying ONLY errors `isRetryable` accepts.
@@ -111,23 +112,32 @@ class Semaphore {
     }
 }
 exports.Semaphore = Semaphore;
-/** The two sanctioned passport export sizes (square, pixels). */
-exports.PASSPORT_SIZES = [300, 600];
 /**
- * @description Parse a requested passport export size, fail-closed to the sanctioned set —
- * a query string or JSON body may hand us anything, and an arbitrary integer would turn the
- * export route into a free-form image resizer.
- *
- * @param raw - The size as it arrived (query/body value of any shape).
- * @returns The validated size, or null when it is not exactly one of {@link PASSPORT_SIZES}.
+ * The closed export-format catalog: the two passport squares plus portrait/landscape
+ * 4×6-inch print crops (300 dpi). Keys are what the `size` query/body value may say.
  */
-function passportSize(raw) {
-    if (raw === undefined || raw === null)
-        return null;
+exports.EXPORT_FORMATS = {
+    '300': { width: 300, height: 300, label: 'passport 300×300' },
+    '600': { width: 600, height: 600, label: 'passport 600×600' },
+    portrait: { width: 1200, height: 1800, label: 'portrait 4×6 print (1200×1800)' },
+    landscape: { width: 1800, height: 1200, label: 'landscape 6×4 print (1800×1200)' },
+};
+/**
+ * @description Resolve a requested export format, fail-closed to the closed catalog —
+ * a query string or JSON body may hand us anything, and accepting arbitrary dimensions
+ * would turn the export route into a free-form image resizer.
+ *
+ * @param raw - The `size` value as it arrived (query/body value of any shape).
+ * @returns The resolved format, or null when it is not exactly a catalog key.
+ */
+function exportFormat(raw) {
     if (typeof raw !== 'string' && typeof raw !== 'number')
         return null;
-    const n = Number(String(raw).trim());
-    return exports.PASSPORT_SIZES.includes(n) ? n : null;
+    const key = String(raw).trim().toLowerCase();
+    if (!Object.prototype.hasOwnProperty.call(exports.EXPORT_FORMATS, key))
+        return null;
+    const geom = exports.EXPORT_FORMATS[key];
+    return { key: key, width: geom.width, height: geom.height, label: geom.label };
 }
 /**
  * @description Is this a plausible single email recipient? Deliberately the same shape the

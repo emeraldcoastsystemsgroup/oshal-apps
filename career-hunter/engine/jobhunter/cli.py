@@ -10,6 +10,8 @@
     python -m jobhunter match
     python -m jobhunter export --format md|csv [--out FILE] [--min-fit N] [--min-score N]
     python -m jobhunter stats
+    python -m jobhunter classify --url URL                  (pattern-only ATS gate, JSON — no DB)
+    python -m jobhunter add-target --url URL [--source TAG] (register one validated URL + scrape, JSON)
 """
 from __future__ import annotations
 import argparse
@@ -439,6 +441,86 @@ def cmd_add_url(a):
     _report_dropped(dropped0)
 
 
+def cmd_classify(a):
+    """Pattern-only classification of a pasted careers URL — the accept/reject gate behind a
+    user's own target list. Reads nothing, writes nothing, and never renders a page: a URL is
+    accepted exactly when resolve.classify_url recognizes a supported job-board pattern.
+    Prints ONE JSON line so the API can trust the last line of stdout."""
+    url = (a.url or "").strip()
+    supported = list(resolve.PATTERN_ATS)
+    hit = None
+    if url:
+        try:
+            hit = resolve.classify_url(url)
+        except Exception as e:  # noqa: BLE001 — the gate must answer, never crash
+            print(json.dumps({"ok": False, "error": f"classify failed: {str(e)[:120]}", "supported": supported}))
+            return
+    if hit and hit[0] != "workday_host":
+        print(json.dumps({"ok": True, "match": {"ats_type": hit[0], "token": hit[1]}, "supported": supported}))
+        return
+    reason = ("workday host without a job site — paste the full job-site URL" if hit
+              else "no supported job-board pattern")
+    print(json.dumps({"ok": True, "match": None, "reason": reason, "supported": supported}))
+
+
+def _target_company_name(atype: str, token: str, url: str, forced: str | None) -> str:
+    """Company name for a user-added target: forced, else the board slug for slug-keyed boards."""
+    if forced:
+        return forced
+    if atype in ("lever", "greenhouse", "ashby", "smartrecruiters", "workable"):
+        return token.split("/")[0].replace("-", " ").title()
+    return _name_from_url(url)
+
+
+def _register_target(conn, name: str, atype: str, token: str, url: str, source: str):
+    """Upsert the shared-corpus company for a validated target and record its provenance."""
+    existing = _match_existing(conn, name)
+    if existing:
+        cid = existing["id"]
+        conn.execute(f"UPDATE {db.companies_table()} SET ats_type=?, ats_token=?, careers_url=?, "
+                     "discover_status='found' WHERE id=?", (atype, token, url, cid))
+        db.upsert_company(conn, existing["name"], source_list=source)  # merges the provenance tag only
+        return cid, existing["name"]
+    cid = db.upsert_company(conn, name, ats_type=atype, ats_token=token, careers_url=url,
+                            discover_status="found", source_list=source)
+    return cid, name
+
+
+def cmd_add_target(a):
+    """Register ONE pattern-validated careers URL in the SHARED corpus and scrape it now — the
+    engine half of a user's own target list. Like add-url, but one URL, no headless-render
+    fallback (the gate already accepted the pattern), JSON out, and no init_db: the shared
+    multi-user corpus already exists (see cmd_seturl)."""
+    url = (a.url or "").strip()
+    hit = resolve.classify_url(url) if url else None
+    if not hit or hit[0] == "workday_host":
+        print(json.dumps({"ok": False, "error": "no supported job-board pattern", "url": url}))
+        return
+    atype, token = hit
+    source = (a.source or "pasted").strip()[:120]
+    with db.connect() as conn:
+        cid, name = _register_target(conn, _target_company_name(atype, token, url, a.name), atype, token, url, source)
+    base = {"ok": True, "company_id": cid, "name": name, "ats_type": atype, "token": token}
+    try:
+        postings = ats.fetch(atype, token)
+    except Exception as e:  # noqa: BLE001 — report the fetch failure, keep the registration
+        print(json.dumps({**base, "scraped": False, "error": f"fetch failed: {str(e)[:120]}"}))
+        return
+    new = seen = 0
+    with db.connect() as conn:
+        ids = set()
+        for p in postings:
+            if p.get("ats_job_id") is None:
+                continue
+            st = db.upsert_posting(conn, cid, p)
+            ids.add(str(p["ats_job_id"]))
+            new += st == "new"
+            seen += st == "seen"
+        db.deactivate_missing(conn, cid, ids)
+        conn.execute(f"UPDATE {db.companies_table()} SET last_scraped_at=? WHERE id=?", (db.now(), cid))
+    print(json.dumps({**base, "scraped": True, "postings": len(postings), "new": new, "seen": seen}))
+
+
 def cmd_enrich(a):
     db.init_db()
     try:
@@ -711,6 +793,16 @@ def build_parser():
     s.add_argument("--company-id", required=True)
     s.add_argument("--url", required=True)
     s.set_defaults(func=cmd_seturl)
+
+    s = sub.add_parser("classify", help="pattern-only ATS classification of a careers URL (JSON; the user-target accept/reject gate)")
+    s.add_argument("--url", required=True)
+    s.set_defaults(func=cmd_classify)
+
+    s = sub.add_parser("add-target", help="register ONE pattern-validated careers URL in the shared corpus + scrape now (JSON)")
+    s.add_argument("--url", required=True)
+    s.add_argument("--source", help="provenance tag recorded on the company, e.g. user:<sub>")
+    s.add_argument("--name", help="force a company name (else the board slug / host)")
+    s.set_defaults(func=cmd_add_target)
 
     s = sub.add_parser("enrich"); s.add_argument("--missing", action="store_true"); s.add_argument("--refresh", action="store_true")
     s.add_argument("--limit", type=int); s.set_defaults(func=cmd_enrich)

@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import { Readable } from 'node:stream';
 import { createRequire } from 'node:module';
 import Module from 'node:module';
+import { deploymentModeStub } from './helpers/deployment-mode-stub.mjs';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,6 +32,7 @@ let uploadClaims = 0;
 
 Module._load = function loadWithRouteStubs(request, ...rest) {
   if (request === 'multer') return realMulter;
+  if (request === '@/shared/deployment-mode') return deploymentModeStub();
   if (request === '@/shared/logger') {
     return { createChildLogger: () => ({ info() {}, warn() {}, error() {}, debug() {} }) };
   }

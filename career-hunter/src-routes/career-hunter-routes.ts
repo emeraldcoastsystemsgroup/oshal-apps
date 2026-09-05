@@ -18,6 +18,7 @@
  * 13 | maintainer@emeraldcoastsystemsgroup.com   | Decomposed the composition root into bounded route-family modules while preserving its public exports.
  * 14 | maintainer@emeraldcoastsystemsgroup.com   | Registered caller-scoped offline application autofill bookmarklet generation.
  * 15 | maintainer@emeraldcoastsystemsgroup.com   | Registered the corpus-only browse feed used before a resume is indexed.
+ * 16 | maintainer@emeraldcoastsystemsgroup.com   | Registered each user's own scrape-target list (career-targets) beside the admin's shared companies table.
  */
 
 /**
@@ -54,6 +55,7 @@ import {
   registerCareerClassicBoardRoutes,
   registerCareerSurfaceRoutes,
 } from './career-surface-routes';
+import { registerCareerTargetRoutes } from './career-targets';
 import { registerCareerTitleScoreRoutes } from './career-title-score';
 import { resolveEngineCli as resolveRunnerEngineCli } from './career-engine-runner';
 
@@ -80,6 +82,7 @@ function registerExistingFeatureRoutes(router: Router, ctx: AppContext): void {
   registerCareerAutofillRoutes(router);
   registerCareerJobGuide(router, ctx);
   registerCareerTitleScoreRoutes(router, ctx);
+  registerCareerTargetRoutes(router, ctx);
 }
 
 function registerExtractedRouteFamilies(router: Router, ctx: AppContext): void {

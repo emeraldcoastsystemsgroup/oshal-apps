@@ -10,6 +10,7 @@ import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import Module from 'node:module';
+import { deploymentModeStub } from './helpers/deployment-mode-stub.mjs';
 import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -61,6 +62,7 @@ class FixtureDatabase {
 }
 
 Module._load = function loadWithUserStoreStubs(request, ...rest) {
+  if (request === '@/shared/deployment-mode') return deploymentModeStub();
   if (request === '@/shared/logger') {
     return { createChildLogger: () => ({ info() {}, warn() {}, error() {}, debug() {} }) };
   }

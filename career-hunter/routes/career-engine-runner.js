@@ -3,7 +3,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.PORTAL_LOGINS_ENV = void 0;
 exports.resolveEngineCli = resolveEngineCli;
+exports.operatorPortalFallback = operatorPortalFallback;
 exports.buildCareerEngineProcessEnv = buildCareerEngineProcessEnv;
 exports.releaseRun = releaseRun;
 exports.tryAcquireRun = tryAcquireRun;
@@ -35,6 +37,8 @@ exports.runCliAwait = runCliAwait;
  * 14 | maintainer@emeraldcoastsystemsgroup.com  | Preserve one absolute command deadline from controller admission through brokerage, wrapper adoption, and engine termination.
  * 15 | maintainer@emeraldcoastsystemsgroup.com  | Bound multipart bodies in a separate cross-process capacity namespace with independent default and clamp semantics.
  * 16 | maintainer@emeraldcoastsystemsgroup.com  | Bound asynchronous completion observers and abort them before releasing child ownership after timeout.
+ * 17 | maintainer@emeraldcoastsystemsgroup.com  | ADR-137 amendment A: the exact operator's engine child inherits the deployment's mounted vendor logins under DEMO_MODE (the ADR-127 two-gate "portal fallback"), and brokered per-user OSHAL_CRED_* keys are mapped onto the names the engine reads — AI scoring had been dead since 2026-08-10 because the brokered-only wall had no operator carve and the brokered key never reached ANTHROPIC_API_KEY.
+ * 18 | maintainer@emeraldcoastsystemsgroup.com  | The 1.12.4 carve never reached Python: bin/oshal-jobhunter.js re-applies its own .brokered-auth-only wall to the engine child, so the live 2026-09-05 pass still raised "No AI auth found". The runner now states its verdict to the launcher as OSHAL_PORTAL_LOGINS=1 (set only under both gates; any caller-supplied copy is stripped) and the launcher honors exactly that flag.
  */
 /**
  * Career Hunter engine process boundary.
@@ -50,6 +54,7 @@ const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const child_process_1 = require("child_process");
 const logger_1 = require("@/shared/logger");
+const deployment_mode_1 = require("@/shared/deployment-mode");
 const career_user_store_1 = require("./career-user-store");
 const logger = (0, logger_1.createChildLogger)({ module: 'career-engine-runner' });
 const TENANT = (0, career_user_store_1.careerTenant)();
@@ -113,22 +118,79 @@ function inheritedCliEnv() {
     }
     return env;
 }
+/** Engine-facing names for the caller-scoped credentials the dispatch brokers (ADR-137 A). */
+const BROKERED_ENGINE_KEYS = {
+    OSHAL_CRED_ANTHROPIC: 'ANTHROPIC_API_KEY',
+    OSHAL_CRED_FIRECRAWL: 'FIRECRAWL_API_KEY',
+};
+/** Vendor-login locations the operator's engine child may inherit under the portal fallback. */
+const PORTAL_LOGIN_ENV_KEYS = ['CODEX_HOME', 'CLAUDE_CONFIG_DIR'];
+/**
+ * The runner's verdict, stated to the packaged launcher (bin/oshal-jobhunter.js), which builds the
+ * Python child's environment itself and would otherwise re-apply the brokered-only wall. Only this
+ * function may set it: a copy arriving in `extra` is stripped, so no route can smuggle the carve.
+ */
+exports.PORTAL_LOGINS_ENV = 'OSHAL_PORTAL_LOGINS';
+/**
+ * Maps the credentials the dispatch brokered for THIS caller onto the variable names the packaged
+ * engine actually reads. Only `extra` is consulted — the controller's own keys never sit there, so
+ * this can never leak a platform key into a child.
+ */
+function brokeredEngineCredentials(extra) {
+    const mapped = {};
+    for (const [brokeredKey, engineKey] of Object.entries(BROKERED_ENGINE_KEYS)) {
+        const value = extra[brokeredKey];
+        if (value)
+            mapped[engineKey] = value;
+    }
+    return mapped;
+}
+/**
+ * @description ADR-137 amendment A, the demo "portal fallback": in a DEMO deployment the exact
+ * operator's engine child may use the deployment's own mounted vendor logins — the same `~/.codex`
+ * and `~/.claude` every bot consumes — under exactly the two gates ADR-127 uses to lend those logins
+ * to a Jarvis turn. Every other caller, and every non-demo deployment, keeps the brokered-only wall.
+ * @param userSub - Authenticated raw OIDC subject of the caller.
+ * @returns true when the child may inherit the mounted logins instead of the empty sandbox.
+ */
+function operatorPortalFallback(userSub) {
+    return (0, deployment_mode_1.demoModeEnabled)() && (0, deployment_mode_1.isDeploymentOperatorSub)(userSub);
+}
+/** The portal fallback passes through any explicit login location the controller itself runs with. */
+function inheritedPortalLoginEnv() {
+    const env = {};
+    for (const key of PORTAL_LOGIN_ENV_KEYS) {
+        if (process.env[key])
+            env[key] = process.env[key];
+    }
+    return env;
+}
 /**
  * @description Builds an identity-locked child environment containing only engine configuration,
- * canonical storage paths, and credentials explicitly brokered for this caller.
+ * canonical storage paths, and credentials explicitly brokered for this caller. The brokered keys
+ * are also presented under the names the engine reads; the vendor-login directories point at an
+ * empty per-user sandbox unless the caller qualifies for the demo portal fallback.
  * @param userSub - Authenticated raw OIDC subject retained for engine authorization.
  * @param extra - Per-command inputs and caller-scoped brokered credentials.
  * @returns Least-privilege child process environment.
  */
 function buildCareerEngineProcessEnv(userSub, extra = {}) {
     const storeRoot = careerStoreRoot();
-    const disabledAuthRoot = path_1.default.join((0, career_user_store_1.userPaths)(userSub).userDir, '.brokered-auth-only');
-    return {
+    const { [exports.PORTAL_LOGINS_ENV]: _callerSupplied, ...boundedExtra } = extra;
+    const base = {
         ...inheritedCliEnv(),
-        ...extra,
+        ...boundedExtra,
+        ...brokeredEngineCredentials(extra),
         OSHAL_USER_SUB: userSub,
         OSHAL_TENANT: TENANT,
         JOBHUNTER_STORE_ROOT: storeRoot,
+    };
+    if (operatorPortalFallback(userSub)) {
+        return { ...base, ...inheritedPortalLoginEnv(), [exports.PORTAL_LOGINS_ENV]: '1' };
+    }
+    const disabledAuthRoot = path_1.default.join((0, career_user_store_1.userPaths)(userSub).userDir, '.brokered-auth-only');
+    return {
+        ...base,
         CLAUDE_CONFIG_DIR: path_1.default.join(disabledAuthRoot, 'claude'),
         CODEX_HOME: path_1.default.join(disabledAuthRoot, 'codex'),
     };

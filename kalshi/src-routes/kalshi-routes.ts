@@ -18,6 +18,7 @@
  * 2026-07-13 20:40:00 | roger.murphy@emeraldcoastsystemsgroup.com | Phase 2 (ADR-094): GET /portfolio (balance/positions/resting via the caller's brokered key), POST /orders (validateOrderRequest guards + LIVE-key hard gate off the DETECTED env — never a client flag — unless KALSHI_LIVE_ENABLED; audited to kalshi_orders with the justifying hand snapshot, rejections too), DELETE /orders/:id, GET /orders/history. Signature createKalshiRoutes(pool, apiDir); schema self-heals (migration 074 is the bootstrap copy).
  * 2026-07-19 21:25:00 | roger.murphy@emeraldcoastsystemsgroup.com | Carved out of OSHAL core into the kalshi app package (ADR-085 Wave 3, "skill with a surface"). Standard (ctx) factory; the surface serves from ctx.appPackageDir/tools (load-time env fallback, D10) through the kernel's servePage helper. Relative imports flip to @/ aliases: @/app/routes/trading-routes-helpers (callerSub + servePage — global-search-routes also imports them, they stay kernel) + @/app/routes/connectors-routes (getValidAccessToken). The prediction-markets ENGINE stays kernel (@/features/prediction-markets — connector-account-lookup real-imports probeKalshiAccount, the oshal-kalshi-* CLIs + specs source it; NOT orphaned, D8 verified). The ADR-094 confirm/fail-closed order posture — validateOrderRequest guards, the LIVE-key hard gate off the DETECTED env unless KALSHI_LIVE_ENABLED, blocked/rejected/placed all audited to kalshi_orders — is byte-identical to the kernel original.
  * 2026-07-30 04:05:00 | roger.murphy@emeraldcoastsystemsgroup.com | The scan came OFF the request path (operator: "kalshi task takes too long ... it should always be running on new ops every x ms based on configuration ... every hour, and jarvis should be notified ... only if you have the application"). The live api's own log is the evidence: openPaged=60000 evaluable=6 hands=1 ms=23125 — every cold open paid a 23s feed walk, and an api recreate threw the in-process cache away so the next visitor paid again. Now: runScan/calibration/prediction-recording moved to kalshi-scan-engine; the poller in kalshi-scan-cron (started here, so it exists only while this app is ACTIVE) keeps a durable Postgres snapshot warm on a configured cadence and posts NEW playable hands to each entitled user's Jarvis feed; GET /scan serves that snapshot instantly with freshness metadata; new POST /scan/run (202, single-flighted), GET+PUT /settings (deployment cadence knobs are operator-only, alert knobs are per-user, both clamped by the pure config module), GET /alerts.
+ * 2026-09-04 23:40:00 | roger.murphy@emeraldcoastsystemsgroup.com | GET /alerts also returns `record` (alertRecord): the caller's W-L over the ledger, beside the per-alert outcome columns listAlerts now carries.
  *
  * @module kalshi-routes
  */
@@ -38,7 +39,7 @@ import { getValidAccessToken } from '@/app/routes/connectors-routes';
 import { callerSub, servePage } from '@/app/routes/trading-routes-helpers';
 import { isOperator } from '@/shared/middleware/authz';
 import {
-  DEPLOYMENT_SCOPE, listAlerts, loadCalibration, manifestSettingsSchema, readSettingsRow,
+  DEPLOYMENT_SCOPE, alertRecord, listAlerts, loadCalibration, manifestSettingsSchema, readSettingsRow,
   readSnapshot, resolveConfig, writeSettingsRow,
 } from './kalshi-scan-engine';
 import { scanFreshness, keysForScope } from './kalshi-scan-config';
@@ -236,7 +237,8 @@ export function createKalshiRoutes(ctx: AppContext): Router {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'authentication required' }); return; }
     try {
-      res.json({ alerts: await listAlerts(pool, sub, Number(req.query.limit) || 50) });
+      const limit = Number(req.query.limit) || 50;
+      res.json({ alerts: await listAlerts(pool, sub, limit), record: await alertRecord(pool, sub) });
     } catch (err) {
       log.error({ err }, 'kalshi alerts read failed');
       res.status(503).json({ error: (err as Error).message });

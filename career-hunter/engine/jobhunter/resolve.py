@@ -15,6 +15,15 @@ _WD = re.compile(r"([a-z0-9-]+)\.(wd\d+)\.myworkdayjobs\.com/(?:wday/cxs/[a-z0-9
 _TALEO = re.compile(r"(\w+\.taleo\.net)/(\w+)/ats/careers.*?org=([A-Za-z0-9_]+).*?cws=(\d+)", re.I)
 _CAREER_LINK = re.compile(r"search-jobs|search-results|careers-home|/search/?|/jobs|find-?jobs|view-?jobs|/go/", re.I)
 
+# The job-board patterns classify_url recognizes from the URL alone (workday_host, the ambiguous
+# no-site form, is deliberately absent). Reported by the `classify` CLI verb as the supported list;
+# tests/career-targets-classify.test.mjs proves it equals classify_url's own return literals, so
+# this tuple can never drift from the code below and no TypeScript copy of the patterns exists.
+PATTERN_ATS = ("workday", "icims", "eightfold", "greenhouse", "lever", "ashby", "smartrecruiters",
+               "workable", "taleo", "oracle_orc", "phenom", "successfactors", "jibe", "avature",
+               "brassring", "gdcareers", "gsroles")
+
+
 
 def _host(url):
     u = url if "://" in url else "https://" + url

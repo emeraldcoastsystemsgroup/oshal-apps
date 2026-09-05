@@ -45,6 +45,7 @@
  * 2026-07-19 16:55:00 | roger.murphy@emeraldcoastsystemsgroup.com | Trading engine extraction (ADR-085 pre-carve): placeDecisionOrder moved VERBATIM to app/trading-engine.ts (with trading-routes-core.ts and the schema bootstrap → app/trading-schema.ts), because 8 kernel dispatch/reconcile loops need the engine and must not import the carvable route surface. This file is now pure surface: createTradingRoutes (unchanged signature + registration order) + POST /trigger (its live-approval gate stays here, source-guarded). The pre-split re-export block removed — every consumer now imports the engine modules directly. Pure code motion — zero route/behavior change.
  * 2026-07-19 23:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | Carved out of OSHAL core into the trading app package (ADR-085 Wave 3, "skill with a surface"). Standard (ctx) factory (the ManifestRouteMounter contract); the surface serves trading.html from ctx.appPackageDir/tools (load-time env fallback, D10) through the kernel's servePage helper. Relative imports flip to @/ aliases: @/app/routes/trading-routes-helpers (callerSub/resolveMode/servePage/guardrails — global-search + the engine also import them, they stay kernel), @/app/routes/connectors-routes (getValidAccessToken), @/app/trading-{schema,engine} (the ENGINE — stays kernel, the 8 dispatch/reconcile loops import it; D8 verified NOT orphaned). Route bodies byte-identical: POST /trigger keeps its route-level live-approval gate VERBATIM (live tickets park in backlog — source-guarded by this package's tests/trading-surface-live-gate.spec.ts; the engine's env-level live_blocked gate stays kernel-guarded in risky-write-guards.spec.ts).
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 D6 event playbooks: register the /events/plans route family (trading-event-plan-routes.ts) right after the direct-trade routes — the operator's surface over the kernel event-plan store (IPO watch/entry/exit), book-scoped query-first like every 2026-09-03-audited route.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-138 single-stock research: register the /research/:symbol + /watchlist + /lots route family (trading-research-routes.ts) right after the event-plan routes — research reads, the per-user watchlist, and the operator's view/release over the kernel pinned-lot store.
  *
  * @module trading-routes
  */
@@ -66,6 +67,7 @@ import { registerTradingAlgoRoutes, registerTradingTuningRoutes } from './tradin
 import { registerTradingAccountRoutes } from './trading-accounts-routes';
 import { registerTradingManualOrderRoutes } from './trading-manual-order-routes';
 import { registerTradingEventPlanRoutes } from './trading-event-plan-routes';
+import { registerTradingResearchRoutes } from './trading-research-routes';
 
 const logger = createChildLogger({ module: 'trading-routes' });
 
@@ -133,6 +135,8 @@ export function createTradingRoutes(ctx: AppContext): Router {
   registerTradingManualOrderRoutes(router, ctx);
   // ADR-136 D6: event playbooks — the IPO watch/entry/exit plans (before the generic flow).
   registerTradingEventPlanRoutes(router, ctx);
+  // ADR-138: single-stock research, the per-user watchlist, and pinned lots (before the generic flow).
+  registerTradingResearchRoutes(router, ctx);
   registerTradingBookReadRoutes(router, ctx, apiDir);
   registerTradingOrderFlowRoutes(router, ctx, placeDecisionOrder);
 
