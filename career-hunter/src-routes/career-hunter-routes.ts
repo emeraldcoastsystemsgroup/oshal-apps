@@ -19,6 +19,7 @@
  * 14 | maintainer@emeraldcoastsystemsgroup.com   | Registered caller-scoped offline application autofill bookmarklet generation.
  * 15 | maintainer@emeraldcoastsystemsgroup.com   | Registered the corpus-only browse feed used before a resume is indexed.
  * 16 | maintainer@emeraldcoastsystemsgroup.com   | Registered each user's own scrape-target list (career-targets) beside the admin's shared companies table.
+ * 17 | maintainer@emeraldcoastsystemsgroup.com   | ADR-141: register the per-user readiness route (career-readiness.ts) the Intelligent Career group's setup dashboard asks for the "stories" and "materials" steps.
  */
 
 /**
@@ -56,6 +57,7 @@ import {
   registerCareerSurfaceRoutes,
 } from './career-surface-routes';
 import { registerCareerTargetRoutes } from './career-targets';
+import { registerCareerReadinessRoutes } from './career-readiness';
 import { registerCareerTitleScoreRoutes } from './career-title-score';
 import { resolveEngineCli as resolveRunnerEngineCli } from './career-engine-runner';
 
@@ -83,6 +85,7 @@ function registerExistingFeatureRoutes(router: Router, ctx: AppContext): void {
   registerCareerJobGuide(router, ctx);
   registerCareerTitleScoreRoutes(router, ctx);
   registerCareerTargetRoutes(router, ctx);
+  registerCareerReadinessRoutes(router);
 }
 
 function registerExtractedRouteFamilies(router: Router, ctx: AppContext): void {

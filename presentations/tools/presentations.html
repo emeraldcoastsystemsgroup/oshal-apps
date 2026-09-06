@@ -9,6 +9,7 @@
      matters — without it the surface would have no colors at all. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<script src="/api/artifacts/send-to.js" defer></script>
 <style>
   /* This surface keeps its own short alias names, but DERIVES them from the framework theme rather
      than hardcoding hex — so all eleven themes work, not just the dark ones. The palette used to be
@@ -854,7 +855,13 @@ function renderFileList(){
   $('decks').innerHTML = FILES.map((d, i) => {
     const t = THEMES.find(x => x.id === d.theme);
     const dot = t ? `<span class="dot" style="background:${hx(t.colors.accent)}"></span>` : '';
-    return `<button class="fRow" data-i="${i}" title="${esc(d.fileName || d.title)}">
+    // ADR-139 standard tag: every real file row is a sendable artifact (chip + right-click
+    // injected by the shared component; presentation decided centrally in send-to.js).
+    const OOXML = { pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation', docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' };
+    const tag = d.downloadUrl && String(d.downloadUrl).startsWith('/api/')
+      ? ` data-artifact-source="${esc(d.downloadUrl)}" data-artifact-type="${esc(OOXML[d.format] || 'application/octet-stream')}" data-artifact-name="${esc(d.fileName || d.title)}"`
+      : '';
+    return `<button class="fRow" data-i="${i}" title="${esc(d.fileName || d.title)}"${tag}>
       <span class="fIc">${fmtIcon(d.format)}</span>
       <span class="fName">${esc(d.fileName || d.title)}</span>${dot}
       <span class="fMeta">${when(d.createdAt)}</span>
@@ -995,10 +1002,14 @@ $('title').addEventListener('input', pvKick);
 $('openBtn').onclick = () => $('openFile').click();
 $('openFile').addEventListener('change', async () => {
   const f = $('openFile').files[0]; if (!f) return;
-  $('openBtn').disabled = true; $('status').textContent = 'Reading ' + f.name + '…';
+  await importOfficeBlob(f, f.name);
+  $('openFile').value = '';
+});
+async function importOfficeBlob(blob, name){
+  $('openBtn').disabled = true; $('status').textContent = 'Reading ' + name + '…';
   try {
-    const r = await fetch('/api/presentations/sections/import?name=' + encodeURIComponent(f.name), {
-      method:'POST', headers:{'Content-Type':'application/octet-stream'}, body: f,
+    const r = await fetch('/api/presentations/sections/import?name=' + encodeURIComponent(name), {
+      method:'POST', headers:{'Content-Type':'application/octet-stream'}, body: blob,
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || j.error){ res('Couldn’t open it: ' + esc(j.error || ('HTTP ' + r.status)), false); }
@@ -1007,12 +1018,25 @@ $('openFile').addEventListener('change', async () => {
       writeOutline((j.sections||[]).map(s => ({ title: s.title, bullets: String(s.content||'').split('\n').filter(Boolean) })));
       if (j.format && KINDS.some(k => k.id === j.format)) pickKind(j.format);
       SEL = null; renderTemplates();
-      res('✓ Opened <b>' + esc(f.name) + '</b> — ' + (j.sections||[]).length + ' sections loaded. Edit here or ask the Guide, preview it, then Generate in any format.', true);
+      res('✓ Opened <b>' + esc(name) + '</b> — ' + (j.sections||[]).length + ' sections loaded. Edit here or ask the Guide, preview it, then Generate in any format.', true);
       showTab('preview'); landOnPreview();
     }
   } catch(e){ res('Error: ' + e.message, false); }
-  $('openFile').value = ''; $('openBtn').disabled = false; $('status').textContent = '';
-});
+  $('openBtn').disabled = false; $('status').textContent = '';
+}
+// ADR-139 receive: a "Send to… → Open in AI Office" dispatch lands with a one-shot handle ref
+// in OUR url (the cockpit forwards it); resolve it into the same import lane the file picker
+// uses. An expired/foreign ref 404s and the studio simply renders its normal state.
+(function(){
+  const ref = new URLSearchParams(location.search).get('artifact');
+  if (!ref || !/^art_[A-Za-z0-9_-]{8,64}$/.test(ref)) return;
+  fetch('/api/artifacts/handles/' + encodeURIComponent(ref))
+    .then(r => { if (!r.ok) throw 0; return r.json(); })
+    .then(meta => fetch('/api/artifacts/handles/' + encodeURIComponent(ref) + '/content')
+      .then(r => { if (!r.ok) throw 0; return r.blob(); })
+      .then(blob => importOfficeBlob(blob, meta.name || 'document')))
+    .catch(() => { /* expired — normal empty state */ });
+})();
 
 function addMsg(role, text, skipHistory){
   const d = document.createElement('div'); d.className = 'msg ' + role; d.textContent = text;

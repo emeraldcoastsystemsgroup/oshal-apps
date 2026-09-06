@@ -137,6 +137,7 @@
 </style>
 <script>(function(){const M={'--bg':'--bg-primary','--panel':'--bg-secondary','--panel2':'--bg-tertiary','--line':'--border-color','--text':'--text-primary','--muted':'--text-secondary','--accent':'--accent-primary','--accent2':'--status-success','--scrollbar-thumb':'--scrollbar-thumb'};function m(){try{const p=(window.parent&&window.parent!==window)?window.parent:null;if(!p)return;const cs=p.getComputedStyle(p.document.documentElement);for(const k in M){const v=cs.getPropertyValue(M[k]).trim();if(v)document.documentElement.style.setProperty(k,v);}}catch(e){}}m();window.addEventListener('storage',e=>{if(e.key==='cockpit-theme')setTimeout(m,30);});try{const p=window.parent;if(p&&p!==window)new MutationObserver(m).observe(p.document.documentElement,{attributes:true,attributeFilter:['data-theme']});}catch(e){}document.addEventListener('DOMContentLoaded',m);})();</script>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+  <script src="/api/artifacts/send-to.js" defer></script>
 </head>
 <body>
 <div class="wrap">
@@ -298,8 +299,8 @@ function card(j){
     <div class="acts">
       <button class="btn" onclick="toggleDetail(${j.id})">Details</button>
       ${j.url?`<a class="btn go" href="${esc(j.url)}" target="_blank" rel="noopener">Open posting ↗</a>`:''}
-      ${j.has_resume?`<a class="btn" href="/api/career-hunter/resume?id=${j.id}&kind=resume" target="_blank">Resume</a>`:''}
-      ${j.has_cover?`<a class="btn" href="/api/career-hunter/resume?id=${j.id}&kind=cover" target="_blank">Cover</a>`:''}
+      ${j.has_resume?`<a class="btn" href="/api/career-hunter/resume?id=${j.id}&kind=resume" target="_blank" data-artifact-source="/api/career-hunter/resume?id=${j.id}&kind=resume" data-artifact-type="application/pdf" data-artifact-name="resume-${esc(j.company||'role')}.pdf" data-artifact-ui="context">Resume</a>`:''}
+      ${j.has_cover?`<a class="btn" href="/api/career-hunter/resume?id=${j.id}&kind=cover" target="_blank" data-artifact-source="/api/career-hunter/resume?id=${j.id}&kind=cover" data-artifact-type="application/pdf" data-artifact-name="cover-${esc(j.company||'role')}.pdf" data-artifact-ui="context">Cover</a>`:''}
       ${(j.has_resume && j.status!=='applied')?`<button class="btn submit" id="sub${j.id}" onclick='submitJob(${JSON.stringify(subArg(j))})'>Submit on my desktop ▶</button>`:''}
       ${j.status!=='applied'?`<button class="btn" onclick="setStatus(${j.id},'applied')">Mark applied manually</button>`:''}
       ${j.status!=='dismissed'?`<button class="btn danger" onclick="setStatus(${j.id},'dismissed')">Dismiss</button>`:''}
@@ -606,8 +607,8 @@ async function jobTalk(id){
 // View-links for an already-generated packet (shown in the detail panel as soon as a resume exists).
 function genLinksHtml(j){
   if(!(j.has_resume||j.has_cover)) return '';
-  const r=j.has_resume?`<a class="btn go" href="/api/career-hunter/resume?id=${j.id}&kind=resume" target="_blank" rel="noopener">View resume ↓</a>`:'';
-  const c=j.has_cover?`<a class="btn" href="/api/career-hunter/resume?id=${j.id}&kind=cover" target="_blank" rel="noopener">View cover ↓</a>`:'';
+  const r=j.has_resume?`<a class="btn go" href="/api/career-hunter/resume?id=${j.id}&kind=resume" target="_blank" rel="noopener" data-artifact-source="/api/career-hunter/resume?id=${j.id}&kind=resume" data-artifact-type="application/pdf" data-artifact-name="resume-${esc(j.company||'role')}.pdf" data-artifact-ui="context">View resume ↓</a>`:'';
+  const c=j.has_cover?`<a class="btn" href="/api/career-hunter/resume?id=${j.id}&kind=cover" target="_blank" rel="noopener" data-artifact-source="/api/career-hunter/resume?id=${j.id}&kind=cover" data-artifact-type="application/pdf" data-artifact-name="cover-${esc(j.company||'role')}.pdf" data-artifact-ui="context">View cover ↓</a>`:'';
   const when=j.generated_at?` · generated ${esc(String(j.generated_at).slice(0,10))}`:'';
   // Inline pre-submission preview. This renders the generated HTML the packet PDF was printed
   // from — NOT the PDF. Pointing an iframe at the PDF is what made this preview invisible on

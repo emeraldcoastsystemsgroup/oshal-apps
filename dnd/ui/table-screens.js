@@ -762,7 +762,35 @@ async function boot() {
   if (inviteCode) { showJoin(inviteCode); return; }
   if (params.get('panel') === 'help') { showHelp(); return; }
   if (params.get('panel') === 'party') { await fetchSavedCharacters().catch(() => []); showCharacterLibrary(); return; }
+  const artifactRef = String(params.get('artifact') || '');
+  if (/^art_[A-Za-z0-9_-]{8,64}$/.test(artifactRef)) { await receiveSharedCharacter(artifactRef); return; }
   clearSessionSurface(); await showGameMenu();
+}
+
+// ADR-139 receive: a "Send to… → Import as a D&D character" dispatch lands here with a one-shot
+// handle ref (the cockpit forwards it). The shared PDF/JSON goes through the SAME import lane the
+// file picker uses and is saved to My Characters — context-free, no campaign needed; an expired
+// ref explains itself and returns to the menu.
+async function receiveSharedCharacter(ref) {
+  overlay('<h1>Reading your character…</h1><p><span class="spin"></span> Importing the shared sheet.</p>');
+  try {
+    const metaR = await fetch(`/api/artifacts/handles/${encodeURIComponent(ref)}`, { credentials: 'include' });
+    if (!metaR.ok) throw new Error('That share expired — use Send to… again.');
+    const meta = await metaR.json();
+    const contentR = await fetch(`/api/artifacts/handles/${encodeURIComponent(ref)}/content`, { credentials: 'include' });
+    if (!contentR.ok) throw new Error('That share expired — use Send to… again.');
+    const blob = await contentR.blob();
+    const j = await uploadCharacterFile(new File([blob], meta.name || 'character.pdf', { type: meta.type || blob.type }));
+    if (!j || !j.ok || !j.sheet) throw new Error((j && j.error) || 'Could not read that file as a character sheet.');
+    await fetchSavedCharacters().catch(() => []);
+    await saveCharacterToLibrary(j.sheet);
+    await fetchSavedCharacters().catch(() => []);
+    showCharacterLibrary();
+    banner(`${j.sheet.name || 'Your character'} was imported and saved to My Characters.`);
+  } catch (e) {
+    overlay(`<h1>Import didn’t work</h1><p>${esc(e.message || 'Could not import that file.')}</p><button class="big" id="importFailBack">Back</button>`);
+    $('importFailBack').onclick = () => { clearSessionSurface(); showGameMenu(); };
+  }
 }
 
 // ── Wire controls ────────────────────────────────────────────────────────────

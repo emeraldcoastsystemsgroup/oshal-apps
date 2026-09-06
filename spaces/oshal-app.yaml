@@ -44,7 +44,19 @@ description: >-
   iPhone/LiDAR/drone capture), walk the Gaussian splat in a WebGL viewer, get live
   "walk/pan" guidance while you film, and paint Wi-Fi coverage onto the map.
   Handheld, imported, or sim-drone capture — one 3D space.
-version: 0.5.1
+version: 0.6.0
+
+# ADR-139 wave 2 — "Send to…" destination: a walkthrough video from anywhere in the swarm
+# starts a reconstruction (relay ceiling ~50MB bounds the clip; .ply/.splat models keep the
+# multipart lane — no standard MIME to route them by).
+artifacts:
+  accepts:
+    - id: scan
+      label: Reconstruct in Spaces
+      icon: 🏠
+      types: [video/*]
+      mode: post
+      endpoint: /api/spaces/scans/import-artifact
 status: active
 
 source:

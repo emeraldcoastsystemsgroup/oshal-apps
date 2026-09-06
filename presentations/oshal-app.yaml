@@ -25,7 +25,20 @@ description: >-
   Phone-friendly: dictate instead of typing, resume recent files in one tap, and drive
   edits with tap chips. My files is a real file browser - click a file for
   download, open-in-provider, or edit-and-regenerate. Saves to Dropbox, Google Drive, OneDrive, or OSHAL local.
-version: 2.5.0
+version: 2.6.0
+
+# ADR-139 wave 1 — "Send to…" destination (open mode): an Office file from anywhere in the
+# swarm opens straight into the outline editor (the surface's existing /sections/import lane).
+artifacts:
+  accepts:
+    - id: open
+      label: Open in AI Office
+      icon: 📊
+      types:
+        - application/vnd.openxmlformats-officedocument.presentationml.presentation
+        - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+        - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+      mode: open
 status: active
 
 source:

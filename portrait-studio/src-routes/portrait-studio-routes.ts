@@ -9,7 +9,7 @@
  * 2026-08-22 00:30:00 | maintainer@emeraldcoastsystemsgroup.com     | Thread the caller's sub into resolveStoryboardImageProvider (generation + /provider probe). The ADR-130 codex-cli provider — the demo-mode default that renders on the swarm's own codex harness — authorizes per caller via the SEC-05 demo carve, so a resolve without userSub reads unavailable and fails closed. Other providers ignore the field. (1.4.1)
  * 2026-08-29 10:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Group mode (1.5.0): mode=group is accepted alongside professional/character; the face count arrives as a multipart `subjects` field, validated fail-closed by the catalog (2..6, refused outside group mode) and stored in options.subjects for the prompt and the gallery (list now returns `subjects`). The uploaded photo in group mode is the browser-built numbered reference sheet — still ONE anchor, so the provider contract and every guard around it are unchanged.
  * 2026-08-31 12:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Passport export + email (1.6.0): GET /portraits/:id/export?size=300|600 square-crops the portrait with sharp (attention strategy — the crop follows the face) and downloads it as a passport-size PNG; POST /portraits/:id/email sends the portrait (original or a passport crop) as an attachment over the caller's OWN mailbox — sendGmail, else the Graph sibling, else 409 — behind the standard confirm:true 428 gate (the ADR-108 "email it" shape presentations proved). Sizes and recipient validate fail-closed in portrait-ops.
- * 2026-08-31 16:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Orientation formats (1.7.0): export/email `size` now resolves against the closed EXPORT_FORMATS catalog — 300/600 passport squares (unchanged contract) plus `portrait` (1200×1800) and `landscape` (1800×1200) 4×6-print crops, same attention-strategy cover-crop. No route shape changed; group mode's multi-photo sourcing is browser-side only (the numbered sheet remains the one anchor).
+ * 2026-08-31 16:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Orientation formats (1.7.0): export/email `size` now resolves against the closed EXPORT_FORMATS catalog — 300/600 passport squares (unchanged contract) plus `portrait` (1200×1800) and `landscape` (1800×1200) 4×6-print crops, same attention-strategy cover-crop. No route shape changed; group mode's multi-photo sourcing is browser-side only (the numbered sheet remains the one anchor). * 2026-09-05 23:30:00 | maintainer@emeraldcoastsystemsgroup.com     | ADR-141 readiness (1.9.0): GET /readiness answers the Intelligent Career group's "profile picture" step from the caller's own ps_portraits rows — done when at least one portrait finished; asked in the user's session by the kernel setup dashboard.
  */
 
 import * as fs from 'node:fs';
@@ -409,6 +409,30 @@ export function createPortraitStudioRoutes(ctx: AppContext): Router {
     } catch (err) {
       logger.error({ err }, 'portrait list failed');
       res.status(500).json({ error: 'portrait list failed' });
+    }
+  });
+
+  /** GET /readiness — ADR-141 per-user readiness for the Intelligent Career group's "profile
+   *  picture" step: done when the caller has at least one finished portrait. Reads only the
+   *  caller's own rows; asked in the signed-in user's session by the kernel setup dashboard. */
+  router.get('/readiness', async (req, res) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'sign in to check your setup' }); return; }
+    try {
+      const r = await ctx.pool.query(
+        `SELECT COUNT(*) FILTER (WHERE status = 'done')::int AS done, COUNT(*)::int AS total
+           FROM ps_portraits WHERE user_sub = $1`,
+        [sub],
+      );
+      const done = Number(r.rows[0]?.done || 0);
+      const total = Number(r.rows[0]?.total || 0);
+      const detail = done > 0
+        ? `${done} portrait${done === 1 ? '' : 's'} ready to use.`
+        : total > 0 ? 'A portrait is still generating — check back in a moment.' : 'No portrait yet — take or upload a photo and pick a style.';
+      res.json({ portrait: { ready: done > 0, done, total, detail } });
+    } catch (err) {
+      logger.error({ err }, 'portrait readiness failed');
+      res.status(500).json({ error: 'readiness unavailable' });
     }
   });
 

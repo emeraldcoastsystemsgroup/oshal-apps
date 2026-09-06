@@ -29,7 +29,18 @@ description: >-
   Upload your YouTube Takeout watch history and get a parent-friendly brief on
   what your kid is into — top interests, what the unfamiliar channels actually
   are, gift ideas, and conversation openers. Read-only; nothing is posted or sent.
-version: 1.0.0
+version: 1.1.0
+
+# ADR-139 wave 2 — "Send to…" destination: a Takeout watch-history.json from anywhere in the
+# swarm ingests straight into the parent brief (JSON only; zip archives use the Takeout spine).
+artifacts:
+  accepts:
+    - id: takeout
+      label: Ingest into Kid Lens
+      icon: 🧒
+      types: [application/json]
+      mode: post
+      endpoint: /api/youtube-kids/import-artifact
 status: inactive
 
 # Playful per-app skin so the kid workspace reads distinct from the work apps.

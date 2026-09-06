@@ -26,7 +26,7 @@ description: >-
   input — then publishes to multiple platforms at once (LinkedIn + Facebook + X).
   AI drafting runs on the comms bot; publishing uses your per-user connector
   tokens. Human-approved — nothing posts until you click Publish.
-version: 1.0.0
+version: 1.1.0
 status: active
 
 source:
@@ -50,6 +50,19 @@ smoke:
 
 # Runtime connector allow-list — the platforms this app publishes to + the mailbox
 # whose Social category feeds the Signals view, all via the per-user broker.
+# ── ADR-141 per-user readiness (asked by the Intelligent Career group's setup page) ──
+#   facebook — a Facebook Pages (meta-business) or facebook connection exists for the caller
+#   signals  — at least one social notification has been captured in the last 30 days
+readiness:
+  - name: facebook
+    path: /api/social/readiness
+    readyPointer: /facebook/ready
+    detailPointer: /facebook/detail
+  - name: signals
+    path: /api/social/readiness
+    readyPointer: /signals/ready
+    detailPointer: /signals/detail
+
 dependencies:
   apps: []
   tools: []

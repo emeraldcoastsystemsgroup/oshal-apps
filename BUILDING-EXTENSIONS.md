@@ -80,6 +80,9 @@ source:                         # provenance — installer pins sha
   path: my-app
   ref: main
 
+kind: app                       # or `group` — a code-less binding of installed apps (ADR-141):
+                                # `toolbar:` borrows member surfaces by app + surface name and
+                                # `setup:` drives the kernel setup dashboard; see intelligent-career/
 dependencies:                   # resolved + ref-counted on install
   apps: [presentations]         # other app packages this one needs
   tools: []                     # existing tools by id
@@ -102,6 +105,9 @@ toolsDir: tools/                # NEW tools this app provides (bundled JS)
                                 # Serving bundled assets from route code? See the
                                 # "Bundled asset paths" rule right below this block.
 
+
+readiness:                      # per-user probes a group's setup page asks in the user's session
+  - { name: resume, path: /api/my-app/resume/state, readyPointer: /hasResume, detailPointer: /summary }
 
 ui:                             # toolbar / ribbon surfaces
   static:

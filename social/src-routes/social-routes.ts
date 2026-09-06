@@ -26,7 +26,7 @@
  *
  * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: retire the generic connector-credential carrier from comms-bot dispatch. Drafting and signal organization now receive only caller text or controller-fetched signal rows; deterministic publish/profile operations continue resolving the exact connector token at their immediate API boundary.
  *
- * @module social-routes
+ * @module social-routes * 2026-09-05 23:30:00 | maintainer@emeraldcoastsystemsgroup.com | ADR-141 readiness (1.1.0): GET /readiness answers the Intelligent Career group's "Connect Facebook" and "articles you want to comment on" steps from the caller's own connection rows and the last 30 days of captured social signals — no Graph call, no token leaves the box; asked in the user's session by the kernel setup dashboard.
  */
 
 import { Router, type Request, type Response, type RequestHandler } from 'express';
@@ -226,6 +226,46 @@ export function createSocialRoutes(ctx: AppContext): Router {
       }
     } catch (err) { logger.warn({ err }, 'X profile read failed'); }
     res.json({ profiles });
+  });
+
+  /** GET /readiness — ADR-141 per-user readiness for the Intelligent Career group: `facebook`
+   *  (a Facebook Pages / facebook connection exists for the caller — the connection rows, no
+   *  Graph call) and `signals` (a social notification reached the connected inbox in the last 30
+   *  days — the same store the Signals view reads). Asked in the signed-in user's session. */
+  router.get('/readiness', async (req: Request, res: Response) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    try {
+      const conn = await ctx.pool.query(
+        `SELECT provider FROM oshal_connections
+          WHERE user_sub = $1 AND provider IN ('meta-business', 'facebook') AND status <> 'revoked'`,
+        [sub],
+      );
+      const providers = conn.rows.map((r: { provider: string }) => r.provider);
+      const sig = await ctx.pool.query(
+        `SELECT COUNT(*)::int AS n FROM oshal_inbox_messages
+          WHERE user_sub = $1 AND category = 'social' AND received_at > NOW() - INTERVAL '30 days'`,
+        [sub],
+      );
+      const signals = Number(sig.rows[0]?.n || 0);
+      res.json({
+        facebook: {
+          ready: providers.length > 0,
+          providers,
+          detail: providers.length ? `Connected (${providers.join(', ')}).` : 'Not connected — connect Facebook under Accounts.',
+        },
+        signals: {
+          ready: signals > 0,
+          count: signals,
+          detail: signals
+            ? `${signals} social notification${signals === 1 ? '' : 's'} captured in the last 30 days.`
+            : 'Nothing captured yet — turn on email notifications from LinkedIn / X / Facebook to your connected inbox; the ingest picks them up.',
+        },
+      });
+    } catch (err) {
+      logger.error({ err }, 'social readiness failed');
+      res.status(500).json({ error: 'readiness unavailable' });
+    }
   });
 
   /** POST /draft — the comms bot drafts a post for the chosen network (linkedin|twitter). */

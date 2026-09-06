@@ -16,6 +16,13 @@
   2026-09-04 — the Alerts tab shows each announced hand's OUTCOME (settlement grade, one-contract
   P&L) and a W-L record line over the ledger. The grades were always in kalshi_predictions (daily
   grader); the surface just never showed them per alert ("where is the win/loss record").
+
+  2026-09-05 — a TRENDS tab: the ledger as a trader watches it (operator: "keep track of Kalshi like
+  we do stocks"). Four books (paper/real x manual/auto, the unbuilt one says so), KPI tiles, a
+  cumulative P&L line per strategy, and rolling hit-rate vs breakeven small multiples — inline SVG,
+  no external assets, series colors by a FIXED strategy->slot map validated for CVD on the light and
+  the dark surface, a legend + table twin for every chart, crosshair tooltips. Text never wears a
+  series color.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -118,6 +125,41 @@
   .dlg-body input { width: 100%; background: var(--bg-primary, #0d1117); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 7px 9px; font-size: 13px; font-variant-numeric: tabular-nums; }
   .dlg-sum { background: var(--bg-primary, #0d1117); border: 1px solid var(--border); border-radius: 6px; padding: 9px 11px; font-size: 12px; line-height: 1.7; margin-top: 12px; }
   .dlg-sum .k { color: var(--dim); } .dlg-sum .v { float: right; font-variant-numeric: tabular-nums; }
+  /* ── Trends (dataviz roles). Series hues by strategy slot, validated light + dark; the body class
+     viz-dark is set at render from the theme's real background luminance. Text uses text tokens. */
+  :root { --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100; --series-other: #8a8a8a; --viz-grid: var(--border); }
+  body.viz-dark { --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500; --series-other: #8d8d8d; }
+  .books { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .book { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  .book-name { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .book-state { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--dim); }
+  .book-state.on { background: var(--green); } .book-state.warn { background: var(--amber); }
+  .book-big { font-size: 22px; font-weight: 600; margin: 4px 0 2px; }
+  .book-sub { font-size: 12px; }
+  .book-note { font-size: 11px; color: var(--dim); margin-top: 4px; line-height: 1.4; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .kpi { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  .kpi .k { font-size: 11px; color: var(--dim); }
+  .kpi .v { font-size: 20px; font-weight: 600; margin-top: 2px; }
+  .kpi.hero .v { font-size: 48px; line-height: 1.05; }
+  .kpi .d { font-size: 11px; color: var(--dim); margin-top: 2px; }
+  .kpi .d.up { color: var(--green); } .kpi .d.down { color: var(--red); }
+  figure.viz { position: relative; margin: 0 0 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  figure.viz figcaption { font-size: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .viz-toggle { margin-left: auto; font-size: 11px; }
+  .viz-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: var(--dim); margin-bottom: 4px; }
+  .viz-key { display: inline-block; width: 18px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 5px; border-radius: 2px; }
+  .viz-plot, .viz-mini { position: relative; }
+  .viz-plot svg, .viz-mini svg { display: block; width: 100%; height: auto; }
+  .viz-plot text, .viz-mini text { fill: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .viz-endlabel { fill: var(--text) !important; font-weight: 600; }
+  .viz-tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 11px; z-index: 3; min-width: 160px; box-shadow: 0 4px 14px #0006; }
+  .viz-tip .vt-day { color: var(--dim); margin-bottom: 3px; }
+  .viz-tip .vt-row { display: flex; justify-content: space-between; gap: 10px; }
+  .viz-tip .vt-row b { font-variant-numeric: tabular-nums; }
+  .viz-multiples { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; }
+  .mini-title { font-size: 11px; color: var(--dim); margin-bottom: 2px; }
+  .viz-table table { width: 100%; margin-top: 6px; }
   .warn { background: #f8514918; border: 1px solid var(--red); color: #ff7b72; border-radius: 6px; padding: 8px 10px; font-size: 11px; }
   #dlg-err { color: var(--red); font-size: 11px; margin-top: 10px; display: none; }
   .btn-primary { background: #238636; border: 1px solid #2ea043; color: #fff; border-radius: 6px; padding: 7px 16px; font-weight: 600; cursor: pointer; }
@@ -145,6 +187,7 @@
     <button class="tab active" data-tab="scan" role="tab" aria-selected="true">Scan <span class="tab-badge" id="badge-scan"></span></button>
     <button class="tab" data-tab="account" role="tab" aria-selected="false">Account <span class="tab-badge" id="badge-account"></span></button>
     <button class="tab" data-tab="scorecard" role="tab" aria-selected="false">Scorecard <span class="tab-dot" id="dot-scorecard" title="strategy status"></span></button>
+    <button class="tab" data-tab="trends" role="tab" aria-selected="false">Trends</button>
     <button class="tab" data-tab="alerts" role="tab" aria-selected="false">Alerts <span class="tab-badge" id="badge-alerts"></span></button>
     <button class="tab" data-tab="settings" role="tab" aria-selected="false">Settings</button>
   </nav>
@@ -241,6 +284,42 @@
   </section>
 
   <!-- ── TAB: Alerts — what the background scan has already told you about ── -->
+  <!-- ── TAB: Trends — the ledger as a trader watches it ── -->
+  <section class="tab-panel" data-panel="trends" role="tabpanel" hidden>
+    <div class="toolbar">
+      <span class="meta">Window</span>
+      <select id="tr-window">
+        <option value="30">last 30 days</option>
+        <option value="60">last 60 days</option>
+        <option value="" selected>everything</option>
+      </select>
+      <span class="meta" id="tr-generated"></span>
+      <span class="spacer"></span>
+      <button id="tr-refresh">Refresh</button>
+    </div>
+    <div class="books" id="tr-books"></div>
+    <div class="kpis" id="tr-kpis"></div>
+    <figure class="viz">
+      <figcaption><b>Cumulative P&amp;L per contract</b> <span class="meta">— one contract on every pick at the ask, fees included, graded at settlement</span> <button class="viz-toggle" data-toggle="tr-pnl">Table</button></figcaption>
+      <div class="viz-legend" id="tr-pnl-legend"></div>
+      <div class="viz-plot" id="tr-pnl-plot"></div>
+      <div class="viz-tip" id="tr-pnl-tip" hidden></div>
+      <div class="viz-table" id="tr-pnl-table" hidden></div>
+    </figure>
+    <figure class="viz">
+      <figcaption><b>Rolling hit rate vs breakeven</b> <span class="meta">— last 50 graded picks; the strategy line must sit above the gray breakeven line to make money</span> <button class="viz-toggle" data-toggle="tr-hit">Table</button></figcaption>
+      <div class="viz-legend" id="tr-hit-legend"></div>
+      <div class="viz-multiples" id="tr-hit-plot"></div>
+      <div class="viz-table" id="tr-hit-table" hidden></div>
+    </figure>
+    <p class="explain" id="tr-empty" style="display:none">No graded predictions in this window yet.</p>
+    <p class="explain">
+      <b>What the books mean.</b> <b>Paper · auto</b> is the ledger: every strategy's every pick, one contract at the ask, graded when the market settles — the record the Scorecard rules on.
+      <b>Paper · manual</b> is you, on the demo exchange. <b>Real · manual</b> is you, on the live exchange, confirm-gated. <b>Real · auto</b> does not exist: an autopilot needs a PROVEN strategy first.
+      <b>Days to verdict</b> is how long, at the observed grading pace, until a forward test has the 30 settled picks the Scorecard needs.
+    </p>
+  </section>
+
   <section class="tab-panel" data-panel="alerts" role="tabpanel" hidden>
     <div class="panel">
       <h2>Alert history <span class="meta" style="text-transform:none;font-weight:400">— each hand is announced ONCE, the first time it clears your floor</span></h2>
@@ -791,9 +870,200 @@
   $('f-cat').addEventListener('change', render);
   $('f-strength').addEventListener('change', render);
   loadStatus().then(loadPortfolio);
+  /* ── Trends: the ledger as a trader watches it. Inline SVG, no external assets. ─────────── */
+  // Categorical hues by a FIXED strategy->slot map (never cycled, never generated): an unknown
+  // strategy folds into the de-emphasis gray rather than inventing a 5th hue.
+  var SERIES_SLOT = { 'calibration': 1, 'weather-enso': 2, 'contrarian-weather-disagree': 3, 'contrarian-extreme': 4 };
+  function seriesColor(strategy) { var n = SERIES_SLOT[strategy]; return n ? 'var(--series-' + n + ')' : 'var(--series-other)'; }
+  function seriesOrder(a, b) { return (SERIES_SLOT[a.strategy] || 9) - (SERIES_SLOT[b.strategy] || 9) || a.strategy.localeCompare(b.strategy); }
+  function applyVizScheme() {
+    var m = /(\d+),\s*(\d+),\s*(\d+)/.exec(getComputedStyle(document.body).backgroundColor || '');
+    var dark = !m || (0.2126 * m[1] + 0.7152 * m[2] + 0.0722 * m[3]) < 128;
+    document.body.classList.toggle('viz-dark', dark);
+  }
+  function usd(v) { v = Number(v) || 0; return (v < 0 ? '\u2212$' : '+$') + Math.abs(v).toFixed(2); }
+  function pct0(v) { return v === null || v === undefined ? '\u2014' : Math.round(v * 100) + '%'; }
+  function niceTicks(min, max, count) {
+    var span = (max - min) || 1, raw = span / count, mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10)), norm = raw / mag;
+    var step = (norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10) * mag, out = [];
+    for (var v = Math.floor(min / step) * step; v <= max + step * 0.5; v += step) out.push(+v.toFixed(10));
+    return out;
+  }
+  function dayLabel(t) { var d = new Date(t); return (d.getUTCMonth() + 1) + '/' + d.getUTCDate(); }
+  var trendState = { data: null };
+  function loadTrends() {
+    var days = $('tr-window').value;
+    return fetch('/api/kalshi/trends' + (days ? '?days=' + encodeURIComponent(days) : ''), { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+      .then(function (d) { trendState.data = d; renderTrends(d); })
+      .catch(function (e) { $('tr-empty').style.display = ''; $('tr-empty').textContent = 'Trends unavailable: ' + e.message; });
+  }
+  function renderTrends(d) {
+    applyVizScheme();
+    var strategies = (d.strategies || []).slice().sort(seriesOrder);
+    $('tr-generated').textContent = 'as of ' + new Date(d.generatedAt).toLocaleString();
+    renderBooks(d.books || {});
+    renderKpis(strategies, d);
+    var withDays = strategies.filter(function (s) { return s.days && s.days.length; });
+    $('tr-empty').style.display = withDays.length ? 'none' : '';
+    if (withDays.length) $('tr-empty').textContent = 'No graded predictions in this window yet.';
+    renderPnlChart(withDays);
+    renderHitMultiples(withDays);
+  }
+  function bookTile(name, state, big, sub, note) {
+    var el = document.createElement('div'); el.className = 'book';
+    el.innerHTML = '<div class="book-name"><span class="book-state ' + esc(state) + '"></span>' + esc(name) + '</div>' +
+      '<div class="book-big">' + esc(big) + '</div><div class="book-sub">' + esc(sub) + '</div><div class="book-note">' + esc(note) + '</div>';
+    return el;
+  }
+  function renderBooks(b) {
+    var el = $('tr-books'); el.innerHTML = '';
+    var pa = b.paperAuto || {}, pm = b.paperManual || {}, lm = b.liveManual || {}, la = b.liveAuto || {};
+    el.appendChild(bookTile('Paper \u00b7 auto', 'on', usd(pa.pnl), (pa.predictions || 0) + ' picks \u00b7 ' + (pa.graded || 0) + ' graded \u00b7 ' + (pa.strategies || 0) + ' strategies', pa.note || ''));
+    el.appendChild(bookTile('Paper \u00b7 manual', pm.orders ? 'on' : '', (pm.orders || 0) + ' orders', (pm.contracts || 0) + ' contracts \u00b7 $' + (Number(pm.notional) || 0).toFixed(2) + ' notional', pm.note || ''));
+    el.appendChild(bookTile('Real \u00b7 manual', lm.orders ? (lm.blocked === lm.orders ? 'warn' : 'on') : '', (lm.orders || 0) + ' orders', (lm.blocked || 0) + ' blocked \u00b7 ' + (lm.contracts || 0) + ' contracts \u00b7 $' + (Number(lm.notional) || 0).toFixed(2) + ' notional', lm.note || ''));
+    el.appendChild(bookTile('Real \u00b7 auto', '', 'not built', '', la.note || ''));
+  }
+  function kpiTile(cls, label, value, delta, deltaCls) {
+    var el = document.createElement('div'); el.className = 'kpi' + (cls ? ' ' + cls : '');
+    el.innerHTML = '<div class="k">' + esc(label) + '</div><div class="v">' + esc(value) + '</div>' + (delta ? '<div class="d ' + esc(deltaCls || '') + '">' + esc(delta) + '</div>' : '');
+    return el;
+  }
+  function renderKpis(strategies, d) {
+    var el = $('tr-kpis'); el.innerHTML = '';
+    var total = 0, lastDay = null, lastN = 0, lastW = 0, lastPnl = 0, best = null, next = null, waiting = null;
+    strategies.forEach(function (s) {
+      total += Number(s.totalPnl) || 0;
+      var last = s.days && s.days.length ? s.days[s.days.length - 1] : null;
+      if (last && (!lastDay || last.day > lastDay)) lastDay = last.day;
+    });
+    strategies.forEach(function (s) {
+      var bn = 0, bs = 0, ms = 0;
+      (s.days || []).forEach(function (p) {
+        if (p.day === lastDay) { lastN += p.n; lastW += p.wins; lastPnl += p.pnl; }
+        if (p.brier !== null && p.marketBrier !== null) { bn += p.n; bs += p.brier * p.n; ms += p.marketBrier * p.n; }
+      });
+      if (bn >= 30) { var gap = bs / bn - ms / bn; if (best === null || gap < best.gap) best = { strategy: s.strategy, gap: gap, n: bn }; }
+      if (s.graded < d.minGraded && s.daysToVerdict !== null && (next === null || s.daysToVerdict < next.days)) next = { strategy: s.strategy, days: s.daysToVerdict, graded: s.graded };
+      if (s.graded < d.minGraded && s.daysToVerdict === null && s.pending > 0 && !waiting) waiting = { strategy: s.strategy, pending: s.pending };
+    });
+    // The hero is the ledger's own sum (the same number as the Paper · auto book), not a float walk.
+    var ledgerPnl = d.books && d.books.paperAuto && typeof d.books.paperAuto.pnl === 'number' && !$('tr-window').value ? d.books.paperAuto.pnl : total;
+    el.appendChild(kpiTile('hero', 'Paper P&L, one contract on every pick', usd(ledgerPnl), lastDay ? usd(lastPnl) + ' on ' + lastDay : '', lastPnl >= 0 ? 'up' : 'down'));
+    el.appendChild(kpiTile('', 'Graded on ' + (lastDay || '\u2014'), String(lastN), lastN ? lastW + ' won \u00b7 ' + (lastN - lastW) + ' lost' : 'nothing settled yet', ''));
+    el.appendChild(kpiTile('', 'Closest to beating the market (Brier gap)', best ? (best.gap > 0 ? '+' : '') + best.gap.toFixed(4) : '\u2014', best ? best.strategy + ' over ' + best.n + ' graded \u00b7 negative = beating it' : 'needs 30 graded', best && best.gap < 0 ? 'up' : ''));
+    el.appendChild(kpiTile('', 'Next verdict', next ? (next.days === 0 ? 'due now' : '~' + next.days + ' day' + (next.days === 1 ? '' : 's')) : (waiting ? 'waiting' : '—'),
+      next ? next.strategy + ' · ' + next.graded + '/' + d.minGraded + ' graded' : (waiting ? waiting.strategy + ' · ' + waiting.pending + ' registered, none settled yet' : 'no forward test pending'), ''));
+  }
+  /* Multi-series line chart: hairline grid, 2px lines, end markers with a surface ring, sparing
+     end labels (dropped when they would collide — the legend carries identity), crosshair tooltip
+     listing EVERY series at the snapped day. All text in text tokens. */
+  function lineChart(plot, tip, series, opts) {
+    plot.innerHTML = '';
+    var W = Math.max(320, plot.clientWidth || 720), H = opts.height || 240, L = 56, R = opts.endLabelRoom || 168, T = 12, B = 26;
+    var xs = {}; series.forEach(function (s) { s.points.forEach(function (p) { xs[p.t] = 1; }); });
+    var days = Object.keys(xs).map(Number).sort(function (a, b) { return a - b; });
+    if (!days.length) return;
+    var x0 = days[0], x1 = days[days.length - 1]; if (x1 === x0) { x0 -= 43200000; x1 += 43200000; }
+    var ys = [opts.yMin === undefined ? 0 : opts.yMin]; series.forEach(function (s) { s.points.forEach(function (p) { ys.push(p.y); }); });
+    var yMin = Math.min.apply(null, ys), yMax = Math.max.apply(null, ys); if (yMax === yMin) yMax = yMin + 1;
+    var ticks = niceTicks(yMin, yMax, 4); yMin = Math.min(yMin, ticks[0]); yMax = Math.max(yMax, ticks[ticks.length - 1]);
+    var sx = function (t) { return L + (t - x0) / (x1 - x0) * (W - L - R); }, sy = function (v) { return T + (yMax - v) / (yMax - yMin) * (H - T - B); };
+    var g = '';
+    ticks.forEach(function (v) { g += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + sy(v) + '" y2="' + sy(v) + '" stroke="var(--viz-grid)" stroke-width="1"/>' +
+      '<text x="' + (L - 8) + '" y="' + (sy(v) + 4) + '" text-anchor="end">' + esc(opts.yFmt(v)) + '</text>'; });
+    if (yMin < 0 && yMax > 0) g += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + sy(0) + '" y2="' + sy(0) + '" stroke="var(--dim)" stroke-width="1"/>';
+    [days[0], days[Math.floor(days.length / 2)], days[days.length - 1]].forEach(function (t, i, a) {
+      if (a.indexOf(t) !== i) return;
+      g += '<text x="' + sx(t) + '" y="' + (H - 8) + '" text-anchor="middle">' + esc(dayLabel(t)) + '</text>';
+    });
+    var labels = [];
+    series.forEach(function (s) {
+      if (!s.points.length) return;
+      var d = s.points.map(function (p, i) { return (i ? 'L' : 'M') + sx(p.t).toFixed(1) + ' ' + sy(p.y).toFixed(1); }).join(' ');
+      var e = s.points[s.points.length - 1];
+      g += '<path d="' + d + '" fill="none" stroke="' + s.color + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+      g += '<circle cx="' + sx(e.t) + '" cy="' + sy(e.y) + '" r="4" fill="' + s.color + '" stroke="var(--panel)" stroke-width="2"/>';
+      labels.push({ y: sy(e.y), x: sx(e.t) + 9, text: s.name + ' ' + opts.yFmt(e.y) });
+    });
+    labels.sort(function (a, b) { return a.y - b.y; });
+    var lastY = -99; labels.forEach(function (l) { if (l.y - lastY >= 13) { g += '<text class="viz-endlabel" x="' + l.x + '" y="' + (l.y + 4) + '">' + esc(l.text) + '</text>'; lastY = l.y; } });
+    g += '<line id="xh" x1="0" x2="0" y1="' + T + '" y2="' + (H - B) + '" stroke="var(--dim)" stroke-width="1" visibility="hidden"/>';
+    g += '<rect x="' + L + '" y="' + T + '" width="' + (W - L - R) + '" height="' + (H - T - B) + '" fill="transparent" id="hit"/>';
+    plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(opts.label || '') + '">' + g + '</svg>';
+    var svg = plot.querySelector('svg'), xh = svg.querySelector('#xh'), hit = svg.querySelector('#hit');
+    function at(s, t) { var v = null; for (var i = 0; i < s.points.length && s.points[i].t <= t; i++) v = s.points[i]; return v; }
+    hit.addEventListener('pointermove', function (ev) {
+      var r = svg.getBoundingClientRect(), px = (ev.clientX - r.left) * W / r.width, t = x0 + (px - L) / (W - L - R) * (x1 - x0), best = days[0];
+      days.forEach(function (d) { if (Math.abs(d - t) < Math.abs(best - t)) best = d; });
+      xh.setAttribute('x1', sx(best)); xh.setAttribute('x2', sx(best)); xh.setAttribute('visibility', 'visible');
+      tip.innerHTML = ''; var dayEl = document.createElement('div'); dayEl.className = 'vt-day'; dayEl.textContent = new Date(best).toISOString().slice(0, 10); tip.appendChild(dayEl);
+      series.forEach(function (s) {
+        var p = at(s, best); if (!p) return;
+        var row = document.createElement('div'); row.className = 'vt-row';
+        var key = document.createElement('span'); var k = document.createElement('span'); k.className = 'viz-key'; k.style.borderTopColor = s.color; key.appendChild(k); key.appendChild(document.createTextNode(s.name));
+        var val = document.createElement('b'); val.textContent = opts.yFmt(p.y) + (opts.tipExtra ? opts.tipExtra(p) : '');
+        row.appendChild(val); row.appendChild(key); tip.appendChild(row);
+      });
+      // The tip is positioned inside the chart's own relative container (the figure, or the mini's
+      // wrapper), so offset by where the plot sits in it — never by the page.
+      tip.hidden = false; var left = (ev.clientX - r.left) + 14; if (left + 190 > r.width) left = (ev.clientX - r.left) - 200;
+      tip.style.left = Math.max(0, plot.offsetLeft + left) + 'px'; tip.style.top = Math.max(0, plot.offsetTop + (ev.clientY - r.top) - 10) + 'px';
+    });
+    hit.addEventListener('pointerleave', function () { xh.setAttribute('visibility', 'hidden'); tip.hidden = true; });
+  }
+  function legendInto(el, items) {
+    el.innerHTML = '';
+    items.forEach(function (it) { var s = document.createElement('span'); var k = document.createElement('span'); k.className = 'viz-key'; k.style.borderTopColor = it.color; s.appendChild(k); s.appendChild(document.createTextNode(it.name)); el.appendChild(s); });
+  }
+  function tableInto(el, header, rows) {
+    var h = '<table><thead><tr>' + header.map(function (c) { return '<th>' + esc(c) + '</th>'; }).join('') + '</tr></thead><tbody>';
+    rows.forEach(function (r) { h += '<tr>' + r.map(function (c, i) { return '<td' + (i ? ' class="num"' : '') + '>' + esc(c) + '</td>'; }).join('') + '</tr>'; });
+    el.innerHTML = h + '</tbody></table>';
+  }
+  function renderPnlChart(strategies) {
+    var series = strategies.map(function (s) { return { name: s.strategy, color: seriesColor(s.strategy), points: s.days.map(function (p) { return { t: Date.parse(p.day), y: p.cumPnl, n: p.n, wins: p.wins, pnl: p.pnl }; }) }; });
+    lineChart($('tr-pnl-plot'), $('tr-pnl-tip'), series, { yFmt: usd, label: 'Cumulative P&L per contract by strategy', tipExtra: function (p) { return ' (' + p.wins + '/' + p.n + ' that day, ' + usd(p.pnl) + ')'; } });
+    legendInto($('tr-pnl-legend'), series);
+    var rows = []; strategies.forEach(function (s) { s.days.forEach(function (p) { rows.push([p.day, s.strategy, String(p.n), String(p.wins), usd(p.pnl), usd(p.cumPnl)]); }); });
+    rows.sort(function (a, b) { return a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0; });
+    tableInto($('tr-pnl-table'), ['Day', 'Strategy', 'Graded', 'Wins', 'P&L', 'Cumulative'], rows);
+  }
+  /* Small multiples: one mini chart per strategy — the strategy's rolling hit rate in its own hue
+     against the rolling breakeven in the de-emphasis gray. Emphasis, not eight colors. */
+  function renderHitMultiples(strategies) {
+    var host = $('tr-hit-plot'); host.innerHTML = '';
+    legendInto($('tr-hit-legend'), [{ name: 'rolling hit rate (strategy colour)', color: 'var(--text)' }, { name: 'rolling breakeven = price + fee', color: 'var(--series-other)' }]);
+    var rows = [];
+    strategies.forEach(function (s) {
+      var pts = s.days.filter(function (p) { return p.rollingHit !== null; });
+      if (!pts.length) return;
+      var wrap = document.createElement('div'); wrap.className = 'viz-mini';
+      var title = document.createElement('div'); title.className = 'mini-title'; var k = document.createElement('span'); k.className = 'viz-key'; k.style.borderTopColor = seriesColor(s.strategy); title.appendChild(k);
+      var last = pts[pts.length - 1]; title.appendChild(document.createTextNode(s.strategy + ' \u2014 now ' + pct0(last.rollingHit) + ' vs ' + pct0(last.rollingBreakeven) + ' breakeven'));
+      var plot = document.createElement('div'); plot.className = 'viz-plot'; var tip = document.createElement('div'); tip.className = 'viz-tip'; tip.hidden = true;
+      wrap.appendChild(title); wrap.appendChild(plot); wrap.appendChild(tip); host.appendChild(wrap);
+      lineChart(plot, tip, [
+        { name: 'hit rate', color: seriesColor(s.strategy), points: pts.map(function (p) { return { t: Date.parse(p.day), y: p.rollingHit }; }) },
+        { name: 'breakeven', color: 'var(--series-other)', points: pts.map(function (p) { return { t: Date.parse(p.day), y: p.rollingBreakeven }; }) },
+      ], { yFmt: pct0, height: 150, yMin: 0, endLabelRoom: 96, label: s.strategy + ' rolling hit rate vs breakeven' });
+      pts.forEach(function (p) { rows.push([p.day, s.strategy, pct0(p.rollingHit), pct0(p.rollingBreakeven), (p.rollingHit - p.rollingBreakeven >= 0 ? '+' : '') + Math.round((p.rollingHit - p.rollingBreakeven) * 100) + ' pts']); });
+    });
+    rows.sort(function (a, b) { return a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0; });
+    tableInto($('tr-hit-table'), ['Day', 'Strategy', 'Rolling hit', 'Breakeven', 'Gap'], rows);
+  }
+  $('tr-window').addEventListener('change', loadTrends);
+  $('tr-refresh').addEventListener('click', loadTrends);
+  document.querySelectorAll('[data-toggle]').forEach(function (b) {
+    b.addEventListener('click', function () { var t = $(b.getAttribute('data-toggle') + '-table'); t.hidden = !t.hidden; b.textContent = t.hidden ? 'Table' : 'Chart'; });
+  });
+  var resizeTimer = null;
+  window.addEventListener('resize', function () { clearTimeout(resizeTimer); resizeTimer = setTimeout(function () { if (trendState.data) renderTrends(trendState.data); }, 200); });
+
   load();
   loadAlerts();
   loadSettings();
+  loadTrends();
   // The snapshot read is now cheap (one row), so poll it every 30s: the freshness line stays
   // honest, a poller cycle appears on its own, and nothing here ever triggers a scan.
   setInterval(load, 30000);

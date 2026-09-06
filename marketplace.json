@@ -33,7 +33,7 @@
       "suite": "ai-home",
       "displayName": "Little Monsters",
       "description": "Voice-first ADHD study companion for K-12: lecture capture, flashcards, authoritative quizzes, and a Socratic tutor grounded in caller-owned or teacher/admin-approved class material.",
-      "version": "1.0.9",
+      "version": "1.2.0",
       "theme": "little-monsters",
       "dependencies": {
         "apps": [],
@@ -107,7 +107,7 @@
       "suite": "ai-home",
       "displayName": "Kid Lens",
       "description": "Upload your YouTube Takeout watch history and get a parent-friendly brief on what your kid is into — top interests, decoded channels, gift ideas, conversation openers. Read-only.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "theme": "sakura",
       "dependencies": {
         "apps": [],
@@ -306,8 +306,8 @@
       "name": "career-hunter",
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
-      "description": "Reads openings from employers' own public ATS job feeds into a shared corpus, scores every posting against your private career profile, and turns the best fits into a human-in-the-loop application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume + cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.",
-      "version": "1.13.0",
+      "description": "Reads openings from employers' own public ATS job feeds into a shared corpus, scores every posting against your private career profile, and turns the best fits into a human-in-the-loop application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume + cover letter. Any document in the swarm can be sent here (ADR-139 Send to…) and absorbed into your profile. Single-tenant, multi-user (per-user isolation); multi-tenant ready.",
+      "version": "1.15.0",
       "dependencies": {
         "apps": ["portrait-studio"],
         "tools": [],
@@ -330,7 +330,7 @@
       "suite": "ai-productivity",
       "displayName": "AI Office",
       "description": "One outline, three artifacts — a themed PowerPoint deck, Word document, or live Excel workbook. Ten shared looks, twenty layouts, fully editable in Microsoft Office, Google Workspace or LibreOffice; saves to Dropbox, Google Drive, OneDrive, or OSHAL local. A guided visual start walks you from artifact to look to outline — or talk to the Guide, open a file, or type one line and AI drafts it all. Phone-friendly: dictate instead of typing, resume recent files in one tap, drive edits with tap chips. My files is a real file browser - click a file for download, open-in-provider, or edit-and-regenerate. The deck-generation engine stays framework-resident (kernel skill); this package is the studio surface.",
-      "version": "2.5.0",
+      "version": "2.6.0",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -388,7 +388,7 @@
       "suite": "ai-creative",
       "displayName": "Portrait Studio",
       "description": "Turn any photo into a portrait worth framing — take it with your camera or upload one, then 225 presets × 200 backdrops: business, slice of life, sun & sea, sports, world travel, sci-fi, history and fantasy, with interchangeable clothing, hats, props and finishes. Group mode puts the whole crew in one scene — box every face in a group shot, or pull faces from several photos. Export passport squares (300/600) or 4×6 prints in portrait/landscape, email a portrait from the gallery over your own connected mailbox, or send it to any other swarm app — and receive images sent here from anywhere (ADR-139).",
-      "version": "1.8.0",
+      "version": "1.9.0",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -439,7 +439,7 @@
       "suite": "ai-productivity",
       "displayName": "Social",
       "description": "Draft, review, and publish across your networks from one surface - the comms bot drafts a post in your voice, you approve, and it publishes on your per-user LinkedIn / X / Facebook token (nothing posts until you click Publish). The Signals view reads your social-notification emails straight from your connected inbox. The comms + social-writer nodes, the inbox-ingest Signals engine, and the kernel-resident LinkedIn AI Content Assistant stay framework-resident; this package is the surface over them.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -640,7 +640,7 @@
       "suite": "ai-home",
       "displayName": "Spaces",
       "description": "Turn a real space into an explorable 3D scene: film a walkthrough (or import an iPhone/LiDAR/drone capture) into a Gaussian-splat scene you walk in a WebGL viewer, get live walk/pan guidance while you film, mint a phone-pairing token for LiDAR ingest, paint Wi-Fi coverage onto the map, and fly a sim-drone scan orbit. The video->3D reconstruction engine + owner-scoped scan store stay framework-resident as the pinned 'spatial-mapping' kernel skill (declared in the package uses:), and the spaces-operator inline concierge stays core; this package is the surface over them (ADR-111, ADR-093).",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -758,7 +758,7 @@
       "suite": "ai-creative",
       "displayName": "Video Studio",
       "description": "Make prompted short-form videos (TikTok / YouTube Shorts / Instagram Reels) from an idea - the director bot storyboards it and the studio renders a real .mp4 with voiceover and captions, saved to your Files storage; a series is written by the screenplay-writer, approval-gated on the script, then rendered one episode at a time on the remote Vids node. The series conductor engine, the video-generation slice, the video-director + screenplay-writer inline nodes, and the shared vids-operator desktop worker stay framework-resident; this package is the surface over them.",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "theme": "sakura",
       "dependencies": {
         "apps": [],
@@ -835,7 +835,7 @@
       "suite": "ai-finance",
       "displayName": "Kalshi Prediction Markets",
       "description": "Find mispriced event contracts on Kalshi (ADR-094). Every open market is evaluated like a poker hand - calibrated true probability (from Kalshi's own settled-market tape, no history means no edge) versus price plus fees - and playable hands are ranked with quarter-Kelly stakes and explicit risk flags. Portfolio + order placement ride the per-user connector, confirm-gated and demo-exchange-first (KALSHI_LIVE_ENABLED gates live money; every order and refusal audited). The prediction-markets engine, the kalshi connector + broker key, the calibration/forward-test CLIs, and the default tile stay framework-resident; this package is the surface + confirm-gated order routes over them. The scan runs in the BACKGROUND on a cadence configured in the manifest (default hourly) and posts new playable hands to the user's Jarvis feed; the surface serves the last snapshot instantly instead of waiting on a feed walk, and the cadence/alert thresholds are editable from the app's Settings tab.",
-      "version": "1.1.2",
+      "version": "1.2.0",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -909,7 +909,7 @@
       "suite": "ai-creative",
       "displayName": "Dungeon Master",
       "description": "Play D&D with an AI Dungeon Master on a cinematic shared board: claimed heroes and visible AI companions follow an explicit move, action, target, dice, result, and advance loop with natural narration, saved characters, multiplayer join codes, playback, and rewind. Open SRD 5.1 (CC-BY).",
-      "version": "0.19.1",
+      "version": "0.20.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1062,6 +1062,35 @@
       },
       "audit": {
         "record": "audits/switchboard.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
+      "status": "ready"
+    },
+    {
+      "name": "intelligent-career",
+      "suite": "ai-knowledge",
+      "displayName": "Intelligent Career",
+      "description": "One front door for your job search: the board, search, resume and strengthen tools, your profile picture, your LinkedIn and Facebook presence, and the documents you print into the swarm — with a setup page that shows what is connected and what still needs you. An ADR-141 application GROUP: no code of its own, four member apps bound by one toolbar of borrowed surfaces.",
+      "version": "1.0.0",
+      "theme": "daylight",
+      "dependencies": {
+        "apps": [
+          "career-hunter",
+          "portrait-studio",
+          "social",
+          "print-ingest"
+        ],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "intelligent-career",
+        "ref": "main"
+      },
+      "audit": {
+        "record": "audits/intelligent-career.json",
         "sourceSha": "0000000000000000000000000000000000000000"
       },
       "status": "ready"

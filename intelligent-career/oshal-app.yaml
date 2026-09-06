@@ -1,0 +1,94 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL application GROUP — Intelligent Career (ADR-141)
+#
+# A group carries NO code. It binds four installed applications into one front
+# door with one toolbar and a setup dashboard:
+#   career-hunter    the job board, search, resume + strengthen, profile studio
+#   portrait-studio  the profile picture
+#   social           LinkedIn / Facebook presence and the signals you comment on
+#   print-ingest     printed documents arriving in the swarm
+#
+# Every toolbar tile is BORROWED from a member by app + surface name — the loader
+# copies the member's label, icon and URL at activation and again at every
+# profile synthesis, so a member that moves a surface is followed and a member
+# that drops one fails this group instead of leaving a dead tile. Nothing here
+# is a copied URL (that is the launcher defect ADR-141 exists to remove).
+#
+# The setup dashboard is rendered by the kernel from `setup:` below. Each step
+# points at a `readiness:` probe the member declares over its OWN store, asked
+# in the signed-in user's session — a step is done only when the member says so.
+#
+# Framework: OSHAL (docs/adr/141-application-groups.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: intelligent-career
+kind: group
+suite: ai-knowledge   # ADR-097: primary catalog shelf
+displayName: Intelligent Career
+description: >-
+  One front door for your job search: the board, search, resume and strengthen
+  tools, your profile picture, your LinkedIn and Facebook presence, and the
+  documents you print into the swarm — with a setup page that shows what is
+  connected and what still needs you.
+version: 1.0.0
+status: active
+scope: public
+theme: daylight
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: intelligent-career
+  ref: main
+
+# The members. Installing this group resolves all four (npm-style, fail-closed);
+# the reverse-dependency guard blocks a member's uninstall while the group is active.
+dependencies:
+  apps:
+    - career-hunter
+    - portrait-studio
+    - social
+    - print-ingest
+
+# ── Toolbar — borrowed by reference ──────────────────────────────────────────
+# `group:` bands render in first-appearance order; `section: bottom` is the pinned
+# base tray (ungrouped by the renderer). The kernel prepends its Setup tile.
+toolbar:
+  - { app: career-hunter,   surface: career-board }
+  - { app: career-hunter,   surface: career-search,         group: Job Search }
+  - { app: career-hunter,   surface: career-submissions,    group: Job Search }
+  - { app: career-hunter,   surface: career-resume-studio,  group: Resume }
+  - { app: career-hunter,   surface: career-strengthen,     group: Resume }
+  - { app: career-hunter,   surface: career-profile-studio, group: Presence }
+  - { app: portrait-studio, surface: portrait-studio,       group: Presence }
+  - { app: social,          surface: linkedin-assistant,    group: Presence }
+  - { app: social,          surface: social-workspace,      group: Presence }
+  - { app: social,          surface: social-signals,        group: Presence }
+  - { app: print-ingest,    surface: print-ingest,          group: Documents }
+  - { app: social,          surface: social-accounts,       section: bottom }
+  - { app: career-hunter,   surface: career-settings,       section: bottom }
+
+# ── Setup — the seven steps of ADR-141 D1 ─────────────────────────────────────
+# `readiness` names a probe the member declares; `fix` is the toolbar surface the
+# dashboard opens for the step. Order is the order a new user should take them.
+setup:
+  - { label: Upload your resume,                          app: career-hunter,   readiness: resume,       fix: career-resume-studio }
+  - { label: Take or upload a profile picture,            app: portrait-studio, readiness: portrait,     fix: portrait-studio }
+  - { label: Connect Facebook,                            app: social,          readiness: facebook,     fix: social-accounts }
+  - { label: Pick the articles you want to comment on,    app: social,          readiness: signals,      fix: social-signals }
+  - { label: Review your resume story by story,           app: career-hunter,   readiness: stories,      fix: career-strengthen }
+  - { label: Add performance reports and other documents, app: career-hunter,   readiness: materials,    fix: career-settings }
+  - { label: Subscribe to the print service,              app: print-ingest,    readiness: subscription, fix: print-ingest }
+
+# ── Ribbon chrome (mirrors career-hunter's) ───────────────────────────────────
+# Tickets hides itself (a group owns no queue). The Setup tile is the default
+# landing view; it offers "Open" onto the board once every step is done.
+ribbon:
+  hideFrameworkItems:
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations

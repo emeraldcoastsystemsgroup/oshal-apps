@@ -638,6 +638,39 @@ function startCompanionMode() {
 function escapeAttr(str) {
   return (str || '').replace(/'/g, "\\'").replace(/\n/g, ' ').substring(0, 500);
 }
+
+// ADR-139 receive: a "Send to… → Ask the Tutor about it" dispatch lands with a one-shot
+// handle ref in our url (the dashboard forwards it here). The shared image/PDF becomes the
+// pending attachment — exactly as if the student had picked it — so the next question is
+// "here's my homework". Expired/foreign refs 404 and the chat opens normally.
+(function () {
+  var ref = new URLSearchParams(location.search).get('artifact');
+  if (!ref || !/^art_[A-Za-z0-9_-]{8,64}$/.test(ref)) return;
+  fetch('/api/artifacts/handles/' + encodeURIComponent(ref))
+    .then(function (r) { if (!r.ok) throw new Error('expired'); return r.json(); })
+    .then(function (meta) {
+      return fetch('/api/artifacts/handles/' + encodeURIComponent(ref) + '/content')
+        .then(function (r) { if (!r.ok) throw new Error('expired'); return r.blob(); })
+        .then(function (blob) {
+          if (blob.size > 8 * 1024 * 1024) return; // the tutor's own attach ceiling
+          var reader = new FileReader();
+          reader.onload = function () {
+            var dataUrl = String(reader.result || '');
+            var comma = dataUrl.indexOf(',');
+            pendingAttachment = {
+              base64: comma >= 0 ? dataUrl.slice(comma + 1) : '',
+              mediaType: meta.type || blob.type || 'application/octet-stream',
+              dataUrl: dataUrl,
+              name: meta.name || 'shared-file',
+              isImage: /^image\//.test(meta.type || blob.type || ''),
+            };
+            renderAttachPreview();
+          };
+          reader.readAsDataURL(blob);
+        });
+    })
+    .catch(function () { /* expired — normal chat state */ });
+})();
 </script>
 </body>
 </html>

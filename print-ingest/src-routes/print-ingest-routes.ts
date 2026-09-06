@@ -4,14 +4,17 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | ADR-135 P1 — the print inbox: intake, the classification form, approve/reject, and fan-out ingest. Design choices worth knowing. Intake takes TEXT, not the binary: the printer already recovers a document's text from XPS, so the swarm never parses untrusted binary and the original stays on the machine that produced it. Everything in the sidecar is attacker-controlled LAN input, so it is length-capped and control-stripped before it is stored or logged, and it NEVER derives owner_sub, a collection name, or a bot id. Idempotency is the content hash: reprinting a document returns the original intake instead of queueing a duplicate. Approval writes only what the human ticked, records where every copy went (the sole basis for a later retraction, since core RAG cannot delete one document), and reports a partial fan-out as partially_ingested rather than as success or as total failure.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-139 wave 1 — POST /documents/import-artifact {ref}: the "Send to…" destination. Redeems the owner-bound handle + extracts its text on the kernel doc-extract rail (loopback, as the caller), then files the result through THIS package's own /documents intake — same text-not-binary posture, same dedupe/rules/approval queue. Two loopback hops on purpose: zero duplication of the intake logic, and the kernel keeps the only binary parser.
  *
  * @module print-ingest-routes
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-141 readiness (0.2.1): GET /readiness answers the Intelligent Career group's "subscribe to the print service" step from the caller's own print_intake rows — done once a printed document has actually reached this inbox; asked in the user's session by the kernel setup dashboard.
  */
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Router, type Request, type Response } from 'express';
+import { createChildLogger } from '@/shared/logger';
 import { getTrustedServiceUserSub } from '@/shared/middleware/authz';
 import { RagService } from '@/features/rag';
 import {
@@ -26,6 +29,8 @@ import {
   type Recommendation,
 } from './print-classify';
 import { executeFanout, planFanout, stateForResults, type RagIngestPort } from './print-fanout';
+
+const logger = createChildLogger({ module: 'print-ingest-routes' });
 
 /** Documents are text by the time they reach here; this bounds one intake. */
 const MAX_TEXT_CHARS = 500_000;
@@ -180,6 +185,32 @@ export function createPrintIngestRoutes(ctx: AppContext): Router {
     },
   };
 
+  /** GET /readiness — ADR-141 per-user readiness for the Intelligent Career group's "subscribe to
+   *  the print service" step. The only honest proof a subscription works end to end is a printed
+   *  document that reached THIS caller's inbox, so that is what is counted — from the caller's own
+   *  print_intake rows, asked in the signed-in user's session by the kernel setup dashboard. */
+  router.get('/readiness', async (req: Request, res: Response) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'unauthenticated' }); return; }
+    try {
+      const { rows } = await ctx.pool.query(
+        `SELECT COUNT(*)::int AS total,
+                COUNT(*) FILTER (WHERE state = 'awaiting_approval')::int AS awaiting
+           FROM print_intake WHERE owner_sub = $1`,
+        [sub],
+      );
+      const total = Number(rows[0]?.total || 0);
+      const awaiting = Number(rows[0]?.awaiting || 0);
+      const detail = total === 0
+        ? 'No printed document has reached the swarm yet — install the oshal printer from Get oshal, then print anything to it.'
+        : `${total} document${total === 1 ? '' : 's'} received${awaiting ? `, ${awaiting} awaiting your approval` : ''}.`;
+      res.json({ subscription: { ready: total > 0, total, awaiting, detail } });
+    } catch (err) {
+      logger.error({ err }, 'print-ingest readiness failed');
+      res.status(500).json({ error: 'readiness unavailable' });
+    }
+  });
+
   /** The catalog a surface renders the form from. */
   router.get('/destinations', (req: Request, res: Response) => {
     const admin = callerIsAdmin(req);
@@ -231,6 +262,42 @@ export function createPrintIngestRoutes(ctx: AppContext): Router {
       intake: presentIntake(inserted.rows[0]),
       autoApprovable: ruleMayAutoApprove(recommendation, catalog),
     });
+  });
+
+  /** POST /documents/import-artifact — the ADR-139 "Send to…" destination: {ref} redeems the
+   *  owner-bound handle, extracts its text on the kernel doc-extract rail, and files the result
+   *  through this package's OWN /documents intake (same dedupe, rules, and approval queue —
+   *  and the same text-not-binary posture: the kernel keeps the only binary parser). */
+  router.post('/documents/import-artifact', async (req: Request, res: Response) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'unauthenticated' }); return; }
+    const ref = String((req.body as Record<string, unknown> | undefined)?.ref ?? '');
+    if (!/^art_[A-Za-z0-9_-]{8,64}$/.test(ref)) { res.status(400).json({ error: 'a valid artifact ref is required' }); return; }
+    const secret = (process.env.SWARM_SERVICE_SECRET || '').trim();
+    if (!secret) { res.status(503).json({ error: 'artifact relay unconfigured' }); return; }
+    const base = `http://127.0.0.1:${req.socket.localPort}`;
+    const headers = { 'x-service-secret': secret, 'x-oshal-user-sub': sub, 'Content-Type': 'application/json' };
+    try {
+      const extracted = await fetch(`${base}/api/artifacts/builtin/extract-text`, {
+        method: 'POST', headers, body: JSON.stringify({ ref }),
+      });
+      const doc = await extracted.json() as { ok?: boolean; name?: string; text?: string; reason?: string; error?: string };
+      if (!extracted.ok || !doc.ok || !doc.text) {
+        res.status(extracted.status === 404 ? 404 : 422).json({ error: doc.reason || doc.error || 'could not read that artifact as text' });
+        return;
+      }
+      const filed = await fetch(`${base}/api/print-ingest/documents`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ text: doc.text, sidecar: { documentName: doc.name, source: 'send-to' } }),
+      });
+      const out = await filed.json() as Record<string, unknown>;
+      res.status(filed.status).json({
+        ...out,
+        ...(filed.ok ? { message: out.duplicate ? 'Already filed earlier (same content)' : `Filed for approval: ${doc.name}` } : {}),
+      });
+    } catch (err) {
+      res.status(502).json({ error: 'artifact import failed' });
+    }
   });
 
   /** The inbox. */

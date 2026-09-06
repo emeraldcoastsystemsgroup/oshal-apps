@@ -18,6 +18,7 @@
 # 14 | maintainer@emeraldcoastsystemsgroup.com | Give Search Jobs the layout every job site uses (left filter rail narrowing live results, removable chips), separate title-contains and description-contains fields, and an FTS5 full-text index with sync triggers that takes a filtered text search from 22.7s to under a second, as version 1.12.0.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | Offer a one-click worker-node installer where the board reports no connected computer, so a user never visits Settings to paste a key, as version 1.12.1.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | Release each user's own pattern-gated scrape-target list beside the admin's shared companies table — the engine's `classify` verb is the accept/reject gate, `add-target` registers an accepted URL in the shared corpus with user provenance and scrapes it once, career_user_targets (FORCE RLS, migration 100) is the user's view, Career Settings gets the card — as version 1.13.0. (1.12.4/1.12.5 restored AI scoring under the ADR-137 amendment-A portal fallback: runner verdict OSHAL_PORTAL_LOGINS=1 honored by the launcher.)
+# 17 | maintainer@emeraldcoastsystemsgroup.com | Declare the ADR-141 per-user readiness probes the Intelligent Career GROUP's setup page asks (resume on the existing resume-state route, stories + materials on a new GET /readiness reading the caller's own profile and artifacts), as version 1.15.0. The group itself lives in intelligent-career/ and carries no code.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — career-hunter (Career Hunter)
@@ -58,7 +59,26 @@ description: >-
   posting against your private career profile, and turns the best fits into a human-in-the-loop
   application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume +
   cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.
-version: 1.13.0
+version: 1.15.0
+
+# ── ADR-139 artifact exchange — this app as a "Send to…" DESTINATION ─────────
+# Any document anywhere in the swarm (files browser, another app) can be sent
+# to Career: the handle is redeemed through the kernel relay and rides the SAME
+# leased store→absorb transaction as a direct artifact upload — the engine
+# extracts true career facts into the caller's profile (add-only, audited).
+artifacts:
+  accepts:
+    - id: absorb
+      label: Add to Career profile
+      icon: 💼
+      types:
+        - application/pdf
+        - text/*
+        - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+        - application/msword
+        - application/json
+      mode: post
+      endpoint: /api/career-hunter/artifacts/import
 status: active
 theme: daylight
 
@@ -103,6 +123,26 @@ smoke:
 # would silently strip working connectors off the settings surface. Absent = unfiltered =
 # today's behaviour. Declaring the accurate allow-list is worth doing as its own audited
 # change, not as a side effect of a ribbon edit.
+# ── ADR-141 per-user readiness — what the Intelligent Career group's setup page asks ──
+# Each probe runs AS THE SIGNED-IN USER (the owning route admits a browser session) and
+# reads this app's own store; a step is done only when readyPointer resolves to true.
+#   resume    — the existing resume-state route: hasResume + a one-line summary
+#   stories   — roles carrying a story (roles[].stories[]); honest "0 of N" until D7 ships
+#   materials — documents added under uploads/artifacts (performance reports, Send-to-Career)
+readiness:
+  - name: resume
+    path: /api/career-hunter/resume/state
+    readyPointer: /hasResume
+    detailPointer: /summary
+  - name: stories
+    path: /api/career-hunter/readiness
+    readyPointer: /stories/ready
+    detailPointer: /stories/detail
+  - name: materials
+    path: /api/career-hunter/readiness
+    readyPointer: /materials/ready
+    detailPointer: /materials/detail
+
 dependencies:
   apps: [portrait-studio]
   tools: []

@@ -42,6 +42,11 @@
 # same daily judge. Operator: "bet against ourselves at the extremes". A hypothesis, not a strategy —
 # in-sample it made ~6c a contract on 79 hands, one survivor of fourteen variants.
 #
+# 2026-09-05 — 1.2.0: a TRENDS tab (operator: "keep track of Kalshi like we do stocks"). GET /trends serves
+# the ledger as time series (src-routes/kalshi-trends.ts, read-only, no framework imports): cumulative P&L
+# per strategy, rolling hit vs breakeven, days-to-verdict, and the four books (paper/real x manual/auto —
+# the unbuilt one says so). Inline SVG on the surface; series hues by a fixed strategy->slot map.
+#
 # Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -54,7 +59,7 @@ description: >-
   playable hands are ranked with Kelly-sized stakes and explicit risk flags. Portfolio view and
   order placement ride the per-user connector, confirm-gated and demo-exchange-first
   (KALSHI_LIVE_ENABLED gates live money; every order and refusal is audited).
-version: 1.1.2
+version: 1.2.0
 status: active
 
 source:

@@ -9,6 +9,7 @@
      matters — without it the surface would have no colors at all. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<script src="/api/artifacts/send-to.js" defer></script>
 <style>
   /* Short alias names kept, but each DERIVED from a framework token so all eleven themes work — not
      just the dark one whose hex used to be hardcoded here. Status/accent aliases keep the old hex as
@@ -270,7 +271,11 @@ async function loadList() {
     const r = await fetch('/api/video/list'); const j = await r.json();
     const vids = j.videos || [];
     if (!vids.length) { $('list').innerHTML = '<div class="empty">No videos yet — shape an idea and hit Generate.</div>'; return; }
-    $('list').innerHTML = vids.map((v) => `<div class="vid">
+    // ADR-139 standard tag: a rendered short is a sendable artifact (chip + right-click
+    // injected by the shared component). Only kernel-proxied download URLs qualify.
+    $('list').innerHTML = vids.map((v) => `<div class="vid"${v.downloadUrl && String(v.downloadUrl).startsWith('/api/')
+        ? ` data-artifact-source="${esc(v.downloadUrl)}" data-artifact-type="video/mp4" data-artifact-name="${esc((v.title || v.fileName || 'video').replace(/\.mp4$/i, '') + '.mp4')}"`
+        : ''}>
       <div class="vt">${esc(v.title || v.fileName)}</div>
       <div class="vm">${v.seconds ? v.seconds + 's · ' : ''}${v.scenes ? v.scenes + ' scenes · ' : ''}${v.provider || ''}${v.costUsd ? ' · $' + v.costUsd : ''}</div>
       ${v.downloadUrl ? `<video controls preload="none" src="${v.downloadUrl}"></video><div style="margin-top:6px"><a href="${v.downloadUrl}" target="_blank">Download</a></div>` : (v.url ? `<a href="${v.url}" target="_blank">Open</a>` : '')}

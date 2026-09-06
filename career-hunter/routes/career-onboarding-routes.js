@@ -6,6 +6,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Extracted caller-scoped resume indexing and board onboarding state.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Read durable child lifecycle status so an existing profile cannot clear a pending re-upload marker.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-141: resume state carries a one-line `summary` — the detail the Intelligent Career group's setup dashboard shows under "Upload your resume".
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -67,6 +68,10 @@ async function getResumeState(req, res) {
         indexing: ingest.state === 'pending',
         ingest,
         scored: countScoredJobs(userSub),
+        // ADR-141: the one-line status the Intelligent Career setup dashboard shows under "Upload your resume".
+        summary: resume.hasResume
+            ? `${resume.roles} role${resume.roles === 1 ? '' : 's'} indexed${resume.name ? ` for ${resume.name}` : ''}${ingest.state === 'pending' ? ' (re-indexing)' : ''}`
+            : 'No resume indexed yet.',
     });
 }
 /**

@@ -40,6 +40,7 @@
 })();
 </script>
 <link rel="stylesheet" href="/api/education/education.css">
+<script src="/api/artifacts/send-to.js" defer></script>
 <style>
   /* Uses education.css for all base variables and reset.
      Only page-specific overrides below. */
@@ -453,8 +454,17 @@ function matIcon(mime, kind) {
   return '📄';                                                       // page
 }
 
-function matOpen(id) {
-  return '<a class="mat-open" href="/api/education/materials/' + id + '/file" target="_blank" rel="noopener">Open</a>';
+// ADR-139 standard tag: a class material is a sendable artifact — the shared component
+// injects the affordance (chip + right-click) wherever the tagged Open link renders.
+function matOpen(m) {
+  var id = typeof m === 'object' ? m.material_id : m;
+  var attrs = '';
+  if (typeof m === 'object') {
+    attrs = ' data-artifact-source="/api/education/materials/' + id + '/file"' +
+      ' data-artifact-type="' + (m.mime_type || 'application/octet-stream').replace(/"/g, '') + '"' +
+      ' data-artifact-name="' + String(m.title || m.original_name || 'material').replace(/"/g, '&quot;') + '"';
+  }
+  return '<a class="mat-open" href="/api/education/materials/' + id + '/file" target="_blank" rel="noopener"' + attrs + '>Open</a>';
 }
 
 function renderMaterials(materials) {
@@ -477,7 +487,7 @@ function renderMaterials(materials) {
       '<div class="mat-info">' +
         '<div class="mat-name">' + esc(m.title || m.original_name) + '</div>' +
         '<div class="mat-meta">' + esc(m.kind || 'document') + (kb ? ' • ' + kb : '') + ' • ' + when + '</div>' +
-      '</div>' + matOpen(m.material_id) + shareCtrl +
+      '</div>' + matOpen(m) + shareCtrl +
       '<button class="mat-x" title="Delete" onclick="deleteDoc(\'' + m.material_id + '\')">×</button>' +
     '</div>';
   }).join('');
@@ -493,7 +503,7 @@ async function loadSharedMaterials() {
       var by = m.shared_by_name ? ' • ' + esc(m.shared_by_name) : '';
       return '<div class="mat-row"><div class="mat-icon">' + matIcon(m.mime_type, m.kind) + '</div>' +
         '<div class="mat-info"><div class="mat-name">' + esc(m.title || m.original_name) + '</div>' +
-        '<div class="mat-meta">shared' + by + '</div></div>' + matOpen(m.material_id) + '</div>';
+        '<div class="mat-meta">shared' + by + '</div></div>' + matOpen(m) + '</div>';
     }).join('');
   } catch (e) { container.innerHTML = '<div class="empty">Could not load shared documents.</div>'; }
 }
@@ -510,7 +520,7 @@ async function loadShareRequests() {
       var by = m.requested_by_name ? ' • ' + esc(m.requested_by_name) : '';
       return '<div class="mat-row"><div class="mat-icon">' + matIcon('', m.kind) + '</div>' +
         '<div class="mat-info"><div class="mat-name">' + esc(m.title || m.original_name) + '</div>' +
-        '<div class="mat-meta">requested' + by + '</div></div>' + matOpen(m.material_id) +
+        '<div class="mat-meta">requested' + by + '</div></div>' + matOpen(m) +
         '<button class="mat-act" onclick="approveShare(\'' + m.material_id + '\')">Approve</button>' +
         '<button class="mat-x" title="Deny" onclick="denyShare(\'' + m.material_id + '\')">×</button></div>';
     }).join('');

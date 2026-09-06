@@ -17,6 +17,14 @@
   ---------------------------------------------------------------------------
 -->
 <script>
+// ADR-139: an artifact sent to little-monsters is for the TUTOR — this dashboard is only the
+// app's landing view, so forward the one-shot ref before anything else renders.
+(function () {
+  var ref = new URLSearchParams(location.search).get('artifact');
+  if (ref && /^art_[A-Za-z0-9_-]{8,64}$/.test(ref)) {
+    location.replace('/api/education/tutor?artifact=' + encodeURIComponent(ref));
+  }
+})();
 // Sync iframe theme to parent cockpit's data-theme. Storage events don't fire
 // in the writing window, so a MutationObserver on the parent <html> is the
 // reliable path for live same-tab updates when the operator cycles themes.

@@ -32,6 +32,7 @@
  *
  * 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: replace the public SESSION_SECRET fallback with package-local fail-closed encryption while retaining the existing envelope for stored Takeout exports.
  * 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | Register the package's owner-scoped watch-history ingest function with the generic manifest Takeout spine.
+ * 2026-09-06 | maintainer@emeraldcoastsystemsgroup.com | ADR-139 wave 2 — POST /import-artifact {ref}: the "Send to…" destination. Redeems via the SHARED kernel-relay helper and feeds the same ingestWatchHistory the raw upload uses (JSON only; zips stay with the Takeout spine).
  *
  * @module youtube-kids-routes
  */
@@ -41,6 +42,7 @@ import * as path from 'path';
 import { createChildLogger } from '@/shared/logger';
 import { buildOwnerRlsPolicyStatements, runRuntimeSchemaBootstrap } from '@/shared/services/database';
 import type { AppContext } from '@/app/composition/app-context';
+import { redeemArtifactViaRelay } from '@/shared/artifact-exchange';
 import { BotNodeClient, createRegistryEndpointResolver } from '@/features/agent-management';
 import { executeBotOrInline } from '@/app/routes/inline-bot-execution';
 import { parseTakeoutWatchHistory, type WatchAggregate } from './youtube-takeout';
@@ -261,6 +263,28 @@ export function createYoutubeKidsRoutes(ctx: AppContext): Router {
         return;
       }
       logger.error({ err }, 'kid-lens upload failed');
+      res.status(500).json({ error: (err as Error).message });
+    }
+  });
+
+  /** POST /import-artifact — the ADR-139 "Send to…" destination: {ref} redeems the owner-bound
+   *  handle via the kernel relay (shared helper) and feeds the SAME ingest the raw upload uses.
+   *  JSON watch histories only — the zip lane stays with the manifest Takeout spine. */
+  router.post('/import-artifact', async (req: Request, res: Response) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    const ref = String((req.body as Record<string, unknown> | undefined)?.ref ?? '');
+    const redeemed = await redeemArtifactViaRelay({ port: req.socket.localPort, callerSub: sub, ref, maxBytes: MAX_UPLOAD });
+    if (!redeemed.ok) { res.status(redeemed.status).json({ error: redeemed.error }); return; }
+    try {
+      const result = await ingestWatchHistory(ctx.pool, sub, redeemed.buffer.toString('utf8'));
+      res.json({ ok: true, ...result, message: `Watch history ingested from ${redeemed.name} — open Kid Lens for the brief.` });
+    } catch (err) {
+      if ((err as { code?: string }).code === 'no_watch_entries') {
+        res.status(422).json({ error: 'no_watch_entries', message: 'That file has no watch entries — send the watch-history.json from a YouTube Takeout (JSON format).' });
+        return;
+      }
+      logger.error({ err }, 'kid-lens artifact import failed');
       res.status(500).json({ error: (err as Error).message });
     }
   });

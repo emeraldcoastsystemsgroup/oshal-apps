@@ -273,7 +273,7 @@ test('every element the surface script reaches for actually exists in the HTML',
   const missing = [...referenced].filter((id) => !declared.has(id));
   assert.deepEqual(missing, [], `surface script references ids that do not exist: ${missing.join(', ')}`);
   // And the panels the new tabs switch to must exist, or the tab is a dead button.
-  for (const panel of ['scan', 'account', 'scorecard', 'alerts', 'settings']) {
+  for (const panel of ['scan', 'account', 'scorecard', 'trends', 'alerts', 'settings']) {
     assert.ok(html.includes(`data-panel="${panel}"`), `missing tab panel: ${panel}`);
     assert.ok(html.includes(`data-tab="${panel}"`), `missing tab button: ${panel}`);
   }

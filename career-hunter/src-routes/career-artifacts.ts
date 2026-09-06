@@ -12,6 +12,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Read only a bounded complete-line tail of the enrichment audit instead of materializing the full log.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Keep slow multipart bodies out of engine capacity with a separate per-user upload lane and finite request deadline.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Enforce the independent cross-process upload-body ceiling before buffering artifact batches.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | ADR-139 "Send to Career": POST /artifacts/import takes {ref, kind?} — redeems the owner-bound artifact handle through the kernel relay (as THIS caller, over the service rail) and rides the SAME leased validate→quota→store→absorb transaction as a direct upload; the bytes just arrive by claim ticket instead of multipart. Registered as this app's accepts: destination in the manifest.
  */
 /**
  * Career artifacts — upload MORE than a resume into your career profile.
@@ -370,6 +371,52 @@ async function handleArtifactUpload(ctx: AppContext, req: Request, res: Response
 }
 
 /**
+ * @description Redeem an ADR-139 artifact handle for its bytes through the kernel relay, AS this
+ * caller (service secret + trusted sub over the loopback — ownership is enforced by the relay at
+ * mint and at use). The secret never leaves this function; a foreign/expired ref reads 404.
+ * @param req - The importing request (its socket knows this server's own port).
+ * @param userSub - The authenticated caller the redeem acts as.
+ * @param ref - The artifact handle ref from the Send to… dispatch.
+ * @returns The artifact's safe name + bytes, or a status + reason to relay to the caller.
+ */
+async function fetchArtifactHandle(
+  req: Request, userSub: string, ref: string,
+): Promise<{ ok: true; name: string; buffer: Buffer } | { ok: false; status: number; error: string }> {
+  const secret = (process.env.SWARM_SERVICE_SECRET || '').trim();
+  if (!secret) return { ok: false, status: 503, error: 'artifact relay unconfigured' };
+  if (!/^art_[A-Za-z0-9_-]{8,64}$/.test(ref)) return { ok: false, status: 400, error: 'a valid artifact ref is required' };
+  const base = `http://127.0.0.1:${req.socket.localPort}`;
+  const headers = { 'x-service-secret': secret, 'x-oshal-user-sub': userSub };
+  const meta = await fetch(`${base}/api/artifacts/handles/${encodeURIComponent(ref)}`, { headers });
+  if (!meta.ok) {
+    return { ok: false, status: meta.status === 404 ? 404 : 502, error: meta.status === 404 ? 'artifact handle not found — it may have expired; use Send to… again' : 'artifact lookup failed' };
+  }
+  const info = await meta.json() as { name?: string };
+  const content = await fetch(`${base}/api/artifacts/handles/${encodeURIComponent(ref)}/content`, { headers });
+  if (!content.ok) return { ok: false, status: 502, error: 'artifact source unavailable' };
+  const buffer = Buffer.from(await content.arrayBuffer());
+  if (buffer.length > MAX_ARTIFACT_FILE_BYTES) return { ok: false, status: 413, error: 'artifact exceeds the file limit' };
+  return { ok: true, name: safeName(info.name || 'artifact'), buffer };
+}
+
+/** Handle one ADR-139 import: redeem the ref, then delegate to the shared upload transaction. */
+async function handleArtifactImport(ctx: AppContext, req: Request, res: Response): Promise<void> {
+  const userSub = callerSub(req);
+  if (!userSub) { releaseArtifactLease(req as ArtifactRequest); res.status(401).json({ error: 'unauthorized' }); return; }
+  const ref = String((req.body as { ref?: unknown } | undefined)?.ref ?? '');
+  const fetched = await fetchArtifactHandle(req, userSub, ref);
+  if (!fetched.ok) {
+    releaseArtifactLease(req as ArtifactRequest);
+    res.status(fetched.status).json({ error: fetched.error });
+    return;
+  }
+  // The redeemed bytes take the exact seat multipart files occupy; everything downstream
+  // (validation, quota, store, absorb dispatch, rollback) is the shared transaction.
+  (req as unknown as { files: ArtifactUploadFile[] }).files = [{ buffer: fetched.buffer, originalname: fetched.name }];
+  await handleArtifactUpload(ctx, req, res);
+}
+
+/**
  * @description Register the career-artifact routes on the (already auth-gated) career-hunter router.
  * @param router the career-hunter router
  * @param ctx app context used to broker only this caller's Career credentials
@@ -379,6 +426,12 @@ export function registerCareerArtifacts(router: Router, ctx: AppContext): void {
   // POST /artifacts/upload — up to 20 files, one `kind` for the batch. Stores each and fires the
   // engine `absorb-batch` verb. Its acknowledged child owns the request's preclaimed lease.
   router.post('/artifacts/upload', admitArtifactUpload, parseArtifactUpload, (req, res) => handleArtifactUpload(ctx, req, res));
+
+  // POST /artifacts/import — the ADR-139 "Send to Career" destination: {ref, kind?}. Same
+  // admission lease + downstream transaction as /upload; the bytes arrive by claim ticket.
+  router.post('/artifacts/import', admitArtifactUpload, (req, res, next) => {
+    handleArtifactImport(ctx, req, res).catch(next);
+  });
 
   // GET /artifacts — uploaded artifacts + the most recent profile additions (from enrichment_log),
   // so the surface/agent can show "here's what I learned" after an absorb completes.

@@ -191,6 +191,15 @@ gate) and, since 1.1.1, the **Alerts** tab (each announced hand's WIN/LOSS and o
 W-L record line; `GET /api/kalshi/alerts` returns `record`). It is a paper record: an alert never
 places an order.
 
+**Trends (1.2.0).** The **Trends** tab is the ledger as a trader watches it: four books (paper/real ×
+manual/auto — Real · auto is not built and the tile says so), KPI tiles (paper P&L on one contract per
+pick, what settled last, the strategy closest to beating the market's Brier, the next forward-test
+verdict), a cumulative P&L line per strategy, and rolling hit-rate vs breakeven small multiples.
+`GET /api/kalshi/trends?days=30` serves the series (`src-routes/kalshi-trends.ts`, read-only, no
+framework imports). Charts are inline SVG with a legend, crosshair tooltips and a table twin each;
+series hues come from a fixed strategy→slot map validated for colour-vision deficiency on the light
+and dark surfaces.
+
 **The contrarian forward test (1.1.2).** "Bet against ourselves at the extremes" is pre-registered as
 the zero-stake strategy `contrarian-extreme`: for every scan hand with our P >= .90 or <= .10, the
 opposite side at its own ask (one minus our bid, from the hand's spread), with the claim that the market

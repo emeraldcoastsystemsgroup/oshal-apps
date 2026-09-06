@@ -19,6 +19,7 @@
  * 2026-07-20 19:45:00 | roger.murphy@emeraldcoastsystemsgroup.com | Integration sync: grafted the final core /pair mobile-ingest endpoint (+ callerEmail / clampPairingTtlMinutes / requestOrigin helpers + the TTL bounds) onto this packaged surface. Rewrote the insertCliToken import from the core-relative './cli-token-routes' to the '@/app/routes/cli-token-routes' alias — src/app/** is always in dist, so the mounter resolves it against the running framework at mount time (same mechanism as @/features/*). The SYNC region below is now reconciled to the final core source.
  * 2026-07-20 21:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | ADR-111 geometry export: GET /scans/:id/geometry downloads the ACCURATE model a build consumes (the original LiDAR/photogrammetry .ply for an import, the produced .splat for a reconstruction) via the kernel engine's getGeometryPath; GET /scans/:id/dimensions returns the to-scale footprint (getDimensions — metres for LiDAR, labelled relative otherwise). Owner-scoped; turns Spaces from a viewer into a model you can build on.
  * 2026-08-06 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Declare the package as the maintained Spaces source after the completed carve. Retire the stale core-sync marker and add a source/compiled/surface contract suite that protects the loader's single-argument factory, appPackageDir serving, /pair ingest, inline-script grammar, and deliberate stylesheet boundary.
+ * 2026-09-06 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | ADR-139 wave 2 — POST /scans/import-artifact {ref}: the "Send to…" destination. Redeems a walkthrough video via the SHARED kernel-relay helper (415 for non-video) and starts the same registerAndStart reconstruction the multipart lane uses; the pre-built model lane is unchanged.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -64,6 +65,7 @@ const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const crypto_1 = require("crypto");
 const logger_1 = require("@/shared/logger");
+const artifact_exchange_1 = require("@/shared/artifact-exchange");
 const spatial_mapping_1 = require("@/features/spatial-mapping");
 const drone_1 = require("@/features/drone");
 const cli_token_routes_1 = require("@/app/routes/cli-token-routes");
@@ -300,6 +302,45 @@ function createSpacesRoutes(ctx) {
             // the upload already streamed to disk — don't leak the file/dir when the row never landed
             void fs.promises.rm((0, spatial_mapping_1.scanDir)(sub, scanId), { recursive: true, force: true })
                 .catch((e) => logger.warn({ e, scanId }, 'scan dir cleanup after failed registration failed'));
+            res.status(500).json({ error: 'failed to start scan' });
+        }
+    });
+    /** POST /scans/import-artifact — the ADR-139 "Send to…" destination: {ref} redeems an
+     *  owner-bound walkthrough VIDEO via the shared kernel-relay helper and starts the same
+     *  reconstruction the multipart lane does (the relay's ~50MB ceiling bounds the clip;
+     *  pre-built .ply/.splat models stay on the multipart lane — no standard MIME to route by). */
+    router.post('/scans/import-artifact', async (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        const ref = String(req.body?.ref ?? '');
+        const redeemed = await (0, artifact_exchange_1.redeemArtifactViaRelay)({ port: req.socket.localPort, callerSub: sub, ref, maxBytes: MAX_UPLOAD_BYTES });
+        if (!redeemed.ok) {
+            res.status(redeemed.status).json({ error: redeemed.error });
+            return;
+        }
+        if (!redeemed.type.startsWith('video/')) {
+            res.status(415).json({ error: 'a walkthrough video is required (video/*)' });
+            return;
+        }
+        const scanId = (0, crypto_1.randomUUID)();
+        const dir = (0, spatial_mapping_1.scanDir)(sub, scanId);
+        try {
+            fs.mkdirSync(dir, { recursive: true });
+            const filePath = path.join(dir, redeemed.name || 'walkthrough.mp4');
+            fs.writeFileSync(filePath, redeemed.buffer);
+            const scan = await service.registerAndStart({
+                id: scanId, userSub: sub, title: redeemed.name.slice(0, 120), sourceKind: 'video',
+                sourceName: redeemed.name, sourceRef: filePath, sourceBytes: redeemed.buffer.length,
+            });
+            res.status(201).json({ scan, message: `Reconstruction started from ${redeemed.name} — watch it in Spaces.` });
+        }
+        catch (err) {
+            logger.error({ err, scanId }, 'artifact scan import failed');
+            void fs.promises.rm(dir, { recursive: true, force: true })
+                .catch((e) => logger.warn({ e, scanId }, 'scan dir cleanup failed'));
             res.status(500).json({ error: 'failed to start scan' });
         }
     });

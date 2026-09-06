@@ -29,7 +29,18 @@ description: >-
   generate flashcards and authoritative quizzes, and chat with a Socratic tutor
   grounded only in caller-owned or teacher/admin-approved class material through
   per-material RAG collections.
-version: 1.0.9
+version: 1.2.0
+
+# ADR-139 wave 1 — "Send to…" destination (open mode): an image or PDF from anywhere in the
+# swarm lands in the Tutor as the pending attachment ("here's my homework"), riding the chat's
+# existing attach flow. No class-scoping needed; materials filing stays a wave-2 candidate.
+artifacts:
+  accepts:
+    - id: tutor
+      label: Ask the Tutor about it
+      icon: 🧑‍🏫
+      types: [image/*, application/pdf]
+      mode: open
 status: active
 # ADR-085 §5: RAG collections this app OWNS. Reported by uninstall-impact; deleted
 # at uninstall ONLY under the operator's explicit ?dropData=true (toggle-off never

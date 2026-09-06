@@ -63,7 +63,17 @@ description: >-
   inventory, abilities, and spells. You control only your claimed hero; clearly
   labeled AI companions run empty seats. Choose a bundled SRD hero or import
   your own PDF/JSON character sheet. Rules run on the open CC-BY D&D SRD 5.1.
-version: 0.19.1
+version: 0.20.0
+
+# ADR-139 wave 2 — "Send to…" destination (open mode): a D&D Beyond PDF or JSON export from
+# anywhere in the swarm imports through the table's existing lane and lands in My Characters.
+artifacts:
+  accepts:
+    - id: character
+      label: Import as a D&D character
+      icon: 🐉
+      types: [application/pdf, application/json]
+      mode: open
 status: active
 theme: black
 
