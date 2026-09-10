@@ -55,6 +55,8 @@ export interface TitleProfile {
   source: 'unset' | 'derived' | 'user';
   lastTitlePassAt: string | null;
   lastCronScoreAt: string | null;
+  /** The standing "only match remote roles" preference. Default false = today's behaviour. */
+  remoteOnly: boolean;
 }
 
 /** @description Outcome of one user's bounded title pass for logs and the run-now route. */
@@ -194,14 +196,34 @@ export function buildTitlePassInvocation(terms: string[], limit: number): { args
 }
 
 /** Map a career_score_settings row (or absence) to a TitleProfile. */
-function toProfile(row?: { title_terms?: string[]; title_terms_source?: string; last_title_pass_at?: Date | string | null; last_cron_score_at?: Date | string | null }): TitleProfile {
-  if (!row) return { titleTerms: [], source: 'unset', lastTitlePassAt: null, lastCronScoreAt: null };
+function toProfile(row?: { title_terms?: string[]; title_terms_source?: string; last_title_pass_at?: Date | string | null; last_cron_score_at?: Date | string | null; remote_only?: boolean }): TitleProfile {
+  if (!row) return { titleTerms: [], source: 'unset', lastTitlePassAt: null, lastCronScoreAt: null, remoteOnly: false };
   return {
     titleTerms: Array.isArray(row.title_terms) ? row.title_terms : [],
     source: row.title_terms_source === 'derived' || row.title_terms_source === 'user' ? row.title_terms_source : 'unset',
     lastTitlePassAt: row.last_title_pass_at ? new Date(row.last_title_pass_at).toISOString() : null,
     lastCronScoreAt: row.last_cron_score_at ? new Date(row.last_cron_score_at).toISOString() : null,
+    remoteOnly: row.remote_only === true,
   };
+}
+
+/**
+ * @description Persist the standing remote-only matching preference.
+ *
+ * Upserts the settings row so a user who has never opened Target titles can still set it; only
+ * this column is written, so it can never disturb `title_terms` or either cron cursor.
+ * @param pool Postgres pool
+ * @param userSub the user
+ * @param remoteOnly the new value
+ * @returns the stored value
+ */
+export async function saveRemoteOnly(pool: AppContext['pool'], userSub: string, remoteOnly: boolean): Promise<boolean> {
+  await pool.query(
+    `INSERT INTO career_score_settings (user_sub, remote_only) VALUES ($1, $2)
+     ON CONFLICT (user_sub) DO UPDATE SET remote_only = EXCLUDED.remote_only, updated_at = NOW()`,
+    [userSub, remoteOnly],
+  );
+  return remoteOnly;
 }
 
 /**
@@ -214,7 +236,7 @@ function toProfile(row?: { title_terms?: string[]; title_terms_source?: string; 
  */
 export async function readTitleProfile(pool: AppContext['pool'], userSub: string): Promise<TitleProfile> {
   const r = await pool.query(
-    `SELECT title_terms, title_terms_source, last_title_pass_at, last_cron_score_at
+    `SELECT title_terms, title_terms_source, last_title_pass_at, last_cron_score_at, remote_only
        FROM career_score_settings WHERE user_sub=$1`, [userSub]);
   return toProfile(r.rows[0]);
 }
@@ -230,7 +252,7 @@ export async function readTitleProfile(pool: AppContext['pool'], userSub: string
  */
 export async function getOrSeedTitleProfile(pool: AppContext['pool'], userSub: string): Promise<TitleProfile> {
   const existing = await pool.query(
-    `SELECT title_terms, title_terms_source, last_title_pass_at, last_cron_score_at
+    `SELECT title_terms, title_terms_source, last_title_pass_at, last_cron_score_at, remote_only
        FROM career_score_settings WHERE user_sub=$1`, [userSub]);
   const current = toProfile(existing.rows[0]);
   // Seed only when there are no terms AND the user never saved (source='user' with an empty
@@ -362,6 +384,20 @@ export function registerCareerTitleScoreRoutes(router: Router, ctx: AppContext):
     } catch (err) {
       logger.error({ err, userSub }, 'title profile: state read failed');
       res.status(500).json({ error: 'read failed' });
+    }
+  });
+
+  router.post('/settings/remote-only', async (req: Request, res: Response) => {
+    const userSub = callerSub(req);
+    if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
+    if (typeof req.body?.remoteOnly !== 'boolean') { res.status(400).json({ error: 'remoteOnly must be a boolean' }); return; }
+    try {
+      const remoteOnly = await saveRemoteOnly(pool, userSub, req.body.remoteOnly);
+      logger.info({ userSub, remoteOnly }, 'remote-only preference saved');
+      res.json({ ok: true, remoteOnly });
+    } catch (err) {
+      logger.error({ err, userSub }, 'remote-only: save failed');
+      res.status(500).json({ error: 'save failed' });
     }
   });
 

@@ -34,7 +34,7 @@ description: >-
   AI transportation concierge on a real map — set pickup and destination by pin or
   address, see the measured distance, compare Uber ride types, and hand off a ready
   Uber ride link. Other swarm bots can ask it to plan a trip.
-version: 1.1.0
+version: 1.2.0
 status: active
 
 source:
@@ -185,3 +185,27 @@ ribbon:
     - operations
   hideChatPanel: true
   defaultView: rides-concierge
+
+integrations:
+  accepts:
+    - id: plan-ride
+      contextType: planning-brief
+      version: 1
+      surface: rides-concierge
+      fields:
+        - title
+        - notes
+        - sourceUrl
+  offers:
+    - id: plan-meal
+      label: Plan a meal
+      targetApp: eats
+      targetAction: plan-meal
+      contextType: planning-brief
+      version: 1
+    - id: plan-trip
+      label: Plan a trip
+      targetApp: travel
+      targetAction: plan-trip
+      contextType: planning-brief
+      version: 1

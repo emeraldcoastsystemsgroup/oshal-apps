@@ -1028,5 +1028,19 @@ async function boot() {
 
 boot();
 </script>
+
+<!-- App-owned context integration: drafts only; existing actions still execute explicitly. -->
+<script type="module">
+import { receiveHandoff } from '/cockpit/js/app-handoff.js';
+import { mountConnectedActions } from '/cockpit/js/app-workflows.js';
+const clip = value => String(value || '').slice(0,2000);
+const val = id => clip(document.getElementById(id)?.value?.trim());
+const set = (id,value) => { const el=document.getElementById(id); el.value = el.tagName === 'INPUT' ? String(value || '').replace(/\s*\n+\s*/g, ' · ') : value || ''; };
+const brief = context => [context.title,context.notes,context.sourceUrl ? 'Source: '+context.sourceUrl : ''].filter(Boolean).join('\n\n');
+receiveHandoff({"app":"eats","action":"plan-meal","contextType":"planning-brief","version":1,"fields":["title","notes","sourceUrl"]}, context => { set('chatInput', brief(context)); document.getElementById('chatInput').focus(); });
+const element = document.createElement('section'); element.className='connected-app-actions'; element.setAttribute('aria-label','Connected application actions'); element.style.cssText='margin:16px auto;padding:16px;max-width:1200px;border:1px solid currentColor;border-radius:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap';
+document.body.append(element);
+void mountConnectedActions({ app:"eats", element, contextForOffer:()=>{ const notes=val('chatInput') || val('query'); if(!notes) return null; return {title:'Prepare for my meal request',notes:clip(notes+(val('address')?'\nMeal location: '+val('address'):''))}; } });
+</script>
 </body>
 </html>

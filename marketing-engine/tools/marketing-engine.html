@@ -363,6 +363,7 @@
     <div class="mbody">
       <div class="fld"><label class="f" for="ncProduct">Product</label><input type="text" id="ncProduct" style="width:100%" placeholder="which oshal product this campaign sells"/></div>
       <div class="fld"><label class="f" for="ncName">Campaign name</label><input type="text" id="ncName" style="width:100%" maxlength="140"/></div>
+      <div class="fld"><label class="f" for="ncBrief">Research brief</label><textarea id="ncBrief" placeholder="Evidence and the idea this campaign should explore"></textarea></div>
       <div class="fld"><label class="f" for="ncMotion">Motion</label>
         <select id="ncMotion"><option value="adoption">adoption — users & installs</option><option value="revenue">revenue — paying customers</option></select>
       </div>
@@ -603,6 +604,10 @@
     }).catch(function(){});
   }
   function refresh(){ loadOverview().then(loadContent); }
+  document.addEventListener('marketing:selected-brief', function(event) {
+    var campaign=state.campaigns.find(function(c){return c.campaign_id===state.openCamp;});
+    if(campaign) event.detail.context={title:String(campaign.name).slice(0,2000),notes:JSON.stringify({product:campaign.product,icp:campaign.icp,messageMap:campaign.message_map}).slice(0,2000)};
+  });
 
   // ── tabs ──────────────────────────────────────────────────────────────────────────────────
   var TABS = ["board","scorecard","channels","experiments","approvals"];
@@ -849,6 +854,7 @@
   buildChanChips("ncChans");
   $("newCampBtn").addEventListener("click", function(){
     $("ncProduct").value=""; $("ncName").value=""; $("ncMotion").value="adoption";
+    $("ncBrief").value="";
     Array.prototype.forEach.call($("ncChans").children, function(b){ b.classList.remove("on"); });
     clearInlineErr($("ncErr"));
     $("newScrim").classList.add("show");
@@ -860,7 +866,7 @@
     var chans=[];
     Array.prototype.forEach.call($("ncChans").children, function(b){ if(b.classList.contains("on")) chans.push(b.getAttribute("data-ch")); });
     var btn=$("ncCreate"); btn.disabled=true;
-    api("/campaigns", { method:"POST", body:JSON.stringify({ product:product, name:name, motion:$("ncMotion").value, channels:chans }) })
+    api("/campaigns", { method:"POST", body:JSON.stringify({ product:product, name:name, motion:$("ncMotion").value, channels:chans, messageMap:{brief:$("ncBrief").value} }) })
       .then(parse).then(function(res){
         btn.disabled=false;
         if(!res.ok){ showInlineErr($("ncErr"), errText(res, null)); return; }
@@ -1222,6 +1228,20 @@
   // ── boot ──────────────────────────────────────────────────────────────────────────────────
   refresh();
 })();
+</script>
+
+<!-- App-owned context integration: drafts only; existing actions still execute explicitly. -->
+<script type="module">
+import { receiveHandoff } from '/cockpit/js/app-handoff.js';
+import { mountConnectedActions } from '/cockpit/js/app-workflows.js';
+const clip = value => String(value || '').slice(0,2000);
+const val = id => clip(document.getElementById(id)?.value?.trim());
+const set = (id,value) => { const el=document.getElementById(id); el.value = el.tagName === 'INPUT' ? String(value || '').replace(/\s*\n+\s*/g, ' · ') : value || ''; };
+const brief = context => [context.title,context.notes,context.sourceUrl ? 'Source: '+context.sourceUrl : ''].filter(Boolean).join('\n\n');
+receiveHandoff({"app":"marketing-engine","action":"prepare-brief","contextType":"research-brief","version":1,"fields":["title","notes","sourceUrl"]}, context => { document.getElementById('newCampBtn').click(); set('ncName', context.title); set('ncBrief', brief(context)); document.getElementById('ncProduct').focus(); });
+const element = document.createElement('section'); element.className='connected-app-actions'; element.setAttribute('aria-label','Connected application actions'); element.style.cssText='margin:16px auto;padding:16px;max-width:1200px;border:1px solid currentColor;border-radius:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap';
+document.body.append(element);
+void mountConnectedActions({ app:"marketing-engine", element, contextForOffer:()=>{ const detail={}; document.dispatchEvent(new CustomEvent('marketing:selected-brief',{detail})); return detail.context || null; } });
 </script>
 </body>
 </html>

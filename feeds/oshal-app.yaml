@@ -28,7 +28,7 @@ description: >-
   Your connected message feeds in one place — live stream, activity trends, hot
   channels, and trending topics over your own Slack messages. Other swarm bots can
   ask the curator "what did I miss" and get a signal-first summary.
-version: 1.0.0
+version: 1.2.0
 status: active
 
 theme: ocean
@@ -120,7 +120,21 @@ ui:
 # ROUTES — the packaged surface router, mounted /api/feeds on activation. (In core
 # server.ts this was createFeedsRoutes; it now mounts from this package.)
 # ─────────────────────────────────────────────────────────────────────────────
+summary:
+  path: /api/feeds/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/feeds/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/feeds/_smoke
@@ -163,3 +177,18 @@ ribbon:
     - logs
     - operations
   defaultView: feeds-dashboard
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+    - id: prepare-post
+      label: Prepare a post
+      targetApp: switchboard
+      targetAction: prepare-post
+      contextType: communication-brief
+      version: 1

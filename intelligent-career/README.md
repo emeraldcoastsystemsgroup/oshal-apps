@@ -38,9 +38,11 @@ signed-in user's session. A step is done only when the member answers `true`; an
 error or a missing answer shows as "can't check", never as done. **Fix** opens the
 member surface inside the same ribbon.
 
-Step 5 reads honestly today: it reports how many of your roles carry a story, and
-the story-by-story review conversation that fills them is a career-hunter feature
-tracked in the oshal BACKLOG (ADR-141 D7).
+Step 5 is the review itself: **Strengthen** walks your roles one at a time, asks
+about the role still missing a story using that role's own resume bullet, and keeps
+your answer against the bullet it supports. Tailored resumes and covers then cite
+the story as evidence instead of restating the bullet. The step reports how many of
+your roles carry a story, so it is done only when every job title has one.
 
 ## Install
 

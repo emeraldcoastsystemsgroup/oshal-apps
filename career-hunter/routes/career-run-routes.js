@@ -11,6 +11,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.startCareerCron = startCareerCron;
 exports.registerCareerRunRoutes = registerCareerRunRoutes;
 const logger_1 = require("@/shared/logger");
+const career_match_prefs_1 = require("./career-match-prefs");
 const authz_1 = require("@/shared/middleware/authz");
 const career_engine_dispatch_1 = require("./career-engine-dispatch");
 const career_engine_response_1 = require("./career-engine-response");
@@ -98,7 +99,12 @@ async function runManualVerb(ctx, req, res) {
         return;
     }
     try {
-        const result = await (0, career_engine_dispatch_1.runCareerCliAwait)(ctx.pool, userSub, manualArgs(verb), {}, { slot: verb });
+        // A manual "score now" honours the same standing remote-only preference the cron does, so the
+        // button and the nightly pass can never disagree about what counts as a match.
+        const args = manualArgs(verb);
+        if (verb === 'score' && await (0, career_match_prefs_1.readRemoteOnly)(ctx.pool, userSub))
+            args.push('--remote-only');
+        const result = await (0, career_engine_dispatch_1.runCareerCliAwait)(ctx.pool, userSub, args, {}, { slot: verb });
         if (result.limitReason) {
             (0, career_engine_response_1.rejectEngineStart)(res, { started: false, limitReason: result.limitReason }, verb);
             return;

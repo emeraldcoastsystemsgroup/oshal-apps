@@ -63,3 +63,16 @@ Set a nonblank `SESSION_SECRET` before creating or reading cached summaries. A d
 under the retired public fallback cannot be authenticated with a newly provisioned secret; use
 **Summarize my day** again to replace that cache. Reconnect Google only if the kernel Accounts page
 also reports its separately managed connector credential as unreadable.
+
+## Configurable Home summary (1.1.0)
+
+GET /api/email-summarizer/home-summary reads only the caller's saved oshal_email_digests row and decrypts it with the existing package helper. Both data points default on:
+
+| Metric id | Meaning |
+|---|---|
+| cached-digest | Whether a nonempty, decryptable digest is saved. The first 120 normalized characters appear as a cached excerpt. |
+| digest-age | Age of the saved digest's updated_at. This is generation time, not current mailbox freshness. |
+
+No cached row is "Not saved", not an empty inbox. A missing table, missing encryption key, or corrupt ciphertext returns 503. No summary GET calls Gmail/Calendar, generates AI text, dispatches work, or creates schema. Connect a mailbox and generate a digest from email-myday; the Home link opens that same surface. Hiding cached-digest also hides its excerpt and associated highlight.
+
+This manifest requires the matching core metricsPointer support (core PR #411). The matching core and this package were deployed and authenticated Home rendering was verified on 2026-09-10 UTC; see APP-HOME-EXTRACTION-PLAN.md for the rollout record. Validation: 12 compiled-route tests in scripts/home-summary.test.cjs; scripts/home-summary.integration.cjs exercises actual PostgreSQL schemas, owner RLS and SELECT-only source grants, plus Chromium desktop/mobile and saved metric hiding. Run the integration harness from the matching core checkout with HOME_TEST_DATABASE_URL pointing to a disposable localhost database named home_summary_test. It uses mock sign-in and seeded records, not live accounts.

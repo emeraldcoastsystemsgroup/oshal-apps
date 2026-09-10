@@ -1,0 +1,213 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — sports-edge ("Sports Edge")
+#
+# An odds maker you point at ONE TEAM. Operator, 2026-09-06, after seeing the broad-sweep design:
+# "this isn't a broad market sweep ... pick a team and fan out from there. first follow the players
+# on the team, their stats, then the players they are matched up against, where they're playing,
+# news feeds ... really know the game that's about to be played, matchups and percentages ... make
+# a prediction on straight up win or on the line."
+#
+# So the unit of work is not a slate. It is a GAME PREVIEW for a team you follow, built bottom-up:
+# the team's tape, its opponent's tape, both injury reports weighted by what those players actually
+# produce, rest and travel, the unit matchup, the wire — folded into one line, then compared to the
+# book's price for a straight-up or against-the-spread call.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# PHASE 1 IS A FORWARD TEST AT ZERO STAKE, AND THAT IS A DELIBERATE DECISION.
+#
+# Before this package was designed, the live kalshi_predictions ledger on the operator's box was
+# queried: 2,507 settled predictions, our Brier 0.1814 against the market's 0.1400, and we beat the
+# market on 762 of 2,507 — 30%. EVERY series loses, including ones with 185 settled rows. That is
+# the same "run every algorithm and bet it" thesis, in the same asset class, with a 2,507-sample
+# record of being worse than simply paying the price.
+#
+# The conclusion is not that sports cannot be modelled. It is that a model earns the right to stake
+# by beating the CLOSING LINE first, on rows anyone can audit. So this package:
+#   - registers every call BEFORE kickoff, with the price at pick time, and grades it at settlement
+#   - scores itself on closing-line value FIRST, Brier second, and win-loss last (W-L is noise at
+#     any sample size this package will reach in a season)
+#   - carries NO order path at all in Phase 1 — there is nothing to click that spends money
+#   - records the free baselines it must beat (the market's own line, and ESPN's matchup predictor)
+#     as shadow strategies from the very first game, so "does this add anything?" is answerable
+#     rather than assumed
+#
+# When and if it stakes, the rail is Kalshi — the CFTC-regulated event-contract exchange this
+# platform already connects to, with its confirm-gated, KALSHI_LIVE_ENABLED order path. There is no
+# sportsbook automation here and there will not be: no US retail book offers a betting API, and
+# every one of them forbids automated placement in its terms.
+#
+# DATA RAIL. ESPN's public JSON, verified live from the operator's box on 2026-09-06 — no key, no
+# credential, no model in the read loop. Rosters, per-athlete and per-team season statistics,
+# injury reports with status and body part, DraftKings moneyline/spread/total inline, ESPN's own
+# matchup predictor, against-the-spread records, last-five form, the news wire, and full
+# prior-season results with neutral-site flags.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# 0.2.0 — THE FANTASY TAB. Operator asked to integrate his ESPN Fantasy account. Verified live
+# 2026-09-08 before any of it was written:
+#   - the API is real and has MOVED: lm-api-reads.fantasy.espn.com answers, the old
+#     fantasy.espn.com/apis/v3 now 302s;
+#   - the PUBLIC player feed needs no credential (11,617 players, ~39MB) and carries ESPN's own
+#     per-week projections as RAW STATS;
+#   - `appliedTotal` is NULL in that feed — 29,281 weekly rows, zero usable totals — because a
+#     fantasy point total does not exist without a league's scoring rules. So points are computed
+#     from the league's own `scoringItems`, and this package holds NO hardcoded stat dictionary;
+#   - a private league answers 401, a bogus league id 404.
+#
+# ⚠ THE CREDENTIAL IS NOT AN API KEY. ESPN publishes no OAuth for fantasy: the only credential that
+# exists is the SWID + espn_s2 BROWSER COOKIES, which authenticate the whole ESPN account — not a
+# fantasy scope, with no per-app revocation and no expiry the user controls. They are resolved per
+# request from the encrypted connector broker, used on exactly the outbound league call, and never
+# logged, returned, cached, or placed anywhere a model can read. The operator was told this and
+# chose the full integration; it is recorded here rather than quietly implemented.
+#
+# Every start/sit call is registered BEFORE kickoff and graded against what the benched player
+# actually scored — the same discipline the odds maker runs on. The ledger keeps the PROJECTED gain
+# beside the ACTUAL one, because "claimed +40, delivered +2" and "claimed +3, delivered +2" are very
+# different tools and a win rate hides that completely.
+#
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: sports-edge
+suite: ai-finance   # ADR-097: primary catalog shelf
+displayName: Sports Edge
+description: >-
+  Follow a team and really know its next game. Sports Edge builds a line from the ground up —
+  Elo and schedule-adjusted power ratings from the season tape, an offence-versus-defence unit
+  matchup, injury reports weighted by each player's real share of team production, plus rest and
+  travel — then compares that line to the book's moneyline and spread. Every call is registered
+  before kickoff and graded on closing-line value, so the model has to beat the market before it is
+  allowed to stake anything. The Fantasy tab reads your ESPN league, scores ESPN'''s raw projections
+  with YOUR league'''s own rules, and sets the lineup with the best chance of beating the team you
+  actually play that week — which is not always the highest-projected one.
+version: 0.6.0
+status: active
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: sports-edge
+  ref: main
+
+# CORE-05 install readiness: service-authenticated, package metadata only. No user data, no
+# provider call, no state mutation, no tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/sports-edge/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
+# ONE connector, and only for a private fantasy league. Every other read this package makes is an
+# unauthenticated public GET, so there is nothing to broker and nothing for a model to be handed.
+dependencies:
+  apps: []
+  tools: []
+  # The ESPN Fantasy cookies (SWID + espn_s2) for reading a PRIVATE league. Everything else this
+  # package does — every team model, and the whole fantasy projection feed — needs no credential.
+  connectors: [espn-fantasy]
+
+theme: midnight
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SETTINGS — read from THIS FILE at activation as the shipped defaults; a deployment row and a
+# per-user row override them, and every value is clamped in code. `scope: deployment` means one
+# refresh serves everyone so only the operator may change it; `scope: user` is your own alerts.
+# ─────────────────────────────────────────────────────────────────────────────
+settings:
+  schema:
+    refreshEnabled:
+      type: boolean
+      default: true
+      scope: deployment
+      label: Keep refreshing previews in the background
+    refreshIntervalMinutes:
+      type: integer
+      default: 180
+      min: 30
+      max: 1440
+      scope: deployment
+      label: Rebuild previews every (minutes)
+    ratingsRefreshHours:
+      type: integer
+      default: 24
+      min: 6
+      max: 168
+      scope: deployment
+      label: Rebuild season ratings every (hours)
+      # ~30 requests per league per rebuild, so this is deliberately slow and cached.
+    previewHorizonDays:
+      type: integer
+      default: 8
+      min: 1
+      max: 30
+      scope: user
+      label: Preview games starting within (days)
+    minEdgePoints:
+      type: number
+      default: 3
+      min: 0.5
+      max: 20
+      scope: user
+      label: Only flag a call at or above this edge (probability points)
+    notifyJarvis:
+      type: boolean
+      default: true
+      scope: user
+      label: Tell Jarvis when a followed team's game has a flagged call
+    notifyOutward:
+      type: boolean
+      default: false      # opt-in: a background job may not start emailing on its own
+      scope: user
+      label: Also send to my notification channel (email/SMS/Telegram)
+
+# ROUTES — the packaged surface router, mounted on activation. Handlers self-gate via callerSub.
+routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/sports-edge/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/sports-routes.js
+    factory: createSportsEdgeRoutes
+    mountPath: /api/sports-edge
+    auth: service-or-oidc
+    requiresAuth: true
+    requiresContext: true
+
+# DATABASE MIGRATIONS — applied idempotently on load. The routes also self-heal the schema, so the
+# app works whether or not APP_PACKAGE_MIGRATIONS is on.
+migrations:
+  - migrations/001-sports-edge.sql
+  - migrations/002-sports-fantasy.sql
+  - migrations/003-sports-line-history.sql
+  - migrations/004-sports-world-subjects.sql
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon icon opens the followed-teams page: your teams, their next
+# games, and the full preview behind each one.
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: sports-edge-home
+      label: Sports Edge
+      icon: codicon codicon-dashboard
+      iframeUrl: /api/sports-edge/
+      section: top
+
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - calendar
+    - addressbook
+    - echo
+    - logs
+    - operations
+  defaultView: sports-edge-home

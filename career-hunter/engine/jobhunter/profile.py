@@ -46,6 +46,16 @@ def _render_profile(raw: dict) -> str:
     return rendered
 
 
+def save(raw: dict) -> None:
+    """Publish a whole profile atomically, under the same size budget every writer obeys.
+
+    The public front door for callers that edit the profile structurally (stories.py) rather than
+    through augment()'s fact-merge. Bounded and atomic exactly like every other write here, so a
+    partially written profile can never be observed.
+    """
+    _replace_profile(_render_profile(raw))
+
+
 def _replace_profile(rendered: str) -> None:
     """Atomically publish already-bounded profile bytes in the caller-owned directory."""
     temporary = config.CAREER_DB.with_suffix(".json.tmp")
@@ -82,6 +92,12 @@ def summary(max_chars: int = 3500, include_oshal: bool = False) -> str:
         lines.append(f"- {r.get('title','')} @ {r.get('org','')} ({span})")
         for b in (r.get("deliverables") or [])[:3]:
             lines.append(f"    • {b}")
+        # ADR-141 D7: the story the candidate told about this role, so a generator can cite
+        # EVIDENCE instead of restating the bullet as an adjective. Bounded hard — this text
+        # also feeds scoring, and one long answer must not crowd out the rest of the profile.
+        for story in (r.get("stories") or [])[:1]:
+            if isinstance(story, dict) and story.get("story") and not story.get("weak"):
+                lines.append(f"    EVIDENCE: {str(story['story'])[:280]}")
     skills = d.get("skills", {})
     flat = []
     for g in skills.values():

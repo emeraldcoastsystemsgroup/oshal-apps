@@ -49,6 +49,41 @@ batch uses on a demo box versus a multi-user deployment are all in
 - `scripts/` contains graph and insights smoke checks.
 - `docs/` contains the longer-form package notes, indexed by [docs/README.md](docs/README.md).
 
+## Remote-only matching
+
+Career Settings carries a **Remote only** toggle. When it is on, the *automated* match considers
+only postings the ATS feed flags as remote:
+
+- the nightly AI scoring pass skips on-site roles entirely, so no inference is spent on a job you
+  would not take;
+- your digest carries remote roles only;
+- your job board defaults to remote — an explicit Any / Remote / On-site pill still wins.
+
+**Job Search is deliberately not affected.** It is a browse surface over the whole corpus with its
+own pills, not a match surface.
+
+The preference lives on `career_score_settings.remote_only` (migration 104), is additive and
+defaults to off, so nothing changes for anyone until they turn it on. A `remote` flag is derived per
+posting by every ATS adapter (`_looks_remote`, plus explicit provider fields like `isRemote` and
+`workLocationOption`).
+
+## The story review (ADR-141 D7)
+
+A bullet asserts; a story proves. **Strengthen** now walks your roles one at a time:
+
+1. It asks about the first role with no story, quoting that role's **own** resume bullet, so the
+   question is specific without spending a token.
+2. Your answer is attached to that role and to the bullet it supports. A model may only cite a
+   bullet the role actually carries — anything else falls back to the best word-overlap match, so a
+   story can never point at a bullet that does not exist.
+3. With no AI provider reachable the answer is kept **verbatim** with that same overlap match, so
+   the review works on a box with no key at all. Each story records which path wrote it (`source`).
+
+Stories live on the profile as `roles[].stories[]` and surface three ways: `GET /stories` (the
+review state and the next question), `POST /stories/answer` (one answer, one role), and an
+`EVIDENCE:` line per role in the generation summary, which is how tailored resumes and covers cite
+them. A story the model flags as carrying no real evidence is kept but never cited.
+
 ## Three board details that are not obvious from the code
 
 **The feed is planned, not joined** (`career-board-feed`). Joining the full corpus to user signals

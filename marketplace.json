@@ -232,7 +232,7 @@
       "suite": "ai-home",
       "displayName": "Get a Ride",
       "description": "AI Uber Rides concierge on a real map — set pickup and destination by pin or address, see the measured distance, compare ride types with labelled fare estimates, and hand off a ready deep link you confirm and pay in your own Uber app.",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -257,7 +257,7 @@
       "suite": "ai-home",
       "displayName": "Eats",
       "description": "AI Uber Eats concierge — search restaurants, browse menus, build an order, and hand off a ready Uber Eats checkout you confirm and pay in your own Uber app.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -282,7 +282,7 @@
       "suite": "ai-productivity",
       "displayName": "Shopping",
       "description": "AI shopping concierge — search Walmart, build lists, learn your preferences, find deals, and hand off a ready-to-checkout cart you complete on the retailer's site. Other swarm bots can ask it to prepare a purchase.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -307,9 +307,11 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "Reads openings from employers' own public ATS job feeds into a shared corpus, scores every posting against your private career profile, and turns the best fits into a human-in-the-loop application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume + cover letter. Any document in the swarm can be sent here (ADR-139 Send to…) and absorbed into your profile. Single-tenant, multi-user (per-user isolation); multi-tenant ready.",
-      "version": "1.15.0",
+      "version": "1.18.0",
       "dependencies": {
-        "apps": ["portrait-studio"],
+        "apps": [
+          "portrait-studio"
+        ],
         "tools": [],
         "connectors": []
       },
@@ -330,7 +332,7 @@
       "suite": "ai-productivity",
       "displayName": "AI Office",
       "description": "One outline, three artifacts — a themed PowerPoint deck, Word document, or live Excel workbook. Ten shared looks, twenty layouts, fully editable in Microsoft Office, Google Workspace or LibreOffice; saves to Dropbox, Google Drive, OneDrive, or OSHAL local. A guided visual start walks you from artifact to look to outline — or talk to the Guide, open a file, or type one line and AI drafts it all. Phone-friendly: dictate instead of typing, resume recent files in one tap, drive edits with tap chips. My files is a real file browser - click a file for download, open-in-provider, or edit-and-regenerate. The deck-generation engine stays framework-resident (kernel skill); this package is the studio surface.",
-      "version": "2.6.0",
+      "version": "2.7.0",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -393,7 +395,10 @@
       "dependencies": {
         "apps": [],
         "tools": [],
-        "connectors": ["google", "microsoft"]
+        "connectors": [
+          "google",
+          "microsoft"
+        ]
       },
       "source": {
         "type": "git-subdir",
@@ -439,7 +444,7 @@
       "suite": "ai-productivity",
       "displayName": "Social",
       "description": "Draft, review, and publish across your networks from one surface - the comms bot drafts a post in your voice, you approve, and it publishes on your per-user LinkedIn / X / Facebook token (nothing posts until you click Publish). The Signals view reads your social-notification emails straight from your connected inbox. The comms + social-writer nodes, the inbox-ingest Signals engine, and the kernel-resident LinkedIn AI Content Assistant stay framework-resident; this package is the surface over them.",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -494,7 +499,7 @@
       "suite": "ai-productivity",
       "displayName": "Feeds",
       "description": "Your connected message feeds in one place - live stream, activity trends, hot channels, and trending topics over your own Slack messages, with a curator bot that answers 'what did I miss'. The feeds-indexing engine + cron, the feeds-curator inline node, the slack connector, and the /feeds framework page stay framework-resident; this package is the surface over them.",
-      "version": "1.0.0",
+      "version": "1.2.0",
       "theme": "ocean",
       "dependencies": {
         "apps": [],
@@ -545,7 +550,7 @@
       "suite": "ai-productivity",
       "displayName": "Identity Hub",
       "description": "Every account you've connected, in one place - click to jump straight into Gmail, LinkedIn, your smart-home app, and more, reconnect a login that's expired, or connect a new one, plus an optional access review that flags what needs attention. OSHAL never shows or hands back a password. The identity-advisor inline node and the connector hub (/api/connect + /utilities) stay framework-resident; this package is the surface over them.",
-      "version": "1.0.1",
+      "version": "1.1.0",
       "theme": "ocean",
       "dependencies": {
         "apps": [],
@@ -569,7 +574,7 @@
       "suite": "ai-home",
       "displayName": "Travel",
       "description": "AI travel concierge (ADR-059) - search real flights (Duffel), see an honest price read from the swarm's shared price history, watch routes for a fare drop, and book via a deep-link handoff; hotels and cars are deep-link handoffs today. The swarm-shared price engine + fare-watch cron, the Duffel CLI + connector, the travel migrations, and the travel-concierge node stay framework-resident; this package is the surface + tools over them.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -758,7 +763,7 @@
       "suite": "ai-creative",
       "displayName": "Video Studio",
       "description": "Make prompted short-form videos (TikTok / YouTube Shorts / Instagram Reels) from an idea - the director bot storyboards it and the studio renders a real .mp4 with voiceover and captions, saved to your Files storage; a series is written by the screenplay-writer, approval-gated on the script, then rendered one episode at a time on the remote Vids node. The series conductor engine, the video-generation slice, the video-director + screenplay-writer inline nodes, and the shared vids-operator desktop worker stay framework-resident; this package is the surface over them.",
-      "version": "1.1.1",
+      "version": "1.2.0",
       "theme": "sakura",
       "dependencies": {
         "apps": [],
@@ -782,7 +787,7 @@
       "suite": "ai-creative",
       "displayName": "Vids Studio",
       "description": "Turn an idea into generated video - the Veo specialist drives Google Vids by clicking, in a remote operator's logged-in Chrome: describe the shot, it generates the clip and places it on the timeline. Job + multi-scene Extend-story dispatch to the registered desktop worker, with the job-queue surface behind the cockpit tile. The shared vids-operator desktop worker (the ADR-080 story engine lives in its content.* tools), its registry entries, the remote-client mesh, and the oshal-vids CLI stay framework-resident; this package is the surface over them.",
-      "version": "1.1.1",
+      "version": "1.2.0",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -806,7 +811,7 @@
       "suite": "ai-productivity",
       "displayName": "Intelligent Communication",
       "description": "Your inbox, calendar, and day in one surface - the ADR-037 reference comms app. Reads your connected Gmail + Calendar (read-only scopes), builds a prioritized My Day digest, and the communications bot summarizes your day and drafts replies on its own harness/model with cost captured per user; sending is a single explicit-confirm gated action. The communications-bot node, the kernel sendGmail/sendOutlookMail machinery (with the header-injection fence), the gmail/outlook/twilio connectors + CLIs, and the inbox-ingest Signals engine stay framework-resident; this package is the surface over them.",
-      "version": "1.0.0",
+      "version": "1.2.0",
       "theme": "gray",
       "dependencies": {
         "apps": [],
@@ -861,7 +866,7 @@
       "suite": "ai-finance",
       "displayName": "Intelligent Trades",
       "description": "Signal-justified stock trading (ADR-052). Capture a market signal, let the trading-analyst reason it into a decision tree, and execute through the provider-agnostic BrokerAdapter (Alpaca paper / Schwab live) - every order FK-bound to its justifying decision and signals. Dual paper/live books, PAPER-ONLY by default; the env-level live gate (TRADING_LIVE_ENABLED + explicit confirm) and the whole autopilot/engine stay framework-resident - this package is the four route surfaces (/api/trading, /autopilot, /lab, /trading-charts), the cockpit surface + vendored chart lib, the trading_* operator tools, and the analyst/feed-bot manifest. NOTE: package directory is 'trading' (install trading); the registered app name stays intelligent-trades.",
-      "version": "1.1.1",
+      "version": "1.11.0",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -885,7 +890,7 @@
       "suite": "ai-knowledge",
       "displayName": "World Intelligence",
       "description": "Shared world intelligence (ADR-061 Layer B) - multi-source news feeds classified into a bias-aware sentiment graph (political + economic + outlet-kind axes), entity co-mention graph, and historical series. Ask the analyst what the press is saying about X and get a structured, bias-contextualized read, not a misleading average. The Layer-B engine (src/features/world-data), the deterministic world-schedule dispatcher, scripts/oshal-world.js, the world-analyst registry entry, and the default tile stay framework-resident; this package is the /api/world surface (fail-closed header-authenticated writes, open reads), the world-analyst manifest, the seven world_* tools, and the refresh/pulse schedules.",
-      "version": "1.0.3",
+      "version": "1.2.0",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -1038,7 +1043,7 @@
       "suite": "ai-productivity",
       "displayName": "Switchboard",
       "description": "Every line, one board. Switchboard pulls your mail, DMs, texts, calls, and social mentions into a single prioritized stream — the Today board — so you triage your whole day in one place instead of app-hopping. The Streams desk manages your outbound posts CMS-style: drafts move through review, approval, scheduling, and publish with per-channel variants and revision history. Reads run on your own connector tokens; ranking and drafting run on the communications bot with cost captured per user. Nothing is sent or posted without your say-so.",
-      "version": "0.4.0",
+      "version": "0.6.0",
       "theme": "forest",
       "dependencies": {
         "apps": [],
@@ -1152,7 +1157,7 @@
       "suite": "ai-finance",
       "displayName": "Venture Plan",
       "description": "Turn an idea into the venture document set a real decision needs — bill of materials, landed cost, channel margin, profit, cash and working capital, schedule, org, funding ask. Bots supply assumptions with a source, a band and a confidence; a deterministic engine does every calculation. Every number is either computed and traceable, or visibly a labelled guess you should go replace with a quote.",
-      "version": "1.0.0",
+      "version": "1.2.0",
       "theme": "graphite",
       "dependencies": {
         "apps": [],
@@ -1175,7 +1180,7 @@
       "name": "ocean-lab",
       "suite": "ai-engineering",
       "displayName": "Ocean Lab",
-      "description": "Ambient-energy design lab \u2014 model a machine that moves on tidal and current flow or on the soil thermal gradient, size its rotor with real blade-element momentum theory, and export printable geometry. Two surfaces: a harvest siting console (energy budgets, seasonal gap analysis, storage sizing) and a blade studio (NACA sections, panel-method polars, Cp sweeps, STL/OBJ/SCAD/DXF export). Every model runs in-process and deterministically; every site parameter is illustrative, not surveyed, and no hardware was built.",
+      "description": "Ambient-energy design lab — model a machine that moves on tidal and current flow or on the soil thermal gradient, size its rotor with real blade-element momentum theory, and export printable geometry. Two surfaces: a harvest siting console (energy budgets, seasonal gap analysis, storage sizing) and a blade studio (NACA sections, panel-method polars, Cp sweeps, STL/OBJ/SCAD/DXF export). Every model runs in-process and deterministically; every site parameter is illustrative, not surveyed, and no hardware was built.",
       "version": "1.0.0",
       "theme": "midnight",
       "dependencies": {
@@ -1200,7 +1205,7 @@
       "suite": "ai-productivity",
       "displayName": "Marketing Engine",
       "description": "Takes a built oshal product to traffic, users, and revenue: campaign board with stage-gated intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic metrics scorecard, experiment registry, budget proposals a human approves, and weekly review tickets worked by inline concierge bots only after human approval.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -1248,6 +1253,49 @@
       },
       "audit": {
         "record": "audits/aero-lab.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
+      "status": "ready"
+    },
+    {
+      "name": "print-ingest",
+      "suite": "ai-knowledge",
+      "displayName": "Print Ingest",
+      "description": "Print a document to the swarm and decide where it belongs. Everything lands in one inbox with a recommended filing — a bot's corpus, the swarm's shared knowledge, or private to you — and nothing is written until you approve it.",
+      "version": "0.2.1",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "print-ingest",
+        "ref": "main"
+      },
+      "status": "ready"
+    },
+    {
+      "name": "sports-edge",
+      "suite": "ai-finance",
+      "displayName": "Sports Edge",
+      "description": "Follow a team and really know its next game, then set the fantasy lineup with the best chance of beating the team you actually play this week. The odds maker builds a line from the ground up - Elo and schedule-adjusted power ratings from the season tape, a two-sided offence-versus-defence unit matchup, both injury reports weighted by each player's real share of team production, plus rest and travel - and measures it against the book's moneyline and spread. The Fantasy tab reads your ESPN league and scores ESPN's raw projections with YOUR league's own scoring rules (ESPN publishes projections as stats, not points, so a total only exists relative to a league; this package holds no hardcoded stat table), then recommends start/sit swaps and never starts a player who is ruled out. It reads the week's fixture and optimises against that one opponent: the recommended lineup maximises the chance of OUTSCORING THEM rather than the projected total, which starts the volatile player when you are an underdog and the steady one when you are favoured, and it always shows what the safest lineup would have won instead so a recommendation that gives up projected points has to visibly buy something. Everything is registered before kickoff and graded afterwards - the odds maker on closing-line value, the lineup advisor on what the benched player actually scored - and the ledger keeps the projected gain beside the actual one. No order path, and no route that changes a lineup on ESPN: it advises, you act.",
+      "version": "0.6.0",
+      "theme": "midnight",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "sports-edge",
+        "ref": "main"
+      },
+      "audit": {
+        "record": "audits/sports-edge.json",
         "sourceSha": "0000000000000000000000000000000000000000"
       },
       "status": "ready"

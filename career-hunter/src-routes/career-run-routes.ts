@@ -13,6 +13,7 @@
  */
 import { type Request, type Response, type Router } from 'express';
 import { createChildLogger } from '@/shared/logger';
+import { readRemoteOnly } from './career-match-prefs';
 import type { AppContext } from '@/app/composition/app-context';
 import { getTrustedServiceUserSub } from '@/shared/middleware/authz';
 import { runCareerCliAwait } from './career-engine-dispatch';
@@ -87,8 +88,12 @@ async function runManualVerb(ctx: AppContext, req: Request, res: Response): Prom
     return;
   }
   try {
+    // A manual "score now" honours the same standing remote-only preference the cron does, so the
+    // button and the nightly pass can never disagree about what counts as a match.
+    const args = manualArgs(verb);
+    if (verb === 'score' && await readRemoteOnly(ctx.pool, userSub)) args.push('--remote-only');
     const result = await runCareerCliAwait(
-      ctx.pool, userSub, manualArgs(verb), {}, { slot: verb },
+      ctx.pool, userSub, args, {}, { slot: verb },
     );
     if (result.limitReason) {
       rejectEngineStart(res, { started: false, limitReason: result.limitReason }, verb);

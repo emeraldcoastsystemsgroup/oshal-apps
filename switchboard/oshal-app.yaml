@@ -45,7 +45,7 @@ description: >-
   whole day in one place instead of app-hopping. Reads run on your own connector
   tokens; ranking and drafting run on the communications bot with cost captured
   per user. Nothing is sent or posted without your say-so.
-version: 0.4.0
+version: 0.6.0
 status: active
 
 source:
@@ -178,7 +178,21 @@ ui:
       iframeUrl: /api/switchboard/organize
       section: bottom
 
+summary:
+  path: /api/switchboard/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/switchboard/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/switchboard/_smoke
@@ -213,3 +227,27 @@ ribbon:
     - logs
     - operations
   defaultView: switchboard-today
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+    - id: prepare-social
+      label: Prepare a social draft
+      targetApp: social
+      targetAction: prepare-post
+      contextType: communication-brief
+      version: 1
+  accepts:
+    - id: prepare-post
+      contextType: communication-brief
+      version: 1
+      surface: switchboard-compose
+      fields:
+        - title
+        - notes
+        - sourceUrl

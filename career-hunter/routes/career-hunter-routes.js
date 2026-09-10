@@ -20,6 +20,7 @@
  * 14 | maintainer@emeraldcoastsystemsgroup.com   | Registered caller-scoped offline application autofill bookmarklet generation.
  * 15 | maintainer@emeraldcoastsystemsgroup.com   | Registered the corpus-only browse feed used before a resume is indexed.
  * 16 | maintainer@emeraldcoastsystemsgroup.com   | Registered each user's own scrape-target list (career-targets) beside the admin's shared companies table.
+ * 18 | maintainer@emeraldcoastsystemsgroup.com   | ADR-141 D7: register the role-anchored story review (career-stories-routes.ts) — the resume conversation that leaves a defensible story on every job title.
  * 17 | maintainer@emeraldcoastsystemsgroup.com   | ADR-141: register the per-user readiness route (career-readiness.ts) the Intelligent Career group's setup dashboard asks for the "stories" and "materials" steps.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -43,6 +44,7 @@ const career_board_routes_1 = require("./career-board-routes");
 const career_browse_routes_1 = require("./career-browse-routes");
 const career_company_routes_1 = require("./career-company-routes");
 const career_digest_1 = require("./career-digest");
+const career_guest_seed_routes_1 = require("./career-guest-seed-routes");
 const career_job_guide_1 = require("./career-job-guide");
 const career_onboarding_routes_1 = require("./career-onboarding-routes");
 const career_profile_studio_routes_1 = require("./career-profile-studio-routes");
@@ -55,6 +57,7 @@ const career_strengthen_routes_1 = require("./career-strengthen-routes");
 const career_surface_routes_1 = require("./career-surface-routes");
 const career_targets_1 = require("./career-targets");
 const career_readiness_1 = require("./career-readiness");
+const career_stories_routes_1 = require("./career-stories-routes");
 const career_title_score_1 = require("./career-title-score");
 const career_engine_runner_1 = require("./career-engine-runner");
 var career_application_routes_2 = require("./career-application-routes");
@@ -87,6 +90,9 @@ function registerExistingFeatureRoutes(router, ctx) {
     (0, career_title_score_1.registerCareerTitleScoreRoutes)(router, ctx);
     (0, career_targets_1.registerCareerTargetRoutes)(router, ctx);
     (0, career_readiness_1.registerCareerReadinessRoutes)(router);
+    (0, career_stories_routes_1.registerCareerStoryRoutes)(router, ctx);
+    // ADR-144 guest-seed contract: this app plants its OWN guest demo profile (kernel just calls it).
+    (0, career_guest_seed_routes_1.registerCareerGuestSeedRoutes)(router);
 }
 function registerExtractedRouteFamilies(router, ctx) {
     (0, career_surface_routes_1.registerCareerClassicBoardRoutes)(router, ctx);

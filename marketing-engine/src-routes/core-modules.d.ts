@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Ambient declarations for the framework `@/` modules this package imports (the switchboard/aero-lab idiom): the oshal loader resolves `@/` at RUNTIME; declaring types here lets `tsc -p src-routes` type-check AND emit only this package's files. Surfaces are deliberately minimal: only what marketing-engine's modules actually use.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Add connector-tenancy resolveConnectionRow — the LinkedIn create-post author URN comes from the accessible connection row's account_id (personal or household-shared), never a bare user_sub query.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Declare BuildSpecOptions so the standalone per-package compile matches the framework build the store CI actually runs.
  */
 
 declare module '@/shared/logger' {
@@ -94,6 +95,8 @@ declare module '@/features/notifications' {
 }
 
 declare module '@/app/connectors/runtime' {
+  /** Resolved credentials/options the spec client rides on. */
+  export type BuildSpecOptions = any;
   /** A loaded declarative connector spec (yaml). */
   export type ConnectorSpec = any;
   /** Pool shape the action audit trail writes through. */

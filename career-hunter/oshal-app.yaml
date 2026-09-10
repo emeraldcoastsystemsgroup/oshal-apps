@@ -19,6 +19,8 @@
 # 15 | maintainer@emeraldcoastsystemsgroup.com | Offer a one-click worker-node installer where the board reports no connected computer, so a user never visits Settings to paste a key, as version 1.12.1.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | Release each user's own pattern-gated scrape-target list beside the admin's shared companies table — the engine's `classify` verb is the accept/reject gate, `add-target` registers an accepted URL in the shared corpus with user provenance and scrapes it once, career_user_targets (FORCE RLS, migration 100) is the user's view, Career Settings gets the card — as version 1.13.0. (1.12.4/1.12.5 restored AI scoring under the ADR-137 amendment-A portal fallback: runner verdict OSHAL_PORTAL_LOGINS=1 honored by the launcher.)
 # 17 | maintainer@emeraldcoastsystemsgroup.com | Declare the ADR-141 per-user readiness probes the Intelligent Career GROUP's setup page asks (resume on the existing resume-state route, stories + materials on a new GET /readiness reading the caller's own profile and artifacts), as version 1.15.0. The group itself lives in intelligent-career/ and carries no code.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | Release the ADR-141 D7 story review — one defensible story per job title — as version 1.16.0. The engine gains a `stories` verb (engine/jobhunter/stories.py) that walks YOUR roles, asks about the one still missing a story using that role's own bullets, and attaches the answer to the role AND to the bullet it supports; a model may never cite a bullet the role does not carry, and with no provider reachable the answer is kept verbatim with the best-overlapping bullet, so the review never depends on a key. GET /stories + POST /stories/answer drive it, Strengthen renders it, and profile.summary() now emits an EVIDENCE line per role so tailored resumes and covers cite the story instead of restating the bullet. The group's "Review your resume story by story" readiness stops reading 0 of N.
+# 19 | maintainer@emeraldcoastsystemsgroup.com | Release remote-only matching as version 1.18.0. The corpus has carried a per-posting `remote` flag since 095 and Job Search has filtered on it since 1.11.0, but nothing AUTOMATED consulted it — a remote-only candidate was still scored against, digested and shown on-site roles. career_score_settings.remote_only (migration 104, additive, default FALSE) is the standing preference, and it is honoured at every automated path: the scoring candidate query (so an on-site role never costs an inference), the digest, and the matched board as a DEFAULT an explicit Any/Remote/On-site pill still overrides. Job Search is deliberately untouched — it is a browse surface with its own pills. Settings gains the toggle.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — career-hunter (Career Hunter)
@@ -59,7 +61,7 @@ description: >-
   posting against your private career profile, and turns the best fits into a human-in-the-loop
   application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume +
   cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.
-version: 1.15.0
+version: 1.18.0
 
 # ── ADR-139 artifact exchange — this app as a "Send to…" DESTINATION ─────────
 # Any document anywhere in the swarm (files browser, another app) can be sent
@@ -142,6 +144,16 @@ readiness:
     path: /api/career-hunter/readiness
     readyPointer: /materials/ready
     detailPointer: /materials/detail
+
+# ── ADR-144 guest-seed contract — this app owns its guest demo data ──
+# The kernel calls this once when an anonymous guest session starts, AS the fresh guest (service
+# secret + x-oshal-user-sub). The route copies the bundled, pre-indexed demo profile
+# (engine/seeds/career_db.default.json) into the guest's own store dir, so a guest always opens on
+# an indexed candidate instead of the empty onboarding — and it is guest-only, so a real user's
+# resume is never touched. Owned by the /api/career-hunter mount (auth: service-or-oidc), which the
+# kernel may call with the service secret.
+guestSeed:
+  path: /api/career-hunter/guest-seed
 
 dependencies:
   apps: [portrait-studio]
@@ -533,6 +545,9 @@ migrations:
   # 100: each user's own scrape-target list (FORCE RLS, same shape as 091). Order-independent —
   # it creates only its own table — so it sits beside its sibling per-user setting tables.
   - migrations/100-career-user-targets.sql
+  # 104: the per-user remote-only matching preference. Adds one defaulted column to the
+  # 082 settings table, so it is order-independent beside its sibling per-user settings.
+  - migrations/104-career-remote-only.sql
   - migrations/095-career-corpus.sql
   - migrations/096-career-corpus-complete.sql
   # 097 adds the `postings` / `companies` compatibility VIEWS. The engine's ~53

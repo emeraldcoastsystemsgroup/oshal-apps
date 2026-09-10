@@ -22,6 +22,7 @@
  * 2026-06-22 12:55:00 | roger.murphy@emeraldcoastsystemsgroup.com | Initial — enable/status/stop over the per-user trading-autopilot schedule; caller-scoped; paper-only; default ~100-name universe.
  * 2026-07-13 00:45:00 | roger.murphy@emeraldcoastsystemsgroup.com | Seventh leg: trading-lab (ADR-092 Strategy Lab nightly forward walks + regressions) created/listed/stopped with the other advisor legs.
  * 2026-07-19 23:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | Carved out of OSHAL core into the trading app package (ADR-085 Wave 3). Relative kernel imports flip to @/ aliases — the schedule/research/assess/review/optimize/lab dispatch loops themselves STAY kernel (they are the autopilot; these routes are only the operator's switch over their schedules). Route bodies byte-identical; the factory stays zero-arg (the mounter's ctx argument is ignored) — zero behavior change.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | The advisor tracks the ENGINE's universe instead of freezing a copy of it. Arming used to write DEFAULT_UNIVERSE into every leg's taskData, so a swarm armed months ago kept scanning the list as it stood that day, while dispatch/research/assess already fall through to DEFAULT_UNIVERSE when no pin is present; taskData now carries `universe` ONLY when the operator pinned one, and GET reports universeSource (default|pinned) + defaultUniverseCount so the difference is visible rather than inferred. The literal 150-symbol truncation is gone: the ceiling is TRADING_UNIVERSE_MAX_PIN (default = the engine's own universe size) and an over-long list answers 400 instead of silently dropping a tail the operator was never told about. The six fixed-cadence createSchedule calls move into createAdvisorLegs so the POST handler stays inside the 50-line rule.
  *
  * @module trading-autopilot-routes
  */
@@ -66,17 +67,71 @@ async function findTradingSchedules(sub) {
 async function findAutopilot(sub) {
     return (await findTradingSchedules(sub)).find((s) => s.taskType.startsWith('trading-autopilot')) ?? null;
 }
+/** How many symbols the operator may PIN into the schedule at once. Env: TRADING_UNIVERSE_MAX_PIN;
+ *  the default is the engine's OWN universe size, so the ceiling tracks the engine, not a literal. */
+function universePinMax() {
+    const n = Number(process.env.TRADING_UNIVERSE_MAX_PIN);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : trading_1.DEFAULT_UNIVERSE.length;
+}
+/**
+ * @description Normalize a caller-supplied universe into the list to PIN, or null when the caller
+ *   pinned nothing (the legs then track the engine's DEFAULT_UNIVERSE on every fire). Deduplicated
+ *   and upper-cased. A list over the ceiling is an ERROR, never a silent truncation: the old
+ *   `.slice(0, 150)` dropped the tail of a longer list and told the operator nothing about it.
+ * @param raw - The request body's `universe` field, whatever the caller sent.
+ * @returns The symbols to pin, or null to track the engine's default.
+ * @throws Error with `code = 'universe_too_large'` when the list exceeds universePinMax().
+ */
+function pinnedUniverse(raw) {
+    if (!Array.isArray(raw) || !raw.length)
+        return null;
+    const list = [...new Set(raw.map((v) => String(v).trim().toUpperCase()).filter(Boolean))];
+    if (!list.length)
+        return null;
+    const max = universePinMax();
+    if (list.length > max) {
+        const err = new Error(`universe carries ${list.length} symbols; the pin ceiling is ${max} (TRADING_UNIVERSE_MAX_PIN)`);
+        err.code = 'universe_too_large';
+        throw err;
+    }
+    return list;
+}
+/**
+ * @description Create the six advisor legs that ride fixed cadences. The technical leg keeps the
+ *   caller's own cron and is created separately, because its record is the one the status reports.
+ * @param svc - The schedule service.
+ * @param sub - Owner sub; every leg is scoped to it.
+ * @param taskData - The shared leg payload (userSub + mode, and `universe` ONLY when pinned).
+ * @returns Nothing - each leg is upserted by its own task type.
+ */
+async function createAdvisorLegs(svc, sub, taskData) {
+    const legs = [
+        [(0, trading_research_dispatch_1.researchTaskType)(sub), RESEARCH_CRON, 'News + fundamentals research brain (paper)'],
+        [(0, trading_research_dispatch_1.fastTaskType)(sub), FAST_CRON, 'Fast breaking-news brain (paper)'],
+        [(0, trading_assess_dispatch_1.assessTaskType)(sub), ASSESS_CRON, 'Next-session assessment / predictions (paper)'],
+        [(0, trading_review_dispatch_1.reviewTaskType)(sub), REVIEW_CRON, 'Overnight signal review - learn per-signal mass + proximity'],
+        [(0, trading_optimize_dispatch_1.optimizeTaskType)(sub), trading_optimize_dispatch_1.OPTIMIZE_CRON, 'Nightly parameter optimization - backtest tweaks, recommend (approval-gated)'],
+        [(0, trading_lab_dispatch_1.labTaskType)(sub), trading_lab_dispatch_1.LAB_CRON, 'Strategy Lab - forward walks + pinned-window regressions (ADR-092)'],
+    ];
+    for (const [taskType, schedule, prompt] of legs) {
+        await svc.createSchedule({ taskType, schedule, ownerSub: sub, queue: 'intelligent-trades', taskData: { prompt, ...taskData } });
+    }
+}
 /** Shape the status payload for one schedule (or the disabled default). */
 function statusOf(schedule) {
     if (!schedule)
-        return { enabled: false, cron: trading_schedule_dispatch_1.AUTOPILOT_CRON_DEFAULT, defaultUniverseCount: trading_1.DEFAULT_UNIVERSE.length };
+        return { enabled: false, cron: trading_schedule_dispatch_1.AUTOPILOT_CRON_DEFAULT, universeSource: 'default', defaultUniverseCount: trading_1.DEFAULT_UNIVERSE.length };
     const td = schedule.taskData;
-    const universe = Array.isArray(td.universe) ? td.universe : trading_1.DEFAULT_UNIVERSE;
+    // A leg with no `universe` in its taskData is not universe-less: dispatch, research and assess
+    // each fall through to DEFAULT_UNIVERSE, so it scans the engine's CURRENT list on every fire.
+    const pin = Array.isArray(td.universe) && td.universe.length ? td.universe : null;
     return {
         enabled: schedule.status === 'active',
         cron: schedule.cron,
         mode: String(td.mode || 'paper'),
-        universeCount: universe.length,
+        universeSource: pin ? 'pinned' : 'default',
+        universeCount: pin ? pin.length : trading_1.DEFAULT_UNIVERSE.length,
+        defaultUniverseCount: trading_1.DEFAULT_UNIVERSE.length,
         nextRunAt: schedule.nextRunAt,
         lastRunAt: schedule.lastRunAt,
         executionCount: schedule.executionCount,
@@ -132,40 +187,29 @@ function createTradingAutopilotRoutes() {
         }
         const b = (req.body || {});
         const cron = (typeof b.cron === 'string' && b.cron.trim()) ? b.cron.trim() : trading_schedule_dispatch_1.AUTOPILOT_CRON_DEFAULT;
-        const universe = Array.isArray(b.universe) && b.universe.length
-            ? [...new Set(b.universe.map((s) => String(s).toUpperCase()))].slice(0, 150)
-            : trading_1.DEFAULT_UNIVERSE;
-        const taskData = { userSub: sub, mode: 'paper', universe };
+        let pinned;
+        try {
+            pinned = pinnedUniverse(b.universe);
+        }
+        catch (err) {
+            logger.error({ err, sub }, 'advisor enable refused - universe over the pin ceiling');
+            res.status(400).json({ error: 'universe_too_large', message: err.message, max: universePinMax() });
+            return;
+        }
+        // No pin => no `universe` key at all. Dispatch/research/assess fall through to DEFAULT_UNIVERSE
+        // when it is absent, so an advisor armed today keeps scanning the engine's list as it GROWS
+        // instead of freezing a copy of it into the schedule row the way arming used to.
+        const taskData = pinned
+            ? { userSub: sub, mode: 'paper', universe: pinned }
+            : { userSub: sub, mode: 'paper' };
+        const label = pinned ? `${pinned.length} pinned symbols` : `default universe, ${trading_1.DEFAULT_UNIVERSE.length} today`;
         try {
             const schedule = await svc.createSchedule({
                 taskType: (0, trading_schedule_dispatch_1.autopilotTaskType)(sub), schedule: cron, ownerSub: sub, queue: 'intelligent-trades',
-                taskData: { prompt: `Multi-timeframe paper autopilot (${universe.length} symbols)`, ...taskData },
+                taskData: { prompt: `Multi-timeframe paper autopilot (${label})`, ...taskData },
             });
-            await svc.createSchedule({
-                taskType: (0, trading_research_dispatch_1.researchTaskType)(sub), schedule: RESEARCH_CRON, ownerSub: sub, queue: 'intelligent-trades',
-                taskData: { prompt: 'News + fundamentals research brain (paper)', ...taskData },
-            });
-            await svc.createSchedule({
-                taskType: (0, trading_research_dispatch_1.fastTaskType)(sub), schedule: FAST_CRON, ownerSub: sub, queue: 'intelligent-trades',
-                taskData: { prompt: 'Fast breaking-news brain (paper)', ...taskData },
-            });
-            await svc.createSchedule({
-                taskType: (0, trading_assess_dispatch_1.assessTaskType)(sub), schedule: ASSESS_CRON, ownerSub: sub, queue: 'intelligent-trades',
-                taskData: { prompt: 'Next-session assessment / predictions (paper)', ...taskData },
-            });
-            await svc.createSchedule({
-                taskType: (0, trading_review_dispatch_1.reviewTaskType)(sub), schedule: REVIEW_CRON, ownerSub: sub, queue: 'intelligent-trades',
-                taskData: { prompt: 'Overnight signal review — learn per-signal mass + proximity', ...taskData },
-            });
-            await svc.createSchedule({
-                taskType: (0, trading_optimize_dispatch_1.optimizeTaskType)(sub), schedule: trading_optimize_dispatch_1.OPTIMIZE_CRON, ownerSub: sub, queue: 'intelligent-trades',
-                taskData: { prompt: 'Nightly parameter optimization — backtest tweaks, recommend (approval-gated)', ...taskData },
-            });
-            await svc.createSchedule({
-                taskType: (0, trading_lab_dispatch_1.labTaskType)(sub), schedule: trading_lab_dispatch_1.LAB_CRON, ownerSub: sub, queue: 'intelligent-trades',
-                taskData: { prompt: 'Strategy Lab — forward walks + pinned-window regressions (ADR-092)', ...taskData },
-            });
-            logger.info({ sub, cron, universeCount: universe.length }, 'advisor enabled (technical + research + fast + assess + review + optimize + lab)');
+            await createAdvisorLegs(svc, sub, taskData);
+            logger.info({ sub, cron, universeSource: pinned ? 'pinned' : 'default', universeCount: pinned ? pinned.length : trading_1.DEFAULT_UNIVERSE.length }, 'advisor enabled (technical + research + fast + assess + review + optimize + lab)');
             res.json({
                 ok: true, ...statusOf(schedule),
                 legs: { technical: cron, research: RESEARCH_CRON, fast: FAST_CRON, assess: ASSESS_CRON, review: REVIEW_CRON, optimize: trading_optimize_dispatch_1.OPTIMIZE_CRON, lab: trading_lab_dispatch_1.LAB_CRON },

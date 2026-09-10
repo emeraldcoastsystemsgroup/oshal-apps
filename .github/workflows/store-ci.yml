@@ -27,13 +27,27 @@
 # 22 | maintainer@emeraldcoastsystemsgroup.com     | Give the Career job Node 24 so its pre-resume browse guard can build a real SQLite corpus from the engine's own schema and assert the covering-index plan.
 # 23 | maintainer@emeraldcoastsystemsgroup.com     | Move the career Postgres admin URL to the step that consumes it. The job context is step-level only; referencing it in job-level env made GitHub reject the whole file as invalid, and an unparseable file has no readable triggers — so every push to every branch since #58 (Aug 6) fired a zero-second failure run + email, despite the PR-only on: block. The jobs added in #58/#69 never actually executed until this fix.
 # 24 | maintainer@emeraldcoastsystemsgroup.com     | Run the marketing-engine package's suites: the app's only dangerous powers are posting under someone's name and moving their budget, so the guards are the consent gates (absent or garbage authorization row = OFF, cap 0 = never, count at cap = skipped), the import-never-arms-spend stripping, UTM validation/encoding, the 20% reallocation cap + channel floors, and honest no_data scorecard marking. Same dependency-free plain-node contract, against the COMPILED pure model. NOTE THE GLOB: these suites are .mjs.
+# 25 | maintainer@emeraldcoastsystemsgroup.com     | Run the sports-edge package's suites: the app's only dangerous power is a confident line, and its two worst bugs shipped GREEN through 74 unit tests — a seeded Elo call with an empty tape silently discarded every carried-over rating, and a model with no games voted a zero that averaged a real signal most of the way to nothing. The guards that matter are therefore the invariants those bugs violated: strength models AVERAGED while context is ADDED, a dataless model abstaining instead of voting, a seed materialising without games, a spread graded against the price TAKEN, and the staking gate refusing to promote on one bar. Same dependency-free plain-node contract, against the COMPILED modules. GLOB: tests/*.test.js is correct here (all five suites are .test.js).
 
+# 26 | Codex | Run compiled Home extractor session/owner/read-only/failure boundaries for Feeds, Email and Switchboard.
 name: store-ci
 on:
   pull_request:
   workflow_dispatch:
 
 jobs:
+  home-summary:
+    name: compiled Home summary boundaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - run: node --test scripts/home-summary.test.cjs
+      - run: node --test world/tests/home-summary.test.cjs
+      - run: node --test vids/tests/integration-surface.test.js
+
   test-discovery:
     name: non-empty package test discovery
     runs-on: ubuntu-latest
@@ -436,4 +450,31 @@ jobs:
       # .cjs package and node --test would exit 0 having run nothing.
       - name: Run venture-plan suites
         working-directory: venture-plan
+        run: node --test "tests/*.test.js"
+
+  sports-edge:
+    name: sports-edge package suites
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # This package sets a betting line, so its only way to hurt someone is to be confidently
+      # wrong. Both bugs it shipped with were invisible to a green suite and obvious the moment a
+      # real preview was printed, so the guards are pinned to the invariants those bugs broke:
+      # strength models are AVERAGED (adding them triples every line) while context is ADDED
+      # (averaging a missing quarterback dilutes a touchdown into a point), a model with no data
+      # ABSTAINS rather than voting a zero that reads as "these teams are even", a seed
+      # materialises into the rating table without any games, a spread is graded against the price
+      # we TOOK and not the one it closed at, and the staking gate refuses to promote a strategy
+      # that clears only one of its two bars. Plain node, no install, against the COMPILED modules
+      # the framework mounts.
+      #
+      # GLOB: tests/*.test.js is correct HERE (all five suites are .test.js). Check this per
+      # package - the same glob matches ZERO files in a .cjs or .mjs package and node --test would
+      # exit 0 having run nothing.
+      - name: Run sports-edge suites
+        working-directory: sports-edge
         run: node --test "tests/*.test.js"

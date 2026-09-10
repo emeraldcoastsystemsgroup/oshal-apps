@@ -4,15 +4,21 @@
  * the decision-driven order ticket), moved VERBATIM out of the single-file trading page per
  * ADR-136 D2. Used by view-account.js; classic script, plain globals, loaded after app.js.
  *
- * Every loader that awaits must bail via stale(token) where a token is available. These legacy
- * loaders predate tokens and are only ever invoked from a render that already checked the token,
- * so they are unchanged. Labels that once derived the account name from MODE now use DISP (the
+ * Every loader that awaits captures RENDER_TOKEN before the await and bails via stale(token) after
+ * it, so a response for a previous account can never paint the current one. Labels that once derived
+ * the account name from MODE now use DISP (the
  * human label of the selected book); the LIVE wording stays wherever it warns about real money.
  *
  * ADR-138: window.PINNED_BY_SYMBOL ({SYM: qty}, published by the account view's Protected lots card)
  * marks a held symbol with a 'pinned N' pill in the positions table and the focus pane — those shares
  * are ring-fenced from the autopilot. Absent map → no pill; drawFocusChart(sym) is also reused by the
  * Research view's stock tab (it only needs a #focChart host).
+ *
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com   | Log opened at 1.10.3 - this file predates the log and its earlier history is in git. Sub-tab race close-out (ADR-136 D2 tail): loadSignalModel captures RENDER_TOKEN before its await and bails after it (and still checks CURRENT), so a slow /signal-latest answer for a symbol the operator has moved off cannot paint the focus pane. The header note above about token-less legacy loaders no longer applies to it.
  */
 
 /* ── KPI strip + positions → universe seed ───────────────────── */
@@ -305,11 +311,13 @@ function renderSigModel(sym, s, live) {
 }
 /* passive read — pure DB lookup of the engine's recorded signals (no Alpaca call, no rate limit) */
 async function loadSignalModel(sym) {
+  const token = RENDER_TOKEN;
   try {
     const j = await api('/signal-latest', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ symbols:[sym] }) });
+    if (stale(token) || CURRENT !== sym) return;   // navigated away, or the operator focused another name
     renderSigModel(sym, (j.results || []).find(x => x.symbol===sym) || { signals:[], ensemble:{ action:'hold', score:0 } }, false);
   } catch (err) {
-    if (CURRENT === sym) { const h=$('focSig'); if (h) h.innerHTML = '<div class="foot err">' + esc(err.message) + '</div>'; const c=$('focConv'); if (c) c.textContent=''; }
+    if (!stale(token) && CURRENT === sym) { const h=$('focSig'); if (h) h.innerHTML = '<div class="foot err">' + esc(err.message) + '</div>'; const c=$('focConv'); if (c) c.textContent=''; }
   }
 }
 /* explicit, user-triggered live recompute — the ONLY click path that calls the market-data feed */

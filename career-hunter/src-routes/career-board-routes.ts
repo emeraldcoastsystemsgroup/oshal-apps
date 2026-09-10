@@ -16,6 +16,7 @@
  */
 import { type Request, type Response, type Router } from 'express';
 import { createChildLogger } from '@/shared/logger';
+import { readRemoteOnly } from './career-match-prefs';
 import type { AppContext } from '@/app/composition/app-context';
 import { recordManualApplyRun } from '@/app/apply-run-ledger';
 import { fetchBoardPage } from './career-board-feed';
@@ -33,14 +34,20 @@ const ALLOWED_STATUS = new Set([
   'new', 'applied', 'dismissed', 'promoted', 'generated', 'interview', 'offer', 'deferred',
 ]);
 
-function getJobs(req: Request, res: Response): void {
+async function getJobs(ctx: AppContext, req: Request, res: Response): Promise<void> {
   const userSub = callerSub(req);
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
   const db = openUserDb(userSub);
   if (!db) { res.json({ jobs: [], empty: true }); return; }
   const started = Date.now();
   try {
-    const result = fetchBoardPage(db, req.query as Record<string, unknown>);
+    // The standing remote-only preference (migration 104) is the DEFAULT for this board, not an
+    // override: an explicit Any/Remote/On-site pill always wins. Applying it here rather than in
+    // the feed keeps the query builder pure and leaves the Job Search screen — which is a browse
+    // surface with its own pills, not a match surface — deliberately untouched.
+    const query = { ...(req.query as Record<string, unknown>) };
+    if (query.remote === undefined && await readRemoteOnly(ctx.pool, userSub)) query.remote = '1';
+    const result = fetchBoardPage(db, query);
     logger.info({
       userSub,
       sort: req.query.sort || 'ai',
@@ -303,7 +310,7 @@ function setReferral(req: Request, res: Response): void {
  * @returns Nothing.
  */
 export function registerCareerBoardRoutes(router: Router, ctx: AppContext): void {
-  router.get('/jobs', getJobs);
+  router.get('/jobs', (req, res) => { void getJobs(ctx, req, res); });
   router.get('/jobs/stats', getJobStats);
   router.get('/analytics', getAnalytics);
   router.get('/resume', (req, res) => serveResumeFile(req, res, Number(req.query.id)));

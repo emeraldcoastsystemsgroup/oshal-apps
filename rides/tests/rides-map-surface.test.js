@@ -13,6 +13,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { execFileSync } = require('node:child_process');
 
 const PKG = path.resolve(__dirname, '..');
 const SURFACE = path.join(PKG, 'tools', 'rides-app.html');
@@ -35,9 +36,8 @@ test('every inline script in the rides surface parses', () => {
   const scripts = inlineScripts(html);
   assert.ok(scripts.length >= 1, 'expected at least the surface driver script');
   for (const [i, s] of scripts.entries()) {
-    const code = s.module ? `(async () => {\n${s.code}\n})()` : s.code;
     assert.doesNotThrow(
-      () => new vm.Script(code, { filename: `rides-app.html#${i}` }),
+      () => s.module ? execFileSync(process.execPath, ['--check','--input-type=module'], {input:s.code,stdio:'pipe'}) : new vm.Script(s.code, { filename: `rides-app.html#${i}` }),
       `inline script #${i} in rides-app.html does not parse`,
     );
   }

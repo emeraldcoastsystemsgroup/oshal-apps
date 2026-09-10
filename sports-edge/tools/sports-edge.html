@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<!--
+  Sports Edge — follow a team, then really know its next game (?app=sports-edge).
+
+  The layout follows the operator's framing exactly: you pick a team, and everything fans out from
+  there. My Teams is the entry point, Games lists only what your teams play next, and the Preview is
+  the whole point — our line built from the season tape, both injury reports weighted by what those
+  players actually produce, the unit matchup, rest, and the wire, sitting next to the book's number.
+
+  The Record tab is not decoration. This package stakes nothing until it proves it beats the closing
+  line, so the scorecard's verdict is shown with the same prominence as the picks themselves.
+
+  Self-contained: no external assets. Framework theme tokens + the shared glass sheet only.
+-->
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sports Edge</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<style>
+  /* Short aliases DERIVED from the framework theme, never literal hex — so all themes work. */
+  :root {
+    --bg: var(--bg-primary);
+    --panel: var(--bg-card);
+    --border: var(--border-color);
+    --text: var(--text-primary);
+    --dim: var(--text-muted);
+    --green: var(--status-success, #3fb950);
+    --red: var(--status-error, #f85149);
+    --amber: var(--status-warning, #d29922);
+    --blue: var(--accent-primary, #58a6ff);
+    --hdr-h: 44px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  header {
+    position: sticky; top: 0; z-index: 5; height: var(--hdr-h);
+    display: flex; align-items: center; gap: 14px; padding: 0 16px;
+    background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  header h1 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: .2px; }
+  header .sub { color: var(--dim); font-size: 12px; }
+  nav { display: flex; gap: 2px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--border); }
+  nav button {
+    background: none; border: none; border-bottom: 2px solid transparent; color: var(--dim);
+    padding: 9px 14px; font: inherit; cursor: pointer;
+  }
+  nav button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--blue); }
+  main { padding: 16px; max-width: 1180px; }
+  section[hidden] { display: none; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 16px; margin-bottom: 14px;
+  }
+  .card > h2 { margin: 0 0 10px; font-size: 13px; font-weight: 600; }
+  .muted { color: var(--dim); }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  button.act {
+    background: var(--blue); color: var(--bg); border: none; border-radius: 5px;
+    padding: 6px 12px; font: inherit; font-weight: 600; cursor: pointer;
+  }
+  button.ghost {
+    background: none; color: var(--text); border: 1px solid var(--border);
+    border-radius: 5px; padding: 5px 10px; font: inherit; cursor: pointer;
+  }
+  button.ghost:hover { border-color: var(--blue); }
+  select, input {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 5px; padding: 6px 9px; font: inherit;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--dim); font-weight: 500; font-size: 12px; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pos { color: var(--green); } .neg { color: var(--red); }
+  .pill {
+    display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px;
+    border: 1px solid var(--border);
+  }
+  .pill.proven { color: var(--green); border-color: var(--green); }
+  .pill.failing { color: var(--red); border-color: var(--red); }
+  .pill.unproven { color: var(--amber); border-color: var(--amber); }
+  .teamgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; }
+  .teamgrid button {
+    text-align: left; background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); padding: 7px 10px; font: inherit; cursor: pointer;
+  }
+  .teamgrid button:hover { border-color: var(--blue); }
+  .teamgrid button.on { border-color: var(--green); color: var(--green); }
+  .gamerow {
+    display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center;
+    padding: 11px 12px; border: 1px solid var(--border); border-radius: 7px; margin-bottom: 7px;
+    background: var(--bg); cursor: pointer;
+  }
+  .gamerow:hover { border-color: var(--blue); }
+  .gamerow .matchup { font-weight: 600; }
+  .lines { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .linebox { background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px; }
+  .linebox .k { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
+  .linebox .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 3px; }
+  .banner {
+    border-left: 3px solid var(--amber); background: var(--bg); padding: 9px 12px;
+    border-radius: 0 6px 6px 0; margin-bottom: 12px; font-size: 12px;
+  }
+  .banner.hard { border-left-color: var(--red); }
+  ul.wire { list-style: none; margin: 0; padding: 0; }
+  ul.wire li { padding: 5px 0; border-bottom: 1px solid var(--border); }
+  ul.wire a { color: var(--blue); text-decoration: none; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 760px) { .cols { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Sports Edge</h1>
+  <span class="sub" id="statusline">loading…</span>
+</header>
+<nav role="tablist">
+  <button role="tab" data-tab="teams" aria-selected="true">My Teams</button>
+  <button role="tab" data-tab="games" aria-selected="false">Games</button>
+  <button role="tab" data-tab="preview" aria-selected="false">Preview</button>
+  <button role="tab" data-tab="fantasy" aria-selected="false">Fantasy</button>
+  <button role="tab" data-tab="record" aria-selected="false">Record</button>
+</nav>
+<main>
+  <section id="tab-teams">
+    <div class="card">
+      <h2>Follow a team</h2>
+      <p class="muted">Everything in this app fans out from a team you follow — its next game, the
+        players on both sides, the injury reports, and the number we set against the book's.</p>
+      <div class="row" style="margin-bottom:10px">
+        <select id="leaguePick"><option value="nfl">NFL</option><option value="ncaaf">NCAA Football</option><option value="nba">NBA</option></select>
+        <button class="ghost" id="loadTeams">Load teams</button>
+      </div>
+      <div class="teamgrid" id="teamgrid"></div>
+    </div>
+    <div class="card">
+      <h2>Following</h2>
+      <div id="followed" class="muted">nothing yet</div>
+    </div>
+  </section>
+
+  <section id="tab-games" hidden>
+    <div class="card">
+      <h2>Next up</h2>
+      <div id="gamelist" class="muted">loading…</div>
+    </div>
+  </section>
+
+  <section id="tab-preview" hidden>
+    <div id="previewBody" class="muted">Pick a game on the Games tab.</div>
+  </section>
+
+  <section id="tab-fantasy" hidden>
+    <div id="fantasyBody" class="muted">loading…</div>
+  </section>
+
+  <section id="tab-record" hidden>
+    <div class="banner hard" id="recordBanner">
+      Phase 1 stakes nothing. Every call is registered before kickoff and graded afterwards; a
+      strategy may only size a bet once it beats both the market's Brier score and the closing line.
+    </div>
+    <div class="card">
+      <h2>Strategy scorecard</h2>
+      <div id="scorecard" class="muted">loading…</div>
+    </div>
+    <div class="card">
+      <h2>Ledger</h2>
+      <div id="ledger" class="muted">loading…</div>
+    </div>
+  </section>
+</main>
+
+<script>
+// Classic script, no modules — the surface convention across this codebase.
+var API = '/api/sports-edge';
+var state = { followed: [], games: [], currentEvent: null };
+
+function el(id) { return document.getElementById(id); }
+function esc(s) {
+  return String(s === undefined || s === null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function signed(n, d) { var v = Number(n) || 0; return (v > 0 ? '+' : '') + v.toFixed(d === undefined ? 1 : d); }
+function pct(n) { return Number.isFinite(Number(n)) ? (Number(n) * 100).toFixed(1) + '%' : '—'; }
+function cls(n) { return Number(n) > 0 ? 'pos' : (Number(n) < 0 ? 'neg' : ''); }
+function american(n) { return Number.isFinite(Number(n)) ? (Number(n) > 0 ? '+' + n : String(n)) : '—'; }
+
+function jget(url) {
+  return fetch(url, { credentials: 'same-origin' }).then(function (r) {
+    return r.json().then(function (b) { if (!r.ok) throw new Error(b.error || r.status); return b; });
+  });
+}
+function jbody(method, url, obj) {
+  return fetch(url, {
+    method: method, credentials: 'same-origin',
+    headers: { 'content-type': 'application/json' },
+    body: obj === undefined ? undefined : JSON.stringify(obj)
+  }).then(function (r) {
+    return r.json().then(function (b) { if (!r.ok) throw new Error(b.error || r.status); return b; });
+  });
+}
+
+// ---- tabs -------------------------------------------------------------------
+Array.prototype.forEach.call(document.querySelectorAll('nav button'), function (b) {
+  b.addEventListener('click', function () { showTab(b.getAttribute('data-tab')); });
+});
+function showTab(name) {
+  Array.prototype.forEach.call(document.querySelectorAll('nav button'), function (b) {
+    b.setAttribute('aria-selected', String(b.getAttribute('data-tab') === name));
+  });
+  ['teams', 'games', 'preview', 'fantasy', 'record'].forEach(function (t) { el('tab-' + t).hidden = (t !== name); });
+  if (name === 'games') loadGames();
+  if (name === 'fantasy') loadFantasy();
+  if (name === 'record') loadRecord();
+}
+
+// ---- teams ------------------------------------------------------------------
+el('loadTeams').addEventListener('click', loadTeams);
+function loadTeams() {
+  var league = el('leaguePick').value;
+  el('teamgrid').innerHTML = '<span class="muted">loading…</span>';
+  jget(API + '/teams?league=' + encodeURIComponent(league)).then(function (d) {
+    var followedKeys = state.followed.map(function (f) { return f.league + ':' + f.team; });
+    el('teamgrid').innerHTML = d.teams.map(function (t) {
+      var on = followedKeys.indexOf(league + ':' + t.abbreviation) >= 0;
+      return '<button class="' + (on ? 'on' : '') + '" data-team="' + esc(t.abbreviation) +
+        '" data-id="' + esc(t.id) + '" data-name="' + esc(t.displayName) + '">' +
+        esc(t.displayName) + '</button>';
+    }).join('');
+    Array.prototype.forEach.call(el('teamgrid').querySelectorAll('button'), function (b) {
+      b.addEventListener('click', function () {
+        var on = b.classList.contains('on');
+        var league2 = el('leaguePick').value;
+        var p = on
+          ? fetch(API + '/follow/' + league2 + '/' + b.getAttribute('data-team'),
+              { method: 'DELETE', credentials: 'same-origin' }).then(function (r) { return r.json(); })
+          : jbody('POST', API + '/follow', {
+              league: league2, team: b.getAttribute('data-team'),
+              teamId: b.getAttribute('data-id'), displayName: b.getAttribute('data-name')
+            });
+        p.then(function (d2) { state.followed = d2.teams || []; b.classList.toggle('on'); renderFollowed(); })
+         .catch(function (e) { alert(e.message); });
+      });
+    });
+  }).catch(function (e) { el('teamgrid').innerHTML = '<span class="muted">' + esc(e.message) + '</span>'; });
+}
+
+function renderFollowed() {
+  if (!state.followed.length) { el('followed').innerHTML = '<span class="muted">nothing yet</span>'; return; }
+  el('followed').innerHTML = '<table><tr><th>League</th><th>Team</th><th></th></tr>' +
+    state.followed.map(function (f) {
+      return '<tr><td>' + esc(f.league.toUpperCase()) + '</td><td>' +
+        esc(f.displayName || f.team) + '</td><td class="num"><button class="ghost" data-un="' +
+        esc(f.league) + '/' + esc(f.team) + '">unfollow</button></td></tr>';
+    }).join('') + '</table>';
+  Array.prototype.forEach.call(el('followed').querySelectorAll('[data-un]'), function (b) {
+    b.addEventListener('click', function () {
+      fetch(API + '/follow/' + b.getAttribute('data-un'), { method: 'DELETE', credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) { state.followed = d.teams || []; renderFollowed(); loadTeams(); });
+    });
+  });
+}
+
+// ---- games ------------------------------------------------------------------
+function loadGames() {
+  el('gamelist').innerHTML = '<span class="muted">loading…</span>';
+  jget(API + '/games').then(function (d) {
+    state.games = d.games || [];
+    if (d.awaitingFollow) {
+      el('gamelist').innerHTML = '<span class="muted">Follow a team first — this app only looks at games your teams play.</span>';
+      return;
+    }
+    if (!state.games.length) {
+      // An empty list is only an ANSWER when the read succeeded. Saying "no games" after a failed
+      // upstream read is a lie the reader will act on.
+      el('gamelist').innerHTML = (d.upstreamOk === false)
+        ? '<div class="banner hard">Could not reach the schedule service just now, so this list is ' +
+          'incomplete — this is NOT "your teams have no games". Try again in a moment.</div>'
+        : '<span class="muted">No games on the schedule for your teams inside the horizon.</span>';
+      return;
+    }
+    if (d.upstreamOk === false) {
+      el('gamelist').innerHTML = '<div class="banner hard">Some schedule reads failed, so this list ' +
+        'may be incomplete.</div>';
+    } else {
+      el('gamelist').innerHTML = '';
+    }
+    el('gamelist').innerHTML += state.games.map(function (row, i) {
+      var g = row.game;
+      var h = row.headline;
+      var when = new Date(g.date).toLocaleString();
+      var mid = h
+        ? '<div>our line <strong>' + esc(g.homeTeam) + ' ' + signed(-h.projectedMargin) + '</strong>' +
+          ' &middot; ' + pct(h.homeWinProbability) + ' ' + esc(g.homeTeam) + '</div>'
+        : '<div class="muted">preview not built yet</div>';
+      var right = (h && h.topEdge)
+        ? '<span class="pill proven">' + esc(h.topEdge.selection) + ' &middot; ' +
+          (h.topEdge.edge * 100).toFixed(1) + ' pts</span>'
+        : '<span class="pill muted">no call</span>';
+      return '<div class="gamerow" data-i="' + i + '">' +
+        '<div><div class="matchup">' + esc(g.awayTeam) + ' @ ' + esc(g.homeTeam) + '</div>' +
+        '<div class="muted">' + esc(when) + (g.venue ? ' &middot; ' + esc(g.venue) : '') + '</div></div>' +
+        mid + right + '</div>';
+    }).join('');
+    Array.prototype.forEach.call(el('gamelist').querySelectorAll('.gamerow'), function (r) {
+      r.addEventListener('click', function () { openPreview(state.games[Number(r.getAttribute('data-i'))]); });
+    });
+  }).catch(function (e) { el('gamelist').innerHTML = '<span class="muted">' + esc(e.message) + '</span>'; });
+}
+
+// ---- preview ----------------------------------------------------------------
+function openPreview(row) {
+  showTab('preview');
+  var g = row.game;
+  state.currentEvent = g;
+  el('previewBody').innerHTML = '<div class="muted">building the preview for ' +
+    esc(g.awayTeam) + ' @ ' + esc(g.homeTeam) + '…</div>';
+  jget(API + '/preview/' + encodeURIComponent(g.eventId) + '?league=' + encodeURIComponent(g.league || row.game.league || 'nfl'))
+    .then(renderPreview)
+    .catch(function (e) { el('previewBody').innerHTML = '<div class="muted">' + esc(e.message) + '</div>'; });
+}
+
+function renderPreview(d) {
+  var p = d.preview, L = p.line, q = p.quote || {};
+  var marketMargin = Number.isFinite(q.homeSpread) ? -q.homeSpread : null;
+  var parts = [];
+
+  if (p.carriedOver) {
+    parts.push('<div class="banner">Ratings are leaning on last season — this season has too few ' +
+      'games to stand on its own yet, so Elo was carried over and regressed toward average. Treat ' +
+      'these numbers as softer than they will be in a month.</div>');
+  }
+
+  parts.push('<div class="card"><h2>' + esc(p.awayTeam) + ' @ ' + esc(p.homeTeam) + '</h2>' +
+    '<div class="muted">' + esc(new Date(p.date).toLocaleString()) +
+    (p.venue ? ' &middot; ' + esc(p.venue) : '') + (p.neutralSite ? ' &middot; neutral site' : '') +
+    ' &middot; rest ' + esc(p.context.restDays.home) + 'd / ' + esc(p.context.restDays.away) + 'd</div>' +
+    '<div class="lines" style="margin-top:12px">' +
+      box('Our line', esc(p.homeTeam) + ' ' + signed(-L.projectedMargin)) +
+      box('Book line', marketMargin === null ? '—' : esc(p.homeTeam) + ' ' + signed(-marketMargin)) +
+      box('Our ' + esc(p.homeTeam) + ' win', pct(L.homeWinProbability)) +
+      box('ESPN ' + esc(p.homeTeam) + ' win', p.context.espnHomeWinPct ? p.context.espnHomeWinPct.toFixed(1) + '%' : '—') +
+    '</div></div>');
+
+  // The calls.
+  if (p.edges && p.edges.length) {
+    parts.push('<div class="card"><h2>Calls</h2><table>' +
+      '<tr><th>Market</th><th>Selection</th><th class="num">Our %</th><th class="num">Market %</th>' +
+      '<th class="num">Edge</th><th class="num">Price</th><th class="num">Kelly</th></tr>' +
+      p.edges.map(function (e) {
+        return '<tr><td>' + esc(e.market) + '</td><td><strong>' + esc(e.selection) + '</strong> (' +
+          esc(e.side === 'home' ? p.homeTeam : p.awayTeam) + ')</td>' +
+          '<td class="num">' + pct(e.modelProbability) + '</td>' +
+          '<td class="num">' + pct(e.marketProbability) + '</td>' +
+          '<td class="num pos">' + (e.edge * 100).toFixed(1) + ' pts</td>' +
+          '<td class="num">' + american(e.price) + '</td>' +
+          '<td class="num">' + (e.kelly * 100).toFixed(2) + '%</td></tr>';
+      }).join('') + '</table>' +
+      '<p class="muted" style="margin:9px 0 0">Kelly is what we WOULD stake. Phase 1 stakes zero ' +
+      'until the scorecard says this model beats the closing line.</p></div>');
+  } else {
+    parts.push('<div class="card"><h2>Calls</h2><p class="muted">No disagreement with the book big ' +
+      'enough to bet. This is the normal outcome and it is not a failure — most games are priced ' +
+      'correctly.</p></div>');
+  }
+
+  // How the line was built.
+  parts.push('<div class="card"><h2>How the line was built</h2><table>' +
+    '<tr><th>Model</th><th class="num">Points</th><th>Basis</th></tr>' +
+    L.signals.map(function (s) { return modelRow(s, 'strength'); }).join('') +
+    L.adjustments.map(function (s) { return modelRow(s, 'context'); }).join('') +
+    '<tr><td><strong>Projected margin</strong></td><td class="num"><strong>' +
+      signed(L.projectedMargin) + '</strong></td><td class="muted">strength averaged, context added</td></tr>' +
+    '</table>' +
+    (L.shadow && L.shadow.length
+      ? '<p class="muted" style="margin:10px 0 0">Recorded but not voting: ' +
+        L.shadow.map(function (s) { return esc(s.model); }).join(', ') +
+        ' — these accumulate their own record so we can tell whether this model adds anything.</p>'
+      : '') +
+    '</div>');
+
+  parts.push('<div class="cols">' + injuryCard(p, 'home') + injuryCard(p, 'away') + '</div>');
+
+  // Unit matchup + form.
+  var r = p.ratings || {};
+  parts.push('<div class="card"><h2>Unit matchup</h2><table>' +
+    '<tr><th>Team</th><th class="num">Elo</th><th class="num">Power</th><th class="num">Offense</th>' +
+    '<th class="num">Defense</th><th>ATS</th><th>Last five</th></tr>' +
+    [p.homeTeam, p.awayTeam].map(function (t) {
+      var x = r[t] || {};
+      return '<tr><td><strong>' + esc(t) + '</strong></td>' +
+        '<td class="num">' + esc(x.elo) + '</td>' +
+        '<td class="num ' + cls(x.power) + '">' + signed(x.power) + '</td>' +
+        '<td class="num ' + cls(x.offense) + '">' + signed(x.offense) + '</td>' +
+        '<td class="num ' + cls(x.defense) + '">' + signed(x.defense) + '</td>' +
+        '<td>' + esc((p.context.ats || {})[t] || '—') + '</td>' +
+        '<td class="muted">' + esc((p.context.form || {})[t] || '—') + '</td></tr>';
+    }).join('') + '</table>' +
+    '<p class="muted" style="margin:9px 0 0">Offense and defense are points per game better than ' +
+    'average, adjusted for who each team played.</p></div>');
+
+  if (p.context.news && p.context.news.length) {
+    parts.push('<div class="card"><h2>The wire</h2><ul class="wire">' +
+      p.context.news.map(function (n) {
+        return '<li>' + (n.link ? '<a href="' + esc(n.link) + '" target="_blank" rel="noopener">' +
+          esc(n.headline) + '</a>' : esc(n.headline)) + '</li>';
+      }).join('') + '</ul>' +
+      '<p class="muted" style="margin:9px 0 0">Headlines are shown for you to read. They are not ' +
+      'parsed into a hidden adjustment — nothing here silently moves the line.</p></div>');
+  }
+
+  if (d.calls && d.calls.length) {
+    parts.push('<div class="card"><h2>What we have already registered</h2><table>' +
+      '<tr><th>Strategy</th><th>Selection</th><th class="num">Our %</th><th class="num">Edge</th>' +
+      '<th>Status</th></tr>' +
+      d.calls.map(function (c) {
+        var status = c.settled
+          ? (c.won ? '<span class="pos">won</span>' : '<span class="neg">lost</span>')
+          : '<span class="muted">pending</span>';
+        return '<tr><td>' + esc(c.strategy) + '</td><td>' + esc(c.selection) + '</td>' +
+          '<td class="num">' + pct(c.model_prob) + '</td>' +
+          '<td class="num">' + (Number(c.edge) * 100).toFixed(1) + '</td><td>' + status + '</td></tr>';
+      }).join('') + '</table></div>');
+  }
+
+  parts.push('<div class="row" style="margin-bottom:20px"><button class="ghost" id="rebuild">Rebuild this preview</button>' +
+    '<span class="muted">built ' + esc(new Date(d.generatedAt).toLocaleString()) + '</span></div>');
+
+  el('previewBody').innerHTML = parts.join('');
+  var rb = el('rebuild');
+  if (rb) {
+    rb.addEventListener('click', function () {
+      rb.disabled = true; rb.textContent = 'rebuilding…';
+      jget(API + '/preview/' + encodeURIComponent(p.eventId) + '?league=' + encodeURIComponent(p.league) + '&refresh=1')
+        .then(renderPreview).catch(function (e) { alert(e.message); });
+    });
+  }
+}
+
+function box(k, v) { return '<div class="linebox"><div class="k">' + k + '</div><div class="v">' + v + '</div></div>'; }
+
+function modelRow(s, kind) {
+  var pts = Number.isFinite(s.points) ? signed(s.points) : '—';
+  return '<tr><td>' + esc(s.model) + ' <span class="muted">(' + kind + ')</span></td>' +
+    '<td class="num ' + cls(s.points) + '">' + pts + '</td>' +
+    '<td class="muted">' + esc(s.basis) + '</td></tr>';
+}
+
+function injuryCard(p, side) {
+  var team = side === 'home' ? p.homeTeam : p.awayTeam;
+  var a = p.line.availability[side] || { points: 0, keyLosses: [] };
+  var rows = a.keyLosses.length
+    ? a.keyLosses.map(function (l) {
+        return '<tr><td>' + esc(l.player) + '</td><td>' + esc(l.position) + '</td>' +
+          '<td>' + esc(l.status) + '</td><td class="num neg">' + l.points.toFixed(2) + '</td></tr>';
+      }).join('')
+    : '<tr><td colspan="4" class="muted">clean report</td></tr>';
+  return '<div class="card"><h2>' + esc(team) + ' availability &middot; ' +
+    '<span class="' + cls(a.points) + '">' + signed(a.points, 2) + ' pts</span></h2>' +
+    '<table><tr><th>Player</th><th>Pos</th><th>Status</th><th class="num">Cost</th></tr>' +
+    rows + '</table>' +
+    '<p class="muted" style="margin:9px 0 0">Cost is positional leverage scaled by the player\'s ' +
+    'real share of his team\'s production, and by how likely he is to actually miss.</p></div>';
+}
+
+// ---- record -----------------------------------------------------------------
+function loadRecord() {
+  jget(API + '/scorecard').then(function (d) {
+    if (!d.verdicts.length) {
+      el('scorecard').innerHTML = '<span class="muted">Nothing graded yet. Verdicts appear once ' +
+        'games finish and the grader has run.</span>';
+      return;
+    }
+    el('scorecard').innerHTML = '<table><tr><th>Strategy</th><th>Verdict</th><th class="num">Graded</th>' +
+      '<th class="num">W-L</th><th class="num">Brier</th><th class="num">Market Brier</th>' +
+      '<th class="num">Mean CLV</th><th class="num">P&amp;L (u)</th></tr>' +
+      d.verdicts.map(function (v) {
+        var r = v.rollup;
+        return '<tr><td><strong>' + esc(v.strategy) + '</strong><div class="muted">' + esc(v.reason) + '</div></td>' +
+          '<td><span class="pill ' + v.verdict.toLowerCase() + '">' + esc(v.verdict) + '</span></td>' +
+          '<td class="num">' + r.graded + '</td>' +
+          '<td class="num">' + r.wins + '-' + (r.graded - r.wins) + '</td>' +
+          '<td class="num">' + r.brier.toFixed(4) + '</td>' +
+          '<td class="num">' + r.marketBrier.toFixed(4) + '</td>' +
+          '<td class="num ' + cls(r.meanClv) + '">' + (r.meanClv * 100).toFixed(2) + '</td>' +
+          '<td class="num ' + cls(r.pnlUnits) + '">' + r.pnlUnits.toFixed(2) + '</td></tr>';
+      }).join('') + '</table>';
+  }).catch(function (e) { el('scorecard').innerHTML = '<span class="muted">' + esc(e.message) + '</span>'; });
+
+  jget(API + '/ledger?limit=100').then(function (d) {
+    if (!d.rows.length) { el('ledger').innerHTML = '<span class="muted">no calls registered yet</span>'; return; }
+    el('ledger').innerHTML = '<table><tr><th>When</th><th>Game</th><th>Strategy</th><th>Selection</th>' +
+      '<th class="num">Our %</th><th class="num">Edge</th><th>Result</th></tr>' +
+      d.rows.map(function (r) {
+        var res = r.settled ? (r.won ? '<span class="pos">won</span>' : '<span class="neg">lost</span>')
+                            : '<span class="muted">pending</span>';
+        return '<tr><td class="muted">' + esc(new Date(r.created_at).toLocaleDateString()) + '</td>' +
+          '<td>' + esc(r.away_team) + ' @ ' + esc(r.home_team) + '</td>' +
+          '<td>' + esc(r.strategy) + '</td><td>' + esc(r.selection) + '</td>' +
+          '<td class="num">' + pct(r.model_prob) + '</td>' +
+          '<td class="num">' + (Number(r.edge) * 100).toFixed(1) + '</td><td>' + res + '</td></tr>';
+      }).join('') + '</table>';
+  }).catch(function (e) { el('ledger').innerHTML = '<span class="muted">' + esc(e.message) + '</span>'; });
+}
+
+
+// ---- fantasy ----------------------------------------------------------------
+var fantasyState = { season: null, leagues: [], connected: false };
+
+function loadFantasy() {
+  el('fantasyBody').innerHTML = '<div class="muted">loading&hellip;</div>';
+  jget(API + '/fantasy/status').then(function (d) {
+    fantasyState.connected = d.connected;
+    fantasyState.leagues = d.leagues || [];
+    fantasyState.season = d.season;
+    renderFantasyHome(d);
+  }).catch(function (e) {
+    el('fantasyBody').innerHTML = '<div class="muted">' + esc(e.message) + '</div>';
+  });
+}
+
+function renderFantasyHome(d) {
+  var parts = [];
+  if (!d.connected) {
+    parts.push('<div class="card"><h2>Connect ESPN Fantasy</h2>' +
+      '<div class="banner hard">These are your ESPN <strong>account session cookies</strong>, not an ' +
+      'API key. ESPN publishes no OAuth for fantasy, so they are not scoped to fantasy, cannot be ' +
+      'revoked per app, and stop working only when you sign out of ESPN everywhere. They are stored ' +
+      'encrypted and used only to read your league.</div>' +
+      '<p class="muted">In a browser signed in to ESPN, open DevTools &rarr; Application &rarr; ' +
+      'Cookies &rarr; <code>espn.com</code>, then on the connectors page paste:</p>' +
+      '<table><tr><th>Field</th><th>Cookie</th></tr>' +
+      '<tr><td>Account / identifier</td><td><code>SWID</code> &mdash; looks like <code>{XXXXXXXX-...}</code></td></tr>' +
+      '<tr><td>Token</td><td><code>espn_s2</code> &mdash; a long URL-encoded string</td></tr></table>' +
+      '<p class="muted" style="margin-top:10px">Everything else in this app &mdash; every team model, ' +
+      'and the whole player projection feed &mdash; needs no credential at all.</p></div>');
+    el('fantasyBody').innerHTML = parts.join('');
+    return;
+  }
+
+  parts.push('<div class="card"><h2>Link a league</h2>' +
+    '<p class="muted">The league id is the <code>leagueId=</code> number in your ESPN league URL.</p>' +
+    '<div class="row"><input id="fLeagueId" placeholder="league id" style="width:160px">' +
+    '<input id="fSeason" value="' + esc(d.season) + '" style="width:90px">' +
+    '<button class="act" id="fLink">Link</button></div></div>');
+
+  if (!fantasyState.leagues.length) {
+    parts.push('<div class="card"><span class="muted">No leagues linked yet.</span></div>');
+  } else {
+    parts.push('<div class="card"><h2>Your leagues</h2><table>' +
+      '<tr><th>Season</th><th>League</th><th>Team</th><th></th></tr>' +
+      fantasyState.leagues.map(function (l) {
+        return '<tr><td>' + esc(l.season) + '</td><td>' + esc(l.leagueName || l.leagueId) + '</td>' +
+          '<td>' + esc(l.teamName || '\u2014') + '</td>' +
+          '<td class="num"><button class="ghost" data-lineup="' + esc(l.season) + '/' + esc(l.leagueId) + '">Lineup</button> ' +
+          '<button class="ghost" data-unlink="' + esc(l.season) + '/' + esc(l.leagueId) + '">unlink</button></td></tr>';
+      }).join('') + '</table></div>');
+  }
+  parts.push('<div id="lineupBody"></div>');
+  el('fantasyBody').innerHTML = parts.join('');
+
+  var link = el('fLink');
+  if (link) {
+    link.addEventListener('click', function () {
+      var id = el('fLeagueId').value.trim();
+      if (!id) { alert('league id is required'); return; }
+      link.disabled = true; link.textContent = 'linking\u2026';
+      jbody('POST', API + '/fantasy/link', { leagueId: id, season: Number(el('fSeason').value) })
+        .then(function () { loadFantasy(); })
+        .catch(function (e) { alert(e.message); link.disabled = false; link.textContent = 'Link'; });
+    });
+  }
+  Array.prototype.forEach.call(el('fantasyBody').querySelectorAll('[data-unlink]'), function (b) {
+    b.addEventListener('click', function () {
+      fetch(API + '/fantasy/leagues/' + b.getAttribute('data-unlink'), { method: 'DELETE', credentials: 'same-origin' })
+        .then(function () { loadFantasy(); });
+    });
+  });
+  Array.prototype.forEach.call(el('fantasyBody').querySelectorAll('[data-lineup]'), function (b) {
+    b.addEventListener('click', function () {
+      var bits = b.getAttribute('data-lineup').split('/');
+      loadLineup(bits[0], bits[1]);
+    });
+  });
+}
+
+function loadLineup(season, leagueId) {
+  el('lineupBody').innerHTML = '<div class="card muted">building the lineup&hellip;</div>';
+  jget(API + '/fantasy/lineup?season=' + encodeURIComponent(season) + '&leagueId=' + encodeURIComponent(leagueId))
+    .then(renderLineup)
+    .catch(function (e) { el('lineupBody').innerHTML = '<div class="card muted">' + esc(e.message) + '</div>'; });
+}
+
+// The matchup card. This is the one screen that explains why the recommended lineup is sometimes
+// NOT the highest-projected one: a week is head-to-head, so what matters is the chance of clearing
+// the opponent's number, and for an underdog that chance rises with variance. The safe lineup's own
+// win probability is always shown beside it, so a recommendation that gives up projected points has
+// to visibly buy something.
+function matchupCard(m) {
+  if (!m || m.meanFallback || m.winProbability === null) {
+    return '<div class="card"><h2>This week</h2><p class="muted">No opponent could be read for this ' +
+      'week, so the lineup below is simply the highest-projected legal one.</p></div>';
+  }
+  var pct = function (p) { return (p * 100).toFixed(0) + '%'; };
+  var safe = m.meanWinProbability;
+  var word = m.posture === 'underdog'
+    ? 'You are the UNDERDOG this week, so the lineup changes shape \u2014 you need the tail, not the average.'
+    : (m.posture === 'favourite'
+      ? 'You are FAVOURED this week, so the lineup gets safer \u2014 refuse the coin flip.'
+      : 'This week is close to even, so the two objectives agree.');
+  var parts = ['<div class="card"><h2>Week ' + esc(m.week || '') + ' vs ' + esc(m.opponentName || 'your opponent') + '</h2>' +
+    '<div class="lines">' +
+      box('You project', m.yourProjected.toFixed(1)) +
+      box('They project', m.opponentProjected.toFixed(1)) +
+      box('Win chance', pct(m.winProbability)) +
+      box('Safest lineup wins', pct(safe)) +
+    '</div><p class="muted" style="margin:10px 0 0">' + word + '</p>'];
+  if (m.swaps && m.swaps.length) {
+    parts.push('<table style="margin-top:10px">' +
+      '<tr><th>Start</th><th>Over</th><th class="num">Points given up</th><th class="num">Win % gained</th></tr>' +
+      m.swaps.map(function (s) {
+        return '<tr><td class="pos"><strong>' + esc(s.start.name) + '</strong> (' + s.start.points.toFixed(1) +
+          ', swing ' + s.start.sd.toFixed(1) + ')</td>' +
+          '<td class="neg">' + esc(s.sit.name) + ' (' + s.sit.points.toFixed(1) + ', swing ' + s.sit.sd.toFixed(1) + ')</td>' +
+          '<td class="num">' + (s.meanCost > 0 ? '-' : '+') + Math.abs(s.meanCost).toFixed(1) + '</td>' +
+          '<td class="num pos">+' + s.winGain.toFixed(1) + '</td></tr>';
+      }).join('') + '</table>' +
+      '<p class="muted" style="margin:9px 0 0">Swing is a modelled spread, not a measured one \u2014 ' +
+      'ESPN publishes a projection with no dispersion, so it starts from a positional prior and moves ' +
+      'toward each player\u2019s own weekly scores as the season gives us some.</p>');
+  }
+  return parts.join('') + '</div>';
+}
+
+function renderLineup(d) {
+  var gain = Math.round((d.optimal.total - d.currentTotal) * 100) / 100;
+  if (d.matchup) d.matchup.week = d.league.week;
+  var parts = [matchupCard(d.matchup),
+    '<div class="card"><h2>' + esc(d.team.name) + ' &middot; week ' + esc(d.league.week) + '</h2>' +
+    '<div class="lines">' +
+      box('Lineup as set', d.currentTotal.toFixed(1)) +
+      box('Recommended lineup', d.optimal.total.toFixed(1)) +
+      box('On the table', (gain > 0 ? '+' : '') + gain.toFixed(1)) +
+      box('Scoring rules used', esc(d.scoringRules)) +
+    '</div>' +
+    '<p class="muted" style="margin:10px 0 0">Points come from ESPN raw projections scored by ' +
+    '<strong>your own league rules</strong> &mdash; ESPN publishes projections as stats, not as points, ' +
+    'so a total only exists relative to a league.</p></div>'];
+
+  if (d.calls && d.calls.length) {
+    parts.push('<div class="card"><h2>Start / sit</h2><table>' +
+      '<tr><th>Start</th><th>Sit</th><th class="num">Gain</th><th>Why</th></tr>' +
+      d.calls.map(function (c) {
+        return '<tr><td class="pos"><strong>' + esc(c.start.name) + '</strong> (' + c.start.points.toFixed(1) + ')</td>' +
+          '<td class="neg">' + esc(c.sit.name) + ' (' + c.sit.points.toFixed(1) + ')</td>' +
+          '<td class="num pos">+' + c.gain.toFixed(1) + '</td>' +
+          '<td class="muted">' + esc(c.reason) + '</td></tr>';
+      }).join('') + '</table>' +
+      '<p class="muted" style="margin:9px 0 0">Every one of these is recorded before kickoff and graded ' +
+      'against what the benched player actually scored.</p></div>');
+  } else {
+    parts.push('<div class="card"><h2>Start / sit</h2><p class="muted">Your lineup is already the best ' +
+      'legal one. That is the normal answer &mdash; a tool that always finds something to change is ' +
+      'fidgeting, not advising.</p></div>');
+  }
+
+  parts.push('<div class="card"><h2>Projected starters</h2><table>' +
+    '<tr><th>Slot</th><th>Player</th><th class="num">Projected</th></tr>' +
+    d.optimal.starters.map(function (a) {
+      return '<tr><td class="muted">' + esc(a.slotId) + '</td><td>' + esc(a.player.name) + '</td>' +
+        '<td class="num">' + a.points.toFixed(1) + '</td></tr>';
+    }).join('') + '</table>' +
+    (d.optimal.bench.length ? '<h2 style="margin-top:14px">Bench</h2><table>' +
+      d.optimal.bench.slice(0, 10).map(function (b) {
+        return '<tr><td>' + esc(b.player.name) + '</td><td class="num">' + b.points.toFixed(1) + '</td></tr>';
+      }).join('') + '</table>' : '') +
+    '<p class="muted" style="margin:9px 0 0">Projections from ' +
+    (d.projectionsGeneratedAt ? esc(new Date(d.projectionsGeneratedAt).toLocaleString()) : 'an unavailable feed') +
+    ' &middot; ' + esc(d.projectionsAvailable) + ' players.</p></div>');
+
+  el('lineupBody').innerHTML = parts.join('');
+  loadFantasyRecord();
+}
+
+function loadFantasyRecord() {
+  jget(API + '/fantasy/record?limit=50').then(function (d) {
+    var r = d.record;
+    if (!r.graded && !(d.calls || []).length) return;
+    var html = '<div class="card"><h2>Start/sit record</h2>';
+    if (r.graded) {
+      html += '<div class="lines">' +
+        box('Graded calls', r.graded) +
+        box('Actually gained', (r.actualPoints > 0 ? '+' : '') + r.actualPoints.toFixed(1)) +
+        box('We projected', (r.projectedPoints > 0 ? '+' : '') + r.projectedPoints.toFixed(1)) +
+        box('Right', r.right + ' / ' + r.graded) +
+      '</div><p class="muted" style="margin:10px 0 0">Projected and actual sit side by side on purpose: ' +
+      'claiming +40 and delivering +2 is a different tool from claiming +3 and delivering +2, and a ' +
+      'win rate alone hides that.</p>';
+    } else {
+      html += '<p class="muted">Nothing graded yet &mdash; calls are graded once the week finishes.</p>';
+    }
+    html += '<table style="margin-top:12px"><tr><th>Wk</th><th>Start</th><th>Sit</th>' +
+      '<th class="num">Projected</th><th class="num">Actual</th></tr>' +
+      (d.calls || []).slice(0, 25).map(function (c) {
+        var act = c.settled
+          ? (Number(c.actual_gain) > 0
+              ? '<span class="pos">+' + Number(c.actual_gain).toFixed(1) + '</span>'
+              : '<span class="neg">' + Number(c.actual_gain).toFixed(1) + '</span>')
+          : '<span class="muted">pending</span>';
+        return '<tr><td>' + esc(c.week) + '</td><td>' + esc(c.start_player_name) + '</td>' +
+          '<td>' + esc(c.sit_player_name) + '</td>' +
+          '<td class="num">+' + Number(c.projected_gain).toFixed(1) + '</td><td class="num">' + act + '</td></tr>';
+      }).join('') + '</table></div>';
+    el('lineupBody').innerHTML += html;
+  }).catch(function () { /* the record is additive; its absence must not blank the lineup */ });
+}
+
+// ---- boot -------------------------------------------------------------------
+jget(API + '/follow').then(function (d) {
+  state.followed = d.teams || [];
+  renderFollowed();
+  loadTeams();
+}).catch(function (e) { el('followed').innerHTML = '<span class="muted">' + esc(e.message) + '</span>'; });
+
+jget(API + '/status').then(function (d) {
+  var r = d.refresh || {};
+  el('statusline').textContent = 'NFL ' + d.season.nfl + ' · NBA ' + d.season.nba +
+    (r.lastRun ? ' · refreshed ' + new Date(r.lastRun).toLocaleTimeString() : ' · not refreshed yet');
+}).catch(function () { el('statusline').textContent = ''; });
+</script>
+</body>
+</html>

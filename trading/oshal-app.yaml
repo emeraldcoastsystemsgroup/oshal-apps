@@ -55,7 +55,7 @@ description: >-
   reason over it, and place the trade through your broker (Alpaca) — with a full decision
   trail from every order back to the signal that triggered it. Paper-trade and live-trade as
   two separate books. Cash equities. No crypto.
-version: 1.9.2
+version: 1.11.0
 status: active
 
 source:
@@ -177,7 +177,7 @@ tools:
       properties:
         action: { type: string, enum: [enable, disable, status], description: "enable | disable | status" }
         cron: { type: string, description: "override cadence (default */5 * * * *)" }
-        universe: { type: array, items: { type: string }, description: "symbols to trade (default ~100-name universe)" }
+        universe: { type: array, items: { type: string }, description: "symbols to PIN; omit it and every leg tracks the engine's own default universe as it grows. A list over TRADING_UNIVERSE_MAX_PIN is refused, never truncated" }
       required: [action]
     usageInstructions: "{action:'enable'} starts autonomous paper trading; {action:'disable'} stops it. Confirm with the user before enabling or disabling."
     routingTags: [trading, autopilot, control]

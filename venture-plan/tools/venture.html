@@ -282,6 +282,7 @@
 </style>
 <!-- Shared glass treatment (contract: tests/unit/surface-glass-assets.spec.ts); after local styles. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<script src="/api/artifacts/send-to.js" defer></script>
 </head>
 <body>
 <div class="shell">
@@ -1256,9 +1257,20 @@
     }).join('');
   }
 
+  // ADR-139 standard tag: every export is a sendable artifact, so a generated plan can go
+  // straight to AI Office, RAG, email or storage without a download/re-upload round trip.
+  var EXPORT_MIME = {
+    'plan.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'model.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'deck.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'bundle.zip': 'application/zip',
+  };
   function exportCardHtml() {
     var links = ['plan.docx', 'model.xlsx', 'deck.pptx', 'bundle.zip'].map(function (f) {
-      return '<a class="btn" href="' + API + '/ventures/' + encodeURIComponent(S.ventureId) + '/export/' + f + '">' +
+      var href = API + '/ventures/' + encodeURIComponent(S.ventureId) + '/export/' + f;
+      return '<a class="btn" href="' + href + '"' +
+             ' data-artifact-source="' + href + '" data-artifact-type="' + EXPORT_MIME[f] + '"' +
+             ' data-artifact-name="' + esc(f) + '" data-artifact-ui="context">' +
              '<i class="codicon codicon-desktop-download"></i>' + esc(f) + '</a>';
     }).join('');
     return '<div class="card"><h2>Export</h2><div class="row">' + links + '</div>' +
@@ -1994,6 +2006,30 @@
 
   loadVentures();
 })();
+</script>
+<script type="module">
+import { receiveHandoff } from '/cockpit/js/app-handoff.js';
+receiveHandoff({ app: 'venture-plan', action: 'research-idea', contextType: 'research-brief', version: 1, fields: ['title', 'notes', 'sourceUrl'] }, context => {
+  // Stage text only. The existing Scope it button remains the explicit creation/research step.
+  document.getElementById('newCard').hidden = false;
+  document.getElementById('n_name').value = context.title || '';
+  document.getElementById('n_idea').value = [context.title, context.notes, context.sourceUrl ? 'Source: ' + context.sourceUrl : '', 'Explore whether this suggests a viable business opportunity; treat the source as evidence to verify.'].filter(Boolean).join('\n\n');
+  document.getElementById('n_idea').focus();
+});
+</script>
+
+<!-- App-owned context integration: drafts only; existing actions still execute explicitly. -->
+<script type="module">
+import { receiveHandoff } from '/cockpit/js/app-handoff.js';
+import { mountConnectedActions } from '/cockpit/js/app-workflows.js';
+const clip = value => String(value || '').slice(0,2000);
+const val = id => clip(document.getElementById(id)?.value?.trim());
+const set = (id,value) => { const el=document.getElementById(id); el.value = el.tagName === 'INPUT' ? String(value || '').replace(/\s*\n+\s*/g, ' · ') : value || ''; };
+const brief = context => [context.title,context.notes,context.sourceUrl ? 'Source: '+context.sourceUrl : ''].filter(Boolean).join('\n\n');
+
+const element = document.createElement('section'); element.className='connected-app-actions'; element.setAttribute('aria-label','Connected application actions'); element.style.cssText='margin:16px auto;padding:16px;max-width:1200px;border:1px solid currentColor;border-radius:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap';
+document.body.append(element);
+void mountConnectedActions({ app:"venture-plan", element, contextForOffer:()=>{ const title=clip(document.getElementById('vName').textContent), notes=clip(document.getElementById('vIdea').textContent); if (!document.getElementById('emptyCard').hidden) return null; return title && notes ? {title,notes} : null; } });
 </script>
 </body>
 </html>

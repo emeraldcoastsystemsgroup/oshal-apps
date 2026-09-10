@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Marketing ops rail (service auth, /api/marketing-ops):
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Compile clean against real core types: type the connector spec/creds as ConnectorSpec/BuildSpecOptions instead of unknown, and pass the full CreateInternalTicketInput shape (workspaceId/assignedAgentId/parentTicketId/external* nulls) the canonical schedule-dispatch caller uses.
  *     the deterministic daily metrics ingest (Search Console via the gsc spec + caller's google
  *     connection, PostHog via its spec, GitHub traffic via env token — every source fail-soft, a
  *     missing source is recorded NO DATA and never invented) and the weekly review (scorecard
@@ -22,7 +23,7 @@ import type { AppContext } from '@/app/composition/app-context';
 import { runRuntimeSchemaBootstrap, buildOwnerRlsPolicyStatements } from '@/shared/services/database';
 import { runWithSystemIdentity } from '@/shared/services/database/request-identity';
 import { getValidAccessToken } from '@/app/routes/connectors-routes';
-import { loadConnectorSpec, invokeSpecResource } from '@/app/connectors/runtime';
+import { loadConnectorSpec, invokeSpecResource, type ConnectorSpec, type BuildSpecOptions } from '@/app/connectors/runtime';
 import { resolveConnectorSpecCreds } from '@/app/connectors/runtime/spec-tools';
 import { notifyOperator } from '@/features/notifications';
 import {
@@ -254,7 +255,7 @@ function gscWindow(now: Date): { startDate: string; endDate: string; dates: stri
 
 /** Search Console ingest for one owner: sites -> per-date clicks/impressions aggregates. */
 async function ingestSearchConsole(ctx: AppContext, sub: string): Promise<SourceIngestResult> {
-  let spec: unknown;
+  let spec: ConnectorSpec;
   try {
     spec = loadConnectorSpec(path.join(connectorSpecDir(), 'google-search-console.yaml'));
   } catch (err) {
@@ -277,7 +278,7 @@ async function ingestSearchConsole(ctx: AppContext, sub: string): Promise<Source
 }
 
 /** The owner's verified Search Console site URLs (unverified permission levels excluded). */
-async function gscSiteUrls(spec: unknown, creds: unknown): Promise<string[]> {
+async function gscSiteUrls(spec: ConnectorSpec, creds: BuildSpecOptions): Promise<string[]> {
   const res = await invokeSpecResource(spec, creds, 'sites', {});
   if (!res?.body?.ok) {
     logger.warn({ status: res?.status }, 'gsc sites listing not ok');
@@ -292,7 +293,7 @@ async function gscSiteUrls(spec: unknown, creds: unknown): Promise<string[]> {
 
 /** Aggregate clicks/impressions per date across the owner's sites for the settled window. */
 async function gscDateTotals(
-  spec: unknown, creds: unknown, sites: string[],
+  spec: ConnectorSpec, creds: BuildSpecOptions, sites: string[],
   window: { startDate: string; endDate: string; dates: string[] },
 ): Promise<{ totals: Map<string, { clicks: number; impressions: number }>; succeeded: boolean }> {
   const totals = new Map<string, { clicks: number; impressions: number }>();
@@ -330,7 +331,7 @@ async function gscDateTotals(
  * recorded no_data with reason 'resource_unavailable' rather than inventing a figure.
  */
 async function ingestPosthog(ctx: AppContext, sub: string): Promise<SourceIngestResult> {
-  let spec: unknown;
+  let spec: ConnectorSpec;
   try {
     spec = loadConnectorSpec(path.join(connectorSpecDir(), 'posthog.yaml'));
   } catch (err) {
@@ -520,6 +521,12 @@ async function reviewForOwner(
     status: 'backlog',
     priority: 'medium',
     labels: ['marketing'],
+    workspaceId: null,
+    assignedAgentId: null,
+    parentTicketId: null,
+    externalProvider: null,
+    externalId: null,
+    externalUrl: null,
     ownerSub: sub,
     metadata: { source: 'schedule', scheduleId: fire?.scheduleId ?? 'weekly-campaign-review', week },
   });

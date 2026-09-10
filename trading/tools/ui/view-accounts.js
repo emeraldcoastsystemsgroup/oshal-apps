@@ -24,6 +24,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Adversarial-review fixes: 'Create book…' (tile) and 'create one →' (roster row) call makeBook(accountId, label) directly instead of navigating to a roster that has no create control; hero labels a partial total honestly ('Total of the N accounts that answered' + red 'Not included: …' line) whenever a summary row errored or a tile ended unavailable; a failed GET /accounts still paints the Paper tile beside the error panel; the re-connect copy points at the cockpit's Settings → Connections; matchSummaryRow never lets a notTrading row attach to a booked tile.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 D6 event playbooks: ONE GET /events/plans after the tiles paint (allPlans, not a call per tile) marks every tile whose book has an active IPO plan with an 'IPO plan armed' pill under the strategy line; errors (older server) leave the tiles untouched.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | ADR-138 watchlist: a compact Watchlist panel below the tiles (symbols + quotes, Research → researchSymbol, ✕ remove, add box) painted through the shared loadWatchlistPanel() from view-research.js; independent of GET /accounts so it still fills when the accounts service is down.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Strict-CSP cleanup (ADR-136 D2 tail): the Discover button no longer carries a handler attribute - wireDiscovered() binds it by id right after the skeleton paints, alongside the delegated #discovered listener it already owned.
  */
 
 /* The tile models of the CURRENT paint, in display order — the delegated click handler resolves a
@@ -46,7 +47,7 @@ function accountsSkeleton() {
     '<div class="panel"><h2>Positions across all accounts</h2><div id="rollup">' + spinner('Reading every account…') + '</div></div>' +
     '<div class="panel">' +
       '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><h2 style="margin:0">Connected Schwab accounts</h2>' +
-        '<button class="btn ghost sm" style="margin-left:auto" id="discoverBtn" onclick="discoverAccounts()">Discover accounts</button></div>' +
+        '<button class="btn ghost sm" style="margin-left:auto" id="discoverBtn">Discover accounts</button></div>' +
       '<div class="foot" style="margin:0 0 10px">Log into Schwab once from the cockpit (Settings → Connections) and every account under that login pulls in here. Re-run discovery after connecting a new login — and check <strong>all accounts</strong> on Schwab’s consent screen.</div>' +
       '<div id="discovered">' + spinner('Loading accounts…') + '</div>' +
     '</div>';
@@ -394,11 +395,15 @@ function paintDiscovered() {
 }
 
 /**
- * @description One delegated listener on #discovered for the book links and the create-book action.
- * 'create one →' resolves its ACCOUNTS entry by data-i and calls makeBook() through requestBook().
+ * @description Binds the Discover button and one delegated listener on #discovered for the book links
+ * and the create-book action. 'create one →' resolves its ACCOUNTS entry by data-i and calls makeBook()
+ * through requestBook(). No action reaches the markup as a handler attribute (strict CSP).
  * @returns {void}
  */
 function wireDiscovered() {
+  // Strict CSP: the Discover button carries no handler attribute - it is bound here, right after the
+  // skeleton paints (renderAccountsView calls this on every entry, so the binding is never missed).
+  const db = $('discoverBtn'); if (db) db.onclick = discoverAccounts;
   const host = $('discovered'); if (!host) return;
   host.addEventListener('click', (e) => {
     const a = e.target.closest('a'); if (!a || !host.contains(a)) return;

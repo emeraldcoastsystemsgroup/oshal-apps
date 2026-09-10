@@ -15,7 +15,7 @@ description: >-
   intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic
   metrics scorecard, experiment registry, budget proposals a human approves, and weekly review
   tickets worked by inline concierge bots only after human approval.
-version: 0.1.0
+version: 0.2.0
 status: active
 suite: ai-productivity
 theme: midnight
@@ -170,3 +170,46 @@ ribbon:
 migrations:
   - migrations/001-marketing-core.sql
   - migrations/002-marketing-metrics.sql
+
+integrations:
+  accepts:
+    - id: prepare-brief
+      contextType: research-brief
+      version: 1
+      surface: marketing-engine
+      fields:
+        - title
+        - notes
+        - sourceUrl
+  offers:
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+    - id: prepare-post
+      label: Prepare a post
+      targetApp: switchboard
+      targetAction: prepare-post
+      contextType: communication-brief
+      version: 1
+    - id: prepare-social
+      label: Prepare a social draft
+      targetApp: social
+      targetAction: prepare-post
+      contextType: communication-brief
+      version: 1
+    - id: prepare-video
+      label: Prepare a video clip
+      targetApp: vids
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+    - id: prepare-episode
+      label: Prepare a video episode
+      targetApp: video
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+

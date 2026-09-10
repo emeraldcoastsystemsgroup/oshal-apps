@@ -209,9 +209,11 @@ async function doSearch(e){
       data = await api('/flights?'+qs.toString());
     } else if(KIND==='hotel'){
       const qs = new URLSearchParams({city:val('h_city'),checkIn:val('h_in'),checkOut:val('h_out')});
+      LAST.search = Object.fromEntries(qs);
       data = await api('/hotels?'+qs.toString());
     } else {
       const qs = new URLSearchParams({city:val('c_city'),pickupDate:val('c_in'),dropoffDate:val('c_out'),carClass:val('c_class')});
+      LAST.search = Object.fromEntries(qs);
       data = await api('/cars?'+qs.toString());
     }
     render(data);
@@ -248,6 +250,20 @@ async function sendChat(){
   switchTab('flight');
   try { const c = await api('/config'); document.getElementById('mode').textContent = c.mode||'demo'; document.getElementById('mode').className='badge '+(c.connected&&c.live?'live':''); } catch(e){}
 })();
+</script>
+
+<!-- App-owned context integration: drafts only; existing actions still execute explicitly. -->
+<script type="module">
+import { receiveHandoff } from '/cockpit/js/app-handoff.js';
+import { mountConnectedActions } from '/cockpit/js/app-workflows.js';
+const clip = value => String(value || '').slice(0,2000);
+const val = id => clip(document.getElementById(id)?.value?.trim());
+const set = (id,value) => { const el=document.getElementById(id); el.value = el.tagName === 'INPUT' ? String(value || '').replace(/\s*\n+\s*/g, ' · ') : value || ''; };
+const brief = context => [context.title,context.notes,context.sourceUrl ? 'Source: '+context.sourceUrl : ''].filter(Boolean).join('\n\n');
+receiveHandoff({"app":"travel","action":"plan-trip","contextType":"planning-brief","version":1,"fields":["title","notes","sourceUrl"]}, context => { set('chatbox', brief(context)); document.getElementById('chatbox').focus(); });
+const element = document.createElement('section'); element.className='connected-app-actions'; element.setAttribute('aria-label','Connected application actions'); element.style.cssText='margin:16px auto;padding:16px;max-width:1200px;border:1px solid currentColor;border-radius:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap';
+document.body.append(element);
+void mountConnectedActions({ app:"travel", element, contextForOffer:()=>{ if (!LAST.search) return null; const title='Prepare for my '+KIND+' search'; const notes=clip('Travel search (not a confirmed booking): '+JSON.stringify(LAST.search)); return {title,notes}; } });
 </script>
 </body>
 </html>

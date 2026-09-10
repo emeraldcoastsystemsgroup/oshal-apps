@@ -28,6 +28,7 @@ exports.runUserScore = runUserScore;
  */
 const connector_token_crypto_1 = require("@/app/routes/connector-token-crypto");
 const logger_1 = require("@/shared/logger");
+const career_match_prefs_1 = require("./career-match-prefs");
 const career_engine_runner_1 = require("./career-engine-runner");
 const logger = (0, logger_1.createChildLogger)({ module: 'career-engine-dispatch' });
 const PROVIDER_ENV = { anthropic: 'OSHAL_CRED_ANTHROPIC', firecrawl: 'OSHAL_CRED_FIRECRAWL' };
@@ -223,6 +224,12 @@ async function runUserMatch(pool, userSub) {
  */
 async function runUserScore(pool, userSub, opts = {}) {
     const args = ['score', '--min-keyword', '40'];
+    // The standing remote-only preference (migration 104) is applied HERE, at the one place every
+    // automated scoring caller funnels through, so the cron and the boot catch-up cannot drift apart
+    // from each other — and so an on-site role a remote-only candidate would never take never costs
+    // a scoring inference.
+    if (await (0, career_match_prefs_1.readRemoteOnly)(pool, userSub))
+        args.push('--remote-only');
     if (opts.firstSeenDays && Number.isFinite(opts.firstSeenDays)) {
         args.push('--first-seen-days', String(Math.max(1, Math.floor(opts.firstSeenDays))));
     }

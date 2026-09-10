@@ -61,7 +61,7 @@ description: >-
   Bots supply assumptions with a source, a band and a confidence; a deterministic engine does
   every calculation. Every number is either computed and traceable, or visibly a labelled guess
   you should go replace with a quote.
-version: 1.0.0
+version: 1.2.0
 status: active
 scope: person
 
@@ -289,6 +289,30 @@ migrations:
 # operator override (the "replace this guess with a real quote" action), the
 # numbers pane where every figure opens its own derivation, and the document set.
 # ─────────────────────────────────────────────────────────────────────────────
+integrations:
+  accepts:
+    - id: research-idea
+      contextType: research-brief
+      version: 1
+      surface: venture-home
+      fields:
+        - title
+        - notes
+        - sourceUrl
+  offers:
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+    - id: prepare-campaign
+      label: Prepare a campaign
+      targetApp: marketing-engine
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+
 ui:
   static:
     - toolName: venture-home

@@ -41,7 +41,7 @@ description: >-
   sentiment graph (political + economic + outlet-kind axes), entity co-mention graph,
   and historical series. Ask the analyst "what's the press saying about X" and get a
   structured, bias-contextualized read, not a misleading average.
-version: 1.0.3
+version: 1.2.0
 status: active
 
 source:
@@ -309,6 +309,37 @@ tools:
 # (served by the packaged route at /api/world/app; the HTML itself is the kernel
 # slice's WORLD_APP_HTML module, imported via @/features/world-data).
 # ─────────────────────────────────────────────────────────────────────────────
+summary:
+  path: /api/world/home-summary
+  metricsPointer: /metrics
+  itemsPointer: /items
+integrations:
+  offers:
+    - id: review-sales
+      label: Review with Sales
+      targetApp: intelligent-sales
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+    - id: explore-venture
+      label: Explore as a venture
+      targetApp: venture-plan
+      targetAction: research-idea
+      contextType: research-brief
+      version: 1
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+    - id: prepare-campaign
+      label: Prepare a campaign
+      targetApp: marketing-engine
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+
 ui:
   static:
     - toolName: world-dashboard
@@ -327,6 +358,10 @@ ui:
 # ENABLE_WORLD_INTELLIGENCE is configured.
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/world/home-summary
+    auth: oidc
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/world/_smoke

@@ -66,6 +66,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createIdentityRoutes = createIdentityRoutes;
+const identity_summary_1 = require("./identity-summary");
 const express_1 = require("express");
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
@@ -174,6 +175,7 @@ async function runAdvisor(ctx, sub, inventory) {
  */
 function createIdentityRoutes(ctx) {
     const router = (0, express_1.Router)();
+    router.use((0, identity_summary_1.createIdentitySummaryRoutes)(ctx));
     const surface = identityHtml(ctx.appPackageDir);
     router.get('/', servePage(surface));
     router.get('/ui', servePage(surface));

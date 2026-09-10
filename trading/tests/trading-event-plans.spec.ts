@@ -4,6 +4,8 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — ADR-136 D6 guards for event playbooks: every event-plan handler 401-gates via callerSub, the book is resolved QUERY-FIRST (the 2026-09-03 paper-routing class), arm is 428 confirm-gated and 503s BEFORE arming when the scheduler is absent, the per-user schedule is created in America/New_York on the intelligent-trades queue, the route family is registered right after the direct-trade routes, /studio branches on isEventIntent BEFORE the rotation flow with the SAME query-first book resolution, the six IPO findings exist with their exact ids + Google-Scholar urls (no doi.org asserted for them), isEventIntent matches the operator's phrasings and not a rotation ask, and the event prompt/parser carry the manual-vs-automated contract.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | UI pins for the D6 remainder: the event-playbook UI lives in view-events.js (view-strategies.js no longer defines it and is back under the 800-code-line bar), the shell loads view-events.js right after view-strategies.js, the pricing-date Save is a data-act handler that reads the <input> BY ID and PATCHes params.pricingDate only (no inline handler, no order path), and the reminder status is read off the timeline's cotp_* events. The behaviour itself is proven by the kernel's real-DB specs (tests/unit/trading-event-reminders.spec.ts, trading-event-alerts.spec.ts in core).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Review round 2: pin the pricing-date Save READ-BACK — the response's params.pricingDate is compared to what was sent and a mismatch alerts. A kernel that predates the knob returns 200 and drops the value, so without this pin the surface could ship a control that looks successful and stores nothing.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
@@ -271,5 +273,51 @@ describe('eventPlanPrompt + parseEventPlanReply — the manual-vs-automated cont
 
   it('THROWS on a prose-only reply — the route turns that into needsInput, never a 502', () => {
     expect(() => parseEventPlanReply('Which company is going public?', findings)).toThrow();
+  });
+});
+
+describe('event-playbook UI — carved into view-events.js; pricing date + reminders (ADR-136 D6 remainder)', () => {
+  const events = src('tools/ui/view-events.js');
+  const strategies = src('tools/ui/view-strategies.js');
+  const html = src('tools/trading.html');
+  /** Code lines per CLAUDE.md "Hard file/function limits": blank lines and comments do not count. */
+  const codeLines = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter((l) => l.trim() && !l.trim().startsWith('//')).length;
+
+  it('view-events.js owns the event helpers; view-strategies.js only calls them, and both files are under the 800-code-line bar', () => {
+    for (const fn of ['eventPlanActive', 'eventStatusPill', 'eventEntryExitText', 'eventPlanText', 'renderStudioEventResult', 'studioArmEvent', 'studioDisarmEvent', 'loadEventPlansTab', 'eventPlanDetail', 'eventPlanAction']) {
+      expect(events).toMatch(new RegExp(`(async )?function ${fn}\\(`));
+      expect(strategies).not.toMatch(new RegExp(`function ${fn}\\(`));
+    }
+    expect(strategies).toContain('renderStudioEventResult(j)');   // the Studio still dispatches kind:event to the moved card
+    expect(codeLines(strategies)).toBeLessThan(800);
+    expect(codeLines(events)).toBeLessThan(800);
+  });
+
+  it('the shell loads view-events.js right after view-strategies.js', () => {
+    const refs = [...html.matchAll(/<script src="\/api\/trading\/ui\/([^"?]+)"/g)].map((m) => m[1]);
+    expect(refs.indexOf('view-events.js')).toBe(refs.indexOf('view-strategies.js') + 1);
+  });
+
+  it('the pricing-date Save is a delegated data-act that reads the input BY ID and PATCHes params.pricingDate only — no inline handler, no order path', () => {
+    expect(events).toContain('data-act="pricing" data-id="');
+    expect(events).toContain("if (act === 'pricing') { await saveEventPricingDate(p); return; }");
+    expect(events).toContain("document.getElementById('evpPricing-' + p.planId)");
+    expect(events).toContain("jbody('PATCH', { params: { pricingDate: value || null } })");
+    // The kernel rebuilds params from a fixed key set: a build without the pricingDate knob answers 200
+    // and drops the value. Save must compare the response to what it sent, or it lies to the operator.
+    expect(events).toContain("const saved = (r && r.plan && r.plan.params && r.plan.params.pricingDate) || '';");
+    expect(events).toContain('if (saved !== value) {');
+    expect(events).toContain('Pricing date NOT saved');
+    // Inline handlers in MARKUP (onclick="…" attributes) are what strict CSP forbids; `el.onclick = fn` property wiring is not.
+    expect(events).not.toMatch(/\bon(click|change|input)=["'\\]/);
+    expect(events).not.toMatch(/\/orders|\/decisions\/manual/);
+    expect(events).not.toMatch(/console\.log/);
+  });
+
+  it('reminder status is derived from the timeline (cotp_<key>_sent / _expired) and the deadline is 4:00 PM ET on the last trading day before pricing', () => {
+    expect(events).toContain('/^cotp_t(\\d+)_(sent|expired)$/');
+    expect(events).toContain("function eventCotpDeadline(pricingDate) { const d = eventTradingDayBack(pricingDate, 1); return d ? eventDateWords(d) + ' 4:00 PM ET' : ''; }");
+    expect(events).toContain('function eventTradingDayBack(iso, n)');
+    expect(events).not.toContain('Deadline today');
   });
 });

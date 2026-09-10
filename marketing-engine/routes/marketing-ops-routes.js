@@ -5,6 +5,8 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Marketing ops rail (service auth, /api/marketing-ops):
+
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Compile clean against real core types: type the connector spec/creds as ConnectorSpec/BuildSpecOptions instead of unknown, and pass the full CreateInternalTicketInput shape (workspaceId/assignedAgentId/parentTicketId/external* nulls) the canonical schedule-dispatch caller uses.
  *     the deterministic daily metrics ingest (Search Console via the gsc spec + caller's google
  *     connection, PostHog via its spec, GitHub traffic via env token — every source fail-soft, a
  *     missing source is recorded NO DATA and never invented) and the weekly review (scorecard
@@ -484,6 +486,12 @@ async function reviewForOwner(ctx, sub, week, fire) {
         status: 'backlog',
         priority: 'medium',
         labels: ['marketing'],
+        workspaceId: null,
+        assignedAgentId: null,
+        parentTicketId: null,
+        externalProvider: null,
+        externalId: null,
+        externalUrl: null,
         ownerSub: sub,
         metadata: { source: 'schedule', scheduleId: fire?.scheduleId ?? 'weekly-campaign-review', week },
     });
@@ -608,3 +616,4 @@ function createMarketingOpsRoutes(ctx) {
     router.post('/weekly', manualRunHandler(ctx, 'manual-weekly-review', runMarketingWeeklyReview));
     return router;
 }
+//# sourceMappingURL=marketing-ops-routes.js.map

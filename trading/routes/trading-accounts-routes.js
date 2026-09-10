@@ -19,6 +19,8 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — GET /accounts (discovered accounts joined with books + connectionMissing), POST /accounts/discover, POST /accounts/books (+PATCH/DELETE), POST /accounts/books/:bookId/strategy (+DELETE revert), POST /accounts/books/:bookId/mix (overlay-merge on the ACTIVE override — never env defaults, so a mix edit cannot silently revert an applied strategy's other knobs), POST /accounts/books/:bookId/reset-breaker (confirm-gated, journaled), and GET /summary (every discovered account — unbooked rows flagged notTrading — with day-change fallback prior-close → broker day P/L → null, never 0).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Cash-account settlement (ADR-134 D8): GET /accounts books[] carries accountType ('cash'|'margin'|null, from the core listBooks accounts join — ONE source; the UI no longer needs to derive it from accounts[]) and settlementPolicy; PATCH /accounts/books/:bookId accepts settlementPolicy as 'refuse' | 'warn' | null only (400 settlement_policy_invalid otherwise — 'off' is env-only, and the column CHECK is the DB-side pin). Not confirm-gated: the field can only tighten or soften a guard, never open an order path.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-134 pin retirement: GET /summary's double-count guard no longer reads SCHWAB_ACCOUNT_NUMBER. The kernel adapter's unbound rule is now single-account-or-refuse, so the ONLY state in which the legacy 'live' row still stands for a discovered account is: that book is UNBOUND and the login discovered exactly ONE Schwab account. The skip is now computed from those two facts (books.account_id IS NULL + the account count) instead of a last4 match against an env pin that no longer exists. On a multi-account login an unbound legacy book renders the adapter's refusal as this row's `error` - an honest row rather than another account's money.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.registerTradingAccountRoutes = registerTradingAccountRoutes;
@@ -106,6 +108,7 @@ function registerTradingAccountRoutes(router, ctx) {
                     label: labels.get(b.bookId)?.label ?? b.ref, accountMasked: labels.get(b.bookId)?.last4 ? `…${labels.get(b.bookId)?.last4}` : null,
                     strategy: activeByBook.get(b.bookId) ?? null,
                     capitalCapUsd: b.capitalCapUsd, connectionMissing: b.connectionKey ? !liveKeys.has(b.connectionKey) : false,
+                    accountType: b.accountType ?? null, settlementPolicy: b.settlementPolicy ?? null,
                 })),
             });
         }
@@ -146,13 +149,19 @@ function registerTradingAccountRoutes(router, ctx) {
             fail(res, err);
         }
     });
-    /** PATCH /accounts/books/:bookId — label / enabled / capitalCapUsd. NEVER account_id (immutable
-     *  once traded — re-pointing carries the old HWM onto a new account, the phantom-drawdown class). */
+    /** PATCH /accounts/books/:bookId — label / enabled / capitalCapUsd / settlementPolicy. NEVER account_id
+     *  (immutable once traded — re-pointing carries the old HWM onto a new account, the phantom-drawdown class). */
     router.patch('/accounts/books/:bookId', async (req, res) => {
         const s = sub(req, res);
         if (!s)
             return;
         const b = (req.body || {});
+        // ADR-134 D8: the per-book override is refuse | warn | null (fleet default). 'off' is refused here
+        // and by the column CHECK — only the env (TRADING_CASH_SETTLEMENT_POLICY) can disarm the guard.
+        if (b.settlementPolicy !== undefined && b.settlementPolicy !== null && b.settlementPolicy !== 'refuse' && b.settlementPolicy !== 'warn') {
+            res.status(400).json({ error: 'settlement_policy_invalid', message: "settlementPolicy must be 'refuse', 'warn' or null (the fleet default)." });
+            return;
+        }
         // ARMING a live account to trade real money needs a server-side confirm, not just the browser
         // dialog (surface-audit 2026-09-03): every sibling risk action (create book, apply strategy,
         // reset breaker) is 428-gated; enabling a live book was the one that trusted the client alone.
@@ -165,6 +174,7 @@ function registerTradingAccountRoutes(router, ctx) {
                 label: b.label != null ? String(b.label) : undefined,
                 enabled: typeof b.enabled === 'boolean' ? b.enabled : undefined,
                 capitalCapUsd: b.capitalCapUsd === undefined ? undefined : (b.capitalCapUsd == null ? null : Number(b.capitalCapUsd)),
+                settlementPolicy: b.settlementPolicy === undefined ? undefined : b.settlementPolicy,
             });
             if (!book) {
                 res.status(404).json({ error: 'unknown_book' });
@@ -395,16 +405,22 @@ function registerTradingAccountRoutes(router, ctx) {
            FROM oshal_trading_accounts a
           WHERE a.user_sub = $1 AND a.broker = 'schwab'
             AND NOT EXISTS (SELECT 1 FROM oshal_trading_books b WHERE b.user_sub = a.user_sub AND b.account_id = a.account_id)`, [s])).rows;
-            // DOUBLE-COUNT GUARD (surface-audit 2026-09-03): the legacy 'live' book is UNBOUND, so it
-            // reads whatever SCHWAB_ACCOUNT_NUMBER pins (…the env account). The physically same account,
-            // once discovered, is also an unbooked row here — counting both inflated the total by a whole
-            // account. Skip any discovered account whose last4 matches the env pin: the legacy live row
-            // already represents it.
-            const envPinLast4 = String(process.env.SCHWAB_ACCOUNT_NUMBER || '').trim().slice(-4);
+            // DOUBLE-COUNT GUARD (surface-audit 2026-09-03, re-derived for the ADR-134 pin retirement):
+            // an UNBOUND legacy 'live' book used to read whatever SCHWAB_ACCOUNT_NUMBER pinned, and that
+            // same account — once discovered — is also an unbooked row here, so both were counted and the
+            // total gained a whole account. There is no pin to match a last4 against any more, and the
+            // kernel adapter's unbound rule is single-account-or-refuse: the ONLY state where the legacy
+            // row still stands for a discovered account is an UNBOUND legacy live book on a login with
+            // exactly ONE Schwab account. Compute that from the two facts rather than guessing a number.
+            // (On a multi-account login the unbound legacy row now renders the adapter's refusal as its
+            // own `error` entry above — an honest row, never another account's money.)
+            const legacyLiveUnbound = (await ctx.pool.query(`SELECT 1 FROM oshal_trading_books WHERE user_sub = $1 AND ref = 'live' AND account_id IS NULL`, [s])).rows.length > 0;
+            const schwabAccountCount = Number((await ctx.pool.query(`SELECT count(*)::int AS n FROM oshal_trading_accounts WHERE user_sub = $1 AND broker = 'schwab'`, [s])).rows[0]?.n || 0);
+            const legacyRowCoversTheOnlyAccount = legacyLiveUnbound && schwabAccountCount === 1;
             if (unbooked.length) {
                 for (const a of unbooked) {
-                    if (envPinLast4 && String(a.account_last4) === envPinLast4)
-                        continue; // legacy live row covers it
+                    if (legacyRowCoversTheOnlyAccount)
+                        continue; // the unbound legacy live row already counts it
                     try {
                         const num = await (0, connector_token_crypto_1.decryptToken)(ctx.pool, s, String(a.account_number_enc));
                         const reader = (0, trading_1.getBrokerReader)('live', s, { accountNumber: num, connectionKey: a.connection_key ? String(a.connection_key) : null });

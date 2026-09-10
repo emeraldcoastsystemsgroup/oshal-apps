@@ -30,7 +30,7 @@ description: >-
   Turn an idea into generated video. The Veo specialist drives Google Vids by
   clicking — describes the shot, generates the clip, places it on the timeline —
   on a remote operator machine, and learns what works over time.
-version: 1.1.1
+version: 1.2.0
 status: active
 
 theme: midnight
@@ -172,3 +172,27 @@ ribbon:
     - logs
     - operations
   defaultView: vids-studio
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+    - id: prepare-episode
+      label: Prepare a video episode
+      targetApp: video
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+  accepts:
+    - id: prepare-brief
+      contextType: research-brief
+      version: 1
+      surface: vids-studio
+      fields:
+        - title
+        - notes
+        - sourceUrl

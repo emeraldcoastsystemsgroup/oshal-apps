@@ -36,7 +36,7 @@ description: >-
   digest, and drafts replies with the communications bot — sending is a single
   explicit-confirm gated action ("email me a copy"). The bot does the reasoning
   on its own harness/model with cost captured per user.
-version: 1.0.0
+version: 1.2.0
 status: active
 
 source:
@@ -149,7 +149,21 @@ ui:
       iframeUrl: /api/email/social
       section: top
 
+summary:
+  path: /api/email-summarizer/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/email-summarizer/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/email-summarizer/_smoke
@@ -180,3 +194,18 @@ ribbon:
     - logs
     - operations
   defaultView: email-myday
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+    - id: review-sales
+      label: Review with Sales
+      targetApp: intelligent-sales
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

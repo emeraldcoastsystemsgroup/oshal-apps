@@ -1,5 +1,13 @@
 # World Intelligence — OSHAL app package
 
+## Home briefing and connected action (1.1.1)
+
+The session-only `GET /api/world/home-summary` reads the existing shared archive. It samples the latest 100 saved items per baseline World topic, chooses articles published within 48 hours, and shows up to three distinct source articles from different topics, plus the earliest recorded event in the coming seven days. Old, future and unknown publication dates do not become current headlines merely because a feed reimported them. This bounded sample is not a global importance ranking or personalized briefing. Publication dates and subject labels accompany the saved evidence.
+
+Four selectable metrics use the preceding 24 hours of `world_pulls`: fetched items (including repeat pulls), newly recorded subject items (one article may occur under multiple subjects), distinct subjects pulled, and feed-pull records. These are not unique-event or unread counts. Missing sources remain unavailable. The reader never creates schemas, ingests, classifies or calls a model/provider.
+
+Fresh AI, technology, healthcare and energy items with product, research or commercial-development titles can offer **Explore as a venture** when a compatible Venture Plan receiver is loaded. A conservative title filter excludes sports, court and violent-event stories; it is a navigation aid, not an opportunity assessment. Other headlines retain their evidence link without a Venture suggestion. The action passes the title, supporting evidence and public source URL into a reviewable draft. The user chooses Scope it to create/research anything. Venture Plan is an optional integration partner, not an installation dependency. This version requires core's versioned integration contract and bounded subject-selectable `coverageSnapshot` reader.
+
 `?app=world` — the swarm's SHARED world-intelligence layer (ADR-061, Layer B).
 Multi-source news feeds (Google/Bing News, Reddit, ...) are fetched, classified, and
 bias-rated into a shared ArangoDB graph + TimescaleDB series + classified archive. Ask

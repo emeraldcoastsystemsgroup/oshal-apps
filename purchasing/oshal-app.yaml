@@ -25,7 +25,7 @@ description: >-
   AI shopping concierge — search Walmart/Amazon, build lists, learn your
   preferences, find deals, and hand off a ready-to-checkout cart. Other swarm
   bots can ask it to make a purchase.
-version: 1.0.0
+version: 1.1.0
 status: active  # active | inactive
 
 source:
@@ -260,3 +260,21 @@ ribbon:
   # swarm-bot panel (same as jarvis).
   hideChatPanel: true
   defaultView: shop-concierge
+
+integrations:
+  accepts:
+    - id: plan-purchase
+      contextType: planning-brief
+      version: 1
+      surface: shop-concierge
+      fields:
+        - title
+        - notes
+        - sourceUrl
+  offers:
+    - id: plan-meal
+      label: Plan a meal
+      targetApp: eats
+      targetAction: plan-meal
+      contextType: planning-brief
+      version: 1

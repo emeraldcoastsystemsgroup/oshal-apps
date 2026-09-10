@@ -4,13 +4,17 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Fixed in-process Bluesky post operation (twilio-sms-operation shape, ADR-133): the caller's stored identifier:app-password is decrypted inside this function, exchanged for a session at two fixed AT-proto endpoints only, and never returned, logged, placed in process.env, or passed to a child process. The declarative connector tier cannot express the createSession token exchange (connector-spec contract §5), so this schema-bounded server operation is the sanctioned rail.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Same QueryablePool fix: derive the pool type from AppContext so this module compiles against the real framework types, not the package's ambient stub.
  *
  * @module marketing-bluesky-operation
  */
 
 import { createChildLogger } from '@/shared/logger';
-import type { QueryablePool } from '@/app/composition/app-context';
+import type { AppContext } from '@/app/composition/app-context';
 import { getValidAccessToken } from '@/app/routes/connectors-routes';
+
+/** The framework pool surface, derived from AppContext so this never drifts from core. */
+type QueryablePool = AppContext['pool'];
 
 const logger = createChildLogger({ module: 'marketing-bluesky-operation' });
 

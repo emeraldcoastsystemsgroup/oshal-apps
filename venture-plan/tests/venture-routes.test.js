@@ -483,16 +483,20 @@ test('the router registers the document read and regenerate routes for the catal
 
 /* ══ 7. the served surface parses ═══════════════════════════════════════ */
 
-test('every inline script in the served surface parses as a classic script', () => {
+test('every inline script in the served surface parses according to its declared type', () => {
   const file = path.join(PKG, 'tools', 'venture.html');
   assert.ok(fs.existsSync(file), 'the manifest points the ribbon at this file');
   const html = fs.readFileSync(file, 'utf8');
-  const scripts = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]);
+  const scripts = [...html.matchAll(/<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>/gi)];
   assert.ok(scripts.length >= 1, 'the console is driven by at least one inline script');
-  scripts.forEach((src, i) => {
+  scripts.forEach((match, i) => {
+    const [, attrs, src] = match;
     // A SyntaxError in a served string is caught by no compiler and no console —
     // the page simply never loads and the app looks installed but dead.
-    assert.doesNotThrow(() => new vm.Script(src), `inline script #${i + 1} must parse`);
+    if (/\btype\s*=\s*['"]module['"]/i.test(attrs)) {
+      const checked = require('node:child_process').spawnSync(process.execPath, ['--check', '--input-type=module'], { input: src, encoding: 'utf8' });
+      assert.equal(checked.status, 0, `inline module #${i + 1} must parse: ${checked.stderr}`);
+    } else assert.doesNotThrow(() => new vm.Script(src), `inline script #${i + 1} must parse`);
   });
 });
 

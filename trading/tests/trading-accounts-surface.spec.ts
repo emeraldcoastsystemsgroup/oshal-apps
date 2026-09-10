@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — ADR-134 PR3 surface guards (source-level; the DB-boundary invariants — cross-user FK, born-disabled, delete refusal, clone-backfill — are real-DB-proven in the KERNEL's trading-books-schema / trading-override-book-scope specs): every accounts/summary handler resolves the caller through callerSub (the SEC-01 service-secret READ refusal rides it); book creation, strategy apply, mix edits, and breaker resets are confirm-gated; PATCH whitelists label/enabled/capitalCapUsd and can never carry account_id; the mix editor merges over the ACTIVE override (never env defaults); the resolver is connectionKey-capable and fail-closed on a missing login row; and the UI threads book= on every fetch.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-134 pin retirement pin: the summary's double-count guard must not read SCHWAB_ACCOUNT_NUMBER (nor any other env pin) - it is derived from the legacy live book's own account_id and the discovered-account count, so a login with several accounts can never have one of them silently substituted for another.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
@@ -113,5 +114,21 @@ describe('compiled twins are in lockstep with src-routes', () => {
     expect(src('routes/trading-accounts-routes.js')).toContain('reset-breaker');
     expect(src('routes/trading-routes.js')).toContain('connectionKey');
     expect(src('routes/trading-routes-book-read-builders.js')).toContain('book_id=$2');
+  });
+});
+
+describe('summary double-count guard - derived from the books/accounts rows, never an env pin', () => {
+  const accounts = src('src-routes/trading-accounts-routes.ts');
+
+  it('nothing in this surface reads SCHWAB_ACCOUNT_NUMBER (the retired account pin)', () => {
+    expect(accounts).not.toContain('process.env.SCHWAB_ACCOUNT_NUMBER');
+    expect(accounts).not.toContain('envPinLast4');
+  });
+
+  it('the skip is the two real facts: an UNBOUND legacy live book and exactly one discovered account', () => {
+    expect(accounts).toContain("ref = 'live' AND account_id IS NULL");
+    expect(accounts).toContain("broker = 'schwab'");
+    expect(accounts).toMatch(/legacyLiveUnbound && schwabAccountCount === 1/);
+    expect(accounts).toContain('if (legacyRowCoversTheOnlyAccount) continue;');
   });
 });

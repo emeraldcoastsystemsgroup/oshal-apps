@@ -181,3 +181,21 @@ identity, chronological ordering, bulk exclusion, honest counts under caps), the
 (confirmation-before-I/O, source-owned recipient binding, encryption, semantic idempotency,
 atomic claims, and terminal ambiguous outcomes), and a classic-script parse guard over every
 surface's inline `<script>` (the world 1.0.1 lesson).
+
+## Configurable Home summary (0.5.0)
+
+GET /api/switchboard/home-summary reads recorded state across all workspaces owned by the caller. All seven data points default on:
+
+| Metric id | Meaning |
+|---|---|
+| posts-in-review | Streams posts currently in_review. |
+| posts-scheduled | Streams posts currently scheduled, including those already due. |
+| posts-overdue | Scheduled posts whose scheduled_at is at or before the snapshot time. |
+| posts-failed | Streams posts currently failed. |
+| replies-pending | Confirmed reply-outbox entries currently pending or sending, never sent. |
+| replies-failed | Reply-outbox entries currently failed. |
+| replies-uncertain | Reply-outbox entries whose delivery outcome is uncertain; inspect before retrying. |
+
+These are current-state counts, not daily totals, provider delivery receipts, unread counts, or independently deduplicated conversations. The summary reads neither message bodies nor connection tokens. It calls no provider, sends nothing, and performs no schema initialization. Missing publishing/outbox data remains unavailable alongside the successful source; both failing returns 503. Detail links open switchboard-streams and switchboard-threads. Workspace-specific display filters and cached inbox priority metrics remain separate work.
+
+This manifest requires the matching core metricsPointer support (core PR #411). The matching core and this package were deployed and authenticated Home rendering was verified on 2026-09-10 UTC; see APP-HOME-EXTRACTION-PLAN.md for the rollout record. Validation: 12 compiled-route tests in scripts/home-summary.test.cjs; scripts/home-summary.integration.cjs exercises actual PostgreSQL schemas, owner RLS and SELECT-only source grants, plus Chromium desktop/mobile and saved metric hiding. Run the integration harness from the matching core checkout with HOME_TEST_DATABASE_URL pointing to a disposable localhost database named home_summary_test. It uses mock sign-in and seeded records, not live accounts.

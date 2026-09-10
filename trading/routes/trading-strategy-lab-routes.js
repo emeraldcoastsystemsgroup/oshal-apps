@@ -17,6 +17,7 @@
  * 2026-07-24 13:20:00 | roger.murphy@emeraldcoastsystemsgroup.com | Strategy Studio: POST /studio — a conversational quant analyst that grounds a design in cited peer-reviewed research (trading-strategy-research.ts), drafts a StrategyConfig, INJECTS it as a candidate, backtests ~2y, and narrates with sources. Reuses the /draft bot path + createStrategy + backtestStrategy; citations validated against the curated corpus so no invented paper survives.
  * 2026-07-25 21:55:00 | roger.murphy@emeraldcoastsystemsgroup.com | Studio REFINE-IN-PLACE (the workflow-assistant contract): /studio with a strategyId feeds the CURRENT config back into the prompt and updateStrategy()s the SAME row (store resets forward walk + baseline) instead of minting a new strategy every turn; a reply with no parseable JSON returns {needsInput, message} — a clarifying question — instead of 502; blends are refused conversationally (embedded snapshots); response flags refined and warns when the refined strategy is live-APPLIED (the override keeps its old snapshot until re-applied). Prompt/parse helpers moved to trading-strategy-studio-prompt.ts so the spec imports them without this module's kernel chain.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 D6 event playbooks: /studio resolves the SELECTED book query-first and branches on isEventIntent (or a strategyId that is an event plan) BEFORE the rotation flow — the Studio refused "the Anthropic IPO" because a single listing is not a rotation. The branch lives in trading-event-plan-routes.ts (respondEventStudioTurn); the rotation/ensemble flow is otherwise byte-identical.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Book resolution is QUERY-first on the two lab handlers that read the body first (the strategy apply route and the tune route) — the 2026-09-03 book-scoping doctrine (query wins over body, never body-only) now holds on every lab route; found by the Studio parity proof review, pinned by tests/trading-lab-book-scope.spec.ts.
  *
  * @module trading-strategy-lab-routes
  */
@@ -508,7 +509,7 @@ function createTradingStrategyLabRoutes(ctx) {
             // wins when set). Without this the lab was the last two-book surface — Apply silently cloned
             // to the legacy paper+live pair no matter which account the operator was looking at
             // ("the software only works for a single account and everything else is mangled").
-            const book = await (0, trading_routes_helpers_1.resolveBook)(pool, s, b.book ?? req.query.book ?? req.query.mode);
+            const book = await (0, trading_routes_helpers_1.resolveBook)(pool, s, req.query.book ?? b.book ?? req.query.mode);
             const strategy = await (0, trading_strategy_lab_ops_1.requireStrategy)(pool, s, String(req.params.id));
             const config = (0, trading_strategy_lab_sim_1.normalizeConfig)(strategy.config); // defensive re-normalize of the stored knobs
             const row = await (0, trading_config_overrides_1.applyOverride)(pool, s, {
@@ -542,7 +543,7 @@ function createTradingStrategyLabRoutes(ctx) {
         if (!s)
             return;
         try {
-            const book = await (0, trading_routes_helpers_1.resolveBook)(pool, s, String((req.body || {}).book ?? req.query.book ?? req.query.mode ?? '') || undefined);
+            const book = await (0, trading_routes_helpers_1.resolveBook)(pool, s, String(req.query.book ?? (req.body || {}).book ?? req.query.mode ?? '') || undefined);
             const row = await (0, trading_config_overrides_1.revertOverride)(pool, s, book.bookId, book.ref);
             res.json({
                 reverted: !!row,

@@ -27,6 +27,7 @@
  */
 import { type Router, type Request, type Response } from 'express';
 import { createChildLogger } from '@/shared/logger';
+import { readRemoteOnly } from './career-match-prefs';
 import type { AppContext } from '@/app/composition/app-context';
 import { getValidAccessToken } from '@/app/routes/connectors-routes';
 import { sendGmail } from '@/app/routes/email-routes';
@@ -158,7 +159,7 @@ async function channelReadiness(pool: AppContext['pool'], userSub: string): Prom
  * @param sinceIso last digest time (null = first digest: current top hits, still capped)
  * @returns up to MAX_HITS hits, best first
  */
-export function findNewHits(userSub: string, sinceIso: string | null): DigestHit[] {
+export function findNewHits(userSub: string, sinceIso: string | null, remoteOnly = false): DigestHit[] {
   const db = openUserDb(userSub);
   if (!db) return [];
   try {
@@ -169,6 +170,7 @@ export function findNewHits(userSub: string, sinceIso: string | null): DigestHit
         JOIN corpus.companies co ON co.id = pc.company_id
         JOIN user_signals us ON us.posting_id = pc.id
        WHERE pc.active = 1 AND COALESCE(pc.target_role, 0) = 1
+         ${remoteOnly ? 'AND COALESCE(pc.remote, 0) = 1' : ''}
          AND us.ai_fit_score >= ${MIN_FIT}
          AND COALESCE(us.status, 'new') = 'new'
          AND (? IS NULL OR us.ai_scored_at > ?)
@@ -233,7 +235,7 @@ export async function sendDigestForUser(
   const s = await readSettings(pool, userSub);
   if (!s.enabled) return { sent: false, hits: 0, reason: 'disabled' };
   if (!opts.force && !dueForDigest(s.lastDigestAt)) return { sent: false, hits: 0, reason: 'already-sent-today' };
-  const hits = findNewHits(userSub, s.lastDigestAt);
+  const hits = findNewHits(userSub, s.lastDigestAt, await readRemoteOnly(pool, userSub));
   if (!hits.length) return { sent: false, hits: 0, reason: 'no-new-hits' };
 
   // Notification preference center (079): a saved 'career-digest' pref overrides WHICH
@@ -322,7 +324,7 @@ export function registerCareerDigestRoutes(router: Router, ctx: AppContext): voi
     const userSub = callerSub(req);
     if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
     const s = await readSettings(pool, userSub);
-    const hits = findNewHits(userSub, s.lastDigestAt);
+    const hits = findNewHits(userSub, s.lastDigestAt, await readRemoteOnly(pool, userSub));
     res.json({ hits, since: s.lastDigestAt, wouldSend: s.enabled && hits.length > 0 });
   });
 

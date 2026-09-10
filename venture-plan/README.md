@@ -1,5 +1,7 @@
 # Venture Plan
 
+Version 1.1.0 accepts the `research-brief` v1 context through `research-idea` on `venture-home`. A compatible source, such as World Intelligence, may fill the new-venture name and idea fields with a finding, supporting notes and source URL. Receiving context only opens a draft: it does not create a venture or start paid research. The existing **Scope it** button remains the explicit next step. Source text must be reviewed as evidence, not treated as execution authority. File exports continue to use artifact exchange.
+
 **Turn an idea into the document set a real decision needs — and be able to say, of every number in it, exactly where it came from.**
 
 > **Posture: planning instrument.** This application produces estimates, not forecasts. Its default output rests on numbers a language model proposed and labelled as its own guesses. It is designed so that you can see which ones those are and go replace them with quotes. See [What this is not](#what-this-is-not).

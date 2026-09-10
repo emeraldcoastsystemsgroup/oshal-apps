@@ -47,9 +47,9 @@ telemetry, not trading state. A plain `/cockpit/` still shows it.
   Schwab accounts roster with **Discover accounts**. Click a tile to open that account; Paper is one
   tile like any other, labelled "Paper (reference book)".
 - **Account detail** (a tile, or the header's account switcher/`← All accounts`). Holds only that
-  account's concerns: KPI strip; **Buy a stock**; open positions; the focus pane (chart, signal
-  model, order ticket — opens when you click a position); and the account's own Trade journal +
-  Performance sub-tabs. The header shows the account's strategy line with an inline **Set** /
+  account's concerns: KPI strip; **Buy a stock**; open positions; **Allocation** and **Exits**
+  (1.11.0, below); the focus pane (chart, signal model, order ticket — opens when you click a
+  position); and the account's own Trade journal + Performance sub-tabs. The header shows the account's strategy line with an inline **Set** /
   **Reset** control next to it — changing strategy never requires leaving the account.
 - **Strategies.** The **Account strategies** roster is the first sub-tab — one row per account, what
   it runs, and Set/Reset — because this is where you choose what each account trades. Every account
@@ -67,6 +67,138 @@ Deep links: `?view=accounts|strategies|research|reports` for the four top-level 
 `?view=account&book=<ref>&sub=journal|perf` for a specific account's journal or performance sub-tab.
 Legacy `?tab=` links (`journal`, `perf`, `lab`, `studio`, `tuning`, `accounts`, `reco`, `algos`,
 `capture`, `summary`) still resolve — they map onto the view above that now holds that content.
+
+### Allocation and Exits on the account page (1.11.0)
+
+Two cards sit between the positions table and the protected lots, both filled by one
+`GET /api/trading/exposure` read. Neither auto-refreshes — the read costs a broker
+account + positions + orders round trip.
+
+**Allocation** is the account's asset-kind and sector mix.
+
+- *Sectors are the engine's own.* The buckets come from the kernel's `sectorOf()` map — the same
+  map the **per-sector sizing cap** enforces — so the mix you read is the mix the engine sizes
+  against. This package defines no sector taxonomy of its own, and the surface never guesses one:
+  a held name the engine does not classify is grouped under **other**, called out in red in the
+  card's footnote, and shown with no cap headroom. (A card that invented a sector for a real
+  portfolio would be worse than no card.)
+- *Stock vs ETF comes from Alpaca.* The kind column is the Alpaca US-equity asset directory
+  (`etp` attribute). That is Alpaca's answer even for a Schwab book, and it is **not** venue data.
+  Without the Alpaca paper keys the directory is empty, and those shares read **kind unknown**
+  rather than being defaulted to "stock".
+- *Headroom is the engine's rule, not a lookalike.* Per sector: `maxSectorPct% × equity − what
+  that sector already holds`, over the **protected-lot-subtracted** positions, exactly as
+  `sizeEntry` computes `sectorRoom` — including its equity-or-cash fallback, so a cash-only book
+  reads the headroom the engine would actually size against rather than zero. On a capped live book
+  the cap is measured against the capped equity the engine sizes from (`capAccount`), and the
+  footnote says so; percent-of-equity columns stay on the account's real equity. A sector the operator has leaned (`TRADING_SECTOR_TILT`)
+  carries a `tilt ×N` pill. Protected shares are shown as `pinned N` on the name, never folded
+  into the sector's value.
+- The footnote also reports how many of the engine's universe names the sector map classifies —
+  generated from the running engine, not typed here.
+
+**Exits** answers "what is protecting this account right now", in two clearly separated sections.
+
+- **Working at the venue** comes first, and it is the venue's own order record (`listOrders` over
+  the last `TRADING_EXPOSURE_ORDERS_DAYS`, filtered to the kernel's non-terminal statuses): these
+  orders are actually resting at the broker. Origin is claimed only where the order proves it —
+  an exit order id the protected-lot ledger recorded, or the kernel's `lot-` request-id
+  convention; everything else reads **unattributed** rather than being attributed by guess. If the
+  broker order read fails the section says the list is **unknown, not empty** — an empty table
+  here would read as "nothing is protecting this account", which is a different and dangerous claim.
+- **Autopilot exit rules** comes second and is labelled as rules. Each held name's stop,
+  take-profit, trailing stop (armed/not, priced off the peak **rolled forward the way the engine
+  rolls it** — `nextPeaks(positions, storedPeaks)`, what `computeExits` computes before it evaluates
+  a trailing stop, so a winner at a new high is not priced off a stale high) and cap trim are
+  computed by
+  calling the engine's own `exitsToRun` / `trailingExits` / `rebalanceTrims` on that position, so
+  the panel cannot disagree with the engine's arithmetic; a row whose rule would fire on this
+  snapshot carries the engine's own reason. The **cap trim** is measured against the capped
+  **equity** — what the dispatch hands `rebalanceTrims` — deliberately not against the sector
+  denominator above: `sizeEntry`'s equity-or-cash fallback is that rule's own, and reusing it here
+  would trim a zero-equity book on a base the engine never trims on. These are **not** orders resting at the venue —
+  nothing here protects the position while the engine is not running. Two exemptions are rendered
+  explicitly rather than hidden: a `TRADING_CORE_SYMBOLS` **core hold** (the dispatch filters every
+  exit for a core symbol, so a stop shown on one would never fire), and any non-regular session —
+  off-hours the engine runs **only** the close-anchored dip rule, so the whole block is marked not
+  in force, as it is under `TRADING_HALT` and when the venue clock is unreachable.
+
+`GET /api/trading/exposure?book=<ref>` — book-scoped (query-first, `?mode=` still aliases),
+`callerSub` 401-gated, 503 `broker_not_configured` when that book's broker is not connected, 502 on
+a failed account/positions read (an empty book and a failed read must never look alike). Read-only:
+it places no order, constructs no order-placing adapter, and does not persist the trailing peaks it
+reads. Answers `basis`, `policy`, `engine` (session, whether the rules run now, core holds, the
+engine's universe size and how much of it the sector map classifies), `sources`, `mix`, `exits`
+`{ working, rules }` and a `sections` map naming any side read that came back unavailable.
+
+*A degraded read is said, never painted as fact.* Six side reads can fail independently, and each
+one costs the cards something different, so the cards repeat the `sections` map instead of quietly
+rendering the fallback: a red **Degraded** line names what could not be read **and what that costs
+the figures below** (a section the payload gains later is surfaced by both cards rather than dropped
+by both). One case is stronger than a warning — **a failed protected-lot read withholds the exit
+rules table entirely.** Its fallback is a no-op subtraction, so every stop, take-profit and trim
+would be drawn over shares the autopilot may be forbidden to sell, under a foot claiming they were
+excluded; the engine's own answer to that read failing is to skip the fire, and the card's is to
+show no rules. **The payload withholds them too** — `exits.rules` comes back `null`, not a computed
+list — so a non-browser consumer that reads `rules` without checking `sections` cannot be handed
+stops drawn over ring-fenced shares either. (`null` is the shape `exits.working` already uses for a
+venue read that failed: unknown, not empty.) A failed peaks read is also called out where the
+trailing prices are, because they are then anchored at average cost rather than at the position's
+real high.
+
+New env, both with safe defaults: `TRADING_EXPOSURE_ORDERS_DAYS` (venue order lookback, default 90)
+and `TRADING_EXPOSURE_WORKING_MAX` (row ceiling, default 200).
+
+### The advisor scans the engine's universe, not a copy of it (1.11.0)
+
+Arming the advisor (`POST /api/trading/autopilot`) used to write the engine's `DEFAULT_UNIVERSE`
+into every leg's `taskData`. That froze a copy of the list at the moment of arming: a swarm armed
+months ago kept scanning the names as they stood that day and never saw a universe expansion.
+It no longer does. `taskData` carries `universe` **only when the operator pinned one** — and the
+dispatch, research and assess legs each fall through to the engine's `DEFAULT_UNIVERSE` when the key
+is absent, so an un-pinned advisor tracks the engine on every fire.
+
+- `GET /api/trading/autopilot` reports `universeSource` (`default` | `pinned`), `universeCount` (what
+  this schedule will actually scan) and `defaultUniverseCount` (how big the engine's list is now), so
+  the difference is read rather than inferred.
+- A pinned list is deduplicated and upper-cased. Over the ceiling it is **refused with HTTP 400**
+  (`universe_too_large`, and nothing is scheduled) rather than silently truncated — the old code cut
+  a longer list at a literal 150 and never told the operator which names it dropped.
+- New env: `TRADING_UNIVERSE_MAX_PIN`, the pin ceiling. Its default is the engine's own universe
+  size, so the ceiling tracks the engine instead of a number typed here.
+
+**An advisor already armed keeps whatever it was armed with.** The pin lives in the stored schedule
+row; it changes on the operator's next deliberate disable/enable, not on deploy. Do not re-POST the
+autopilot as part of shipping this — re-arming is the operator's own action.
+
+### Surface posture under strict CSP (1.10.3, ADR-136 D2 tail)
+
+The surface carries no inline `<script>` blocks, no inline event-handler attributes and no
+`javascript:` URLs, `eval`, `new Function` or string timers, and it installs no handler as a
+string at runtime (`setAttribute('onclick', ...)`, `el.onclick = '...'`). Every action is a
+delegated listener on the view's own host (`#acctCtxBar`, `#acctHead`, `#rosterHost`,
+`#labApplied`, `#discoverBtn`) keyed on `data-act`: only ids ride the markup, and every label,
+book id and trading-state flag is resolved from `BOOKS`/`BOOK` at click time — so a row painted
+before a state change can no longer send a stale flag. It is written against the kernel's strict
+policy: `script-src 'self'` with no `unsafe-inline`, while `style-src` keeps `unsafe-inline`,
+which is what the surface's inline `<style>` block and `style=""` attributes rely on.
+
+Every `async load*` in `tools/ui` captures the render token — and, for sub-tab loaders, the
+sub-tab generation stamped on `#tabbody` — before its first `await` and bails after it, before
+it paints. A slow answer for the account or sub-tab you just left can no longer paint over the
+one you chose.
+
+Guards: `tests/trading-html-syntax.spec.ts` (no inline block, no handler attribute in either
+spelling, no string-installed handler, the pinned set of external scripts the shell loads, and
+the kernel policy read from `strict-csp` rather than described) and
+`tests/trading-ui-loader-guards.spec.ts` (every loader discovered from source, classified, and
+proven to capture before its first await and bail before it paints).
+
+Note on posture, because it is easy to get backwards: `OSHAL_STRICT_CSP=on` selects enforce, but
+`OSHAL_CSP_REPORT_ONLY=on` overrides it, and `OSHAL_CSP=off` overrides both. A deployment that
+sets the first two serves a `Content-Security-Policy-Report-Only:` header — so confirming
+behaviour under enforcement means unsetting the report-only pin and checking the header name
+changed, not setting an enforce flag that is already on.
 
 ### Buy a stock (direct trades, ADR-136 D3)
 
@@ -101,18 +233,38 @@ page's **Protected lots** card lists them (rules in the same words the ticket us
 actually placed, status) with **Release**, which cancels the working exits and hands the shares back
 to the account's strategy.
 
-**When** (1.9.2, ADR-136 D4): step 2 also asks *Now* or *At a time (ET)*. A timed order is minted
-now but placed later by the trading leg at the chosen Eastern time — a trading day, 9:00 AM–4:55 PM,
-on the 5-minute grid the leg ticks on (what you pick is when it fires), within the server's horizon
-(`TRADING_DATED_MAX_DAYS`). There is no Place step: the review is the commitment, so a live account
-confirms *before* the mint. The account page's **Timed orders** card lists pending ones with Cancel;
-once fired the order is an ordinary Trade-journal entry. A window missed by more than the grace
-(`TRADING_DATED_LATE_MINUTES`) expires unfired rather than placing a stale order. Protection rules
-may ride along; the lot's unfilled-entry release then counts from the fire time.
+**When** (1.9.2, minute precision in 1.10.1, ADR-136 D4): step 2 also asks *Now* or *At a time (ET)*.
+A timed order is minted now but placed later by the trading leg at the chosen Eastern time — a trading
+day that is not an exchange holiday (the server refuses one **by name**), at **its own minute**
+anywhere in **7:00 AM–7:59 PM ET**, within the server's horizon (`TRADING_DATED_MAX_DAYS`). The 1.9.2
+5-minute grid is gone: the leg now ticks every minute, so 9:37 means 9:37 (within the scheduler's
+15-second poll). Outside the regular session (9:30 AM–4:00 PM) the venues take only a **limit** rule
+marked **eligible for extended hours** as a **day** order, and the ticket says so before you send it —
+a pre/post-market market order is refused, not quietly retyped. That extended-hours dated order places
+whatever `TRADING_EXTENDED_HOURS` is set to: that flag gates the autopilot's own extended-hours
+behaviour and its market→limit conversion, not an order you scheduled yourself. There is no Place step:
+the review is the commitment, so a live account confirms *before* the mint. The account page's **Timed
+orders** card lists pending ones with Cancel; once fired the order is an ordinary Trade-journal entry.
+A window missed by more than the grace (`TRADING_DATED_LATE_MINUTES`) expires unfired rather than
+placing a stale order. Protection rules may ride along; the lot's unfilled-entry release then counts
+from the fire time. The accepted window is *derived from the leg's own cron* (`TRADING_EVENTS_CRON`) —
+widen the cron and the window widens with it; there is no second setting to keep in step.
 
 Direct trades do **not** follow the account's strategy — there is no signal generation involved —
 but they pass through the identical guardrails, live gate, submission-reservation arbiter, and
 disabled-book refusal as every strategy-originated order; there is one order path, not two.
+
+
+**Cash accounts and settlement** (1.10.0, ADR-134 D8): a cash account (the IRA) settles sales T+n
+business days later (`TRADING_SETTLEMENT_DAYS`, default 1). On such an account the ticket shows
+*Settled to spend* and sizes a percent order against settled cash; a buy that would be funded by
+unsettled sale proceeds is refused before the confirm step (422 `settlement_blocked`, naming the day
+the proceeds settle) — or, when that account is set to *warn only*, allowed with a warning. Selling a
+stock that was bought while proceeds were still unsettled shows a good-faith-violation advisory, never
+a block. Margin accounts and paper are unchanged. The fleet default is
+`TRADING_CASH_SETTLEMENT_POLICY` (refuse | warn | off) and each cash account's header carries an
+*Unsettled buys* control (server default / refuse / warn only) — only the server env can turn the
+guard off. The engine re-checks at execution, so the autopilot meets the same wall.
 
 ### Research a stock, watchlist, market movers (1.8.0–1.9.0, ADR-138)
 
@@ -184,6 +336,40 @@ lists; a reminder sequence for them is in the BACKLOG.
   anything is written when the leg cannot be armed.
 - `GET /api/trading/dated` — the selected book's timed orders, soonest first.
 - `POST /api/trading/dated/:id/cancel` — cancels a pending one (409 `not_pending` once it has fired).
+
+
+### API added in 1.10.0 (cash settlement, ADR-134 D8)
+
+- `GET /api/trading/account` also answers `settlement` — `{ accountType, policy, cash, settledCash,
+  unsettledCash, settlesOn { iso, words }, source, settlementDays }`.
+- `POST /api/trading/decisions/manual` answers 422 `settlement_blocked` `{ message, settlesOn,
+  settlement }` for a buy funded by unsettled proceeds under *refuse*; it carries `settlement` and may
+  carry `warning` (a settlement warning, the good-faith advisory, or the scheduler warning — merged
+  with " · ").
+- `GET /api/trading/accounts` — each entry in `books[]` carries `accountType` and `settlementPolicy`.
+- `PATCH /api/trading/accounts/books/:bookId` accepts `settlementPolicy`: `'refuse'` | `'warn'` |
+  `null` (400 `settlement_policy_invalid` otherwise).
+
+### API changed in 1.10.1 (timed orders at minute precision, ADR-136 D4 follow-up)
+
+- `POST /api/trading/decisions/manual` — `fireAtEt.time` is now accepted at **any minute** from
+  `07:00` to `19:59` ET (the 5-minute grid is gone). The route passes the order shape to the kernel's
+  `validateFireAt`/`createDatedOrder`, which is what makes a pre/post-market time possible at all: the
+  kernel **fails closed** without it, so a caller that omits `orderType`/`extendedHours`/`timeInForce`
+  gets 400 `fire_at_invalid` for every time outside 9:30–4:00.
+- 400 `fire_at_invalid` now also names an **exchange holiday** ("The market is closed on Mon Sep 7,
+  2026 (Labor Day).") and states the pre/post rule verbatim when a non-conforming order is scheduled
+  outside the regular session.
+- Scheduling a protected or timed order **re-creates** a `trading-events` leg still on a retired
+  cron/timezone (create-or-replace keeps its id, status and execution count), so an existing user
+  migrates onto the every-minute cadence without re-arming anything.
+- New refusal path for an existing user: because a stale-but-active leg no longer short-circuits, a
+  **timed** order now runs that create-or-replace before anything is written — so a scheduler that is
+  absent answers 503 `scheduler_unavailable` and a create that fails answers 502, where 1.10.0 would
+  have accepted the order onto the retired cadence. Refusing is the honest answer: nothing is at the
+  venue yet, and a timed order with no leg would never fire. (A **protected** order is unchanged — its
+  leg is armed best-effort *after* the order, and a scheduler failure there is a warning, never a
+  refusal, because that order has already gone to the venue.)
 
 ## Strategy Studio (conversational design + refine-in-place)
 

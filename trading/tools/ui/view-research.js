@@ -18,6 +18,12 @@
  *                      consumes it (guarded by typeof so a missing module never throws).
  * The watchlist panel (GET/POST/DELETE /watchlist) is defined here and shared with the Accounts landing
  * page (view-accounts.js calls loadWatchlistPanel(hostId, false) — rows there navigate via researchSymbol).
+ *
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com   | Log opened at 1.10.3 - this file predates the log and its earlier history is in git. Sub-tab race close-out (ADR-136 D2 tail): loadScoreboard and loadFeed now capture RENDER_TOKEN and tabGen() before their first await and bail after it, matching loadMovers and loadWatchlistPanel; loadAlgos is a plain function because it awaits nothing (its caller ignores the return). No handler attribute existed here and none is introduced - every action stays a delegated data-* listener.
  */
 
 let PENDING_RESEARCH = null;
@@ -281,7 +287,8 @@ async function doAnalyze() {
 }
 
 /* ── algorithms — tab ────────────────────────────────────────── */
-async function loadAlgos() {
+/* Not async: the tab paint is synchronous and loadScoreboard() owns its own capture/bail. */
+function loadAlgos() {
   const host = $('tabbody'); if (!host) return;
   host.innerHTML = '<div class="panel"><h2>Algorithms — deterministic engine</h2>' +
     '<div class="sub" style="margin-bottom:10px">Scan a watchlist: momentum / gravity / donchian / mean-rev and their ensemble — reproducible from market data, no LLM. Focus any name to chart it and place the trade.</div>' +
@@ -290,14 +297,16 @@ async function loadAlgos() {
   $('scanBtn').onclick = doScan; loadScoreboard();
 }
 async function loadScoreboard() {
+  const token = RENDER_TOKEN, gen = tabGen();
   const host = $('scoreboard'); if (!host) return;
   try {
     const a = (await api('/algo-stats')).algos || [];
+    if (stale(token) || tabStale(gen)) return;
     host.innerHTML = a.length
       ? '<div class="foot" style="margin-bottom:4px">PER-ALGO LIVE HIT-RATE (resolved predictions)</div><table><thead><tr><th>Algorithm</th><th class="num">resolved</th><th class="num">open</th><th class="num">hit %</th></tr></thead><tbody>'
         + a.map((r) => '<tr><td>' + esc(r.algo) + '</td><td class="num">' + (r.resolved||0) + '</td><td class="num">' + (r.open||0) + '</td><td class="num">' + (r.hit_rate_pct==null?'—':r.hit_rate_pct+'%') + '</td></tr>').join('') + '</tbody></table>'
       : '<div class="foot">No resolved predictions yet — Scan now, then again after the horizon.</div>';
-  } catch (e) { host.innerHTML = '<div class="foot err">' + esc(e.message) + '</div>'; }
+  } catch (e) { if (!stale(token) && !tabStale(gen)) host.innerHTML = '<div class="foot err">' + esc(e.message) + '</div>'; }
 }
 async function doScan() {
   const msg = $('scanMsg'), out = $('scanOut');
@@ -438,9 +447,11 @@ async function captureSignal() {
   } catch (e) { msg.className='sub err'; msg.textContent=e.message; } finally { btn.disabled=false; }
 }
 async function loadFeed() {
+  const token = RENDER_TOKEN, gen = tabGen();
   const host = $('feed'); if (!host) return;
   let signals = [];
-  try { signals = (await api('/signals')).signals || []; } catch (e) { host.innerHTML='<div class="panel err">'+esc(e.message)+'</div>'; return; }
+  try { signals = (await api('/signals')).signals || []; } catch (e) { if (!stale(token) && !tabStale(gen)) host.innerHTML='<div class="panel err">'+esc(e.message)+'</div>'; return; }
+  if (stale(token) || tabStale(gen)) return;
   host.innerHTML = '<div class="panel"><h2>Signal feed</h2>' +
     (signals.length ? signals.map(s =>
       '<div class="sig"><div><strong>' + esc(s.title || (s.body||'').slice(0,80)) + '</strong> ' +

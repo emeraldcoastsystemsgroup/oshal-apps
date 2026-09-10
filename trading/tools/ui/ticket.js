@@ -26,11 +26,27 @@
  * be marked `extendedHours` (pre/post-market) — never a market order. tktProtWords(rules, ref) is
  * shared with the lots card (view-account.js) so both surfaces describe a rule set identically.
  *
- * ADR-136 D4 (timed orders): step 2 asks WHEN — Now, or At a time (ET) on the 5-minute grid inside
- * 9:00 AM–4:55 PM on a trading day. A timed order travels as `fireAtEt` on POST /decisions/manual; the
+ * ADR-136 D4 (timed orders): step 2 asks WHEN — Now, or At a time (ET) at MINUTE precision inside
+ * 7:00 AM–7:59 PM on a trading day. Outside the regular session (9:30 AM–4:00 PM) the venue takes only
+ * a LIMIT rule marked eligible for extended hours as a DAY order, and tktWhenError() echoes that rule
+ * client-side in the server's own words; the server (validateFireAt) remains the authority and also
+ * names an exchange holiday. A timed order travels as `fireAtEt` on POST /decisions/manual; the
  * server records a kernel dated order the trading leg fires ONCE at that time, so there is NO POST
  * /orders step — the review is the commitment (a LIVE account confirms BEFORE the mint) and step 3
  * shows "Scheduled" with a link to the account's Timed orders card (view-account.js loadDatedCard).
+ *
+ * ADR-134 D8 (cash-account settlement): GET /account (which replaced /ledger as the funds read — one
+ * call, same `account` shape) also answers `settlement`. On a CASH account under an armed policy the
+ * ticket sizes "% of available" against SETTLED cash, the context line reads "Settled to spend: $X ·
+ * $Y unsettled, settles <day>", and a 422 settlement_blocked from the mint is shown verbatim (the
+ * server says WHY before confirm; the engine re-checks at execution). A `warning` on the mint (policy
+ * warn, or the good-faith advisory on a sell) is rendered in step 3 — advisory, never a block.
+ *
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com   | Log opened at 1.10.1 — this file predates the log and its earlier history is in git. ADR-136 D4 follow-up (the minute-precision kernel): the WHEN block drops the retired five-minute grid (the time input is step=60 min=07:00 max=19:59, the kernel's own cron-derived window), tktWhenError() echoes the venue pre/post-market rule and NAMES which of its three conditions is still unmet, and the TIF select + the extended-hours box repaint the validity line through tktLiveUpdate so it cannot read “Ready to review” after the change that made the chosen minute unacceptable.
  */
 
 /* Plain-word price rules → the order types the venue already runs. `tif` is the rule's default. */
@@ -61,11 +77,25 @@ const tktOn = (id, ev, fn) => { const el = $(id); if (el) el[ev] = fn; };
 /* Autopilot off on this account (STATUS.bookEnabled === false). Buys and sells are BOTH allowed here —
    this only drives a neutral note that a manual order is one the autopilot will not touch. */
 const tktAutopilotOff = () => STATUS.bookEnabled === false;
-/* Available funds for a BUY: buying power first, then cash; null when the /ledger read hasn't landed. */
+/* The settlement view for a CASH account under an armed policy (ADR-134 D8) — null on margin/paper,
+   when the policy is off, or when the server gave no settled figure. */
+function tktSettlement() {
+  const s = TKT && TKT.funds && TKT.funds.settlement;
+  if (!s || s.accountType === 'margin' || s.policy === 'off' || tktNum(s.settledCash) == null) return null;
+  return s;
+}
+/* Available funds for a BUY: SETTLED cash on a cash account, else buying power, then cash; null when the
+   /account read hasn't landed. */
 function tktAvailable() {
   const f = TKT && TKT.funds; if (!f) return null;
+  const s = tktSettlement(); if (s) return Math.max(0, tktNum(s.settledCash));
   const bp = tktNum(f.buyingPower); if (bp != null && bp >= 0) return bp;
   const c = tktNum(f.cash); return c != null && c >= 0 ? c : null;
+}
+/* '$8,000.00 unsettled, settles Mon Sep 7' — '' when nothing is unsettled. */
+function tktUnsettledWords() {
+  const s = tktSettlement(); if (!s || !(tktNum(s.unsettledCash) > 0)) return '';
+  return money(s.unsettledCash) + ' unsettled' + (s.settlesOn && s.settlesOn.words ? ', settles ' + s.settlesOn.words : '');
 }
 /* % mode: the dollar amount the operator's percent of available funds works out to (client-computed). */
 function tktPctDollars() {
@@ -164,13 +194,17 @@ function tktPriceWarn() {
   if (TKT.side === 'sell' && lim <= px) return 'Your limit is at/below the current price (' + tktPx(px) + ') — this will fill immediately at market.';
   return '';
 }
-/* A BUY that costs more than the account can spend — advisory (the venue is the authority), never a block. */
+/* A BUY that costs more than the account can spend — advisory (the venue is the authority), never a block.
+   On a cash account the line names the unsettled proceeds and the day they settle (the server refuses or
+   warns at the mint per the account's policy). */
 function tktFundsWarn() {
   if (TKT.side !== 'buy') return '';
   const avail = tktAvailable(), q = tktQty(), p = tktRefPrice();
   if (avail == null || q == null || !(p > 0)) return '';
-  const cost = q * p;
-  return cost > avail ? 'This is about ' + money(cost) + '; your available is ' + money(avail) + '.' : '';
+  const cost = q * p; if (cost <= avail) return '';
+  const s = tktSettlement(), un = tktUnsettledWords();
+  if (s && un) return 'This is about ' + money(cost) + '; only ' + money(avail) + ' is settled (' + un + ').';
+  return 'This is about ' + money(cost) + '; your available is ' + money(avail) + '.';
 }
 /* Client-side echo of the server guardrails — advisory only; POST /decisions/manual is the authority. */
 function tktGuardHint() {
@@ -290,7 +324,7 @@ function tktWireProt() {
     tktRenderStep(); tktRenderSummary();
   });
   ['tktTpPct', 'tktTpPrice', 'tktSlPct', 'tktSlPrice', 'tktTrailPct', 'tktProtDays'].forEach(id => tktOn(id, 'oninput', tktLiveUpdate));
-  tktOn('tktExt', 'onchange', () => { TKT.extendedHours = !!$('tktExt').checked; tktRenderSummary(); });
+  tktOn('tktExt', 'onchange', tktLiveUpdate);   // tktSyncProt reads the box; #tktValid must refresh with it
 }
 /* Pull the protection inputs (and the extended-hours box) back into TKT — inputs are the truth. */
 function tktSyncProt() {
@@ -371,15 +405,15 @@ function tktApplyQuote() {
   const pp = $('tktProtPreview'); if (pp) pp.innerHTML = tktProtPreviewHtml();
   tktRenderSummary();
 }
-/* GET /ledger once per ticket → TKT.funds { cash, buyingPower, equity } (null on failure). Then refresh
-   the funds displays (step-1 block, step-2 context line, calc/validation and the summary). */
+/* GET /account once per ticket → TKT.funds { cash, buyingPower, equity, settlement } (null on failure).
+   Then refresh the funds displays (step-1 block, step-2 context line, calc/validation and the summary). */
 async function tktLoadFunds() {
   const t = TKT; if (!t) return;
   let j = null;
-  try { j = await api('/ledger'); } catch (e) { j = null; }
+  try { j = await api('/account'); } catch (e) { j = null; }
   if (TKT !== t) return;
   const a = j && j.account ? j.account : null;
-  t.funds = a ? { cash: tktNum(a.cash), buyingPower: tktNum(a.buyingPower), equity: tktNum(a.equity) } : null;
+  t.funds = a ? { cash: tktNum(a.cash), buyingPower: tktNum(a.buyingPower), equity: tktNum(a.equity), settlement: j.settlement || null } : null;
   const c1 = $('tktCtx1'); if (c1) c1.innerHTML = tktCtxInner(1);
   const cx = $('tktSizeCtx'); if (cx) { cx.innerHTML = tktCtxInner(2); tktOn('tktSellAll', 'onclick', tktSellAll); }
   const c = $('tktCalc'); if (c) c.innerHTML = tktCalcHtml();
@@ -440,7 +474,7 @@ function tktRenderSummary() {
   const held = tktHeld();
   const fundsRow = TKT.side === 'sell'
     ? row('You hold', held ? shares(Math.floor(held.qty)) : '—')
-    : row('Available to spend', tktAvailable() != null ? money(tktAvailable()) : '—');
+    : row(tktSettlement() ? 'Settled cash' : 'Available to spend', tktAvailable() != null ? money(tktAvailable()) : '—');
   const protW = TKT.side === 'buy' ? tktProtWords() : '';
   box.innerHTML = '<div class="summary-box">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b>Order summary</b>' +
@@ -543,7 +577,9 @@ function tktFireWords() {
   const day = isNaN(d.getTime()) ? TKT.fireDate : d.toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
   return day + ' at ' + ((h % 12) || 12) + ':' + hm[1] + ' ' + (h < 12 ? 'AM' : 'PM') + ' ET';
 }
-/* Client echo of the kernel's validateFireAt: trading day, 9:00–4:55 PM ET, 5-minute grid, in the future. */
+/* Client echo of the kernel's validateFireAt: trading day, 7:00 AM–7:59 PM ET at minute precision, the
+   pre/post-market rule, in the future. The SERVER is the authority (it also names exchange holidays);
+   this only spares the operator a round trip for the refusals it can see. */
 function tktWhenError() {
   if (TKT.when !== 'at') return '';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(TKT.fireDate || '')) return 'Pick the date the order should fire (Eastern).';
@@ -551,8 +587,22 @@ function tktWhenError() {
   const wd = new Date(TKT.fireDate + 'T12:00:00Z').getUTCDay();
   if (wd === 0 || wd === 6) return 'Timed orders fire on trading days (Monday to Friday).';
   const hm = TKT.fireTime.split(':'), min = Number(hm[0]) * 60 + Number(hm[1]);
-  if (min < 9 * 60 || min > 16 * 60 + 55) return 'Timed orders fire between 9:00 AM and 4:55 PM Eastern.';
-  if (Number(hm[1]) % 5 !== 0) return 'Pick a time on the 5-minute grid (9:00, 9:05, …) — that is when the leg ticks.';
+  if (min < 7 * 60 || min > 19 * 60 + 59) return 'Timed orders fire between 7:00 AM and 7:59 PM Eastern.';
+  // Outside 9:30–4:00 the venues (Alpaca extended_hours limit, Schwab SEAMLESS) accept nothing but a
+  // limit order flagged for extended hours as a day order — the same rule the kernel refuses on.
+  if (min < 9 * 60 + 30 || min >= 16 * 60) {
+    const ok = tktRule().type === 'limit' && TKT.extendedHours === true && TKT.tif === 'day';
+    // Naming the MISSING condition is the difference between a rule the operator can act on and one they
+    // have to decode: the limit rule must be picked first (the extended-hours box only exists on a limit).
+    if (!ok) {
+      const need = [];
+      if (tktRule().type !== 'limit') need.push('a limit price rule');
+      else if (TKT.extendedHours !== true) need.push('“Eligible pre/post-market (extended hours)” ticked');
+      if (TKT.tif !== 'day') need.push('time in force “Today only (day)”');
+      return 'A pre/post-market time needs a limit price rule marked eligible for extended hours, as a day order.'
+        + ' Still to set: ' + need.join(' and ') + '.';
+    }
+  }
   const now = tktEtNow();
   if (TKT.fireDate < now.date || (TKT.fireDate === now.date && TKT.fireTime <= now.time)) return 'That time has already passed (Eastern).';
   return '';
@@ -562,8 +612,8 @@ function tktWhenHtml() {
   const radio = (v, l) => '<label style="display:inline-flex;align-items:center;gap:6px;margin-right:14px;font-size:13px;color:var(--text)"><input type="radio" name="tktWhen" value="' + v + '"' + (TKT.when === v ? ' checked' : '') + ' style="width:auto" /> ' + l + '</label>';
   return '<div style="margin:0 0 10px;font-size:12px;color:var(--muted)">When &nbsp;' + radio('now', 'Now') + radio('at', 'At a time (ET)') + '</div>' +
     (at ? '<div class="grid2"><label class="f">Date (ET)<input id="tktFireDate" type="date" min="' + now.date + '" value="' + esc(TKT.fireDate) + '" /></label>' +
-      '<label class="f">Time (ET)<input id="tktFireTime" type="time" step="300" min="09:00" max="16:55" value="' + esc(TKT.fireTime) + '" /></label></div>' +
-      '<div class="foot" style="margin:-4px 0 10px">Fires on the 5-minute tick at that time, 9:00 AM–4:55 PM Eastern on a trading day. Nothing is sent until then — cancel it from this account\'s Timed orders card. A day order placed then expires at that day\'s close.</div>' : '');
+      '<label class="f">Time (ET)<input id="tktFireTime" type="time" step="60" min="07:00" max="19:59" value="' + esc(TKT.fireTime) + '" /></label></div>' +
+      '<div class="foot" style="margin:-4px 0 10px">Fires at that minute, 7:00 AM–7:59 PM Eastern on a trading day (not an exchange holiday — the server names it if you pick one). Outside 9:30–4:00 only an extended-hours limit day order is accepted; a day order left unfilled expires at the close. Nothing is sent until then — cancel it from this account\'s Timed orders card.</div>' : '');
 }
 
 /* ── step 2: size & price rule ─────────────────────────────────────────────── */
@@ -597,7 +647,8 @@ function tktCtxInner(step) {
     return 'You hold <b>' + esc(h.qty) + '</b> share' + (h.qty === 1 ? '' : 's') + (h.avg != null ? ' (avg ' + tktPx(h.avg) + ')' : '') +
       (step === 2 ? ' &middot; <a href="#" id="tktSellAll">Sell all</a>' : '');
   }
-  const a = tktAvailable();
+  const a = tktAvailable(), un = tktUnsettledWords();
+  if (tktSettlement()) return 'Settled to spend: <b>' + (a != null ? money(a) : '&mdash;') + '</b>' + (un ? ' &middot; ' + esc(un) : '');
   return 'Available to spend: <b>' + (a != null ? money(a) : '&mdash;') + '</b>';
 }
 function tktSizeInputHtml() {
@@ -659,7 +710,10 @@ function tktWireStep2() {
     TKT.focusId = t === 'market' ? 'tktRule' : (t === 'limit' ? 'tktLimit' : (t === 'trailing_stop' ? 'tktTrail' : 'tktStop'));
     tktRenderStep(); tktRenderSummary();
   });
-  tktOn('tktTif', 'onchange', () => { TKT.tif = $('tktTif').value; tktRenderSummary(); });
+  // TIF and the extended-hours box are INPUTS TO tktWhenError() (the pre/post-market rule), so they go
+  // through tktLiveUpdate — which refreshes #tktValid — not tktRenderSummary alone, or the validity line
+  // would keep saying "Ready to review" after the change that made a pre/post time acceptable (or not).
+  tktOn('tktTif', 'onchange', tktLiveUpdate);
   ['tktQty', 'tktNotional', 'tktPct', 'tktStop', 'tktLimit', 'tktTrail', 'tktWhy'].forEach(id => tktOn(id, 'oninput', tktLiveUpdate));
   // ADR-136 D4: Now / At a time. Switching re-renders the step (the date/time inputs appear); typing re-validates live.
   if (form) form.querySelectorAll('input[name="tktWhen"]').forEach(r => r.onchange = () => {
@@ -767,7 +821,9 @@ function tktStep3Html() {
     (tktRule().type === 'limit' ? st('Extended hours', TKT.extendedHours ? 'yes' : 'no') : '') +
     (TKT.when === 'at' ? st('Fires', esc(tktFireWords())) : '') + '</div>';
   const from = TKT.mintedNotional != null ? '<div class="foot" style="margin:4px 0 0">from ' + money(TKT.mintedNotional) + ' requested</div>' : '';
-  return '<div class="summary-box" style="margin-bottom:12px"><b>' + esc(tktSummaryText()) + '</b>' + from + '</div>' + stats + tktProtSummaryHtml() +
+  // ADR-134 D8: an advisory from the mint (settlement policy 'warn', or the good-faith note on a sell) — shown, never blocking.
+  const warn = d.warning ? '<div class="warn" style="font-size:13px;margin-bottom:10px">' + esc(d.warning) + '</div>' : '';
+  return '<div class="summary-box" style="margin-bottom:12px"><b>' + esc(tktSummaryText()) + '</b>' + from + '</div>' + stats + tktProtSummaryHtml() + warn +
     (live && !settled ? '<div class="livebanner">This is a LIVE account (' + esc(DISP) + ') — the order trades real money and you will be asked to confirm.</div>' : '') +
     '<div class="foot">This does not follow the account\'s strategy; the engine\'s guardrails still apply.</div>' +
     (r ? tktResultHtml() + tktLotHtml() : '') +

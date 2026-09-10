@@ -16,6 +16,13 @@
  * renderResearchView(token), renderReportsView(token). Each paints into #main and may call
  * subTabs(hostId, TABS, active, onSelect) — which provides the legacy #tabbody host the moved code
  * renders into. stale(token) tells an async loader the operator navigated away: stop painting.
+ *
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com   | Log opened at 1.10.3 - this file predates the log and its earlier history is in git. Strict-CSP cleanup (ADR-136 D2 tail): the account context bar is #acctCtxBar and its "Open this account" link is a delegated data-act listener wired in wireAcctContextBar(), so the shell carries no inline event-handler attribute; BOOK/MODE are read from state at click time. The esc() note now states the rule for the whole surface.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | wireAcctContextBar carries JSDoc (@description/@returns) rather than a prose block comment - the repo rule applies to the rewritten function, not only to the new ones.
  */
 
 const $ = (id) => document.getElementById(id);
@@ -69,8 +76,9 @@ const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(Number(n||0)).toLocaleStrin
 const pct = (n) => (n>=0?'+':'') + Number(n||0).toFixed(2) + '%';
 const fmtDate = (iso) => { try { return new Date(iso).toLocaleString(); } catch { return iso || '—'; } };
 /* Escapes for text AND attribute values (quotes included — a label with an apostrophe must not break
-   an attribute). NEVER interpolate esc()'d labels into inline onclick JS strings: pass ids and look the
-   label up at call time instead (the roster/tiles do exactly that). */
+   an attribute). The surface carries NO inline event-handler attributes at all: under strict CSP
+   script-src is 'self' with no unsafe-inline, so every action is a delegated listener keyed on a data-*
+   attribute. Ids ride the markup; LABELS are looked up from state at click time, never interpolated. */
 const esc = (s) => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 const cls = (n) => Number(n)>0?'pos':(Number(n)<0?'neg':'');
 const gColor = (g) => g>=58 ? '#34c79a' : g>=46 ? '#e3bd6a' : '#ec7672';
@@ -196,13 +204,29 @@ function stale(token) { return token !== RENDER_TOKEN; }
 function acctContextBar(note) {
   const opts = BOOKS.map(b => '<option value="' + esc(b.ref) + '"' + (b.ref === BOOK ? ' selected' : '') + '>' + esc(bookLabel(b.ref)) + (b.enabled ? '' : ' — view only') + '</option>').join('') +
     (bookOf(BOOK) ? '' : '<option value="' + esc(BOOK) + '" selected>' + esc(bookLabel(BOOK)) + '</option>');
-  return '<div class="panel" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px">' +
+  return '<div class="panel" id="acctCtxBar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px">' +
     '<span class="foot" style="margin:0">ACTING ON</span> <select id="ctxBook" style="width:auto;min-width:220px;padding:6px 9px">' + opts + '</select>' +
     (bookOf(BOOK) && bookOf(BOOK).enabled === false ? ' <span class="pill">view-only</span>' : (MODE === 'live' ? ' <span class="pill" style="color:var(--warn);border-color:var(--warn)">live</span>' : '')) +
     (note ? ' <span class="sub" style="margin-left:6px">' + note + '</span>' : '') +
-    ' <a href="#" style="margin-left:auto" onclick="openAccount(BOOK, MODE);return false">Open this account →</a></div>';
+    ' <a href="#" data-act="open-account" style="margin-left:auto">Open this account →</a></div>';
 }
+/**
+ * @description Wire the account context bar's single action through ONE delegated listener. Strict CSP
+ * ('script-src self', no unsafe-inline) forbids a handler attribute, so the link carries only a
+ * data-act and the target account is resolved from the CURRENT BOOK/MODE at click time - a bar painted
+ * before an account switch can therefore never navigate to the account it was painted for. Assignment
+ * (not addEventListener) is deliberate: a repaint re-wires rather than stacking a second handler, and
+ * closest('[data-act]') returns null for the <select>, so its clicks fall through untouched.
+ * @returns {void}
+ */
 function wireAcctContextBar() {
+  const bar = $('acctCtxBar');
+  if (bar) bar.onclick = (e) => {
+    const a = e.target.closest('[data-act="open-account"]');
+    if (!a || !bar.contains(a)) return;
+    e.preventDefault();
+    openAccount(BOOK, MODE);
+  };
   const sel = $('ctxBook'); if (!sel) return;
   sel.onchange = () => { const b = bookOf(sel.value); navigate(VIEW, { book: sel.value, kind: b ? b.kind : (sel.value === 'paper' ? 'paper' : 'live'), sub: SUB }); };
 }

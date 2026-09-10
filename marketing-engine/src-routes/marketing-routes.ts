@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial marketing-engine API (/api/marketing, oidc): campaign CRUD + sanitized import (import never arms spend/consent — series-pump rule), per-channel consent PUT (428-gated standing authorization), inline-bot drafts/research/launch-checklist via executeBotOrInline (hosted-brain aware), the consent→cap→confirm(428)→rail→run-ledger publish chain (LinkedIn/Mastodon connector actions, Bluesky fixed op, Resend email — honest 409/503 degradation), scorecard read/rebuild, experiment lifecycle, budget-proposal decisions, UTM builder. Pure gates come from ./marketing-model.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Type the pool via AppContext['pool'] instead of importing a QueryablePool that core never exported — the ambient stub compiled standalone but broke the shared whole-store framework build for every sibling package.
  *
  * @module marketing-routes
  */
@@ -11,7 +12,7 @@
 import { Router, type Request, type Response, type RequestHandler } from 'express';
 import * as path from 'path';
 import { createChildLogger } from '@/shared/logger';
-import type { AppContext, QueryablePool } from '@/app/composition/app-context';
+import type { AppContext } from '@/app/composition/app-context';
 import { runRuntimeSchemaBootstrap, buildOwnerRlsPolicyStatements } from '@/shared/services/database';
 import { hasExplicitWriteConfirmation, confirmationRequiredPayload } from '@/shared/security/explicit-write-confirmation';
 import { executeBotOrInline } from '@/app/routes/inline-bot-execution';
@@ -29,6 +30,9 @@ import {
 
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir. */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
+
+/** The framework pool surface, derived from AppContext so this never drifts from core. */
+type QueryablePool = AppContext['pool'];
 
 const logger = createChildLogger({ module: 'marketing-routes' });
 

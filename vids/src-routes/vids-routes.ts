@@ -505,5 +505,14 @@ const SURFACE_HTML = `<!doctype html>
   };
   refresh(); setInterval(refresh, 4000);
 </script>
+
+<script type="module">
+import {receiveHandoff} from '/cockpit/js/app-handoff.js';
+import {mountConnectedActions} from '/cockpit/js/app-workflows.js';
+const input=document.getElementById('prompt');
+receiveHandoff({"app":"vids","action":"prepare-brief","contextType":"research-brief","version":1,"fields":["title","notes","sourceUrl"]},context=>{input.value=[context.title,context.notes,context.sourceUrl?'Source: '+context.sourceUrl:''].filter(Boolean).join('\\n\\n');input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();});
+const element=document.createElement('section');element.className='connected-app-actions';element.setAttribute('aria-label','Connected application actions');element.style.cssText='margin:16px auto;padding:16px;max-width:1200px;border:1px solid currentColor;border-radius:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap';document.body.append(element);
+void mountConnectedActions({app:'vids',element,contextForOffer:()=>{const notes=input.value.trim().slice(0,2000);return notes?{title:'Review my video brief',notes}:null;}});
+</script>
 </body>
 </html>`;

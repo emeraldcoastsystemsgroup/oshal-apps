@@ -20,6 +20,7 @@
  */
 import { decryptToken } from '@/app/routes/connector-token-crypto';
 import { createChildLogger } from '@/shared/logger';
+import { readRemoteOnly } from './career-match-prefs';
 import {
   releaseRun, runCliAsync, runCliAwait, tryAcquireCliRun,
   withCliDeadline, type CliResult, type CliRunOptions, type CliStartResult,
@@ -261,6 +262,11 @@ export async function runUserScore(
   pool: QueryPool, userSub: string, opts: { limit?: number; firstSeenDays?: number } = {},
 ): Promise<{ ok: boolean }> {
   const args = ['score', '--min-keyword', '40'];
+  // The standing remote-only preference (migration 104) is applied HERE, at the one place every
+  // automated scoring caller funnels through, so the cron and the boot catch-up cannot drift apart
+  // from each other — and so an on-site role a remote-only candidate would never take never costs
+  // a scoring inference.
+  if (await readRemoteOnly(pool, userSub)) args.push('--remote-only');
   if (opts.firstSeenDays && Number.isFinite(opts.firstSeenDays)) {
     args.push('--first-seen-days', String(Math.max(1, Math.floor(opts.firstSeenDays))));
   }

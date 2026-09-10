@@ -22,7 +22,7 @@ description: >-
   AI food-delivery concierge — search Uber Eats restaurants, browse menus, build
   an order, and hand off a ready Uber Eats checkout. Other swarm bots can ask it
   to order food.
-version: 1.0.0
+version: 1.1.0
 status: active
 
 source:
@@ -215,3 +215,27 @@ ribbon:
     - operations
   hideChatPanel: true
   defaultView: eats-concierge
+
+integrations:
+  accepts:
+    - id: plan-meal
+      contextType: planning-brief
+      version: 1
+      surface: eats-concierge
+      fields:
+        - title
+        - notes
+        - sourceUrl
+  offers:
+    - id: plan-shopping
+      label: Plan shopping
+      targetApp: purchasing
+      targetAction: plan-purchase
+      contextType: planning-brief
+      version: 1
+    - id: plan-ride
+      label: Plan a ride
+      targetApp: rides
+      targetAction: plan-ride
+      contextType: planning-brief
+      version: 1

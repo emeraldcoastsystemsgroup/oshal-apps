@@ -19,7 +19,7 @@ import csv
 import json
 import sys
 
-from . import db, seeds, discover, ats, enrich, match, config, resolve
+from . import ats, config, db, discover, enrich, match, resolve, seeds, stories
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -441,6 +441,28 @@ def cmd_add_url(a):
     _report_dropped(dropped0)
 
 
+def cmd_stories(a):
+    """Role-anchored story review (ADR-141 D7). `list` reports every role with its stories and
+    which role is next; `answer` attaches ONE story to ONE role from the candidate's own words.
+    Prints ONE JSON line so the API can trust the last line of stdout."""
+    action = (a.action or "list").strip()
+    if action == "list":
+        print(stories.as_json(stories.state()))
+        return
+    if action == "answer":
+        if a.role is None:
+            print(stories.as_json({"ok": False, "error": "--role is required"}))
+            return
+        try:
+            result = stories.record(int(a.role), a.response or "")
+        except Exception as e:  # noqa: BLE001 — the review must answer, never crash the child
+            print(stories.as_json({"ok": False, "error": f"story record failed: {str(e)[:160]}"}))
+            return
+        print(stories.as_json(result))
+        return
+    print(stories.as_json({"ok": False, "error": f"unknown stories action: {action}"}))
+
+
 def cmd_classify(a):
     """Pattern-only classification of a pasted careers URL — the accept/reject gate behind a
     user's own target list. Reads nothing, writes nothing, and never renders a page: a URL is
@@ -584,7 +606,8 @@ def cmd_score(a):
         done, skipped = score.score_batch(limit=a.limit, rescore=a.rescore,
                                           min_keyword=a.min_keyword or 0, workers=a.workers,
                                           days=getattr(a, "days", None),
-                                          first_seen_days=getattr(a, "first_seen_days", None))
+                                          first_seen_days=getattr(a, "first_seen_days", None),
+                                          remote_only=bool(getattr(a, "remote_only", False)))
         print(f"AI-scored {done} postings ({skipped} skipped).")
     except RuntimeError as e:
         print(f"!! {e}", file=sys.stderr); sys.exit(1)
@@ -794,6 +817,12 @@ def build_parser():
     s.add_argument("--url", required=True)
     s.set_defaults(func=cmd_seturl)
 
+    s = sub.add_parser("stories", help="role-anchored story review — one defensible story per job title (JSON)")
+    s.add_argument("action", nargs="?", default="list", choices=["list", "answer"])
+    s.add_argument("--role", type=int, default=None, help="role index from `stories list`")
+    s.add_argument("--response", default="", help="the candidate's answer")
+    s.set_defaults(func=cmd_stories)
+
     s = sub.add_parser("classify", help="pattern-only ATS classification of a careers URL (JSON; the user-target accept/reject gate)")
     s.add_argument("--url", required=True)
     s.set_defaults(func=cmd_classify)
@@ -822,6 +851,8 @@ def build_parser():
     s.add_argument("--first-seen-days", type=int,
                    help="only score jobs FIRST SEEN in the last N days — the reliable new-jobs gate for incremental runs (first_seen_at is always stamped; posted_date is not)")
     s.add_argument("--workers", type=int, default=8, help="parallel scoring workers")
+    s.add_argument("--remote-only", action="store_true",
+                   help="only score postings flagged remote (the user's standing remote-only preference)")
     s.set_defaults(func=cmd_score)
 
     s = sub.add_parser("apply", help="generate tailored resume+cover PDF for a job id")

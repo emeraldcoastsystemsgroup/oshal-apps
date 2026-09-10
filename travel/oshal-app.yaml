@@ -29,7 +29,7 @@ description: >-
   the swarm's shared price history, watch routes for a fare drop, and book via a deep-link
   handoff. Hotels and cars are deep-link handoffs today. Other swarm bots can ask it to plan a
   trip or check a fare on a traveller's behalf.
-version: 1.0.0
+version: 1.1.0
 status: active
 
 # Guest tier REQUEST (ADR-085 D4): travel was core Tier-A (deep-link handoff, does not
@@ -288,3 +288,33 @@ ribbon:
     - operations
   hideChatPanel: true
   defaultView: travel-concierge
+
+integrations:
+  accepts:
+    - id: plan-trip
+      contextType: planning-brief
+      version: 1
+      surface: travel-concierge
+      fields:
+        - title
+        - notes
+        - sourceUrl
+  offers:
+    - id: plan-ride
+      label: Plan a ride
+      targetApp: rides
+      targetAction: plan-ride
+      contextType: planning-brief
+      version: 1
+    - id: plan-meal
+      label: Plan a meal
+      targetApp: eats
+      targetAction: plan-meal
+      contextType: planning-brief
+      version: 1
+    - id: plan-shopping
+      label: Plan shopping
+      targetApp: purchasing
+      targetAction: plan-purchase
+      contextType: planning-brief
+      version: 1

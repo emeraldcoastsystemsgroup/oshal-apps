@@ -73,6 +73,7 @@
     <button class="btn" onclick="rescan()">↻ Rescan gaps</button>
     <span class="prog" id="prog"></span>
   </div>
+  <div id="stories"></div>
   <div id="added"></div>
   <div id="list"></div>
 </div>
@@ -85,6 +86,55 @@ const GENERIC_ASK='Give a concrete example of your experience here — what you 
 const byKey={};          // key -> theme, so an in-flight answer knows its title
 const added=[];          // what augmentation wrote, newest first; survives a list reload
 function toast(m){ toastEl.textContent=m; toastEl.className='toast show'; setTimeout(()=>toastEl.className='toast',2600); }
+
+// ── ADR-141 D7: the story review — one defensible story per job title ─────────────────────
+// A bullet asserts; a story proves. This walks YOUR roles, asks about the one still missing a
+// story, and keeps your answer against the bullet it supports so every tailored resume can cite
+// evidence. It shares the page's mic-friendly answer box; nothing here touches the gap themes.
+const storiesEl=$('stories');
+let storyState=null;
+
+function storyCard(){
+  if(!storyState || !storyState.total) return '';
+  const done=storyState.withStory, total=storyState.total;
+  const head=`<div class="grp">Your stories — ${done} of ${total} roles</div>`;
+  if(storyState.complete){
+    return head+`<div class="card answered"><p class="q">Every role has a story. Your tailored resumes cite them as evidence.</p></div>`;
+  }
+  const next=storyState.next;
+  return head+`<div class="card focus" id="story-card">
+    <p class="q">${esc(next.question)}</p>
+    <textarea id="story-ta" placeholder="Type it, or tap the mic and just talk…"></textarea>
+    <div class="ans">
+      <button class="btn primary" id="story-save" onclick="answerStory()">Save this story</button>
+    </div>
+    <p class="note" id="story-note"></p>
+  </div>`;
+}
+
+async function loadStories(){
+  try{
+    const r=await fetch('/api/career-hunter/stories');
+    if(!r.ok) throw new Error('unavailable');
+    storyState=await r.json();
+  }catch(_){ storyState=null; }
+  storiesEl.innerHTML=storyCard();
+}
+
+async function answerStory(){
+  const ta=$('story-ta'); const note=$('story-note'); const btn=$('story-save');
+  const response=(ta&&ta.value||'').trim();
+  if(!response){ toast('Tell it in your own words first'); return; }
+  btn.disabled=true; note.textContent='Saving…';
+  try{
+    const r=await fetch('/api/career-hunter/stories/answer',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({role:storyState.next.index,response})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||!j.ok){ note.textContent=j.error||'That did not save — try again.'; btn.disabled=false; return; }
+    toast('Story saved to '+(j.role||'your profile'));
+    await loadStories();
+  }catch(_){ note.textContent='That did not save — try again.'; btn.disabled=false; }
+}
 
 function openCard(t,focus){
   return `<div class="card${focus?' focus':''}" id="card-${esc(t.key)}">
@@ -119,6 +169,7 @@ function renderAdded(){
 function note(key,text){ const el=$('note-'+key); if(el) el.textContent=text; }
 
 async function load(){
+  loadStories();
   listEl.innerHTML='<div class="empty">Loading gaps…</div>';
   try {
     const { themes=[], total=0 } = await (await fetch('/api/career-hunter/strengthen')).json();

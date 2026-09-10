@@ -8,6 +8,7 @@ exports.sendDigestForUser = sendDigestForUser;
 exports.sendDigestsForAllUsers = sendDigestsForAllUsers;
 exports.registerCareerDigestRoutes = registerCareerDigestRoutes;
 const logger_1 = require("@/shared/logger");
+const career_match_prefs_1 = require("./career-match-prefs");
 const connectors_routes_1 = require("@/app/routes/connectors-routes");
 const email_routes_1 = require("@/app/routes/email-routes");
 const twilio_sms_operation_1 = require("@/app/routes/twilio-sms-operation");
@@ -108,7 +109,7 @@ async function channelReadiness(pool, userSub) {
  * @param sinceIso last digest time (null = first digest: current top hits, still capped)
  * @returns up to MAX_HITS hits, best first
  */
-function findNewHits(userSub, sinceIso) {
+function findNewHits(userSub, sinceIso, remoteOnly = false) {
     const db = (0, career_user_store_1.openUserDb)(userSub);
     if (!db)
         return [];
@@ -120,6 +121,7 @@ function findNewHits(userSub, sinceIso) {
         JOIN corpus.companies co ON co.id = pc.company_id
         JOIN user_signals us ON us.posting_id = pc.id
        WHERE pc.active = 1 AND COALESCE(pc.target_role, 0) = 1
+         ${remoteOnly ? 'AND COALESCE(pc.remote, 0) = 1' : ''}
          AND us.ai_fit_score >= ${MIN_FIT}
          AND COALESCE(us.status, 'new') = 'new'
          AND (? IS NULL OR us.ai_scored_at > ?)
@@ -186,7 +188,7 @@ async function sendDigestForUser(pool, userSub, opts = {}) {
         return { sent: false, hits: 0, reason: 'disabled' };
     if (!opts.force && !(0, digest_resend_guard_1.dueForDigest)(s.lastDigestAt))
         return { sent: false, hits: 0, reason: 'already-sent-today' };
-    const hits = findNewHits(userSub, s.lastDigestAt);
+    const hits = findNewHits(userSub, s.lastDigestAt, await (0, career_match_prefs_1.readRemoteOnly)(pool, userSub));
     if (!hits.length)
         return { sent: false, hits: 0, reason: 'no-new-hits' };
     // Notification preference center (079): a saved 'career-digest' pref overrides WHICH
@@ -285,7 +287,7 @@ function registerCareerDigestRoutes(router, ctx) {
             return;
         }
         const s = await readSettings(pool, userSub);
-        const hits = findNewHits(userSub, s.lastDigestAt);
+        const hits = findNewHits(userSub, s.lastDigestAt, await (0, career_match_prefs_1.readRemoteOnly)(pool, userSub));
         res.json({ hits, since: s.lastDigestAt, wouldSend: s.enabled && hits.length > 0 });
     });
     router.post('/digest/send-now', async (req, res) => {

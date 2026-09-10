@@ -25,12 +25,19 @@
  * persisted on the decision row (extended_hours) so the order path can honour it.
  *
  * Timed (dated) orders (ADR-136 D4). A request may carry `fireAtEt` — an Eastern wall-clock
- * { date: 'YYYY-MM-DD', time: 'HH:MM' } on the 5-minute grid, 09:00–16:55 ET, a trading day, within
- * TRADING_DATED_MAX_DAYS. The decision is minted exactly as before but NOT executed by the caller: a
- * kernel dated-order row (@/app/trading-dated-orders) fires it ONCE through the engine on the
- * trading-events leg at that time (5-minute cadence). The leg is ensured BEFORE anything is written
- * (503 scheduler_unavailable changes nothing) because a timed order with no leg would never fire.
- * Protection may ride along — the lot's unfilled-entry release then counts from the fire time.
+ * { date: 'YYYY-MM-DD', time: 'HH:MM' } at MINUTE precision, 07:00–19:59 ET (the window the kernel
+ * derives from the leg's own cron — never a second setting here), a trading day that is not an NYSE
+ * full-closure holiday (refused BY NAME), within TRADING_DATED_MAX_DAYS. Outside the regular session
+ * (09:30–16:00 ET) the venues take only a LIMIT order marked eligible for extended hours as a DAY
+ * order, so the kernel is given the ORDER SHAPE — validateFireAt(fireAt, now, { orderType,
+ * extendedHours, timeInForce }) — and refuses anything else there; it also fails closed when the
+ * shape is omitted, so this route always passes it. The decision is minted exactly as before but NOT
+ * executed by the caller: a kernel dated-order row (@/app/trading-dated-orders) fires it ONCE through
+ * the engine on the trading-events leg at that minute. The leg is ensured BEFORE anything is written
+ * (503 scheduler_unavailable changes nothing) because a timed order with no leg would never fire, and
+ * a leg left on an OLD cron/timezone is re-created rather than reused (an existing user migrates onto
+ * the every-minute cadence the first time they schedule anything). Protection may ride along — the
+ * lot's unfilled-entry release then counts from the fire time.
  * GET /dated lists this book's timed orders; POST /dated/:id/cancel stops a pending one.
  *
  * CHANGE LOG
@@ -40,6 +47,9 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — POST /decisions/manual (symbol/side/qty-or-notional/orderType/price params/TIF, book-scoped query-first per the 2026-09-03 surface audit, guardrail + disabled-book pre-checks) and GET /quote.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-138 D3: POST /decisions/manual accepts protect (PinnedLotRules → normalizePinnedLotRules, 400 rules_invalid) and extendedHours (persisted as extended_hours on the decision row); a BUY with exit rules mints a pending_fill pinned-lot intent and ensures the per-user trading-events schedule (503 scheduler_unavailable BEFORE any insert); sells never pin; the response carries lot + protection. Handler decomposed into parse / size / mint / protect helpers (50-line rule); the latest-price sizing read logs its failure instead of swallowing it.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 D4 timed orders: fireAtEt (ET wall-clock → kernel etWallToInstant + validateFireAt at PARSE time, 400 fire_at_invalid before anything is written); a timed request ensures the trading-events leg BEFORE the mint (a timed order with no leg would never fire — 503 changes nothing) and records a kernel dated-order row instead of expecting POST /orders; protection rides along with notBefore = the fire time; GET /dated + POST /dated/:id/cancel.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Cash-account settlement (ADR-134 D8): settlementCheck() runs in sizeManualOrder AFTER the guardrails, for cash-type books only (kernel settlementApplies) — a BUY funded by unsettled proceeds is 422 settlement_blocked { message, settlesOn, settlement } under 'refuse' (the same WHY-before-confirm pattern as guardrails; the engine re-checks at execution) or a `warning` under 'warn'; a SELL of a symbol bought while proceeds were unsettled gets the kernel's good-faith-violation advisory as a `warning` (never a block). Sized gains warning?/settlement?; the response carries `settlement` and MERGES warnings with the protected-entry scheduleWarning (' · ') instead of overwriting one with the other.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Review fix: the recent-buys read behind the good-faith advisory logs its failure at error (it swallowed it with a bare catch that returned [], so the advisory could vanish on a SELL with no trace); the advisory still degrades to none — a read failure never blocks a sell.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 D4 follow-up (the store half of the minute-precision kernel): the ORDER SHAPE is passed to validateFireAt(fireAt, new Date(), { orderType, extendedHours, timeInForce }) and to createDatedOrder (extendedHours + timeInForce), so a pre/post-market fire time is judged against the venue's rule (LIMIT + extended hours + DAY) instead of being refused for want of the shape — the kernel fails closed without it. ensureEventSchedule now also compares the stored cron/timezone with EVENT_PLANS_CRON/EVENT_PLANS_TIMEZONE, so a leg left on the retired 5-minute cron is RE-CREATED (create-or-replace keeps id/status/executionCount) the first time an existing user schedules a protected or timed order — without it their timed orders would fire only every 5th minute. The createSchedule call itself is byte-identical. Consequence worth naming: a user whose leg is stale-but-active no longer short-circuits, so a TIMED order now refuses (503 scheduler_unavailable when the service is absent, 502 when the create itself fails) where 1.10.0 accepted it onto the retired cadence — nothing is at the venue yet and a timed order with no current leg would never fire. A PROTECTED order is unchanged: its leg is armed best-effort after the order and a failure there stays a warning.
  *
  * @module trading-manual-order-routes
  */
@@ -82,6 +92,7 @@ const crypto = __importStar(require("crypto"));
 const logger_1 = require("@/shared/logger");
 const trading_1 = require("@/features/trading");
 const trading_routes_helpers_1 = require("@/app/routes/trading-routes-helpers");
+const trading_settlement_1 = require("@/app/trading-settlement");
 const trading_schema_1 = require("@/app/trading-schema");
 const trading_schedule_dispatch_1 = require("@/app/trading-schedule-dispatch");
 const trading_event_plans_1 = require("@/app/trading-event-plans");
@@ -142,12 +153,14 @@ function parseManualBody(b) {
         return { ok: false, status: err instanceof trading_routes_helpers_1.TradingError ? err.httpStatus : 400, error: err instanceof trading_routes_helpers_1.TradingError ? err.code : 'rules_invalid', message: err.message };
     }
     // ADR-136 D4: the fire time is converted + validated by the KERNEL (same rules the leg enforces) at
-    // parse time, so a refused time is a 400 with nothing written.
+    // parse time, so a refused time is a 400 with nothing written. The ORDER SHAPE travels with it —
+    // outside the regular session the venue takes only a limit + extended-hours + day order, and
+    // validateFireAt FAILS CLOSED (refuses every pre/post time) when the shape is omitted.
     let fireAt = null;
     if (b.fireAtEt && (b.fireAtEt.date || b.fireAtEt.time)) {
         try {
             fireAt = (0, trading_dated_orders_1.etWallToInstant)(String(b.fireAtEt.date || ''), String(b.fireAtEt.time || ''));
-            (0, trading_dated_orders_1.validateFireAt)(fireAt);
+            (0, trading_dated_orders_1.validateFireAt)(fireAt, new Date(), { orderType: type, extendedHours: b.extendedHours === true, timeInForce: tif });
         }
         catch (err) {
             logger.warn({ err, symbol }, 'fire time rejected');
@@ -157,16 +170,70 @@ function parseManualBody(b) {
     return { ok: true, v: { symbol, side, type, tif, prices, extendedHours: b.extendedHours === true, rules, fireAt } };
 }
 /**
+ * @description This book's filled BUYs since a given trade time (the good-faith-violation check on a
+ * sell: was the symbol bought while sale proceeds were still unsettled?). Book-scoped, read-only.
+ * @param pool - DB pool.
+ * @param sub - Caller sub.
+ * @param book - The selected book.
+ * @param since - The earliest unsettled sell's trade time.
+ * @returns Symbol + trade time per filled buy.
+ */
+async function recentLedgerBuys(pool, sub, book, since) {
+    const rows = (await pool.query(`SELECT symbol, COALESCE(submitted_at, created_at) AS traded_at FROM oshal_trading_orders
+      WHERE user_sub=$1 AND book_id=$2 AND side='buy' AND status IN ('filled','partially_filled') AND filled_qty > 0
+        AND COALESCE(submitted_at, created_at) >= $3`, [sub, book.bookId, since.toISOString()])).rows;
+    return rows.map((r) => ({ symbol: String(r.symbol), tradedAt: new Date(r.traded_at) }));
+}
+/**
+ * @description Cash-account settlement pre-check (ADR-134 D8) — says WHY before the confirm step, the
+ * way guardrails do; the engine's assertSettledFunding re-checks at execution regardless. Kernel
+ * settlementApplies() decides whether there is anything to check (margin books, typeless paper books
+ * and policy 'off' skip with no I/O). A BUY that would be funded by unsettled proceeds is refused
+ * (422 settlement_blocked) under 'refuse' or warned under 'warn'; a SELL only ever gets the
+ * good-faith advisory. An unreadable account yields no refusal here — the engine is the wall.
+ * @param pool - DB pool (ledger fallback + the settlement date).
+ * @param sub - Caller sub.
+ * @param book - The selected book.
+ * @param v - The parsed request (side + symbol).
+ * @param qty - Shares.
+ * @param refPrice - The sizing price (the operator's price point, else the latest print).
+ * @returns The warning/view, or a refusal.
+ */
+async function settlementCheck(pool, sub, book, v, qty, refPrice) {
+    if (!(0, trading_settlement_1.settlementApplies)(book))
+        return { warning: null, settlement: null };
+    const reader = (0, trading_1.getBrokerReader)(book.kind, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined);
+    const account = reader.configured()
+        ? await reader.getAccount().catch((err) => { logger.error({ err, book: book.ref }, 'settlement pre-check: account read failed — the engine decides at execution'); return null; })
+        : null;
+    const sells = await (0, trading_settlement_1.unsettledLedgerSells)(pool, sub, book).catch((err) => { logger.error({ err, book: book.ref }, 'settlement pre-check: ledger read failed'); return []; });
+    const view = (0, trading_settlement_1.buildSettlementView)(account, book, sells);
+    if (v.side === 'sell') {
+        const buys = view.unsettledCash > 0 && sells.length
+            ? await recentLedgerBuys(pool, sub, book, sells[0].tradedAt).catch((err) => { logger.error({ err, book: book.ref, symbol: v.symbol }, 'settlement pre-check: recent-buys read failed — good-faith advisory unavailable'); return []; })
+            : [];
+        return { warning: (0, trading_settlement_1.gfvAdvisory)(view, v.symbol, buys), settlement: view };
+    }
+    const violation = (0, trading_settlement_1.settlementViolation)(view, qty * (refPrice ?? 0));
+    if (!violation)
+        return { warning: null, settlement: view };
+    if (violation.warnOnly)
+        return { warning: violation.message, settlement: view };
+    return { ok: false, status: 422, error: 'settlement_blocked', message: violation.message, extra: { settlesOn: violation.settlesOn, settlement: view } };
+}
+/**
  * @description Size the order in whole shares: by `qty`, or by `notional` at the reference price —
  * the operator's own price point when there is one, otherwise the latest print from the book's rail.
- * Then pre-check the same guardrails the engine enforces so the UI can say WHY before confirm.
+ * Then pre-check the same guardrails the engine enforces so the UI can say WHY before confirm, and
+ * the cash-account settlement check (ADR-134 D8) after them.
  * @param b - The posted body (qty / notional).
  * @param v - The parsed request.
  * @param book - The selected book.
  * @param sub - Caller sub.
+ * @param pool - DB pool (the settlement ledger fallback).
  * @returns The sized order, or a refusal.
  */
-async function sizeManualOrder(b, v, book, sub) {
+async function sizeManualOrder(b, v, book, sub, pool) {
     const { symbol, prices } = v;
     let qty = num(b.qty);
     const notional = num(b.notional);
@@ -193,7 +260,10 @@ async function sizeManualOrder(b, v, book, sub) {
     const violation = (0, trading_routes_helpers_1.guardrailViolation)(g, symbol, qty, refPrice ?? 0);
     if (violation)
         return { ok: false, status: 422, error: 'guardrail_blocked', message: violation, extra: { guardrails: g } };
-    return { ok: true, qty, refPrice, latest, notional, g };
+    const settled = await settlementCheck(pool, sub, book, v, qty, refPrice);
+    if ('ok' in settled)
+        return settled;
+    return { ok: true, qty, refPrice, latest, notional, g, warning: settled.warning ?? undefined, settlement: settled.settlement };
 }
 /**
  * @description Persist the operator's decision: a 'manual' signal row carrying the rationale, then
@@ -220,8 +290,12 @@ async function mintManualDecision(ctx, sub, book, v, sized, rationale) {
     return { decisionId: String(row.decision_id), createdAt: String(row.created_at) };
 }
 /**
- * @description Ensure the caller's per-user 'trading-events' schedule exists and is active — the leg
- * the pinned-lot executor rides (the same leg as the event playbooks, created the same way).
+ * @description Ensure the caller's per-user 'trading-events' schedule exists, is active, AND carries
+ * the CURRENT leg cadence — the leg the pinned-lot executor and the timed orders ride (the same leg as
+ * the event playbooks, created the same way). A row left on a retired cron/timezone (the v1 5-minute
+ * grid) is treated as missing so the create-or-replace below migrates it in place: without that, an
+ * existing user's timed order would fire only on the old cadence's minutes. Config lives in the kernel
+ * (EVENT_PLANS_CRON ← env TRADING_EVENTS_CRON, EVENT_PLANS_TIMEZONE) — never re-declared here.
  * @param sub - Caller sub.
  */
 async function ensureEventSchedule(sub) {
@@ -230,7 +304,7 @@ async function ensureEventSchedule(sub) {
         throw new trading_routes_helpers_1.TradingError(503, 'scheduler_unavailable', SCHEDULER_UNAVAILABLE);
     const taskType = (0, trading_event_plans_1.eventPlanTaskType)(sub);
     const mine = await svc.listSchedules({ ownerSub: sub, scope: 'mine' });
-    if (mine.some((r) => r.taskType === taskType && r.ownerSub === sub && r.status === 'active'))
+    if (mine.some((r) => r.taskType === taskType && r.ownerSub === sub && r.status === 'active' && r.cron === trading_event_plans_1.EVENT_PLANS_CRON && r.timezone === trading_event_plans_1.EVENT_PLANS_TIMEZONE))
         return;
     await svc.createSchedule({
         taskType: (0, trading_event_plans_1.eventPlanTaskType)(sub), schedule: trading_event_plans_1.EVENT_PLANS_CRON, timezone: trading_event_plans_1.EVENT_PLANS_TIMEZONE, ownerSub: sub, queue: 'intelligent-trades',
@@ -339,23 +413,26 @@ function registerTradingManualOrderRoutes(router, ctx) {
             // armed on this account (2026-09-04: "view-only" gated the autopilot, and wrongly blocked the
             // human's own buys). The engine still enforces the live gate (TRADING_LIVE_ENABLED + confirm).
             // Autonomous buys on a disabled book remain refused in the engine (agent_id-scoped).
-            const sized = await sizeManualOrder(b, parsed.v, book, sub);
+            const sized = await sizeManualOrder(b, parsed.v, book, sub, ctx.pool);
             if (!sized.ok) {
                 res.status(sized.status).json({ error: sized.error, message: sized.message, ...(sized.extra ?? {}) });
                 return;
             }
             const rationale = String(b.rationale || '').trim() || `Operator direct ${side}: ${sized.qty} ${symbol} (${type}${tif === 'gtc' ? ', GTC' : ''}).`;
             const minted = await mintManualDecision(ctx, sub, book, parsed.v, sized, rationale);
-            const dated = parsed.v.fireAt ? await (0, trading_dated_orders_1.createDatedOrder)(ctx.pool, sub, { book, decisionId: minted.decisionId, symbol, side, qty: sized.qty, orderType: type, fireAt: parsed.v.fireAt }) : null;
+            const dated = parsed.v.fireAt ? await (0, trading_dated_orders_1.createDatedOrder)(ctx.pool, sub, { book, decisionId: minted.decisionId, symbol, side, qty: sized.qty, orderType: type, fireAt: parsed.v.fireAt, extendedHours, timeInForce: tif }) : null;
             const protectedEntry = pins ? await protectEntry(ctx, sub, book, minted.decisionId, parsed.v, sized.qty) : null;
-            logger.info({ sub, book: book.ref, symbol, side, qty: sized.qty, type, tif, extendedHours, pinned: !!protectedEntry, dated: dated?.datedId ?? null }, 'operator direct-trade decision minted');
+            logger.info({ sub, book: book.ref, symbol, side, qty: sized.qty, type, tif, extendedHours, pinned: !!protectedEntry, dated: dated?.datedId ?? null, settlementWarning: !!sized.warning }, 'operator direct-trade decision minted');
+            // Two advisories may coexist (a settlement warning AND a scheduler warning) — merge, never overwrite.
+            const warnings = [sized.warning, protectedEntry?.scheduleWarning].filter((w) => !!w);
             res.json({
                 ok: true, decisionId: minted.decisionId, createdAt: minted.createdAt, book: book.ref,
                 decision: { action: side, symbol, side, qty: sized.qty, orderType: type, limitPrice: prices.limit, stopPrice: prices.stop, trailPercent: prices.trailPct, trailPrice: prices.trailPx, timeInForce: tif, extendedHours, rationale },
                 refPrice: sized.refPrice, estNotional: sized.refPrice ? sized.qty * sized.refPrice : null, requiresConfirm: book.kind === 'live',
                 lot: protectedEntry ? protectedEntry.lot : null, protection: pins ? rules : null,
                 dated: dated ? withFireWords(dated) : null,
-                ...(protectedEntry?.scheduleWarning ? { warning: protectedEntry.scheduleWarning } : {}),
+                settlement: sized.settlement ?? null,
+                ...(warnings.length ? { warning: warnings.join(' · ') } : {}),
             });
         }
         catch (err) {

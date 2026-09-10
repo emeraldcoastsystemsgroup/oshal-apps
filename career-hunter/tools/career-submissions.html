@@ -93,6 +93,7 @@
   .btn:hover { border-color:var(--accent); }
 </style>
 <link rel="stylesheet" href="/api/career-hunter/static/career-hunter.css"/>
+<script src="/api/artifacts/send-to.js" defer></script>
 </head><body>
 <script>(function(){const M={'--bg':'--bg-primary','--panel':'--bg-secondary','--panel2':'--bg-tertiary','--line':'--border-color','--text':'--text-primary','--muted':'--text-secondary','--accent':'--accent-primary','--accent2':'--status-success','--scrollbar-thumb':'--scrollbar-thumb'};function m(){try{const p=(window.parent&&window.parent!==window)?window.parent:null;if(!p)return;const cs=p.getComputedStyle(p.document.documentElement);for(const k in M){const v=cs.getPropertyValue(M[k]).trim();if(v)document.documentElement.style.setProperty(k,v);}}catch(e){}}m();window.addEventListener('storage',e=>{if(e.key==='cockpit-theme')setTimeout(m,30);});try{const p=window.parent;if(p&&p!==window)new MutationObserver(m).observe(p.document.documentElement,{attributes:true,attributeFilter:['data-theme']});}catch(e){}document.addEventListener('DOMContentLoaded',m);})();</script>
 
@@ -189,7 +190,10 @@ function renderLanes(counts){
 }
 
 function beatHtml(t,b){
-  const img=b.file?`<img loading="lazy" src="/api/apply-operator/shot/${encodeURIComponent(t)}/${encodeURIComponent(b.file)}" alt="${esc(b.label)}" onclick="zoom(this.src)"/>`:'';
+  // ADR-139 standard tag: an application screenshot is a sendable artifact (the shared
+  // component anchors its chip on the frame and adds right-click).
+  const shot=b.file?`/api/apply-operator/shot/${encodeURIComponent(t)}/${encodeURIComponent(b.file)}`:'';
+  const img=b.file?`<img loading="lazy" src="${shot}" alt="${esc(b.label)}" onclick="zoom(this.src)" data-artifact-source="${shot}" data-artifact-type="image/png" data-artifact-name="${esc(b.label||'screenshot')}.png"/>`:'';
   return `<div class="beat">
     <div class="seq">${b.seq}</div>
     <div class="body">

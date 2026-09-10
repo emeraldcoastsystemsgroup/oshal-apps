@@ -9,18 +9,36 @@
  * Start/Stop are also wired from the account page and the landing tiles, so they repaint whichever view
  * is showing instead of assuming the roster.
  *
- * Event playbooks (ADR-136 D6 — IPO plans): the Studio renders a `kind:'event'` reply as a plan card
- * (dry-run table, manual steps, Arm/Disarm) and the 'Event playbooks' sub-tab lists every plan across
- * accounts. The event helpers (eventPlanActive, eventStatusPill, eventEntryExitText) are defined HERE and
- * called from view-account.js / view-accounts.js as globals.
+ * Event playbooks (ADR-136 D6 — IPO plans) live in view-events.js: the Studio renders a `kind:'event'`
+ * reply through renderStudioEventResult (+ studioArmEvent / studioDisarmEvent) and the 'Event playbooks'
+ * sub-tab is loadEventPlansTab — all globals from that module, called from here at render time.
+ *
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com   | The event-playbook block (EVENT_ACTIVE … toggleEventPlanDetail) moved verbatim to view-events.js — this file had reached 870 code lines, past the 800-line decomposition bar; Lab / Studio / Tuning / roster stay. No behaviour change: the moved functions remain globals with the same names.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Strict-CSP cleanup + the sub-tab race (ADR-136 D2 tail). The four handler attributes here are gone: the roster is #rosterHost with ONE delegated listener (wireRoster/rosterAction) where only the BOOK ID rides the markup and the trading state is read from BOOKS at click time, and the applied-panel's 'Account strategies' link is a delegated data-act. Every sub-tab loader (roster, lab-applied, lab-knobs, tuning recs, tuning params) now captures RENDER_TOKEN and tabGen() before its first await and bails after it - including the catch paths - so a slow answer for the sub-tab just left can no longer overpaint the one just chosen; loadRosterTab bails BEFORE writing BOOKS or filling the live pickers. loadTuning is a plain function (it paints nothing after an await).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Review follow-ups on the SEQ 2 lines: loadRosterTab carries JSDoc rather than a prose block, and loadTuneParams' catch binds its error and shows it in the same "foot err" shape its sibling loaders use instead of blanking the panel and swallowing the reason - a silent empty panel is indistinguishable from "no parameters".
  */
 
 /* ── Account strategies roster — per-book strategy + trading control (ADR-134) ── */
+/**
+ * @description Paint the account-strategies roster (per-book strategy + trading control, ADR-134).
+ * It paints into the PERSISTENT #tabbody element, so a slow /accounts answer for the sub-tab the
+ * operator just left would overpaint the one they chose. The render token AND the sub-tab generation
+ * are captured before the await and re-checked after it - BEFORE BOOKS is written and BEFORE the
+ * strategy pickers are filled, because a stale answer must touch neither module state nor a live
+ * <select> the operator may already be using. Pinned by tests/trading-ui-loader-guards.spec.ts.
+ * @returns {Promise<void>} resolves once the roster is painted, or immediately if the render moved on
+ */
 async function loadRosterTab() {
+  const token = RENDER_TOKEN, gen = tabGen();
   const host = $('tabbody'); if (!host) return;
   host.innerHTML = '<div class="spin"><span class="dot"></span> Loading accounts…</div>';
   try {
     const j = await api('/accounts');
+    if (stale(token) || tabStale(gen)) return;
     BOOKS = j.books || [];
     const stratCell = (b) => {
       const cur = b.strategy
@@ -29,8 +47,8 @@ async function loadRosterTab() {
       return cur +
         '<div style="margin-top:4px;display:flex;gap:4px;align-items:center">' +
         '<select id="stratPick-' + esc(b.bookId) + '" style="max-width:180px"><option value="">choose strategy…</option></select>' +
-        '<button class="btn ghost sm" onclick="setBookStrategy(\'' + esc(b.bookId) + '\')">Set</button>' +
-        (b.strategy ? '<button class="btn ghost sm" onclick="resetBookStrategy(\'' + esc(b.bookId) + '\')" title="Back to the Production baseline">Reset</button>' : '') +
+        '<button class="btn ghost sm" data-act="set" data-book="' + esc(b.bookId) + '">Set</button>' +
+        (b.strategy ? '<button class="btn ghost sm" data-act="reset" data-book="' + esc(b.bookId) + '" title="Back to the Production baseline">Reset</button>' : '') +
         '</div>';
     };
     const bookRow = (b) =>
@@ -40,17 +58,49 @@ async function loadRosterTab() {
       '<td>' + stratCell(b) + '</td>' +
       '<td class="num">' + (b.capitalCapUsd != null ? money(b.capitalCapUsd) : '—') + '</td>' +
       '<td>' + (b.ref === 'paper' ? '<span class="foot">always on</span>'
-        : '<button class="btn ghost sm" onclick="toggleBook(\'' + esc(b.bookId) + '\',' + (!b.enabled) + ')">' + (b.enabled ? 'Stop trading' : 'Start trading…') + '</button>') + '</td></tr>';
+        : '<button class="btn ghost sm" data-act="toggle" data-book="' + esc(b.bookId) + '">' + (b.enabled ? 'Stop trading' : 'Start trading…') + '</button>') + '</td></tr>';
     host.innerHTML =
       (j.multiAccountEnabled ? '' :
         '<div class="panel"><div class="foot">Multi-account dispatch is <strong>not armed yet</strong> (TRADING_MULTI_ACCOUNT is off — the ADR-134 cutover flips it). ' +
         'Discovery and book setup work now; per-account trading starts at cutover.</div></div>') +
-      '<div class="panel"><h2>Your accounts — strategy & trading control</h2>' +
+      '<div class="panel" id="rosterHost"><h2>Your accounts — strategy & trading control</h2>' +
         '<div class="foot" style="margin-bottom:8px">One row per account: what it runs and whether it trades. Set a saved strategy from the dropdown (takes effect on the next engine cycle); Reset returns it to the Production baseline; Start trading… arms it. Build and test strategies in the Strategy Lab / Studio tabs — selection happens HERE or on the account page.</div>' +
         '<table><thead><tr><th>Account</th><th>Kind</th><th>State</th><th>Strategy</th><th class="num">Capital cap</th><th></th></tr></thead><tbody>' +
         BOOKS.map(bookRow).join('') + '</tbody></table></div>';
+    wireRoster($('rosterHost'));
     fillStrategyPickers();
-  } catch (e) { host.innerHTML = '<div class="panel err">' + esc(e.message) + '</div>'; }
+  } catch (e) { if (!stale(token) && !tabStale(gen)) host.innerHTML = '<div class="panel err">' + esc(e.message) + '</div>'; }
+}
+/**
+ * @description One delegated listener for the whole roster table — strict CSP allows no handler
+ * attribute, so each button carries data-act + data-book and the action is dispatched here.
+ * @param {HTMLElement|null} panel - The #rosterHost panel just painted.
+ * @returns {void}
+ */
+function wireRoster(panel) {
+  if (!panel) return;
+  panel.onclick = (e) => {
+    const b = e.target.closest('button[data-act]');
+    if (!b || !panel.contains(b)) return;
+    e.preventDefault();
+    rosterAction(b.getAttribute('data-act'), b.getAttribute('data-book'));
+  };
+}
+/**
+ * @description Run one roster action for a book. Only the BOOK ID rides the markup: the trading
+ * state (and so the direction Start/Stop moves it) is resolved from BOOKS at CLICK time, so a row
+ * painted before a state change can never send the stale flag the old baked argument carried.
+ * @param {string} act - set | reset | toggle.
+ * @param {string} bookId - The book the clicked row belongs to.
+ * @returns {void}
+ */
+function rosterAction(act, bookId) {
+  if (!bookId) return;
+  if (act === 'set') { setBookStrategy(bookId); return; }
+  if (act === 'reset') { resetBookStrategy(bookId); return; }
+  if (act !== 'toggle') return;
+  const b = BOOKS.find(x => x.bookId === bookId);
+  if (b) toggleBook(bookId, !b.enabled);
 }
 /* Fill every row's strategy <select> from the saved Strategy Library (one fetch). */
 async function fillStrategyPickers() {
@@ -150,9 +200,11 @@ function loadLab() {
 
 /* ── applied-to-account panel (ADR-095) — what the autopilot actually runs, apply history, revert ── */
 async function loadLabApplied() {
+  const token = RENDER_TOKEN, gen = tabGen();
   const el = $('labApplied'); if (!el) return;
   try {
     const j = await labApi('/apply');
+    if (stale(token) || tabStale(gen)) return;
     const a = j.active, env = j.envDefaults || {};
     const rotTxt = env.rotation && env.rotation.enabled
       ? env.rotation.rank + '/' + env.rotation.everyDays + 'd/top' + env.rotation.topN + '/' + env.rotation.weighting
@@ -169,14 +221,22 @@ async function loadLabApplied() {
           '<div class="foot" style="margin-top:4px">' + esc(j.activeSummary || '') + '</div>' +
           '<div class="foot" style="margin-top:6px;opacity:.75">Env defaults (what Revert resumes): ' + esc(envTxt) + '</div>'
         : '<div><span class="pill">PRODUCTION BASELINE</span> <span class="foot">' + esc(envTxt) + '</span></div>' +
-          '<div class="foot" style="margin-top:6px">This account runs the <strong>production baseline</strong> — the live-tuned engine configuration shown above (your July/August tuning lives here). To move it onto a named library strategy instead: <a href="#" onclick="navigate(\'strategies\', {sub:\'roster\'});return false"><strong>Account strategies</strong></a> → Set, or <strong>Set on ' + esc(DISP) + '…</strong> below.</div>') +
+          '<div class="foot" style="margin-top:6px">This account runs the <strong>production baseline</strong> — the live-tuned engine configuration shown above (your July/August tuning lives here). To move it onto a named library strategy instead: <a href="#" data-act="roster"><strong>Account strategies</strong></a> → Set, or <strong>Set on ' + esc(DISP) + '…</strong> below.</div>') +
       (hist.length ? '<div class="foot" style="margin-top:8px;opacity:.75">Past applies (all accounts, audit trail — NOT what runs now): ' + hist.slice(0, 5).map(h =>
           esc(h.strategyName) + ' @ ' + h.applyPct + '% (' + fmtDate(h.createdAt) + ' → ' + (h.deactivatedAt ? fmtDate(h.deactivatedAt) : '…') + ')').join(' · ') +
           (hist.length > 5 ? ' · +' + (hist.length - 5) + ' more' : '') + '</div>' : '') +
       '<div class="foot" style="margin-top:6px;opacity:.6">Applying changes what the autopilot trades on its NEXT fire, on the selected account (currently <strong>' + esc(DISP) + '</strong>). Every apply/revert returns a strategy-log.md row — paste it into docs/apps/trading/strategy-log.md (the log rule stands).</div></div>';
     if (a) { const b = $('labRevert'); if (b) b.onclick = labRevert; }
     const c = $('labCopyLog'); if (c) c.onclick = () => copyText(LAB.lastLogRow, $('labAppMsg'));
-  } catch (e) { el.innerHTML = '<div class="panel"><div class="foot err">' + esc(e.message) + '</div></div>'; }
+    // The 'Account strategies' link is delegated (strict CSP: no handler attribute); assignment, not
+    // addEventListener, so re-painting this panel cannot stack a second listener.
+    el.onclick = (e) => {
+      const a2 = e.target.closest('[data-act="roster"]');
+      if (!a2 || !el.contains(a2)) return;
+      e.preventDefault();
+      navigate('strategies', { sub: 'roster' });
+    };
+  } catch (e) { if (!stale(token) && !tabStale(gen)) el.innerHTML = '<div class="panel"><div class="foot err">' + esc(e.message) + '</div></div>'; }
 }
 function copyText(text, msgEl) {
   const done = () => { if (msgEl) { msgEl.textContent = 'copied ✓'; setTimeout(() => { msgEl.textContent = ''; }, 1800); } };
@@ -638,218 +698,12 @@ async function studioSpeak(text){
 }
 function stBrowserSpeak(text){ if(!('speechSynthesis' in window))return; speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(text)); }
 
-/* ── Event playbooks (ADR-136 D6 — IPO plans): shared helpers ─────────────── */
-/* Statuses in which the executor is (or will be) acting on the plan — armed through exits placed.
-   draft / closed / missed / cancelled / error are not active. */
-const EVENT_ACTIVE = ['armed','watching','priced','listed','entry_placed','filled','exits_placed'];
-const EVENT_DONE = ['closed','cancelled','missed'];
-let EVP = { plans: [], open: null, detail: null };   // the Event playbooks tab's paint state
-function eventPlanActive(p) { return !!p && EVENT_ACTIVE.includes(p.status); }
-function eventStatusPill(status) {
-  const s = String(status || 'draft');
-  const klass = (s === 'error' || s === 'missed') ? ' sell' : (EVENT_ACTIVE.includes(s) ? ' buy' : '');
-  return '<span class="pill' + klass + '">' + esc(s.replace(/_/g, ' ')) + '</span>';
-}
-/* '≤ +X% · TP +Y% · stop −Z% · time N d' — the one-line entry/exit summary (tiles, cards, table). */
-function eventEntryExitText(p) {
-  const q = (p && p.params) || {};
-  const n = (v) => v == null ? '?' : String(Number(v));
-  return '≤ +' + n(q.maxPremiumPct) + '% · TP +' + n(q.takeProfitPct) + '% · stop −' + n(q.stopLossPct) + '% · time ' + n(q.timeStopDays) + ' d';
-}
-/* The plan in plain words — what the executor will do, in the order it does it. Plain text: esc() at render. */
-function eventPlanText(p) {
-  const q = (p && p.params) || {};
-  const n = (v) => v == null ? '?' : String(Number(v));
-  const tick = q.ticker || (p && p.ticker);
-  const size = q.sizePctOfEquity != null
-    ? n(q.sizePctOfEquity) + '% of the account' + (q.notionalUsd != null ? ' (~' + money(q.notionalUsd) + ')' : '')
-    : (q.notionalUsd != null ? money(q.notionalUsd) : 'the configured size');
-  return 'Watch EDGAR for ' + (q.issuer || (p && p.name) || 'the issuer') + (tick ? ' (' + tick + ')' : '') + ' to price and list; enter on the first trade up to +' + n(q.maxPremiumPct) +
-    '% over the IPO price, size ' + size + ', take profit at +' + n(q.takeProfitPct) + '% over the IPO price, stop at −' + n(q.stopLossPct) +
-    '%, time stop ' + n(q.timeStopDays) + ' days, entry deadline ' + n(q.entryDeadlineDays) + ' days after listing.';
-}
-/* The dry-run table: one row per IPO-price scenario, assumptions as foot lines, guardrail note in warn. */
-function eventDryRunHtml(dryRun) {
-  const d = dryRun || {}; const rows = d.rows || [];
-  const c = (v) => v == null ? '—' : money(v);
-  const body = rows.length
-    ? rows.map(r => '<tr><td class="num">' + c(r.ipoPrice) + '</td><td class="num">' + c(r.entryLimit) + '</td><td class="num">' + (r.shares == null ? '—' : esc(r.shares)) + '</td><td class="num">' + c(r.entryNotional) + '</td><td class="num">' + c(r.takeProfit) + '</td><td class="num">' + c(r.stop) + '</td><td class="num err">' + c(r.maxLossUsd) + '</td><td class="num ok">' + c(r.targetGainUsd) + '</td></tr>').join('')
-    : '<tr><td class="foot" colspan="8">No dry-run rows — the IPO price is unknown until the deal prices.</td></tr>';
-  return '<div style="overflow-x:auto"><table style="width:100%"><thead><tr><th class="num">IPO price</th><th class="num">Entry limit</th><th class="num">Shares</th><th class="num">Cost</th><th class="num">Take-profit</th><th class="num">Stop</th><th class="num">Max loss</th><th class="num">Target gain</th></tr></thead><tbody>' + body + '</tbody></table></div>' +
-    (d.assumptions || []).map(a => '<div class="foot">' + esc(a) + '</div>').join('') +
-    (d.guardrailNote ? '<div class="sub warn">&#9888; ' + esc(d.guardrailNote) + '</div>' : '');
-}
-function eventStepsHtml(steps) {
-  const list = steps || []; if (!list.length) return '';
-  return '<div class="foot" style="margin-top:8px"><b>Manual steps</b></div><ol class="sub" style="margin:4px 0 0 18px;padding:0">' + list.map(s => '<li>' + esc(s) + '</li>').join('') + '</ol>';
-}
-/* Arm / disarm / delete — confirm-gated; the caller repaints. Return the server payload, or null. */
-async function armEventPlan(planId, name, acctLabel) {
-  if (!confirm('ARM "' + name + '" on ' + acctLabel + '?\n\nWhen the stock lists, the executor places REAL orders on this account: the entry, then the take-profit and the stop. Disarm any time before it fires.')) return null;
-  try { return await api('/events/plans/' + encodeURIComponent(planId) + '/arm', jbody('POST', { confirm: true })); }
-  catch (e) { alert('Arm failed: ' + e.message); return null; }
-}
-async function disarmEventPlan(planId, name) {
-  if (!confirm('Disarm "' + name + '"?\n\nThe executor stops watching for it; nothing will be placed.')) return null;
-  try { return await api('/events/plans/' + encodeURIComponent(planId) + '/disarm', jbody('POST', {})); }
-  catch (e) { alert('Disarm failed: ' + e.message); return null; }
-}
-async function deleteEventPlan(planId, name) {
-  if (!confirm('Delete "' + name + '"?\n\nThe plan and its timeline are removed. This cannot be undone.')) return null;
-  try { return await api('/events/plans/' + encodeURIComponent(planId), { method: 'DELETE' }); }
-  catch (e) { alert('Delete failed: ' + e.message); return null; }
-}
-/* What to tell the operator after arming: the server's note, or the flag-off truth. */
-function eventArmNote(r) {
-  if (r && r.note) return r.note;
-  if (r && r.enabled === false) return 'The event executor is OFF on this server (TRADING_EVENT_PLANS) — the plan is saved and armed; nothing fires until it is turned on.';
-  return 'The executor is watching EDGAR; the entry goes in when the stock lists.';
-}
-
-/* ── Studio: the event-plan card (replaces metrics + chart for kind:'event') ── */
-function renderStudioEventResult(j){
-  const host=$('stResults'); if(!host)return;
-  const plan=j.plan||{}; const armed=!!j.armed||eventPlanActive(plan);
-  const acct=bookLabel(j.account||plan.bookRef||BOOK);
-  host.innerHTML='<h4>'+stEsc(j.name||plan.name||'Event plan')+' '+eventStatusPill(plan.status||(armed?'armed':'draft'))+'</h4>'+
-    '<p class="sub">Account: <b>'+stEsc(acct)+'</b></p>'+
-    '<p class="sub"><b>Hypothesis:</b> '+stEsc(j.hypothesis||plan.hypothesis||'')+'</p>'+
-    '<p class="sub"><b>Plan:</b> '+stEsc(eventPlanText(plan))+'</p>'+
-    '<div class="foot" style="margin-top:8px"><b>Dry run</b> — what the executor would do at each IPO price</div>'+eventDryRunHtml(j.dryRun)+
-    eventStepsHtml(j.manualSteps||(j.dryRun&&j.dryRun.manualSteps))+
-    '<div class="st-cites"><b>Grounded in:</b>'+studioCitesHtml(j.citations||plan.citations)+'</div>'+
-    (j.notBacktestable?'<p class="sub">'+stEsc(j.notBacktestable)+'</p>':'')+
-    '<div style="margin-top:8px">'+
-      (armed?'<button class="btn ghost sm" id="stEvDisarm">Disarm</button> ':'<button class="btn primary sm" id="stEvArm">Arm on '+stEsc(acct)+'&hellip;</button> ')+
-      '<button class="btn ghost sm" id="stEvOpen">Open Event playbooks</button> <button class="btn ghost sm" id="stNew">Start a new strategy</button></div>';
-  const arm=$('stEvArm'); if(arm) arm.onclick=()=>studioArmEvent(j);
-  const dis=$('stEvDisarm'); if(dis) dis.onclick=()=>studioDisarmEvent(j);
-  $('stEvOpen').onclick=()=>navigate('strategies',{ sub:'events' });
-  $('stNew').onclick=studioNewStrategy;
-}
-async function studioArmEvent(j){
-  const plan=j.plan||{}; const id=j.planId||plan.planId||j.strategyId; if(!id)return;
-  const acct=bookLabel(j.account||plan.bookRef||BOOK);
-  const r=await armEventPlan(id, j.name||plan.name||'this plan', acct); if(!r)return;
-  j.plan=r.plan||plan; j.armed=true;
-  stAppend('bot','Armed on '+acct+'. '+eventArmNote(r));
-  renderStudioEventResult(j);
-}
-async function studioDisarmEvent(j){
-  const plan=j.plan||{}; const id=j.planId||plan.planId||j.strategyId; if(!id)return;
-  const r=await disarmEventPlan(id, j.name||plan.name||'this plan'); if(!r)return;
-  j.plan=r.plan||plan; j.armed=false;
-  stAppend('bot','Disarmed — the plan is kept as a draft. Arm it again any time.');
-  renderStudioEventResult(j);
-}
-
-/* ── Event playbooks — sub-tab: every plan across accounts, with arm/disarm/view/delete ── */
-async function loadEventPlansTab() {
-  const host = $('tabbody'); if (!host) return;
-  const token = RENDER_TOKEN, gen = tabGen();
-  host.innerHTML = spinner('Loading event playbooks…');
-  let j;
-  try { j = await api('/events/plans'); }
-  catch (e) { if (!stale(token) && !tabStale(gen)) host.innerHTML = '<div class="panel err">' + esc(e.message) + '</div>'; return; }
-  if (stale(token) || tabStale(gen)) return;
-  EVP.plans = j.allPlans || j.plans || [];
-  if (!EVP.plans.some(p => p.planId === EVP.open)) { EVP.open = null; EVP.detail = null; }
-  const state = (j.enabled
-      ? '<span class="ok">Executor ON</span>'
-      : '<span class="warn">Executor OFF on this server (TRADING_EVENT_PLANS)</span> — plans can be designed and armed; nothing fires until it is on') +
-    ' · ' + (j.scheduled ? 'EDGAR watcher scheduled' : '<span class="warn">EDGAR watcher not scheduled</span>');
-  host.innerHTML = '<div class="panel" id="evpHost"><h2>Event playbooks</h2>' +
-    '<div class="foot" style="margin-bottom:8px">A playbook is a one-off plan for a dated market event — today, an IPO: watch EDGAR for the pricing, buy on the first trade up to a premium cap you set, then take profit and stop out at fixed distances from the IPO price, with a time stop. Design one in Strategy Studio: "the Anthropic IPO — get in near the IPO price, sell at +10% over it or stop out". <a href="#" data-act="studio">Open Strategy Studio →</a></div>' +
-    '<div class="sub" style="margin-bottom:8px">' + state + '</div>' +
-    '<div id="evpTable"></div></div>';
-  paintEventPlans();
-  wireEventPlans($('evpHost'));
-}
-function paintEventPlans() {
-  const el = $('evpTable'); if (!el) return;
-  el.innerHTML = EVP.plans.length
-    ? '<table style="width:100%"><thead><tr><th>Name</th><th>Account</th><th>Issuer / ticker</th><th class="num">IPO price</th><th>Entry / exit</th><th>Status</th><th>Updated</th><th></th></tr></thead><tbody>' + EVP.plans.map(eventPlanRow).join('') + '</tbody></table>'
-    : '<div class="foot">No event playbooks yet — design one in Strategy Studio.</div>';
-}
-function eventPlanRow(p) {
-  const q = p.params || {}; const id = esc(p.planId);
-  const bk = bookOf(p.bookRef); const viewOnly = !!bk && bk.enabled === false;
-  const tick = q.ticker || p.ticker;
-  const issuer = esc(q.issuer || '—') + (tick ? ' <span class="foot">' + esc(tick) + '</span>' : '');
-  const ipo = p.ipoPrice != null ? money(p.ipoPrice) : (q.ipoPrice != null ? money(q.ipoPrice) : '—');
-  const status = eventStatusPill(p.status) + (viewOnly ? ' <span class="pill warn" style="border-color:var(--warn)" title="The plan cannot buy until this account is set to trading">view-only account</span>' : '');
-  const active = eventPlanActive(p);
-  const canArm = !active && p.status !== 'closed' && p.status !== 'missed';
-  const canDelete = p.status === 'draft' || EVENT_DONE.includes(p.status);
-  const acts = (active ? '<button class="btn ghost sm" data-act="disarm" data-id="' + id + '">Disarm</button> ' : '') +
-    (canArm ? '<button class="btn primary sm" data-act="arm" data-id="' + id + '">Arm…</button> ' : '') +
-    '<button class="btn ghost sm" data-act="view" data-id="' + id + '">' + (EVP.open === p.planId ? 'Hide' : 'View') + '</button>' +
-    (canDelete ? ' <button class="btn ghost sm" data-act="delete" data-id="' + id + '" title="Delete this plan">✕</button>' : '');
-  const detail = EVP.open === p.planId ? '<tr><td colspan="8">' + eventPlanDetail(p) + '</td></tr>' : '';
-  return '<tr><td><strong>' + esc(p.name) + '</strong></td><td>' + esc(bookLabel(p.bookRef)) + '</td><td>' + issuer + '</td><td class="num">' + ipo + '</td>' +
-    '<td class="foot">' + esc(eventEntryExitText(p)) + '</td><td>' + status + '</td><td class="foot">' + esc(fmtDate(p.updatedAt)) + '</td>' +
-    '<td style="white-space:nowrap">' + acts + '</td></tr>' + detail;
-}
-/* The expanded row: hypothesis, plan in words, filings links, timeline, and the dry run (fetched). */
-function eventPlanDetail(p) {
-  const d = EVP.detail && EVP.detail.planId === p.planId ? EVP.detail : null;
-  const plan = (d && d.plan) || p; const f = plan.filings || {};
-  const link = (label, x) => x && x.url
-    ? '<a href="' + esc(x.url) + '" target="_blank" rel="noopener">' + label + (x.form ? ' ' + esc(x.form) : '') + (x.date ? ' · ' + esc(x.date) : '') + '</a>'
-    : '<span class="foot">' + label + ' — not yet</span>';
-  const tl = (plan.timeline || []).length
-    ? '<ul class="sub" style="margin:4px 0 0 18px;padding:0">' + plan.timeline.map(t => '<li><span class="foot">' + esc(fmtDate(t.at)) + '</span> ' + esc(t.event) + (t.detail ? ' <span class="foot">— ' + esc(t.detail) + '</span>' : '') + '</li>').join('') + '</ul>'
-    : '<div class="foot">Nothing has happened yet.</div>';
-  const dry = !d ? spinner('Loading dry run…') : (d.error ? '<div class="foot err">' + esc(d.error) + '</div>' : eventDryRunHtml(d.dryRun));
-  return '<div class="why">' +
-    (plan.hypothesis ? '<div class="sub"><b>Hypothesis:</b> ' + esc(plan.hypothesis) + '</div>' : '') +
-    '<div class="sub"><b>Plan:</b> ' + esc(eventPlanText(plan)) + '</div>' +
-    '<div class="foot" style="margin-top:6px"><b>Filings:</b> ' + link('S-1', f.s1) + ' · ' + link('Pricing', f.pricing) + '</div>' +
-    '<div class="foot" style="margin-top:6px"><b>Timeline</b></div>' + tl +
-    '<div class="foot" style="margin-top:6px"><b>Dry run</b></div>' + dry + '</div>';
-}
-/* One delegated listener on the panel (it dies with the panel on repaint): data-act + data-id only —
-   the plan is resolved from EVP.plans, so no name ever passes through a JS string. */
-function wireEventPlans(panel) {
-  if (!panel) return;
-  panel.onclick = (e) => {
-    const a = e.target.closest('[data-act]'); if (!a || !panel.contains(a)) return;
-    e.preventDefault();
-    eventPlanAction(a.getAttribute('data-act'), a.getAttribute('data-id'));
-  };
-}
-async function eventPlanAction(act, id) {
-  if (act === 'studio') { navigate('strategies', { sub: 'studio' }); return; }
-  const p = EVP.plans.find(x => x.planId === id); if (!p) return;
-  if (act === 'view') { toggleEventPlanDetail(p); return; }
-  const token = RENDER_TOKEN, gen = tabGen();
-  let r = null;
-  if (act === 'arm') r = await armEventPlan(p.planId, p.name, bookLabel(p.bookRef));
-  else if (act === 'disarm') r = await disarmEventPlan(p.planId, p.name);
-  else if (act === 'delete') r = await deleteEventPlan(p.planId, p.name);
-  if (!r || stale(token) || tabStale(gen)) return;
-  if (act === 'arm' && r.enabled === false) alert(eventArmNote(r));
-  loadEventPlansTab();
-}
-async function toggleEventPlanDetail(p) {
-  if (EVP.open === p.planId) { EVP.open = null; EVP.detail = null; paintEventPlans(); return; }
-  EVP.open = p.planId; EVP.detail = null; paintEventPlans();
-  const gen = tabGen();
-  try {
-    const j = await api('/events/plans/' + encodeURIComponent(p.planId));
-    if (tabStale(gen) || EVP.open !== p.planId) return;
-    EVP.detail = { planId: p.planId, plan: j.plan || p, dryRun: j.dryRun || null, error: null };
-  } catch (e) {
-    if (tabStale(gen) || EVP.open !== p.planId) return;
-    EVP.detail = { planId: p.planId, plan: p, dryRun: null, error: e.message };
-  }
-  paintEventPlans();
-}
-
 async function loadLabKnobs() {
+  const token = RENDER_TOKEN, gen = tabGen();
   const el = $('labKnobs'); if (!el) return;
   try {
     if (!LAB.knobs) LAB.knobs = await labApi('/knobs');
+    if (stale(token) || tabStale(gen)) return;
     const k = LAB.knobs;
     const postures = (k.knobs.find(x=>x.key==='posture')||{}).values || [];
     el.innerHTML =
@@ -863,7 +717,7 @@ async function loadLabKnobs() {
       '<div class="foot" style="margin:10px 0 6px"><strong>Formulas (verbatim from the engine)</strong></div>' +
       '<table style="width:100%"><tbody>' + k.formulas.map(f=>'<tr><td style="color:var(--muted);white-space:nowrap;vertical-align:top">' + esc(f.algo) + '</td><td class="foot">' + esc(f.formula) + ' <span style="opacity:.6">(' + esc(f.source) + ')</span></td></tr>').join('') + '</tbody></table>' +
       '<div class="foot" style="margin-top:10px"><strong>Honest limits:</strong> ' + esc(k.honestLimits) + '</div>';
-  } catch (e) { el.innerHTML = '<div class="foot err">' + esc(e.message) + '</div>'; }
+  } catch (e) { if (!stale(token) && !tabStale(gen)) el.innerHTML = '<div class="foot err">' + esc(e.message) + '</div>'; }
 }
 
 /* ── Tuning — nightly optimizer & approvals (sub-tab). The optimizer proposes parameter tweaks for the
@@ -871,7 +725,10 @@ async function loadLabKnobs() {
  * approved here. ── */
 const fmtExp = (n) => n==null ? '—' : (Number(n)>=0?'+':'') + Number(n).toFixed(2) + '%';
 const fmtWin = (n) => n==null ? '—' : Math.round(Number(n)*100) + '%';
-async function loadTuning() {
+/* Not async: the paint is synchronous and refreshTuning()'s two loaders own their own capture/bail,
+   so there is no post-await paint here to guard. Its only caller (the subTabs onSelect below) ignores
+   the return value. */
+function loadTuning() {
   const host = $('tabbody'); if (!host) return;
   host.innerHTML = '<div class="panel"><div class="panel head2"><h2 style="margin:0">Tuning — nightly optimizer &amp; approvals</h2>' +
       '<button class="btn ghost sm" id="optRunBtn" style="margin-left:auto">Run optimization now</button></div>' +
@@ -882,12 +739,14 @@ async function loadTuning() {
     '<div id="tuneParams" style="margin-top:18px"></div>' +
     '<div id="tuneHistory" style="margin-top:18px"></div></div>';
   $('optRunBtn').onclick = runOptimizeNow;
-  await refreshTuning();
+  refreshTuning();
 }
 async function refreshTuning() { await Promise.all([loadTuneRecs(), loadTuneParams()]); }
 async function loadTuneRecs() {
+  const token = RENDER_TOKEN, gen = tabGen();
   const host = $('tunePending'), hist = $('tuneHistory'); if (!host) return;
-  let j; try { j = await api('/recommendations-tuning'); } catch (e) { host.innerHTML = '<div class="foot err">' + esc(e.message) + '</div>'; return; }
+  let j; try { j = await api('/recommendations-tuning'); } catch (e) { if (!stale(token) && !tabStale(gen)) host.innerHTML = '<div class="foot err">' + esc(e.message) + '</div>'; return; }
+  if (stale(token) || tabStale(gen)) return;
   const pending = j.pending || [];
   if (!pending.length) {
     host.innerHTML = '<div class="why" style="margin-top:4px"><strong>No pending recommendations.</strong> The optimizer hasn’t found a parameter change worth making since the last run — the current settings are holding up. Run it now, or check back after tonight’s 5:30am pass.</div>';
@@ -915,8 +774,10 @@ async function actOnRec(id, action) {
   catch (e) { if (msg) { msg.className='sub err'; msg.textContent = e.message; } }
 }
 async function loadTuneParams() {
+  const token = RENDER_TOKEN, gen = tabGen();
   const host = $('tuneParams'); if (!host) return;
-  let j; try { j = await api('/strategy-params'); } catch { host.innerHTML=''; return; }
+  let j; try { j = await api('/strategy-params'); } catch (e) { if (!stale(token) && !tabStale(gen)) host.innerHTML = '<div class="foot err">' + esc(e.message) + '</div>'; return; }
+  if (stale(token) || tabStale(gen)) return;
   const ps = j.params || [];
   host.innerHTML = '<div class="foot" style="margin-bottom:6px">CURRENT ' + MODE.toUpperCase() + ' ENGINE PARAMETERS (shared by every ' + MODE + ' account)</div>' +
     '<table><thead><tr><th>Parameter</th><th class="num">Value</th><th>Source</th><th>Updated</th></tr></thead><tbody>' +

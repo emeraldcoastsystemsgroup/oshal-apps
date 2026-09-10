@@ -13,6 +13,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { execFileSync } = require('node:child_process');
 
 const TOOLS = path.resolve(__dirname, '..', 'tools');
 
@@ -31,7 +32,7 @@ test('every expected surface exists in tools/', () => {
 });
 
 for (const file of fs.readdirSync(TOOLS).filter((f) => f.endsWith('.html'))) {
-  test(`inline scripts in ${file} parse as classic scripts`, () => {
+  test(`inline scripts in ${file} parse using their declared grammar`, () => {
     const html = fs.readFileSync(path.join(TOOLS, file), 'utf8');
     const scripts = [];
     const re = /<script(\s[^>]*)?>([\s\S]*?)<\/script>/gi;
@@ -39,12 +40,13 @@ for (const file of fs.readdirSync(TOOLS).filter((f) => f.endsWith('.html'))) {
     while ((m = re.exec(html)) !== null) {
       const attrs = m[1] || '';
       if (/\bsrc\s*=/i.test(attrs)) continue; // external scripts have no inline body
-      if (m[2].trim()) scripts.push(m[2]);
+      if (m[2].trim()) scripts.push({ code: m[2], module: /\btype\s*=\s*["']module["']/i.test(attrs) });
     }
     assert.ok(scripts.length > 0, `${file} has no inline script — every surface is self-driving`);
-    for (const [i, code] of scripts.entries()) {
-      // classic-script grammar: a stray top-level await / ESM syntax must fail HERE, not in a browser
-      assert.doesNotThrow(() => new vm.Script(code, { filename: `${file}#${i}` }), `script #${i} in ${file} does not parse`);
+    for (const [i, script] of scripts.entries()) {
+      assert.doesNotThrow(() => script.module
+        ? execFileSync(process.execPath, ['--check', '--input-type=module'], { input: script.code, stdio: 'pipe' })
+        : new vm.Script(script.code, { filename: `${file}#${i}` }), `script #${i} in ${file} does not parse`);
     }
   });
 }

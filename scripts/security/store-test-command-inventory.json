@@ -14,6 +14,7 @@
     "pumpkin|node --test \"tests/*.test.cjs\"",
     "rides|node --test \"tests/*.test.js\"",
     "spaces|node --test \"tests/*.test.js\"",
+    "sports-edge|node --test \"tests/*.test.js\"",
     ".|node --test scripts/check-no-public-secret-fallback.test.mjs email-summarizer/tests/session-crypto.test.mjs finance/tests/session-crypto.test.mjs youtube-kids/tests/session-crypto.test.mjs",
     "switchboard|node --test \"tests/*.test.js\"",
     "venture-plan|node --test \"tests/*.test.js\"",

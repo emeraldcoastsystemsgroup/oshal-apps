@@ -40,7 +40,7 @@ description: >-
   LinkedIn, your smart-home app, and more, reconnect a login that's expired, or connect
   a new one. Plus an optional access review that flags what needs attention. OSHAL never
   shows or hands back a password — this launches accounts you've already authorized.
-version: 1.0.1
+version: 1.1.0
 status: active
 
 # Trustworthy blue skin for the keys/identity surface.
@@ -148,3 +148,10 @@ ribbon:
     - logs
     - operations
   defaultView: identity-home
+
+# Configurable Home data, with legacy tiles for older cores.
+summary:
+  path: /api/identity/summary
+  tilesPointer: /tiles
+  itemsPointer: /items
+  metricsPointer: /metrics

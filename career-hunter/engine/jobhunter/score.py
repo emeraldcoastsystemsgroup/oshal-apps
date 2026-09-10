@@ -305,7 +305,7 @@ def _commit_one(res, model) -> bool:
 
 def score_batch(limit=None, rescore=False, min_keyword=0, workers=8, title_any=None, company_any=None,
                 days=None, recent_first=False, first_seen_days=None, *,
-                allow_posted_date_window=False) -> tuple[int, int]:
+                allow_posted_date_window=False, remote_only=False) -> tuple[int, int]:
     """AI-score the in-lane backlog. Returns (scored, skipped).
 
     Two freshness windows, and they are NOT interchangeable:
@@ -339,6 +339,12 @@ def score_batch(limit=None, rescore=False, min_keyword=0, workers=8, title_any=N
     where = "active = 1 AND COALESCE(target_role,0) = 1"
     if not rescore:
         where += " AND ai_fit_score IS NULL"
+    if remote_only:
+        # The user's standing preference (career_score_settings.remote_only). Gating HERE and not
+        # only at display is deliberate: an on-site role a remote-only candidate would never take
+        # should not cost a scoring inference in the first place. `remote` is 0/1 in SQLite and a
+        # real BOOLEAN in Postgres, so COALESCE(remote,0)=1 reads correctly on both.
+        where += " AND COALESCE(remote,0) = 1"
     if min_keyword:
         where += f" AND COALESCE(fit_score,0) >= {int(min_keyword)}"
     where += _freshness_where(days, first_seen_days, allow_posted_date_window)

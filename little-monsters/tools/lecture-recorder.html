@@ -224,6 +224,7 @@
   }
 </style>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<script src="/api/artifacts/send-to.js" defer></script>
 </head>
 <body>
 
@@ -478,8 +479,11 @@ async function uploadRecording(lectureId) {
     var resp = await fetch('/api/education/lectures/' + encodeURIComponent(lectureId) + '/audio', { method: 'POST', body: fd });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     var url = '/api/education/lectures/' + encodeURIComponent(lectureId) + '/audio';
+    // ADR-139 standard tag on the download anchor: a saved lecture recording is a sendable
+    // artifact (the shared component adds the chip + right-click).
     el.innerHTML = '🎧 Recording saved (' + Math.round(blob.size / 1024 / 102.4) / 10 + ' MB) — ' +
-      '<a href="' + url + '" target="_blank">listen</a> · <a href="' + url + '" download="lecture.webm">download</a>';
+      '<a href="' + url + '" target="_blank">listen</a> · <a href="' + url + '" download="lecture.webm"' +
+      ' data-artifact-source="' + url + '" data-artifact-type="audio/webm" data-artifact-name="lecture.webm">download</a>';
     clearChunks();
   } catch (e) {
     var dl = URL.createObjectURL(blob);

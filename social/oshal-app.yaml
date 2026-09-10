@@ -26,7 +26,7 @@ description: >-
   input — then publishes to multiple platforms at once (LinkedIn + Facebook + X).
   AI drafting runs on the comms bot; publishing uses your per-user connector
   tokens. Human-approved — nothing posts until you click Publish.
-version: 1.1.0
+version: 1.2.0
 status: active
 
 source:
@@ -135,6 +135,11 @@ bots:
 # opens the kernel-resident /api/linkedin-assistant surface; Accounts opens /utilities.
 ui:
   static:
+    - toolName: social-composer
+      label: Composer
+      icon: codicon codicon-edit
+      iframeUrl: /api/social/composer
+      section: top
     - toolName: social-workspace
       label: Workspace
       icon: codicon codicon-edit
@@ -186,3 +191,27 @@ ribbon:
     - logs
     - operations
   defaultView: social-workspace
+
+integrations:
+  offers:
+    - id: prepare-post
+      label: Prepare a post
+      targetApp: switchboard
+      targetAction: prepare-post
+      contextType: communication-brief
+      version: 1
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+  accepts:
+    - id: prepare-post
+      contextType: communication-brief
+      version: 1
+      surface: social-composer
+      fields:
+        - title
+        - notes
+        - sourceUrl

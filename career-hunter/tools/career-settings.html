@@ -109,6 +109,19 @@
   </div>
 
   <div class="card">
+    <h2>Remote only</h2>
+    <p class="hint">When this is on, the <b>automated match</b> considers only postings the feed flags as remote: the nightly AI scoring pass skips on-site roles (so no tokens are spent on jobs you would not take), your digest carries remote roles only, and your job board defaults to remote. The Job Search screen keeps its own Any / Remote / On-site pills, and an explicit pill always wins.</p>
+    <div class="row">
+      <span id="remoteState" class="pill-no">Checking…</span>
+    </div>
+    <div class="row">
+      <label class="hint"><input type="checkbox" id="remoteOnly"> Match remote roles only</label>
+      <button class="btn primary" id="remoteSave">Save</button>
+    </div>
+    <div id="remoteOut" class="hint"></div>
+  </div>
+
+  <div class="card">
     <h2>Target titles</h2>
     <p class="hint">On top of the keyword prefilter, OSHAL runs a daily <b>title pass</b> that AI-scores roles whose titles match <b>your</b> target list — so your best-fit roles surface even when the keyword score misses them. Seeded from your uploaded resume; edit any time (comma-separated). Each run is capped, and it runs at most once a day.</p>
     <div class="row">
@@ -173,6 +186,27 @@ $('#digestPreview').onclick = async()=>{
     ? p.hits.map((h,i)=>`${i+1}. [${h.fit}%] ${h.title} — ${h.company}${h.location?' · '+h.location:''}`).join('\n')
     : 'No new matches since your last digest — nothing would be sent today.';
 };
+// ── Remote-only matching (migration 104) — the standing preference the AUTOMATED path reads ──
+async function refreshRemoteOnly(){
+  const s = await fetch(API+'/title-profile/state').then(r=>r.json()).catch(()=>({}));
+  const on = s.remoteOnly === true;
+  $('#remoteOnly').checked = on;
+  $('#remoteState').className = on ? 'pill-ok' : 'pill-no';
+  $('#remoteState').textContent = on
+    ? '● Remote only — on-site roles are not scored, digested, or shown on your board'
+    : '○ Off — every in-lane role is matched, remote or on-site';
+}
+
+async function saveRemoteOnly(){
+  const remoteOnly = $('#remoteOnly').checked;
+  $('#remoteOut').textContent = 'Saving…';
+  const r = await jpost(API+'/settings/remote-only', { remoteOnly });
+  $('#remoteOut').textContent = r && r.ok
+    ? (remoteOnly ? 'Saved. New matches will be remote only.' : 'Saved. Matching every in-lane role again.')
+    : ((r && r.error) || 'Failed');
+  refreshRemoteOnly();
+}
+
 async function refreshTitles(){
   const s = await fetch(API+'/title-profile/state').then(r=>r.json()).catch(()=>({}));
   const terms = s.titleTerms||[];
@@ -182,6 +216,7 @@ async function refreshTitles(){
     ? (s.source==='derived' ? '● '+terms.length+' target titles (from your resume — edit below)' : '● '+terms.length+' target titles saved')
     : '○ No target titles yet — add some below, or upload a resume first';
 }
+$('#remoteSave').onclick = saveRemoteOnly;
 $('#titleSave').onclick = async()=>{
   const r = await jpost(API+'/settings/title-profile',{terms:$('#titleTerms').value});
   toast(r.ok?'Target titles saved':(r.error||'Failed')); refreshTitles();
@@ -256,6 +291,7 @@ $('#targetAdd').onclick = async()=>{
 };
 refreshState();
 refreshDigest();
+refreshRemoteOnly();
 refreshTitles();
 refreshAutomation();
 refreshTargets();

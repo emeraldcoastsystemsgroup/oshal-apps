@@ -12,6 +12,10 @@
  * 2026-07-15 10:45:00 | roger.murphy@emeraldcoastsystemsgroup.com   | /performance falls back to our recorded daily-equity series for a book with no broker equity-curve endpoint (LIVE/Schwab). Root cause of the operator's "dashboard tiles don't reflect Schwab": Schwab has no portfolioHistory, so /performance 503'd and loadPerfSummary() silently left the "Total return" + "vs S&P" KPI tiles as placeholders. Account/positions/equity tiles were always correct (Schwab-live); only the two curve-derived tiles were blank. Now built from oshal_trading_daily_equity (our own per-fire equity snapshot) + SPY closes, same payload shape. Paper is unchanged (Alpaca portfolioHistory path untouched).
  * 2026-07-19 16:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Trading engine extraction (ADR-085 pre-carve): import repoint only — ensureTradingSchema from app/trading-schema.ts (was ./trading-routes-schema, moved). Zero behavior change.
  * 2026-07-19 23:30:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Carved out of OSHAL core into the trading app package (ADR-085 Wave 3). Relative kernel imports flip to @/ aliases (trading-routes-helpers + trading-schema stay kernel); apiDir now arrives from the entry's package surfaceDir (ctx.appPackageDir/tools) instead of the core src/api dir. Handler bodies byte-identical — zero behavior change.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Cash-account settlement (ADR-134 D8): GET /account also answers `settlement` (the kernel SettlementView — account type, settled vs unsettled cash, the settlement date in words, policy) so the ticket learns what is spendable from the one account read it already makes. Margin books get the view with no ledger read; the `account` field is byte-unchanged.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | Surface expansion (ADR-136): GET /exposure - the account page's Allocation and Exits cards in ONE read. Allocation buckets the book by asset kind (Alpaca asset directory, `etp` attribute - the only SOURCED kind we have; 'unknown' when it is unconfigured, never guessed) and by SECTOR using the kernel's own sectorOf()/SECTOR map, i.e. the exact buckets the per-sector sizing cap enforces - no taxonomy is invented here, and a name outside the map lands in 'other' AND in `unclassified` rather than being assigned a sector. Headroom is computed the way sizeEntry does: maxSectorPct/100 x the CAPPED equity (capAccount, the real kernel function - not a mirror) minus the sector's pinned-lot-SUBTRACTED market value. Exits answers what is actually WORKING AT THE VENUE (reader.listOrders over a window, filtered by the kernel's IN_FLIGHT_STATUSES) and, separately and explicitly labelled, the autopilot's exit RULES computed by calling exitsToRun/trailingExits/rebalanceTrims themselves so the panel can never disagree with the engine; core holds (coreConfig) are marked exempt, and the whole rule set is marked inactive outside the regular session (computeExits runs ONLY the close-anchored dip rule off-hours) and under TRADING_HALT. Read-only: no order is placed and no peak is persisted. Every side read is a logged section that degrades to 'unavailable' rather than fabricating. Env: TRADING_EXPOSURE_ORDERS_DAYS (default 90), TRADING_EXPOSURE_WORKING_MAX (default 200).
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | Exposure review round. (a) The trailing peak is the ENGINE's rolled-forward peak - nextPeaks(visible, storedPeaks), exactly what computeExits computes before it evaluates trailingExits - so a winner at a new high is priced off that high here too rather than off a stale stored peak; the roll is in memory only, savePeaks is still never called from a read route. (b) The per-sector cap denominator follows sizeEntry's own fallback (capped equity, or capped CASH when equity is zero), so a cash-only book stops reading as zero headroom where the engine would still size. (c) The asset-directory map is built from the HELD symbols instead of materialising all ~11k reference rows on every account-page paint, and availability is decided by the directory itself rather than by the map being empty (a flat book is not a failed read). (d) The card, not just the payload, now repeats every degraded section - see view-account.js SEQ 5.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com   | Exposure review round 2. (a) The cap-TRIM base handed to exitRuleRows is the capped EQUITY, which is what the engine passes to rebalanceTrims - the equity-or-cash fallback is sizeEntry's rule for the per-sector denominator only, and applying it to trims too would have been a (zero-equity-only) divergence from the engine. (b) `exits.rules` is now null - not a computed list - whenever the protected-lot read failed, so the PAYLOAD enforces what the card already did: a consumer that reads `rules` without checking `sections` can no longer be handed stops computed over shares the autopilot may not touch. (c) The /exposure registration moves into registerExposureRoute so the already-oversized registerTradingBookReadRoutes block stops growing.
  *
  * @module trading-routes-book-read-builders
  */
@@ -21,7 +25,20 @@ import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
 import {
   getBrokerReader, liveTradingEnabled, getMarketData, dailyCloses, latestPrice,
+  sectorOf, riskPolicy, exitsToRun, trailingExits, rebalanceTrims, sectorTiltConfig, nextPeaks,
+  assetDirectory, tradableSessionDetailed, DEFAULT_UNIVERSE,
 } from '@/features/trading';
+import type {
+  BrokerAccount, BrokerAdapter, OrderResult, Position, RiskPolicy, TradingBook,
+} from '@/features/trading';
+// The exposure read reuses the ENGINE's own primitives rather than restating them: capAccount is the
+// live-book sizing cap, IN_FLIGHT_STATUSES is the working-order set, coreConfig names the holds the
+// autopilot never exits, and loadPeaks is the trailing-stop memory (read only - never persisted here).
+import { capAccount, IN_FLIGHT_STATUSES } from '@/app/trading-dispatch-rail';
+import { coreConfig } from '@/app/trading-dispatch-core';
+import { loadPeaks } from '@/app/trading-peaks-store';
+import { getActiveOverride, policyOverrideOf } from '@/app/trading-config-overrides';
+import { pinnedQtyBySymbol, subtractPinnedLots, listPinnedLots, isLotOrderClientId } from '@/app/trading-pinned-lots';
 // ADR-134 PR3: every read resolves the BOOK (query.book, falling back to legacy ?mode= aliases via
 // resolveBook) — with two live books both mode='live', an unconverted read would merge BOTH books'
 // rows and the account switcher would switch nothing.
@@ -29,6 +46,7 @@ import { callerSub, resolveMode, servePage, guardrails } from '@/app/routes/trad
 import { routeBook } from './trading-accounts-routes';
 import { ensureTradingSchema } from '@/app/trading-schema';
 import { loadDailyEquitySeries } from '@/app/trading-daily-equity-store';
+import { buildSettlementView, settlementApplies, unsettledLedgerSells } from '@/app/trading-settlement';
 
 // Same module tag as the entry file so structured log output is unchanged by the split.
 const logger = createChildLogger({ module: 'trading-routes' });
@@ -104,6 +122,378 @@ export function performanceFromEquitySeries(
   };
 }
 
+/* -- ADR-136 exposure: the Allocation + Exits cards on the account page ----------------------- */
+
+/**
+ * @description Where the sector buckets come from, in words, so the card states its own provenance
+ *   instead of leaving the reader to assume the surface invented a taxonomy.
+ */
+export const EXPOSURE_SECTOR_SOURCE = "the engine's own sector map (sectorOf) - the same buckets the per-sector sizing cap enforces";
+/**
+ * @description The asset-kind taxonomy's real provenance - Alpaca's asset directory, which answers for
+ *   a Schwab book too because it is a reference list, NOT that venue's own data.
+ */
+export const EXPOSURE_KIND_SOURCE = 'Alpaca US-equity asset directory (`etp` attribute) - unavailable without the Alpaca paper keys';
+
+/**
+ * @description One held name inside a sector row. The protected-lot share is reported alongside the
+ *   value, never folded into it - the two answer different questions.
+ */
+export interface ExposureSymbol { symbol: string; value: number; pinnedQty: number }
+/**
+ * @description One sector bucket, measured against the engine's own per-sector cap. Both percentage
+ *   denominators are carried separately because they differ on a capped live book.
+ */
+export interface ExposureSector {
+  sector: string; value: number; pctOfEquity: number; pctOfCapEquity: number;
+  capPct: number; headroom: number; tilt: number; symbols: ExposureSymbol[];
+}
+/**
+ * @description The Allocation payload: the asset-kind split and the sector split, each from a named
+ *   source, plus the held names the engine's sector map does not classify.
+ */
+export interface ExposureMix {
+  byKind: Array<{ kind: string; value: number; pctOfEquity: number }>;
+  bySector: ExposureSector[];
+  unclassified: string[];
+}
+/**
+ * @description One position's autopilot exit RULES - prices the engine would act on, NOT orders
+ *   resting at the venue. `ruleActive` is false whenever this rule set is not the one in force.
+ */
+export interface ExitRuleRow {
+  symbol: string; qty: number; avgEntryPrice: number; currentPrice: number | null;
+  stopPx: number; takeProfitPx: number; peak: number; trailArmed: boolean;
+  trailStopPx: number | null; trimQty: number; wouldFireNow: string | null;
+  coreHold: boolean; ruleActive: boolean;
+}
+/**
+ * @description One order the VENUE itself says is still working, with an origin claimed only where
+ *   the order record proves it.
+ */
+export interface WorkingOrderRow {
+  orderId: string; symbol: string; side: string; type: string; qty: number; filledQty: number;
+  limitPrice: number | null; stopPrice: number | null; trailPercent: number | null;
+  status: string; submittedAt: string | null; origin: 'protected-lot' | 'unattributed';
+}
+
+/** Cents rounding for every money/percentage figure the exposure payload reports - one helper so a
+ *  card never shows a different precision for the same number depending on which builder made it. */
+const r2c = (n: number): number => Math.round(n * 100) / 100;
+
+/**
+ * @description Bucket the book by asset kind and by SECTOR. The sector taxonomy is the kernel's own
+ *   `sectorOf` - the buckets the per-sector cap enforces - so the card can never disagree with the
+ *   sizing rule; a name the map does not carry lands in 'other' AND in `unclassified` rather than
+ *   being assigned a guessed sector. Headroom mirrors sizeEntry exactly: maxSectorPct% of the CAPPED
+ *   equity minus the sector's already-deployed (pinned-subtracted) market value.
+ * @param visible - Positions as the autopilot sees them (protected-lot shares already subtracted).
+ * @param pinned - Symbol to protected-lot quantity (reported per row, never merged into the value).
+ * @param account - The raw broker account snapshot (equity/cash denominators).
+ * @param capBase - The base the ENGINE sizes from: capAccount's equity, or its CASH when equity is
+ *   zero (portfolio.sizeEntry's own fallback) - the per-sector cap denominator.
+ * @param policy - Active risk policy (supplies maxSectorPct).
+ * @param tilt - TRADING_SECTOR_TILT multipliers by sector (1.0 when untilted).
+ * @param kindOf - Symbol to 'stock' | 'etf' | 'unknown', from the asset directory.
+ * @returns The Allocation payload, both lists sorted by value.
+ */
+export function exposureMix(
+  visible: Position[], pinned: Map<string, number>, account: BrokerAccount, capBase: number,
+  policy: RiskPolicy, tilt: Map<string, number>, kindOf: (symbol: string) => string,
+): ExposureMix {
+  const equity = account.equity > 0 ? account.equity : account.cash;
+  const pctE = (v: number): number => (equity > 0 ? r2c((v / equity) * 100) : 0);
+  const kinds = new Map<string, number>();
+  const sectors = new Map<string, ExposureSymbol[]>();
+  const unclassified: string[] = [];
+  for (const p of visible) {
+    if (!(p.qty > 0)) continue;
+    const symbol = p.symbol.toUpperCase();
+    const value = Math.max(0, p.marketValue);
+    const kind = kindOf(symbol);
+    kinds.set(kind, (kinds.get(kind) || 0) + value);
+    const sector = sectorOf(symbol);
+    if (sector === 'other') unclassified.push(symbol);
+    sectors.set(sector, [...(sectors.get(sector) || []), { symbol, value: r2c(value), pinnedQty: pinned.get(symbol) || 0 }]);
+  }
+  kinds.set('cash', (kinds.get('cash') || 0) + Math.max(0, account.cash));
+  const byKind = [...kinds.entries()].map(([kind, value]) => ({ kind, value: r2c(value), pctOfEquity: pctE(value) }))
+    .sort((a, b) => b.value - a.value);
+  const bySector = [...sectors.entries()].map(([sector, symbols]) => sectorRow(sector, symbols, capBase, policy, tilt, pctE))
+    .sort((a, b) => b.value - a.value);
+  return { byKind, bySector, unclassified: [...new Set(unclassified)].sort() };
+}
+
+/**
+ * @description One sector row: value, both percentages, the cap and the headroom left under it.
+ * @param sector - Bucket name from sectorOf.
+ * @param symbols - Its member rows.
+ * @param capBase - The cap denominator sizeEntry uses (capped equity, or capped cash when equity is 0).
+ * @param policy - Active risk policy.
+ * @param tilt - Sector tilt multipliers.
+ * @param pctE - Percent-of-equity formatter bound to the account's equity.
+ * @returns The sector row.
+ */
+function sectorRow(
+  sector: string, symbols: ExposureSymbol[], capBase: number, policy: RiskPolicy,
+  tilt: Map<string, number>, pctE: (v: number) => number,
+): ExposureSector {
+  const value = symbols.reduce((s, r) => s + r.value, 0);
+  return {
+    sector, value: r2c(value), pctOfEquity: pctE(value),
+    pctOfCapEquity: capBase > 0 ? r2c((value / capBase) * 100) : 0,
+    capPct: policy.maxSectorPct,
+    headroom: r2c((policy.maxSectorPct / 100) * capBase - value),
+    tilt: tilt.get(sector) ?? 1,
+    symbols: symbols.sort((a, b) => b.value - a.value),
+  };
+}
+
+/**
+ * @description The autopilot's exit RULES for each held name, computed by calling the engine's own
+ *   exit functions on that one position, over the same rolled-forward peaks (nextPeaks) it uses - so a
+ *   price shown here is the price the engine would act on.
+ *   `ruleActive` is false for a core hold (dispatch filters every exit whose symbol is in coreConfig)
+ *   and false whenever the stop/take-profit/trailing/trim set is not the set in force right now
+ *   (off-hours computeExits runs ONLY the close-anchored dip rule; TRADING_HALT runs nothing).
+ * @param visible - Pinned-subtracted positions.
+ * @param policy - Active risk policy.
+ * @param peaks - Trailing peaks rolled forward the way the engine rolls them (nextPeaks); read-only.
+ * @param capEquity - The CAPPED EQUITY, which is exactly what the dispatch hands rebalanceTrims
+ *   (computeExits -> rebalanceTrims(positions, account.equity, policy) over the capped account). It is
+ *   deliberately NOT the per-sector denominator: sizeEntry's equity-or-cash fallback is that rule's own,
+ *   and reusing it here would make a zero-equity book trim on a base the engine never trims on.
+ * @param coreSymbols - Core holds, exempt from every autopilot exit.
+ * @param rulesRunNow - True only when the full regular-session exit set is the one in force.
+ * @returns One row per held name.
+ */
+export function exitRuleRows(
+  visible: Position[], policy: RiskPolicy, peaks: Map<string, number>, capEquity: number,
+  coreSymbols: Set<string>, rulesRunNow: boolean,
+): ExitRuleRow[] {
+  return visible.filter((p) => p.qty > 0).map((p) => {
+    const symbol = p.symbol.toUpperCase();
+    const coreHold = coreSymbols.has(symbol);
+    const ruleActive = rulesRunNow && !coreHold;
+    const peak = peaks.get(symbol) ?? p.avgEntryPrice;
+    const currentPrice = p.currentPrice ?? null;
+    const gainPct = currentPrice != null && p.avgEntryPrice > 0 ? ((currentPrice - p.avgEntryPrice) / p.avgEntryPrice) * 100 : 0;
+    const trailArmed = p.avgEntryPrice > 0 && currentPrice != null && gainPct >= policy.trailArmPct;
+    const trims = ruleActive ? rebalanceTrims([p], capEquity, policy) : [];
+    return {
+      symbol, qty: p.qty, avgEntryPrice: r2c(p.avgEntryPrice), currentPrice,
+      stopPx: r2c(p.avgEntryPrice * (1 - policy.stopLossPct / 100)),
+      takeProfitPx: r2c(p.avgEntryPrice * (1 + policy.takeProfitPct / 100)),
+      peak: r2c(peak), trailArmed,
+      trailStopPx: trailArmed ? r2c(peak * (1 - policy.trailGivebackPct / 100)) : null,
+      trimQty: trims.length ? trims[0].qty : 0,
+      wouldFireNow: ruleActive ? firstExitReason(p, policy, peaks, capEquity) : null,
+      coreHold, ruleActive,
+    };
+  });
+}
+
+/**
+ * @description The reason the ENGINE would give for exiting this one position right now, taken from
+ *   the engine's own functions in the dispatch's own priority order (a full exit beats a trim).
+ * @param p - The position.
+ * @param policy - Active risk policy.
+ * @param peaks - Stored trailing peaks.
+ * @param capEquity - Cap-trim base.
+ * @returns The exit reason, or null when nothing fires.
+ */
+function firstExitReason(p: Position, policy: RiskPolicy, peaks: Map<string, number>, capEquity: number): string | null {
+  const fired = [...exitsToRun([p], policy), ...trailingExits([p], peaks, policy), ...rebalanceTrims([p], capEquity, policy)];
+  return fired.length ? fired[0].reason : null;
+}
+
+/**
+ * @description The orders the VENUE still has working, from the venue's own order record - the only
+ *   authority on what is actually resting at the broker. Non-terminal statuses are the kernel's
+ *   IN_FLIGHT_STATUSES (imported, never restated). Origin is claimed ONLY where the data proves it:
+ *   an order id the protected-lot ledger recorded, or the `lot-` request-id convention; everything
+ *   else is reported 'unattributed' rather than guessed at.
+ * @param orders - Orders the venue returned for the window.
+ * @param lotOrderIds - Exit order ids the protected-lot ledger recorded.
+ * @param max - Row ceiling (TRADING_EXPOSURE_WORKING_MAX).
+ * @returns Working rows, newest first.
+ */
+export function workingVenueOrders(orders: OrderResult[], lotOrderIds: Set<string>, max: number): WorkingOrderRow[] {
+  return orders
+    .filter((o) => IN_FLIGHT_STATUSES.includes(String(o.status)))
+    .sort((a, b) => String(b.submittedAt || '').localeCompare(String(a.submittedAt || '')))
+    .slice(0, Math.max(1, max))
+    .map((o) => ({
+      orderId: String(o.id || ''), symbol: String(o.symbol || '').toUpperCase(),
+      side: String(o.side), type: String(o.type), qty: Number(o.qty || 0), filledQty: Number(o.filledQty || 0),
+      limitPrice: o.limitPrice ?? null, stopPrice: o.stopPrice ?? null, trailPercent: o.trailPercent ?? null,
+      status: String(o.status), submittedAt: o.submittedAt ?? null,
+      origin: (lotOrderIds.has(String(o.id)) || isLotOrderClientId(o.clientOrderId)) ? 'protected-lot' : 'unattributed',
+    }));
+}
+
+/**
+ * @description The side reads the exposure payload is assembled from, plus each one's availability.
+ *   The `sections` map is what the card repeats, so a degraded read is never painted as fact.
+ */
+interface ExposureInputs {
+  account: BrokerAccount; positions: Position[];
+  pinned: Map<string, number>; lots: Array<Record<string, unknown>>;
+  peaks: Map<string, number>; override: unknown; orders: OrderResult[] | null;
+  kinds: Map<string, string>;
+  sections: Record<string, 'ok' | 'unavailable'>;
+}
+
+/**
+ * @description Run one optional side read. A failure downgrades exactly ONE section to 'unavailable'
+ *   and is logged at error - it never fabricates a value and never fails the whole card.
+ * @param name - Section name reported to the client.
+ * @param bookRef - Book label for the log line.
+ * @param run - The read.
+ * @param fallback - The empty value used when it fails.
+ * @param sections - Section-status map to stamp.
+ * @returns The value, or the fallback.
+ */
+async function exposureSection<T>(
+  name: string, bookRef: string, run: () => Promise<T>, fallback: T, sections: Record<string, 'ok' | 'unavailable'>,
+): Promise<T> {
+  try { const v = await run(); sections[name] = 'ok'; return v; }
+  catch (err) {
+    logger.error({ err, book: bookRef, section: name }, 'exposure side read failed - section reported unavailable');
+    sections[name] = 'unavailable';
+    return fallback;
+  }
+}
+
+/**
+ * @description Gather every input the exposure payload needs. Account and positions are REQUIRED (a
+ *   throw becomes the route's 502 - an empty book and a failed read must never look alike); every
+ *   other read is a degradable section.
+ * @param ctx - App context (pool).
+ * @param sub - Caller sub.
+ * @param book - The resolved book.
+ * @param broker - The book's bound READER (never an order-placing adapter).
+ * @returns The inputs plus per-section availability.
+ */
+async function readExposureInputs(ctx: AppContext, sub: string, book: TradingBook, broker: BrokerAdapter): Promise<ExposureInputs> {
+  const sections: Record<string, 'ok' | 'unavailable'> = {};
+  const days = Math.max(1, Number(process.env.TRADING_EXPOSURE_ORDERS_DAYS) || 90);
+  const [account, positions] = await Promise.all([broker.getAccount(), broker.getPositions()]);
+  // Only the held names are ever looked up and the directory is ~11k rows: filter as the map is
+  // built rather than materialising the whole reference list on every account-page paint.
+  const held = new Set(positions.map((p) => p.symbol.toUpperCase()));
+  const [pinned, lots, peaks, override, orders, directory] = await Promise.all([
+    exposureSection('pinnedLots', book.ref, () => pinnedQtyBySymbol(ctx.pool, sub, book.bookId), new Map<string, number>(), sections),
+    exposureSection('protectedLots', book.ref, () => listPinnedLots(ctx.pool, sub, { bookId: book.bookId, status: ['pending_fill', 'open', 'exits_placed'] }), [], sections),
+    exposureSection('peaks', book.ref, () => loadPeaks(ctx.pool, sub, book), new Map<string, number>(), sections),
+    exposureSection('strategy', book.ref, () => getActiveOverride(ctx.pool, sub, book.bookId), null, sections),
+    exposureSection('workingOrders', book.ref,
+      () => broker.listOrders(new Date(Date.now() - days * 86400000).toISOString(), new Date().toISOString()), null, sections),
+    exposureSection('assetKinds', book.ref, () => assetDirectory(), [], sections),
+  ]);
+  const kinds = new Map<string, string>();
+  for (const a of directory) { const sym = a.symbol.toUpperCase(); if (held.has(sym)) kinds.set(sym, a.kind as string); }
+  // Availability is the DIRECTORY's, not the map's: an empty map on a flat book is not a failed read.
+  if (!directory.length) sections.assetKinds = 'unavailable';
+  return { account, positions, pinned, lots: lots as unknown as Array<Record<string, unknown>>, peaks, override, orders, kinds, sections };
+}
+
+/**
+ * @description Shape the /exposure response from the gathered inputs. Pure apart from the session
+ *   read, which decides whether the autopilot's exit rules are the set in force right now.
+ * @param book - The resolved book.
+ * @param inp - The gathered inputs.
+ * @returns The response body. Two fields are deliberately NULLABLE, and null means 'not computable'
+ *   rather than 'nothing there': `exits.working` when the venue order read failed, and `exits.rules`
+ *   when the protected-lot read failed (rules over an unverified book would be drawn across shares the
+ *   autopilot may not sell). `sections` names which read it was in both cases.
+ */
+async function shapeExposure(book: TradingBook, inp: ExposureInputs): Promise<Record<string, unknown>> {
+  const override = inp.override as Parameters<typeof policyOverrideOf>[0];
+  const policy = riskPolicy(book.kind, policyOverrideOf(override));
+  const capped = capAccount(inp.account, book);
+  const visible = subtractPinnedLots(inp.positions, inp.pinned);
+  // The engine evaluates trailingExits against nextPeaks(positions, storedPeaks) - the peak rolled
+  // forward to today's price - so the card must roll it too or it prices a new high off a stale peak.
+  // In memory only: savePeaks belongs to the fire, never to a read route.
+  const peaks = nextPeaks(visible, inp.peaks);
+  // sizeEntry's own denominator: the capped equity, or the capped CASH when equity is zero.
+  const capBase = capped.equity > 0 ? capped.equity : capped.cash;
+  const core = coreConfig(override);
+  const session = await tradableSessionDetailed();
+  const rulesRunNow = session.session === 'regular';
+  const lotOrderIds = new Set(inp.lots.flatMap((l) => Object.entries((l.exits || {}) as Record<string, unknown>)
+    .filter(([k, v]) => k.endsWith('OrderId') && v != null).map(([, v]) => String(v))));
+  return {
+    mode: book.kind, book: book.ref, asOf: new Date().toISOString(),
+    basis: {
+      equity: r2c(inp.account.equity), cash: r2c(inp.account.cash),
+      deployed: r2c(visible.reduce((s, p) => s + Math.max(0, p.marketValue), 0)),
+      capEquity: r2c(capped.equity), capBase: r2c(capBase), capped: capped.equity < inp.account.equity,
+    },
+    policy: {
+      posture: policy.posture,
+      source: override ? 'strategy:' + String((override as { strategyName?: string }).strategyName || '') : 'env',
+      maxPerNamePct: policy.maxPerNamePct, maxSectorPct: policy.maxSectorPct,
+      stopLossPct: policy.stopLossPct, takeProfitPct: policy.takeProfitPct,
+      trailArmPct: policy.trailArmPct, trailGivebackPct: policy.trailGivebackPct,
+    },
+    engine: {
+      session: session.session, reason: session.reason, blind: session.blind, rulesRunNow,
+      offHoursDipPct: Number(process.env.TRADING_EXT_DIP_SELL_PCT || 0.5),
+      coreHolds: core.symbols,
+      universeCount: DEFAULT_UNIVERSE.length,
+      universeClassified: DEFAULT_UNIVERSE.filter((sym) => sectorOf(sym) !== 'other').length,
+    },
+    sources: { sector: EXPOSURE_SECTOR_SOURCE, assetKind: EXPOSURE_KIND_SOURCE },
+    mix: exposureMix(visible, inp.pinned, inp.account, capBase, policy, sectorTiltConfig(),
+      (sym) => inp.kinds.get(sym) || 'unknown'),
+    exits: {
+      working: inp.orders ? workingVenueOrders(inp.orders, lotOrderIds, Number(process.env.TRADING_EXPOSURE_WORKING_MAX) || 200) : null,
+      // The pins decide WHICH shares the autopilot may act on, and their failure fallback is a NO-OP
+      // subtraction - so a rule computed over `visible` would be a stop drawn over ring-fenced shares.
+      // The engine's own answer to that read failing is to skip the fire; the payload's is to withhold
+      // (null = 'not computable', the same shape `working` already uses for the venue read), so a
+      // non-browser consumer reading `rules` without checking `sections` cannot be misled either.
+      // The trim base is the CAPPED EQUITY - what dispatch hands rebalanceTrims - not the sector base.
+      rules: inp.sections.pinnedLots === 'ok'
+        ? exitRuleRows(visible, policy, peaks, capped.equity, new Set(core.symbols), rulesRunNow)
+        : null,
+    },
+    sections: inp.sections,
+  };
+}
+
+/**
+ * @description Register the one /exposure read on the book router. It is deliberately its own
+ *   function rather than another block inside registerTradingBookReadRoutes, which is already many
+ *   times over the 50-line rule. The handler is byte-parallel to the /account and /positions reads
+ *   beside it: the same callerSub 401, the same routeBook resolution, the same book-bound READER
+ *   (never an order-placing adapter), the same 503 when that book's broker is not connected and the
+ *   same 502 when a REQUIRED read throws - so it inherits the mount's auth posture, adding none.
+ * @param router - The trading router being composed by createTradingRoutes.
+ * @param ctx - App context (Postgres pool for the per-user stores the side reads use).
+ * @returns Nothing - the route is registered on the passed router.
+ */
+function registerExposureRoute(router: Router, ctx: AppContext): void {
+  /** GET /exposure?book= - the account page's Allocation (asset kind + sector mix against the engine's
+   *  own per-sector cap) and Exits (what is WORKING AT THE VENUE, plus the autopilot's exit RULES,
+   *  labelled apart) in one read. Read-only: no order is placed and no peak is persisted. */
+  router.get('/exposure', async (req: Request, res: Response) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    try {
+      const book = await routeBook(ctx, sub, req);
+      const broker = getBrokerReader(book.kind, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined);
+      if (!broker.configured()) { res.status(503).json({ error: 'broker_not_configured' }); return; }
+      res.json(await shapeExposure(book, await readExposureInputs(ctx, sub, book, broker)));
+    } catch (err) {
+      logger.error({ err }, 'trading exposure failed');
+      res.status(502).json({ error: (err as Error).message });
+    }
+  });
+}
+
 /**
  * @description Registers the read-only book routes (surface pages, status, account, positions,
  * quote, performance, realized P&L, ledger header) on the trading router. Auth is enforced at the
@@ -156,7 +546,7 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
     }
   });
 
-  /** GET /account?mode= — the broker account snapshot (cash, buying power, equity). */
+  /** GET /account?mode= — the broker account snapshot (cash, buying power, equity) + the settlement view (ADR-134 D8). */
   router.get('/account', async (req: Request, res: Response) => {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
@@ -165,7 +555,13 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
       const mode = book.kind;
       const broker = getBrokerReader(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined);
       if (!broker.configured()) { res.status(503).json({ error: 'broker_not_configured', message: `Set the ${mode} broker keys (e.g. ALPACA_${mode.toUpperCase()}_KEY_ID / _SECRET_KEY).` }); return; }
-      res.json({ mode, book: book.ref, account: await broker.getAccount() });
+      const account = await broker.getAccount();
+      // Settled vs unsettled cash for the ticket: the ledger is consulted only where the guard applies
+      // (a cash-type book under an armed policy); margin/paper books get the view with no extra read.
+      const sells = settlementApplies(book)
+        ? await unsettledLedgerSells(ctx.pool, sub, book).catch((err: unknown) => { logger.error({ err, book: book.ref }, 'settlement ledger read failed — venue figures only'); return []; })
+        : [];
+      res.json({ mode, book: book.ref, account, settlement: buildSettlementView(account, book, sells) });
     } catch (err) {
       logger.error({ err }, 'trading account failed');
       res.status(502).json({ error: (err as Error).message });
@@ -353,4 +749,8 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
       res.status(502).json({ error: (err as Error).message });
     }
   });
+
+  // Its own function: the registration block above is already far over the 50-line rule, and a new
+  // read has no business making that worse. Same router, same mount, same auth posture.
+  registerExposureRoute(router, ctx);
 }

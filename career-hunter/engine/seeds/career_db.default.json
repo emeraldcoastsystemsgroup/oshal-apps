@@ -1,0 +1,47 @@
+{
+  "_meta": {
+    "owner": "guest-demo",
+    "purpose": "Fictional demo resume for the public guest tour (career-hunter guest-seed). A wholly invented candidate; not tied to any real person."
+  },
+  "profile": {
+    "name": "Jordan Rivera",
+    "credential": "Senior Platform Engineer",
+    "location": "Remote (US)",
+    "experience_summary": "Senior platform and backend engineer with nine years building distributed systems, cloud infrastructure and internal developer platforms. Led a migration to Kubernetes, cut deploy times, and shipped observability and CI/CD tooling across several teams."
+  },
+  "roles": [
+    {
+      "title": "Senior Platform Engineer",
+      "org": "Northwind Systems",
+      "start": "2021-03",
+      "end": null,
+      "deliverables": [
+        "Built the internal Kubernetes platform serving 40+ services",
+        "Cut median deploy time from 22 minutes to 4 with a new CI/CD pipeline",
+        "Introduced distributed tracing and SLO dashboards across the org"
+      ]
+    },
+    {
+      "title": "Backend Engineer",
+      "org": "Cedar Labs",
+      "start": "2017-06",
+      "end": "2021-02",
+      "deliverables": [
+        "Designed the event-driven order pipeline on Kafka and Postgres",
+        "Owned the payments integration and its nightly reconciliation jobs",
+        "Mentored four engineers and ran the on-call rotation"
+      ]
+    }
+  ],
+  "skills": {
+    "Languages": { "items": ["TypeScript", "Go", "Python", "SQL"] },
+    "Infrastructure": { "items": ["Kubernetes", "Docker", "AWS", "Terraform"] },
+    "Data": { "items": ["Postgres", "Kafka", "Redis"] }
+  },
+  "metrics_bank": [
+    "40+ services on the internal platform",
+    "22 min to 4 min deploy time",
+    "99.95% uptime SLO"
+  ],
+  "certifications": ["Certified Kubernetes Administrator (CKA)"]
+}

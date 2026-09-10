@@ -21,6 +21,26 @@ Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface"):
 
 ## Surfaces
 
+Version 1.1.0 adds `GET /api/identity/summary`: a deterministic Home summary over the caller's
+accessible connection metadata. Its selectable metrics are `saved-accounts`, `reconnect`,
+`expires-7d` (nonrenewable authorizations expiring within seven days), `shared-accounts`, and
+`providers`. A renewable access token is not counted as needing reconnection merely because its
+expiry has passed. Provider liveness is not inferred from saved metadata. Shared accounts use the
+existing membership-based access helper.
+
+The GET performs no provider calls, token refresh, AI work, or database writes. Failed reads return
+503 instead of zero; an authenticated caller with no saved accounts gets a truthful empty summary.
+`tiles` retains four legacy values, `metrics` exposes the stable-id catalog, and related item
+`metricId` values keep hidden facts out of highlights. All five metrics start selected. A core that
+supports `metricsPointer` is required to load this manifest.
+
+Acceptance harness: `identity/tests/home-summary.integration.cjs`, run from the matching core
+checkout with `HOME_TEST_DATABASE_URL` pointing to a disposable local database named
+`home_summary_test`. It creates and removes its own schema and restricted role, verifies real
+PostgreSQL isolation and revision conflicts, mounts the compiled package route and real Home
+preference route, and exercises Chromium on desktop/mobile. Its login is a fixture; it does not
+claim acceptance against a user's live provider accounts.
+
 | Tile | URL | What |
 |---|---|---|
 | Identity Hub | `/api/identity/` | Connected-accounts grid + open/reconnect/connect + access review (self-served by this package) |

@@ -19,6 +19,7 @@
  * 14 | maintainer@emeraldcoastsystemsgroup.com   | Registered caller-scoped offline application autofill bookmarklet generation.
  * 15 | maintainer@emeraldcoastsystemsgroup.com   | Registered the corpus-only browse feed used before a resume is indexed.
  * 16 | maintainer@emeraldcoastsystemsgroup.com   | Registered each user's own scrape-target list (career-targets) beside the admin's shared companies table.
+ * 18 | maintainer@emeraldcoastsystemsgroup.com   | ADR-141 D7: register the role-anchored story review (career-stories-routes.ts) — the resume conversation that leaves a defensible story on every job title.
  * 17 | maintainer@emeraldcoastsystemsgroup.com   | ADR-141: register the per-user readiness route (career-readiness.ts) the Intelligent Career group's setup dashboard asks for the "stories" and "materials" steps.
  */
 
@@ -43,6 +44,7 @@ import { registerCareerBoardRoutes, registerCareerResumeAlias } from './career-b
 import { registerCareerBrowseRoutes } from './career-browse-routes';
 import { registerCareerCompanyRoutes } from './career-company-routes';
 import { registerCareerDigestRoutes } from './career-digest';
+import { registerCareerGuestSeedRoutes } from './career-guest-seed-routes';
 import { registerCareerJobGuide } from './career-job-guide';
 import { registerCareerOnboardingRoutes } from './career-onboarding-routes';
 import { registerCareerProfileStudio } from './career-profile-studio-routes';
@@ -58,6 +60,7 @@ import {
 } from './career-surface-routes';
 import { registerCareerTargetRoutes } from './career-targets';
 import { registerCareerReadinessRoutes } from './career-readiness';
+import { registerCareerStoryRoutes } from './career-stories-routes';
 import { registerCareerTitleScoreRoutes } from './career-title-score';
 import { resolveEngineCli as resolveRunnerEngineCli } from './career-engine-runner';
 
@@ -86,6 +89,9 @@ function registerExistingFeatureRoutes(router: Router, ctx: AppContext): void {
   registerCareerTitleScoreRoutes(router, ctx);
   registerCareerTargetRoutes(router, ctx);
   registerCareerReadinessRoutes(router);
+  registerCareerStoryRoutes(router, ctx);
+  // ADR-144 guest-seed contract: this app plants its OWN guest demo profile (kernel just calls it).
+  registerCareerGuestSeedRoutes(router);
 }
 
 function registerExtractedRouteFamilies(router: Router, ctx: AppContext): void {

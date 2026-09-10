@@ -31,6 +31,7 @@
  * @module identity-routes
  */
 
+import { createIdentitySummaryRoutes } from './identity-summary';
 import { Router, type Request, type Response, type RequestHandler } from 'express';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -162,6 +163,7 @@ async function runAdvisor(ctx: AppContext, sub: string, inventory: InventoryItem
  */
 export function createIdentityRoutes(ctx: AppContext): Router {
   const router = Router();
+  router.use(createIdentitySummaryRoutes(ctx));
   const surface = identityHtml(ctx.appPackageDir);
 
   router.get('/', servePage(surface));

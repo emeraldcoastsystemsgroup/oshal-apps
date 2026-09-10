@@ -14,6 +14,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { execFileSync } = require('node:child_process');
 
 const SURFACE = path.resolve(__dirname, '..', 'tools', 'presentations.html');
 
@@ -37,13 +38,9 @@ test('every inline script in presentations.html parses', () => {
   const scripts = inlineScripts(fs.readFileSync(SURFACE, 'utf8'));
   assert.ok(scripts.length >= 2, 'expected the classic driver script plus the surface-bridge module script');
   for (const [i, s] of scripts.entries()) {
-    // Module bodies use top-level await (the dynamic import of the bridge client), which the
-    // classic grammar vm.Script parses would reject — wrap them in an async IIFE so real syntax
-    // errors still throw. A static `import` would fail under the wrap; this surface deliberately
-    // has none (its standalone-mode contract is dynamic import in a try/catch).
-    const code = s.module ? '(async () => {\n' + s.code + '\n})()' : s.code;
+    // Parse modules as modules so both static imports and top-level await are checked.
     assert.doesNotThrow(
-      () => new vm.Script(code, { filename: `presentations.html#${i}` }),
+      () => s.module ? execFileSync(process.execPath, ['--check', '--input-type=module'], { input:s.code,stdio:'pipe' }) : new vm.Script(s.code, { filename: `presentations.html#${i}` }),
       `inline script #${i} in presentations.html does not parse`
     );
   }

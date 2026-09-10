@@ -14,6 +14,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.registerCareerBoardRoutes = registerCareerBoardRoutes;
 exports.registerCareerResumeAlias = registerCareerResumeAlias;
 const logger_1 = require("@/shared/logger");
+const career_match_prefs_1 = require("./career-match-prefs");
 const apply_run_ledger_1 = require("@/app/apply-run-ledger");
 const career_board_feed_1 = require("./career-board-feed");
 const career_resume_preview_1 = require("./career-resume-preview");
@@ -24,7 +25,7 @@ const logger = (0, logger_1.createChildLogger)({ module: 'career-board-routes' }
 const ALLOWED_STATUS = new Set([
     'new', 'applied', 'dismissed', 'promoted', 'generated', 'interview', 'offer', 'deferred',
 ]);
-function getJobs(req, res) {
+async function getJobs(ctx, req, res) {
     const userSub = (0, career_user_store_1.callerSub)(req);
     if (!userSub) {
         res.status(401).json({ error: 'unauthorized' });
@@ -37,7 +38,14 @@ function getJobs(req, res) {
     }
     const started = Date.now();
     try {
-        const result = (0, career_board_feed_1.fetchBoardPage)(db, req.query);
+        // The standing remote-only preference (migration 104) is the DEFAULT for this board, not an
+        // override: an explicit Any/Remote/On-site pill always wins. Applying it here rather than in
+        // the feed keeps the query builder pure and leaves the Job Search screen — which is a browse
+        // surface with its own pills, not a match surface — deliberately untouched.
+        const query = { ...req.query };
+        if (query.remote === undefined && await (0, career_match_prefs_1.readRemoteOnly)(ctx.pool, userSub))
+            query.remote = '1';
+        const result = (0, career_board_feed_1.fetchBoardPage)(db, query);
         logger.info({
             userSub,
             sort: req.query.sort || 'ai',
@@ -408,7 +416,7 @@ function setReferral(req, res) {
  * @returns Nothing.
  */
 function registerCareerBoardRoutes(router, ctx) {
-    router.get('/jobs', getJobs);
+    router.get('/jobs', (req, res) => { void getJobs(ctx, req, res); });
     router.get('/jobs/stats', getJobStats);
     router.get('/analytics', getAnalytics);
     router.get('/resume', (req, res) => serveResumeFile(req, res, Number(req.query.id)));

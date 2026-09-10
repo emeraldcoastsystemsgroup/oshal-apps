@@ -473,6 +473,7 @@ function applicationRuns(verb, rest) {
       + 'cl=(profile.augment(g) or {}).get("changelog",[]) if g else []\n'
       + 'res=generate.generate_for(pid, include_oshal=oshal)\n'
       + 'print(json.dumps({"dir":res.get("dir"),"changelog":cl}))']];
+    case 'stories': return [['-m', 'jobhunter', 'stories', ...rest]];
     case 'guide-actions': return [guideActionsRun()];
     case 'query': return [queryRun()];
     case 'board': return [['-m', 'jobhunter', 'dashboard', '--no-browser', ...rest]];
