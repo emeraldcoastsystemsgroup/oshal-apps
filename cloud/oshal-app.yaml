@@ -36,7 +36,7 @@ description: >-
   Inspect and operate your Google Cloud by chat. Connect GCP at /utilities; the
   cloud-ops-bot reads your projects/services/instances via your connector token and
   acts on your behalf (read-only by default). The API-based replacement for gcloud.
-version: 1.0.0
+version: 1.1.0
 status: active
 
 # (theme dropped at the carve: core declared `theme: blue`, which is NOT a known
@@ -52,6 +52,14 @@ source:
 # CORE-05 install readiness is service-authenticated and reads package metadata only. It never
 # touches user data, calls a provider, mutates state, or spends tokens.
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/cloud/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/cloud/_smoke
@@ -127,3 +135,9 @@ ribbon:
     - logs
     - operations
   defaultView: chat
+
+summary:
+  path: /api/cloud/home-summary
+  metricsPointer: /metrics
+  tilesPointer: /tiles
+  itemsPointer: /items

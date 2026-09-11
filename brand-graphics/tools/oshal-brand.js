@@ -25,10 +25,13 @@
 
 const BASE = `http://localhost:${process.env.PORT || '5000'}/api/vids`;
 const SECRET = (process.env.SWARM_SERVICE_SECRET || '').trim();
+const USER_SUB = (process.env.OSHAL_USER_SUB || '').trim();
 
 function authHeaders(extra) {
   const h = Object.assign({}, extra);
-  if (SECRET) h['X-Service-Secret'] = SECRET;
+  if (!SECRET || !USER_SUB) throw new Error('Brand Graphics requires service credentials and an attributed user.');
+  h['X-Service-Secret'] = SECRET;
+  h['X-Oshal-User-Sub-B64'] = Buffer.from(USER_SUB, 'utf8').toString('base64url');
   return h;
 }
 
@@ -47,7 +50,9 @@ async function postJson(url, body) {
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
   });
-  return r.json();
+  const result = await r.json();
+  if (!r.ok) throw new Error(`Brand dispatch failed (HTTP ${r.status})`);
+  return result;
 }
 
 // Enqueue a vids job tagged as a brand-graphic build. The worker recognizes
@@ -57,7 +62,7 @@ function brandJob(verb, input) {
   const brief = input.brief || input.subject || input.prompt || '';
   if (!brief && verb === 'graphic') throw new Error('brief required');
   return {
-    kind: 'brand',
+    confirm: true,
     brandMode: verb === 'graphic' ? 'graphic' : 'intro',
     brief,
     subject: input.subject || brief,
@@ -72,7 +77,7 @@ async function run(verb, input) {
   switch (verb) {
     case 'intro':
     case 'graphic':
-      return postJson(`${BASE}/jobs`, brandJob(verb, input));
+      return postJson(`${BASE}/brand`, brandJob(verb, input));
     default:
       throw new Error(`unknown verb: ${verb}`);
   }

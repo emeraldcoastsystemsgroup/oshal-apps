@@ -24,7 +24,7 @@ description: >-
   AI music concierge — search your Spotify, see what's playing and your playlists,
   get recommendations from your taste, and build playlists on your account. Other
   swarm bots can ask it to find music or assemble a playlist.
-version: 1.0.0
+version: 1.1.0
 status: active
 
 source:
@@ -151,6 +151,14 @@ ui:
 
 # ROUTES — app-owned API + surface, gated to this app's activation.
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/spotify/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/spotify/_smoke
@@ -196,3 +204,33 @@ ribbon:
     - operations
   hideChatPanel: true
   defaultView: spotify-concierge
+
+summary:
+  path: /api/spotify/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+integrations:
+  offers:
+    - id: plan-movie
+      label: Plan a movie night
+      targetApp: movies
+      targetAction: plan-movie
+      contextType: planning-brief
+      version: 1
+    - id: plan-meal
+      label: Plan a meal
+      targetApp: eats
+      targetAction: plan-meal
+      contextType: planning-brief
+      version: 1
+  accepts:
+    - id: plan-music
+      contextType: planning-brief
+      version: 1
+      surface: spotify-concierge
+      fields:
+        - title
+        - notes
+        - sourceUrl

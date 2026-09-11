@@ -29,7 +29,7 @@ displayName: Job Apply
 description: >-
   Submit an approved, packet-ready job application by driving the operator's real browser on a
   desktop worker node. Push a ticket, it queues, the worker submits it, the ticket passes or fails.
-version: 1.0.0
+version: 1.1.0
 status: active
 
 source:
@@ -41,6 +41,22 @@ source:
 # CORE-05 install readiness is service-authenticated and reads package metadata only. It never
 # touches user data, calls a provider, mutates state, or spends tokens.
 routes:
+  - module: routes/review.js
+    factory: createReviewRoutes
+    mountPath: /api/job-apply
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/job-apply/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/job-apply/_smoke
@@ -78,3 +94,41 @@ workflow:
   name: Job Application Submission
   pipeline: job-apply
   workerBot: career-hunter
+
+summary:
+  path: /api/job-apply/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+ui:
+  static:
+    - toolName: job-apply-review
+      label: Submission Review
+      icon: codicon codicon-briefcase
+      iframeUrl: /api/job-apply/review
+      section: top
+
+integrations:
+  offers:
+    - id: review-career
+      label: Review in Career
+      targetApp: career-hunter
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+  accepts:
+    - id: prepare-brief
+      contextType: research-brief
+      version: 1
+      surface: job-apply-review
+      fields:
+        - title
+        - notes
+        - sourceUrl

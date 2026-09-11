@@ -29,7 +29,7 @@ description: >-
   generate flashcards and authoritative quizzes, and chat with a Socratic tutor
   grounded only in caller-owned or teacher/admin-approved class material through
   per-material RAG collections.
-version: 1.2.0
+version: 1.3.1
 
 # ADR-139 wave 1 — "Send to…" destination (open mode): an image or PDF from anywhere in the
 # swarm lands in the Tutor as the pending attachment ("here's my homework"), riding the chat's
@@ -250,6 +250,20 @@ ui:
 # The .js files are produced by the extraction build — see BUILD.md.
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/review.js
+    factory: createReviewRoutes
+    mountPath: /api/little-monsters/review
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/little-monsters/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/little-monsters/_smoke
@@ -313,3 +327,17 @@ ribbon:
   # hiding the rail from JS — the framework has supported it declaratively all along, and the
   # package simply never set it (ADR-085 D9).
   hideChatPanel: true
+
+summary:
+  path: /api/little-monsters/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+integrations:
+  offers:
+    - id: prepare-study-plan
+      label: Prepare a study plan
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

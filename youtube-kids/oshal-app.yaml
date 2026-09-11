@@ -29,7 +29,7 @@ description: >-
   Upload your YouTube Takeout watch history and get a parent-friendly brief on
   what your kid is into — top interests, what the unfamiliar channels actually
   are, gift ideas, and conversation openers. Read-only; nothing is posted or sent.
-version: 1.1.0
+version: 1.2.0
 
 # ADR-139 wave 2 — "Send to…" destination: a Takeout watch-history.json from anywhere in the
 # swarm ingests straight into the parent brief (JSON only; zip archives use the Takeout spine).
@@ -99,6 +99,21 @@ bots:
 # Compiled-JS route (built from src-routes/ by `oshal-app build`). Serves the
 # upload/brief surface from this package's tools/ and the per-user store API.
 routes:
+  - module: routes/review.js
+    factory: createReviewRoutes
+    mountPath: /api/youtube-kids/review
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/youtube-kids/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/youtube-kids/_smoke
@@ -126,6 +141,11 @@ takeout:
 # One ribbon tile opens the Kid Lens page (upload step + rendered brief).
 ui:
   static:
+    - toolName: youtube-kids-review
+      label: Kid Lens Review
+      icon: codicon codicon-notebook
+      iframeUrl: /api/youtube-kids/review
+      section: top
     - toolName: youtube-kids
       label: Kid Lens
       icon: codicon codicon-device-camera-video
@@ -146,3 +166,24 @@ ribbon:
     - logs
     - operations
   defaultView: kidlens-home
+
+summary:
+  path: /api/youtube-kids/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+integrations:
+  offers:
+    - id: plan-gift
+      label: Discuss gift ideas
+      targetApp: purchasing
+      targetAction: plan-purchase
+      contextType: planning-brief
+      version: 1
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

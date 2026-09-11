@@ -36,7 +36,7 @@ description: >-
   operator with the day's numbers and the video attached as a preview.
 scope: public
 ticketType: daily-trade-recap
-version: 1.0.0
+version: 1.1.0
 
 source:
   type: git-subdir
@@ -47,6 +47,22 @@ source:
 # CORE-05 install readiness is service-authenticated and reads package metadata only. It never
 # touches user data, calls a provider, mutates state, or spends tokens.
 routes:
+  - module: routes/review.js
+    factory: createReviewRoutes
+    mountPath: /api/daily-trade-recap
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/daily-trade-recap/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/daily-trade-recap/_smoke
@@ -205,3 +221,41 @@ workflow:
         - n-gate
         - n-deliver
   autoStart: true
+
+summary:
+  path: /api/daily-trade-recap/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+    - id: prepare-episode
+      label: Prepare a video episode
+      targetApp: video
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+  accepts:
+    - id: prepare-brief
+      contextType: research-brief
+      version: 1
+      surface: recap-review
+      fields:
+        - title
+        - notes
+        - sourceUrl
+
+ui:
+  static:
+    - toolName: recap-review
+      label: Recap Review
+      iframeUrl: /api/daily-trade-recap/review
+      icon: codicon codicon-report
+      section: top

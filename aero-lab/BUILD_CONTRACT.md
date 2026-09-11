@@ -625,6 +625,11 @@ Philosophy: the NASA-42 pattern — an external authoritative simulator behind a
 but **subprocess-stdio JSON-lines**, not TCP. One persistent Python worker per api process,
 spawned lazily on first engine call, killed after 10 min idle, restarted on crash/timeout.
 
+> **As built since 1.2.0:** the stdio spawn below is the *local* transport. A deployed box runs
+> the same JSON-lines worker inside the package's engine container and reaches it over TCP
+> (`AERO_LAB_ENGINE_ADDR`, default `aero-lab-engine:7411`) — see
+> [engine/README.md](engine/README.md#engine-container--how-a-deployed-oshal-box-runs-the-engine).
+
 ### 5a. Process contract (agent B implements the Node side in `src-routes/engine-adapter.ts`)
 
 - **Engine dir:** `process.env.AERO_LAB_ENGINE_DIR`, default (documented, works on this box):

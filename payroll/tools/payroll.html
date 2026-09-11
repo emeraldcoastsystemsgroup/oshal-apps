@@ -220,6 +220,7 @@
       </div>
       <div id="runList" class="spin">Loading…</div>
     </div>
+    <section class="panel" id="payrollReview" hidden><h2>Continue this pay run</h2><p class="muted">Review the selected run with Finance or prepare a document. Run approval and payment settlement remain separate.</p><div class="connected-app-actions" aria-label="Connected application actions" style="display:flex;gap:12px;flex-wrap:wrap"></div></section>
     <div class="panel" id="runDetail" style="display:none"></div>
   </div>
 
@@ -655,6 +656,12 @@ async function createRun(btn) {
 async function openRun(id) {
   const r = await api('/runs/' + id);
   state.currentRun = r;
+  $('payrollReview').hidden=false;
+  window.payrollReviewContext={title:'Review a payroll run',notes:[
+    'Pay run '+r.run.run_id,'Period: '+fmtD(r.run.period_start)+' to '+fmtD(r.run.period_end),
+    'Pay date: '+fmtD(r.run.pay_date),'Recorded run status: '+r.run.status,
+    'Last updated: '+r.run.updated_at,'Run approval does not prove bank settlement. Review payment-level evidence.'
+  ].join('\n').slice(0,2000)};
   const draft = r.run.status === 'draft';
   const tot = (k) => r.lines.reduce((a, l) => a + Number(l[k] || 0), 0);
   $('runDetail').style.display = '';
@@ -1182,6 +1189,13 @@ async function loadHolidays(btn) {
 (async () => {
   try { await loadCompany(); await loadEmployees(); await loadRuns(); }
   catch (e) { msg(e.status === 401 ? 'Sign in to use Payroll.' : e.message, true); }
+})();
+</script>
+<script>
+(async()=>{
+const {mountConnectedActions}=await import('/cockpit/js/app-workflows.js');
+const element=document.querySelector('.connected-app-actions');
+void mountConnectedActions({app:'payroll',element,contextForOffer:()=>document.getElementById('runDetail').style.display==='none'?null:window.payrollReviewContext||null}).then(()=>element.querySelectorAll('button').forEach(b=>b.classList.add('btn','ghost')));
 })();
 </script>
 </body>

@@ -37,7 +37,7 @@ description: >-
   Link your banks and brokerages (via Plaid — OSHAL never sees your bank password)
   and see everything in one place: net worth, accounts, holdings, and spending, with
   a plain-English brief. Read-only — nothing is traded or moved. No crypto.
-version: 1.1.1
+version: 1.2.0
 status: active
 
 # Neutral steel-glass skin (cockpit built-in — see COCKPIT_THEMES in theme-manager.js).
@@ -90,6 +90,14 @@ workflow:
 # every route self-checks the caller, POST /pay additionally requires the explicit
 # write confirmation (428 no-charge) and is idempotency-keyed.
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/finance/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/finance/_smoke
@@ -149,3 +157,26 @@ ribbon:
     - logs
     - operations
   defaultView: finance-home
+
+summary:
+  path: /api/finance/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+  accepts:
+    - id: review-context
+      contextType: financial-review
+      version: 1
+      surface: finance-home
+      fields:
+        - title
+        - notes
+        - sourceUrl

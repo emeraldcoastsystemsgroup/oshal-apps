@@ -124,6 +124,35 @@ describe('Vids durable remote dispatch', () => {
     expect(listed?.params).toEqual(['owner-list', 50, 'done']);
   });
 
+  it.each(['intro','graphic'])('dispatches an approved brand %s with exact owner and durable attribution', async (brandMode) => {
+    harness.enqueueTask.mockResolvedValue({taskId:'brand-task'});
+    const {ctx,calls}=recordingContext();
+    const listening=await listen(authenticatedApp('brand-owner').use(createVidsRoutes(ctx)));
+    server=listening.server;
+    const response=await fetch(`${listening.origin}/brand`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({brief:'Selected campaign',brandMode,confirm:true,music:false})});
+    expect(response.status).toBe(200);
+    expect(harness.enqueueTask).toHaveBeenCalledWith('vids-1',expect.objectContaining({userSub:'brand-owner',input:{name:'brand.'+brandMode,arguments:{brief:'Selected campaign',subject:'Selected campaign',music:false}}}));
+    const inserted=calls.find(c=>c.text.includes('INSERT INTO vids_jobs'))!;
+    expect(inserted.text).toContain("'brand'");
+    expect(inserted.params[0]).toBe('brand-owner');
+    expect(JSON.parse(String(inserted.params[4]))).toEqual({kind:'brand',brandMode});
+  });
+
+  it.each([
+    [{brief:'Draft only'},428],
+    [{brief:'A'.repeat(2001),confirm:true},400],
+    [{brief:'Draft',confirm:true,brandMode:'arbitrary.tool'},400],
+    [{brief:'Draft',confirm:true,music:'yes'},400],
+  ])('refuses unconfirmed or invalid brand work before persistence', async (body,code) => {
+    const {ctx,calls}=recordingContext();
+    const listening=await listen(authenticatedApp().use(createVidsRoutes(ctx)));
+    server=listening.server;
+    const response=await fetch(`${listening.origin}/brand`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+    expect(response.status).toBe(code);
+    expect(calls).toHaveLength(0);
+    expect(harness.enqueueTask).not.toHaveBeenCalled();
+  });
+
   it('rejects a service-secret request that omits the separate user identity', async () => {
     const previous = process.env.SWARM_SERVICE_SECRET;
     process.env.SWARM_SERVICE_SECRET = 'vids-test-service-secret';

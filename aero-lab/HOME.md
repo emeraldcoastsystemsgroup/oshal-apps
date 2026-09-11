@@ -1,0 +1,3 @@
+# aero-lab on Home
+
+Final disposition: compact configurable launcher with a native analysis handoff. This lab has no durable caller-owned experiment ledger. Home does not run a solver, recreate a result, or invent activity counts. The native screen has Use visible results: it explicitly snapshots the displayed verdict and provenance into an editable draft for Office, retaining the simulation/illustrative-input warning and capture time. It does not export geometry or send files. Changing inputs can leave an earlier verdict visible; the draft explicitly requires checking run status and assumptions. Existing simulation and export controls remain explicit.

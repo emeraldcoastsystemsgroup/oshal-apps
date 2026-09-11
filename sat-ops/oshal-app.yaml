@@ -44,7 +44,7 @@ description: >-
   from SGP4, pairwise conjunction screening, and an approval-gated command
   console (point / detumble / desat / safe). Sim engines only: the in-process
   RK4 gyrostat or the NASA 42 referee. Commands cannot leave simulation.
-version: 1.1.0
+version: 1.2.0
 status: active
 
 source:
@@ -299,3 +299,17 @@ ribbon:
     - operations
   hideChatPanel: true
   defaultView: sat-ops
+
+summary:
+  path: /api/sat/home-summary
+  metricsPointer: /metrics
+  tilesPointer: /tiles
+  itemsPointer: /items
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a diagnostic brief
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

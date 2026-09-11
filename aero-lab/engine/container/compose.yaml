@@ -1,0 +1,42 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial implementation -- the aero-lab
+#   |                                           | engine container, owned by this package (no
+#   |                                           | core compose change). Joins the running
+#   |                                           | stack's network as `aero-lab-engine`; no host
+#   |                                           | port, no volumes, read-only root.
+#
+# Brought up by ../install-engine.sh, which builds the image first and passes
+# the stack network in OSHAL_NETWORK. Deliberately NO `oshal.tier` label:
+# Prometheus discovers scrape targets by that label and this has no /metrics.
+
+name: oshal-aero-lab-engine
+
+services:
+  aero-lab-engine:
+    image: oshal-aero-lab-engine:local
+    container_name: oshal-aero-lab-engine
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: ${AERO_ENGINE_MEM_LIMIT:-2g}
+    labels:
+      oshal.app: aero-lab
+    networks:
+      oshal:
+        aliases:
+          - aero-lab-engine
+
+networks:
+  oshal:
+    external: true
+    name: ${OSHAL_NETWORK:-oshal-local_oshal}

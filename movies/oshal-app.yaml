@@ -26,7 +26,7 @@ description: >-
   AI movies & TV concierge — search films and shows, see where they're streaming,
   watch trailers, get recommendations, build a watchlist, and find showtimes. Other
   swarm bots can ask it what to watch or where to watch it.
-version: 1.0.0
+version: 1.1.0
 status: active
 
 source:
@@ -64,6 +64,14 @@ guestTier: blocked
 # every route resolves the viewer sub itself; the surface serves from this
 # package's tools/ via ctx.appPackageDir.
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/movies/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/movies/_smoke
@@ -119,3 +127,39 @@ ribbon:
     - operations
   hideChatPanel: true
   defaultView: movies-concierge
+
+summary:
+  path: /api/movies/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+integrations:
+  offers:
+    - id: plan-meal
+      label: Plan a meal
+      targetApp: eats
+      targetAction: plan-meal
+      contextType: planning-brief
+      version: 1
+    - id: plan-music
+      label: Plan music
+      targetApp: spotify
+      targetAction: plan-music
+      contextType: planning-brief
+      version: 1
+    - id: plan-ride
+      label: Plan a ride
+      targetApp: rides
+      targetAction: plan-ride
+      contextType: planning-brief
+      version: 1
+  accepts:
+    - id: plan-movie
+      contextType: planning-brief
+      version: 1
+      surface: movies-concierge
+      fields:
+        - title
+        - notes
+        - sourceUrl

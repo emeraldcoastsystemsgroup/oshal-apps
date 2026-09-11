@@ -28,7 +28,7 @@ description: >-
   Take payments through your own Square or PayPal account. Pick a provider, enter the
   amount, and charge — Square runs a card payment, PayPal sends the customer an invoice.
   Pluggable across providers; sandbox by default for safe testing.
-version: 1.0.0
+version: 1.1.0
 status: active
 
 theme: ocean
@@ -75,6 +75,14 @@ guestTier: blocked
 # every route also self-checks callerSub, and POST /charge additionally requires
 # the explicit write confirmation (428 without it).
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/payments/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/payments/_smoke
@@ -118,3 +126,23 @@ ribbon:
     - logs
     - operations
   defaultView: payments-home
+
+summary:
+  path: /api/payments/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+integrations:
+  offers:
+    - id: review-finance
+      label: Review with Finance
+      targetApp: finance
+      targetAction: review-context
+      contextType: financial-review
+      version: 1
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

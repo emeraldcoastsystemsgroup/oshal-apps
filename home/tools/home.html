@@ -341,5 +341,24 @@ loadDevices(); loadScenes(); loadSchedules();
   setTimeout(function(){ var f = focusables(); if(f.length) f[0].focus(); }, 600);
 })();
 </script>
+
+<details id="evidenceReview" style="position:fixed;right:16px;bottom:16px;z-index:1000;width:min(360px,calc(100vw - 32px));max-height:65vh;overflow:auto;background:#142034;color:#edf4ff;border:1px solid #557399;border-radius:14px;padding:12px;box-sizing:border-box;box-shadow:0 8px 30px #0005">
+ <summary style="cursor:pointer;font-weight:600">Prepare a diagnostic brief</summary>
+ <p id="evidenceState" role="status">Choose recorded evidence, then review what to share.</p>
+ <label>Saved evidence<select id="evidenceChoice" style="width:100%;margin:6px 0"></select></label>
+ <label>Brief<textarea id="evidenceNotes" rows="5" style="width:100%;box-sizing:border-box;margin:6px 0"></textarea></label>
+ <div id="evidenceActions"></div>
+</details>
+<script>
+(async()=>{
+const {mountConnectedActions}=await import('/cockpit/js/app-workflows.js');
+const panel=document.getElementById('evidenceReview'),pick=document.getElementById('evidenceChoice'),notes=document.getElementById('evidenceNotes'),state=document.getElementById('evidenceState');let records=[],loaded=false;
+await mountConnectedActions({element:document.getElementById('evidenceActions'),app:"home",contextForOffer:()=>({title:records[pick.selectedIndex]?.text||'Diagnostic review',notes:notes.value})});
+pick.addEventListener('change',()=>{notes.value=records[pick.selectedIndex]?.actions?.find(a=>a.integration==='prepare-document')?.context?.notes||'';});
+panel.addEventListener('toggle',async()=>{if(!panel.open||loaded)return;try{const response=await fetch("/api/home/home-summary",{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error();const body=await response.json();records=(body.items||[]).filter(i=>i.actions?.some(a=>a.integration==='prepare-document'));pick.replaceChildren(...records.map(i=>{const option=document.createElement('option');option.textContent=i.text;return option;}));pick.dispatchEvent(new Event('change'));state.textContent=body.partial?'Some evidence is unavailable. Review the saved details.':records.length?'Edit the brief before opening Office.':'No recorded evidence yet. You can write a review brief.';loaded=true;}catch{state.textContent='Saved evidence is unavailable. You can write a review brief.';}});
+if(panel.open)panel.dispatchEvent(new Event('toggle'));
+})().catch(()=>{document.getElementById('evidenceState').textContent='Connected actions are unavailable.';});
+</script>
+
 </body>
 </html>

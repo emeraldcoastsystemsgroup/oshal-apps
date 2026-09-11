@@ -22,7 +22,7 @@ description: >-
   electric-"oshal" intro look — deep navy, glowing electric-blue energy, the
   lowercase wordmark traced in light — on the operator's signed-in Chrome, and
   returns the project URL.
-version: 1.0.1
+version: 1.1.0
 status: inactive
 
 theme: midnight
@@ -36,6 +36,22 @@ source:
 # CORE-05 install readiness is service-authenticated and reads package metadata only. It never
 # touches user data, calls a provider, mutates state, or spends tokens.
 routes:
+  - module: routes/review.js
+    factory: createReviewRoutes
+    mountPath: /api/brand-graphics
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/brand-graphics/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/brand-graphics/_smoke
@@ -121,7 +137,7 @@ ui:
     - toolName: brand-graphics
       label: Brand Graphics
       icon: codicon codicon-symbol-color
-      iframeUrl: /api/vids/app
+      iframeUrl: /api/brand-graphics/review
       section: top
 
 # Tickets of type 'brand-graphics' route to the brand specialist bot.
@@ -143,3 +159,33 @@ ribbon:
     - logs
     - operations
   defaultView: brand-graphics
+
+summary:
+  path: /api/brand-graphics/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+    - id: prepare-episode
+      label: Prepare a video episode
+      targetApp: video
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+  accepts:
+    - id: prepare-brief
+      contextType: research-brief
+      version: 1
+      surface: brand-graphics
+      fields:
+        - title
+        - notes
+        - sourceUrl

@@ -14,6 +14,7 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Require APP-02 package-audit validation in explicit compatible rollout mode and its enforce-policy mutation family.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Keep CORE-05 requiresAi readiness routes in the fail-closed store route parser and reject non-boolean declarations.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Lock all non-Pumpkin packages to the service-only, read-only CORE-05 readiness source/compiled pair and non-placeholder response assertion.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | Ledger to the real 53-package store (was 48). ADR-141 `kind: group` manifests own no routes, so they cannot mount a readiness smoke: they are excluded only after the real route parser proves they declare none and ship no smoke source/compiled pair, so the exclusion can never hide a routed package.
  */
 
 import test from 'node:test';
@@ -164,61 +165,85 @@ test('route parser accepts only boolean requiresAi declarations', () => {
   ].join('\n'), 'smoke.yaml'), /requiresAi must be true or false/);
 });
 
-test('every non-Pumpkin package owns the reviewed service-only readiness smoke', () => {
+/** Read a module with normalized line endings and one trailing newline. */
+const normalizedModule = (file) => `${readFileSync(file, 'utf8').replaceAll('\r\n', '\n').trimEnd()}\n`;
+
+/**
+ * An ADR-141 group borrows member surfaces and owns no routes, so it cannot mount a readiness
+ * smoke. Returns true only after the real route parser proves the group declares no routes and
+ * ships no smoke declaration or module — the exclusion can never hide a routed package.
+ */
+function assertRoutelessGroup(packageDir, manifest, smokePaths) {
+  if (!/^kind:\s*group\s*$/m.test(manifest)) return false;
+  assert.deepEqual(parseManifestRoutes(manifest, join(packageDir, 'oshal-app.yaml')), [], `${packageDir} is a group, so it must declare no routes`);
+  assert.doesNotMatch(manifest, /^smoke:/m, `${packageDir} is a group, so it cannot declare a readiness smoke`);
+  assert.equal(smokePaths.some((file) => existsSync(file)), false, `${packageDir} is a group and ships no smoke module`);
+  return true;
+}
+
+/** Assert one package's service-only readiness route, smoke expectation, and canonical module pair. */
+function assertReadinessSmoke(packageDir, manifest, packageName, [sourcePath, compiledPath], canonical) {
+  const escapedMount = `/api/${packageName}/_smoke`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  assert.match(manifest, new RegExp([
+    '  - module: routes/package-smoke\\.js',
+    '    factory: createPackageSmokeRoutes',
+    `    mountPath: ${escapedMount}`,
+    '    auth: service',
+    '    requiresContext: true',
+    '    requiresAi: false',
+  ].join('\\r?\\n')), `${packageDir} readiness route must remain service-only and non-AI`);
+  assert.match(manifest, new RegExp([
+    'smoke:',
+    '  - name: package-readiness',
+    '    method: GET',
+    `    path: ${escapedMount}`,
+    '    auth: service',
+    '    expect:',
+    '      status: 200',
+    '      jsonPointer: /package',
+    '      rejectValues: \\[noop, stub, empty\\]',
+    '    requiresAi: false',
+  ].join('\\r?\\n')), `${packageDir} readiness expectation must reject placeholder identities`);
+  assert.equal(normalizedModule(sourcePath), canonical.source, `${packageDir} smoke source drifted`);
+  assert.equal(normalizedModule(compiledPath), canonical.compiled, `${packageDir} compiled smoke drifted`);
+}
+
+/** Classify one package: 'excluded' (Pumpkin), 'group' (route-less), or 'covered' (smoke asserted). */
+function classifySmokePackage(packageDir, canonical) {
+  const manifest = readFileSync(join(packageDir, 'oshal-app.yaml'), 'utf8');
+  const packageName = /^name:\s*([a-z0-9][a-z0-9-]{0,63})\s*$/m.exec(manifest)?.[1];
+  assert.ok(packageName, `${packageDir} must declare a simple package name`);
+  const smokePaths = [join(packageDir, 'src-routes', 'package-smoke.ts'), join(packageDir, 'routes', 'package-smoke.js')];
+  if (packageDir === 'pumpkin') {
+    assert.equal(existsSync(smokePaths[0]), false, `${packageDir} is explicitly excluded from source edits`);
+    assert.equal(existsSync(smokePaths[1]), false, `${packageDir} is explicitly excluded from compiled edits`);
+    return 'excluded';
+  }
+  if (assertRoutelessGroup(packageDir, manifest, smokePaths)) return 'group';
+  assertReadinessSmoke(packageDir, manifest, packageName, smokePaths, canonical);
+  return 'covered';
+}
+
+test('every non-Pumpkin routed package owns the reviewed service-only readiness smoke', () => {
   const packageDirs = readdirSync('.', { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && existsSync(join(entry.name, 'oshal-app.yaml')))
     .map((entry) => entry.name)
     .sort();
-  assert.equal(packageDirs.length, 48, 'the smoke audit must cover the complete store manifest set');
+  assert.equal(packageDirs.length, 53, 'the smoke audit must cover the complete store manifest set');
 
-  const excluded = new Set(['pumpkin']);
-  const normalizedModule = (file) => `${readFileSync(file, 'utf8').replaceAll('\r\n', '\n').trimEnd()}\n`;
-  const canonicalSource = normalizedModule('brand-graphics/src-routes/package-smoke.ts');
-  const canonicalCompiled = normalizedModule('brand-graphics/routes/package-smoke.js');
-  let covered = 0;
-  for (const packageDir of packageDirs) {
-    const manifest = readFileSync(join(packageDir, 'oshal-app.yaml'), 'utf8');
-    const packageName = /^name:\s*([a-z0-9][a-z0-9-]{0,63})\s*$/m.exec(manifest)?.[1];
-    assert.ok(packageName, `${packageDir} must declare a simple package name`);
-    const sourcePath = join(packageDir, 'src-routes', 'package-smoke.ts');
-    const compiledPath = join(packageDir, 'routes', 'package-smoke.js');
-    if (excluded.has(packageDir)) {
-      assert.equal(existsSync(sourcePath), false, `${packageDir} is explicitly excluded from source edits`);
-      assert.equal(existsSync(compiledPath), false, `${packageDir} is explicitly excluded from compiled edits`);
-      continue;
-    }
-
-    const mountPath = `/api/${packageName}/_smoke`;
-    const escapedMount = mountPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    assert.match(manifest, new RegExp([
-      '  - module: routes/package-smoke\\.js',
-      '    factory: createPackageSmokeRoutes',
-      `    mountPath: ${escapedMount}`,
-      '    auth: service',
-      '    requiresContext: true',
-      '    requiresAi: false',
-    ].join('\\r?\\n')), `${packageDir} readiness route must remain service-only and non-AI`);
-    assert.match(manifest, new RegExp([
-      'smoke:',
-      '  - name: package-readiness',
-      '    method: GET',
-      `    path: ${escapedMount}`,
-      '    auth: service',
-      '    expect:',
-      '      status: 200',
-      '      jsonPointer: /package',
-      '      rejectValues: \\[noop, stub, empty\\]',
-      '    requiresAi: false',
-    ].join('\\r?\\n')), `${packageDir} readiness expectation must reject placeholder identities`);
-    assert.equal(normalizedModule(sourcePath), canonicalSource, `${packageDir} smoke source drifted`);
-    assert.equal(normalizedModule(compiledPath), canonicalCompiled, `${packageDir} compiled smoke drifted`);
-    covered += 1;
-  }
-  assert.equal(covered, 47, 'exactly Pumpkin is excluded from the 48-package rollout');
+  const canonical = {
+    source: normalizedModule('brand-graphics/src-routes/package-smoke.ts'),
+    compiled: normalizedModule('brand-graphics/routes/package-smoke.js'),
+  };
+  const kinds = packageDirs.map((packageDir) => [packageDir, classifySmokePackage(packageDir, canonical)]);
+  assert.deepEqual(kinds.filter(([, kind]) => kind === 'group').map(([packageDir]) => packageDir), ['intelligent-career'],
+    'the only route-less group is the career application group');
+  assert.equal(kinds.filter(([, kind]) => kind === 'covered').length, 51,
+    'only Pumpkin and the route-less group are outside the 53-package rollout');
 
   const inventory = JSON.parse(readFileSync('scripts/security/store-route-inventory.json', 'utf8')).routes;
   const smokeRoutes = inventory.filter((entry) => entry.includes('|routes/package-smoke.js|'));
-  assert.equal(smokeRoutes.length, 47);
+  assert.equal(smokeRoutes.length, 51);
   assert.ok(smokeRoutes.every((entry) => entry.endsWith('|service|no-sql-write')));
 });
 

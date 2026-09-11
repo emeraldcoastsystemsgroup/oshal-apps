@@ -34,7 +34,7 @@ description: >-
   matrix, and improve it by regenerating data aimed at its weak spots and retraining — with every
   version scored objectively so "better" is a number. Generation/validation run free on your GPU box;
   paid escalation never happens without an approval gate.
-version: 1.0.2
+version: 1.1.0
 status: active
 
 # Per-app skin — indigo so the model-lab reads distinct from the sakura Video Studio.
@@ -91,6 +91,14 @@ bots:
 # Compiled-JS routes (built from src-routes/ by `oshal-app build`). Split mounts —
 # see the AUTH SHAPE note in the header.
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/lora/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/lora/_smoke
@@ -142,3 +150,18 @@ ticketType: lora-train
 workflow:
   name: LoRA Training Pipeline
   workerBot: lora-director
+
+summary:
+  path: /api/lora/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

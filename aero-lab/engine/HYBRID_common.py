@@ -31,8 +31,14 @@ ENVELOPE ASSUMPTIONS (ledgered):
 FOOTPRINT: one process, BelowNormal priority, RAM guard before heavy loops.
 """
 import ctypes
-ctypes.windll.kernel32.SetPriorityClass(
-    ctypes.windll.kernel32.GetCurrentProcess(), 0x4000)  # BELOW_NORMAL
+import sys
+
+# BelowNormal priority is a Windows footprint rule. Unguarded, ctypes.windll made
+# this module (and HYBRID_piecewise, which imports it) fail to import on Linux, so
+# the engine container reported the hybrid capability false. Same guard as service.py.
+if sys.platform == "win32":
+    ctypes.windll.kernel32.SetPriorityClass(
+        ctypes.windll.kernel32.GetCurrentProcess(), 0x4000)  # BELOW_NORMAL
 
 import dataclasses
 import math

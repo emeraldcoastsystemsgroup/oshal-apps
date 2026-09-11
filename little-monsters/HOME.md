@@ -1,0 +1,3 @@
+# Little Monsters on Home
+
+Existing issuer-and-subject school identity is resolved without account creation or role promotion. An unmapped caller must complete school setup in the app. The same tenant, enrollment and teaching relationships scope shared classwork. Accessible classes, classwork due within five calendar days and overdue classwork are configurable metrics, default on. Class-level status is not per-learner completion. No other student’s grades, activity or identity is included. Select an assignment to prepare an editable Office study plan. GET performs SELECT only; unavailable sources never become zero.

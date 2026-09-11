@@ -61,6 +61,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createHomeRoutes = createHomeRoutes;
+const home_summary_1 = require("./home-summary");
 const express_1 = require("express");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
@@ -238,6 +239,20 @@ function buildScheduleCron(trigger) {
  */
 function createHomeRoutes(ctx) {
     const router = (0, express_1.Router)();
+    router.get('/home-summary', (req, res) => {
+        const oidc = req.oidc, sub = oidc?.user?.sub || oidc?.user?.oid;
+        if (!sub || oidc?.isAuthenticated?.() !== true) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        res.setHeader('Cache-Control', 'no-store');
+        try {
+            res.json((0, home_summary_1.homeSnapshotSummary)(refreshedDeviceIndexes.get(String(sub)) || (0, home_summary_1.readHomeSnapshot)(HOME_DATA_DIR, String(sub), 'devices.json'), (0, home_summary_1.readHomeSnapshot)(HOME_DATA_DIR, String(sub), 'scenes.json')));
+        }
+        catch {
+            res.status(503).json({ error: 'Saved home configuration is unavailable.' });
+        }
+    });
     const assetRoot = ctx.appPackageDir
         ? path.join(ctx.appPackageDir, 'tools')
         : path.join(LOAD_TIME_PACKAGE_DIR, 'tools');
@@ -528,4 +543,3 @@ function createHomeRoutes(ctx) {
     });
     return router;
 }
-//# sourceMappingURL=home-routes.js.map

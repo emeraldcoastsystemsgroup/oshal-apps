@@ -1,0 +1,95 @@
+name: calendar
+suite: ai-home
+displayName: Calendar Preparation
+description: Sync your upcoming primary-calendar events explicitly and prepare reviewed gift, meal, travel and meeting plans.
+version: 1.0.0
+status: active
+scope: person
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: calendar
+  ref: main
+theme: midnight
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/calendar/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/calendar/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/calendar/home-summary
+    auth: oidc
+    requiresContext: true
+    requiresAuth: true
+    requiresAi: false
+  - module: routes/review.js
+    factory: createReviewRoutes
+    mountPath: /api/calendar/review
+    auth: oidc
+    requiresContext: true
+    requiresAuth: true
+    requiresAi: false
+  - module: routes/sync.js
+    factory: createCalendarSyncRoutes
+    mountPath: /api/calendar/sync
+    auth: oidc
+    requiresContext: true
+    requiresAuth: true
+    requiresAi: false
+ui:
+  static:
+    - toolName: calendar-review
+      label: Calendar Preparation
+      icon: codicon codicon-lightbulb
+      iframeUrl: /api/calendar/review
+      section: top
+summary:
+  path: /api/calendar/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+integrations:
+  offers:
+    - id: plan-gift
+      label: Discuss gift ideas
+      targetApp: purchasing
+      targetAction: plan-purchase
+      contextType: planning-brief
+      version: 1
+    - id: plan-meal
+      label: Plan a gathering meal
+      targetApp: eats
+      targetAction: plan-meal
+      contextType: planning-brief
+      version: 1
+    - id: plan-trip
+      label: Discuss event travel
+      targetApp: travel
+      targetAction: plan-trip
+      contextType: planning-brief
+      version: 1
+    - id: prepare-meeting
+      label: Prepare a meeting brief
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+migrations:
+  - migrations/001-calendar-preparation.sql

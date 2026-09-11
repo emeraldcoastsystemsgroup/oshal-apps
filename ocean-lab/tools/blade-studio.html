@@ -482,5 +482,20 @@
     });
   }());
 </script>
+
+<details id="labReview" style="position:fixed;right:16px;bottom:16px;z-index:1000;width:min(360px,calc(100vw - 32px));max-height:65vh;overflow:auto;background:#142034;color:#edf4ff;border:1px solid #557399;border-radius:14px;padding:12px;box-sizing:border-box">
+ <summary>Prepare an analysis document</summary>
+ <p>Capture the visible simulation verdict, then edit the brief. These are modeled results, not measured performance.</p>
+ <button type="button" id="captureLabEvidence">Use visible results</button>
+ <label>Analysis brief<textarea id="labNotes" rows="6" style="width:100%;box-sizing:border-box"></textarea></label>
+ <div id="labActions"></div><p id="labReviewState" role="status"></p>
+</details>
+<script>
+(async()=>{const {mountConnectedActions}=await import('/cockpit/js/app-workflows.js');const notes=document.getElementById('labNotes');
+document.getElementById('captureLabEvidence').addEventListener('click',()=>{notes.value=('SIMULATION REVIEW. Illustrative inputs; no field measurements or hardware validation. Snapshot '+new Date().toISOString()+'\n'+["verdict-word","verdict-note","kpi-cp","kpi-harvest","kpi-margin","kpi-store","kpi-minsoc","mode-badge"].map(id=>id+': '+(document.getElementById(id)?.textContent.trim()||'Not available')).join('\n')+'\nReview assumptions, source revision and convergence before drawing conclusions. Visible results can belong to a previous input configuration; check the run status.').slice(0,2000);});
+await mountConnectedActions({element:document.getElementById('labActions'),app:"ocean-lab",contextForOffer:()=>({title:"ocean-lab simulation review",notes:notes.value})});
+})().catch(()=>{document.getElementById('labReviewState').textContent='Connected actions are unavailable.';});
+</script>
+
 </body>
 </html>

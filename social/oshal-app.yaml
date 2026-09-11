@@ -26,7 +26,7 @@ description: >-
   input — then publishes to multiple platforms at once (LinkedIn + Facebook + X).
   AI drafting runs on the comms bot; publishing uses your per-user connector
   tokens. Human-approved — nothing posts until you click Publish.
-version: 1.2.0
+version: 1.3.0
 status: active
 
 source:
@@ -162,6 +162,14 @@ ui:
       section: bottom
 
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/social/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/social/_smoke
@@ -215,3 +223,9 @@ integrations:
         - title
         - notes
         - sourceUrl
+
+summary:
+  path: /api/social/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items

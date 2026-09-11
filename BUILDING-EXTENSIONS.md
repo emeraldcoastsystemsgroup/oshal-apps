@@ -162,7 +162,7 @@ artifacts:                      # ADR-139: join the swarm-wide "Send to…" exch
       types: [application/pdf, image/*]   # MIME globs you accept ("*/*" takes anything)
       mode: post                # post = act headlessly and toast; open = open your surface
       endpoint: /api/my-app/import-artifact   # post ONLY, must be a root-relative /api/... path
-  provides:                     # this app as a SOURCE (parsed + registered; picker is Stage 4a)
+  provides:                     # this app as a SOURCE for the shared "Choose from OSHAL" picker
     - types: [image/png]
       list: /api/my-app/things  # a route a picker can enumerate the caller's artifacts from
                                 # ⛔ `overlay:` is KERNEL-RESERVED — a manifest declaring it FAILS
@@ -177,6 +177,41 @@ ribbon:
 ```
 
 ### Joining the artifact exchange — "Send to…" (ADR-139)
+
+#### Choosing an existing file (Stage 4a)
+
+Include `/api/artifacts/picker.js`, then call
+`await window.oshalPickArtifact({ accept: ['image/*'], maxBytes: 20971520 })`.
+Cancel returns `null`; selection returns `{ref, name, type, expiresAt}` from the existing
+owner-bound handle service. Fetch `/api/artifacts/handles/<ref>/content` and feed the bytes into
+your existing upload/crop/import path. Selection alone must not start generation or publication.
+The shared component owns the dialog, theme, keyboard focus, folder navigation, MIME/size
+filtering, cancellation and error states; do not copy its markup into a package.
+
+To appear as a source, declare `artifacts.provides: [{label: 'My files', types: ['image/png'],
+list: '/api/my-app/artifacts'}]`. `label` is optional (maximum 60 characters). The listing must
+be a read-only, caller-scoped endpoint on your app's authenticated mount. It receives an optional
+opaque `cursor` query parameter and returns:
+
+```json
+{
+  "items": [{"name": "photo.png", "type": "image/png", "size": 2048, "source": "/api/my-app/files/123"}],
+  "folders": [{"name": "Photos", "cursor": "photos"}],
+  "nextCursor": null
+}
+```
+
+`items` is required, at most 100 per page. `folders` is optional, at most 100. `size` is optional
+and measured in bytes. Cursors are strings up to 4096 characters; omit `nextCursor` or use null
+at the end. Every `source` is a same-origin `/api/` URL serving actual bytes with owner checks,
+including when the existing handle relay re-fetches it under the caller's trusted identity.
+Never return paths on disk, credentials, another user's filenames, or preview JSON as an image.
+Listings run in the browser's session, not an elevated proxy. Source discovery hides inactive,
+private/invisible and access-denied apps. Connected storage participates through the same registry.
+
+Portrait Studio 1.11.0 is the first adopter and source. Its old bespoke file modal is removed.
+Core `tests/unit/artifact-picker.spec.ts` exercises the real HTTP/file/handle/browser path;
+the authentication provider and portrait SQL store are explicit fixtures in that test.
 
 Any artifact anywhere in the swarm — an image, a PDF, a video, an export — can be sent to any app
 that registers for its type. You get every destination the swarm has, now and later, by declaring
@@ -365,7 +400,23 @@ while little-monsters remains.
    catalog. A new package begins `pending`; never manufacture a pass or use an uncommitted SHA.
 5. Run `node scripts/security/validate-package-audits.mjs` and
    `node --test scripts/security/package-audit.test.mjs`.
-6. Commit + push.
+6. Commit the candidate, then run the compatibility gate from the core checkout:
+   `node scripts/check-store-compatibility.mjs --store <this-checkout> --store-ref HEAD`.
+   It pins both commits, installs core's locked dependencies in a disposable export, and
+   compiles every source-bearing package against the actual framework types. Package-local
+   ambient stubs cannot supply invented core exports. A failing package is named in the
+   retained compiler log; fix it before publishing. Add `--core-ref <release-sha>` to check
+   the intended core release. `--dependencies <provisioned-core>` optionally reuses an
+   existing dependency installation after matching its manifest and lockfile.
+7. Push. The core local-CI `store-compatibility` gate runs the same check; the standalone
+   entry is `bash scripts/ci-local.sh --store-compatibility-only` in core. Set
+   `OSHAL_STORE_REPO` if these checkouts are not siblings. This is a TypeScript compatibility
+   check, not a replacement for package runtime tests, route audits, or compiled-output parity.
+
+`scripts/security/rebuild-store-routes.mjs --check-only --store <store> --framework <core>`
+is the compiler's low-level compile-only mode. It skips output synchronization and legacy
+JavaScript factory reconciliation. Use the core wrapper above for release checks: it runs
+this tool only inside disposable committed exports, protecting working files even if interrupted.
 
 ### Package-audit rollout
 

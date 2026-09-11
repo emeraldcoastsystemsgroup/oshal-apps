@@ -32,7 +32,7 @@ description: >-
 scope: public
 ticketType: creative-story
 theme: amber
-version: 1.1.0
+version: 1.2.0
 
 source:
   type: git-subdir
@@ -43,6 +43,22 @@ source:
 # CORE-05 install readiness is service-authenticated and reads package metadata only. It never
 # touches user data, calls a provider, mutates state, or spends tokens.
 routes:
+  - module: routes/review.js
+    factory: createReviewRoutes
+    mountPath: /api/creative-studio
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/creative-studio/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/creative-studio/_smoke
@@ -65,7 +81,7 @@ smoke:
 # vids_jobs ledger (resolves from core swarm-apps until the vids carve lands,
 # then from this store — npm-style, fail-closed).
 dependencies:
-  apps: [vids]
+  apps: [vids, video, portrait-studio, lora]
   tools: []
   connectors: []
 
@@ -167,7 +183,7 @@ ui:
     - toolName: creative-studio
       label: Creative Studio
       icon: codicon codicon-sparkle
-      iframeUrl: /api/vids/app
+      iframeUrl: /api/creative-studio/review
       section: top
     # creative.oshal.ai bundle (operator decision 2026-07-31). NOTE: no separate "Vids
     # Studio" tile here — the tile above already IS the vids job-queue surface
@@ -240,3 +256,33 @@ ribbon:
     - logs
     - operations
   defaultView: creative-studio
+
+summary:
+  path: /api/creative-studio/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+    - id: prepare-episode
+      label: Prepare a video episode
+      targetApp: video
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+  accepts:
+    - id: prepare-brief
+      contextType: research-brief
+      version: 1
+      surface: creative-studio
+      fields:
+        - title
+        - notes
+        - sourceUrl

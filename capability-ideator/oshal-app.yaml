@@ -1,0 +1,85 @@
+name: capability-ideator
+suite: ai-engineering
+displayName: Capability Ideator
+description: >-
+  Discover sourced tools and integration opportunities for business processes, grounded in installed applications and
+  explicit connection requirements.
+version: 1.1.0
+status: active
+scope: operator
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: capability-ideator
+  ref: main
+theme: midnight
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/capability-ideator/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/capability-ideator/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/capability-ideator/home-summary
+    auth: oidc
+    requiresContext: true
+    requiresAuth: true
+    requiresAi: false
+  - module: routes/review.js
+    factory: createReviewRoutes
+    mountPath: /api/capability-ideator/review
+    auth: oidc
+    requiresContext: true
+    requiresAuth: true
+    requiresAi: false
+ui:
+  static:
+    - toolName: capability-ideator-review
+      label: Capability Ideator
+      icon: codicon codicon-lightbulb
+      iframeUrl: /api/capability-ideator/review
+      section: top
+summary:
+  path: /api/capability-ideator/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+integrations:
+  offers:
+    - id: prepare-document
+      label: Develop an implementation brief
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+    - id: explore-venture
+      label: Explore the business process
+      targetApp: venture-plan
+      targetAction: research-idea
+      contextType: research-brief
+      version: 1
+bots:
+  - agentId: c1de0000-0000-0000-0000-000000000001
+    name: capability-ideator
+    persona: personas/capability-ideator.yaml
+    role: ai-engineering/capability-ideation
+    capabilities:
+      - manifest-reading
+      - capability-composition
+      - proposal-generation

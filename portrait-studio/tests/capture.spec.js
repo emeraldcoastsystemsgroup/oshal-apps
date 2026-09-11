@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 2026-08-29 10:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Group-mode geometry guard: the face-count rule (2..6, catalog ceiling wins), the reference-sheet layout (reading order, no overlaps, all tiles inside, 2 columns to 4 faces then 3), clampBox/boxAt/nextFaceBox/faceBoxFromDetection/detectionsToBoxes (aspect-true, inside the image, unclaimed placement, detected face contained with headroom, left-to-right numbering, capped), and `group` → rear lens.
  * 2026-08-12 09:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Camera-source guard: asserts the live/file-capture/upload-only decision over every capability combination (insecure page, no getUserMedia, no canvas.toBlob, no capture attribute), that the shared photo rule refuses the same things for a captured frame as for an upload, honest permission/unavailability messages, facing-mode + non-exact constraints, camera labelling/picker thresholds, and the un-letterboxed frame box. Runs against tools/portrait-capture.js — the SAME file the surface loads.
+ * 2026-09-10 | maintainer@emeraldcoastsystemsgroup.com | Use the framework artifact picker and remove the private file-picker implementation; source listings remain read-only and caller-scoped.
  */
 
 'use strict';
@@ -120,65 +121,6 @@ module.exports = async function run() {
   const zero = cap.frameBox(0, 0);
   assert.ok(zero.sw > 0 && zero.sh > 0);
   checks += 8;
-
-  // ── connected-asset picker: which stored files are pickable ───────────────
-  assert.strictEqual(cap.imageMimeFromName('headshot.JPG'), 'image/jpeg', 'extension match is case-insensitive');
-  assert.strictEqual(cap.imageMimeFromName('a.png'), 'image/png');
-  assert.strictEqual(cap.imageMimeFromName('resume.pdf'), null);
-  assert.strictEqual(cap.imageMimeFromName('notes'), null, 'no extension is not an image');
-  assert.strictEqual(cap.imageMimeFromName('.gitignore'), null, 'a dotfile is not a gif');
-  // A Google-native doc has no image extension, so it is filtered out BEFORE any download —
-  // the framework would export it as PDF/text and the studio would choke on the bytes.
-  assert.strictEqual(cap.imageMimeFromName('Q3 Plan'), null);
-  // Drive path segments carry a ~<file id> suffix; the id must not eat the extension.
-  assert.strictEqual(cap.imageMimeFromName('photos~1AbC/me.jpeg~9XyZ'), 'image/jpeg');
-  assert.strictEqual(cap.isRiskyImage('IMG_0421.HEIC'), true, 'phone HEIC must be flagged');
-  assert.strictEqual(cap.isRiskyImage('IMG_0421.jpg'), false);
-  checks += 9;
-
-  // ── partitioning a folder listing ─────────────────────────────────────────
-  const part = cap.partitionEntries([
-    { name: 'Trips', type: 'folder', path: 'Trips' },
-    { name: 'me.jpg', type: 'file', path: 'me.jpg', size: 400000 },
-    { name: 'huge.png', type: 'file', path: 'huge.png', size: cap.MAX_PHOTO_BYTES + 1 },
-    { name: 'taxes.pdf', type: 'file', path: 'taxes.pdf', size: 100 },
-    { name: 'notes.txt', type: 'file', path: 'notes.txt', size: 10 },
-    null,
-  ]);
-  assert.strictEqual(part.folders.length, 1, 'folders always survive — they are the way to the photos');
-  assert.strictEqual(part.images.length, 1);
-  assert.strictEqual(part.images[0].mime, 'image/jpeg', 'the MIME rides along; /download only sends octet-stream');
-  assert.strictEqual(part.hiddenOther, 2);
-  assert.strictEqual(part.hiddenTooBig, 1, 'oversized images are refused BEFORE the download, not after');
-  // Silently dropping files reads as "the folder was empty" — the count has to survive.
-  assert.match(cap.hiddenSummary(part), /2 non-image files and 1 over 20 MB hidden/);
-  assert.strictEqual(cap.hiddenSummary({ hiddenOther: 0, hiddenTooBig: 0 }), '', 'nothing hidden says nothing');
-  assert.match(cap.hiddenSummary({ hiddenOther: 1, hiddenTooBig: 0 }), /1 non-image file hidden/, 'singular');
-  checks += 8;
-
-  // ── navigation is provider-agnostic ───────────────────────────────────────
-  assert.deepStrictEqual(cap.breadcrumbs(''), []);
-  assert.deepStrictEqual(cap.breadcrumbs('Photos/2026'), [
-    { label: 'Photos', path: 'Photos' }, { label: '2026', path: 'Photos/2026' },
-  ]);
-  // Drive segments are `<url-encoded name>~<id>` — the crumb shows the name, the path keeps the id.
-  assert.deepStrictEqual(cap.breadcrumbs('My%20Photos~1AbC/Trips~2Def'), [
-    { label: 'My Photos', path: 'My%20Photos~1AbC' },
-    { label: 'Trips', path: 'My%20Photos~1AbC/Trips~2Def' },
-  ]);
-  assert.strictEqual(cap.parentPath('a/b/c'), 'a/b');
-  assert.strictEqual(cap.parentPath('a'), '');
-  assert.strictEqual(cap.parentPath(''), '', 'the root has no parent to climb to');
-  checks += 6;
-
-  // ── an empty folder must name the real cause ──────────────────────────────
-  assert.match(cap.emptyMessage('oshal-local'), /no images/i);
-  // Drive can be genuinely connected and still show nothing, because the connector holds
-  // per-file scope. Reporting that as "no images" would send the user hunting for photos
-  // that are there — the scope is the reason.
-  assert.match(cap.emptyMessage('google-drive'), /per-file access/i);
-  assert.doesNotMatch(cap.emptyMessage('google-drive'), /^No images in this folder\.$/);
-  checks += 3;
 
   // ── group mode: face count, reference-sheet layout, box placement ─────────
   assert.strictEqual(cap.subjectsRejectReason(2), null);

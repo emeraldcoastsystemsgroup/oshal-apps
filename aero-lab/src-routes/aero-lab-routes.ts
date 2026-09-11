@@ -32,6 +32,12 @@
  *                     |                             | first-class package asset so the cockpit and
  *                     |                             | cross-runtime parity spec execute the exact
  *                     |                             | same JavaScript implementation.
+ * 2026-09-11 01:40:00 | maintainer@emeraldcoastsystemsgroup.com | GET /capabilities reports the engine
+ *                     |                             | transport (local venv or the package's engine
+ *                     |                             | container), its address and the exact install
+ *                     |                             | command; an absent or out-of-date container is a
+ *                     |                             | 200 present:false with that reason, like a missing
+ *                     |                             | venv — never a bare 503 the surface can't explain.
  */
 
 import * as fs from 'fs';
@@ -182,6 +188,7 @@ function engineErrorTo(res: Response, err: unknown, what: string): void {
 /** Shape-pick of the worker's capabilities result (route passes it through, §2a). */
 interface WorkerCaps {
   engineVersion?: string | null;
+  engineDir?: string;
   python?: string;
   capabilities?: Record<string, unknown>;
   bounds?: Record<string, unknown>;
@@ -286,7 +293,11 @@ export function createAeroLabRoutes(arg: AeroLabRouteOpts | Record<string, unkno
     void (async (): Promise<void> => {
       const started = Date.now();
       const status = adapter.engineStatus();
-      const engine = { present: status.present, engineDir: status.engineDir, python: status.python, venvOk: status.venvOk, version: null as string | null };
+      const engine = {
+        present: status.present, transport: status.transport || 'local', engineAddr: status.engineAddr ?? null,
+        installHint: status.installHint ?? null, engineDir: status.engineDir, python: status.python,
+        venvOk: status.venvOk, version: null as string | null,
+      };
       if (!status.present) {
         const reason = !status.venvOk
           ? `engine venv not found (${status.python}) — set AERO_LAB_ENGINE_DIR / run engine/setup-venv`
@@ -298,9 +309,18 @@ export function createAeroLabRoutes(arg: AeroLabRouteOpts | Record<string, unkno
         const caps = (await adapter.capabilities()) as WorkerCaps;
         engine.version = caps.engineVersion == null ? null : String(caps.engineVersion);
         if (caps.python) engine.python = String(caps.python);
-        logger.info({ durationMs: Date.now() - started }, 'GET /capabilities done');
+        if (engine.transport === 'container' && caps.engineDir) engine.engineDir = String(caps.engineDir);
+        logger.info({ durationMs: Date.now() - started, transport: engine.transport }, 'GET /capabilities done');
         res.json({ engine, capabilities: caps.capabilities ?? null, bounds: caps.bounds ?? null });
       } catch (err) {
+        // An absent or out-of-date engine container is a box fact, reported like a missing venv:
+        // 200 with present:false and the reason (which names the exact install command).
+        if (err instanceof AeroEngineError && err.code === 'capability_unavailable') {
+          engine.present = false;
+          logger.info({ durationMs: Date.now() - started, reason: err.reason }, 'GET /capabilities — engine unavailable');
+          res.json({ engine, capabilities: null, bounds: null, reason: err.reason || err.message });
+          return;
+        }
         engineErrorTo(res, err, 'capabilities');
       }
     })();

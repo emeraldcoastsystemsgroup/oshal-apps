@@ -26,6 +26,7 @@
  * @module home-routes
  */
 
+import { readHomeSnapshot, homeSnapshotSummary } from './home-summary';
 import { Router, type Request, type Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -242,6 +243,13 @@ function buildScheduleCron(trigger: ScheduleTrigger): string {
  */
 export function createHomeRoutes(ctx: AppContext): Router {
   const router = Router();
+  router.get('/home-summary',(req,res)=>{
+    const oidc=(req as any).oidc,sub=oidc?.user?.sub||oidc?.user?.oid;
+    if(!sub||oidc?.isAuthenticated?.()!==true){res.status(401).json({error:'not_authenticated'});return;}
+    res.setHeader('Cache-Control','no-store');
+    try{res.json(homeSnapshotSummary(refreshedDeviceIndexes.get(String(sub))||readHomeSnapshot(HOME_DATA_DIR,String(sub),'devices.json'),readHomeSnapshot(HOME_DATA_DIR,String(sub),'scenes.json')));}
+    catch{res.status(503).json({error:'Saved home configuration is unavailable.'});}
+  });
   const assetRoot = ctx.appPackageDir
     ? path.join(ctx.appPackageDir, 'tools')
     : path.join(LOAD_TIME_PACKAGE_DIR, 'tools');

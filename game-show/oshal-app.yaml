@@ -46,7 +46,7 @@ description: >-
   with the rehearsal view. Four shows ship on the one modular engine: Family Feud
   (with Fast Money), Jeopardy (with Double Jeopardy), Wheel of Fortune, and Whammy;
   the host can also play their OWN questions, no AI required.
-version: 0.10.0
+version: 0.11.0
 status: active
 
 # The app TILE is public so every signed-in player sees it in the ribbon (a
@@ -135,6 +135,11 @@ foundation:
 # ─────────────────────────────────────────────────────────────────────────────
 ui:
   static:
+    - toolName: game-show-review
+      label: Game Show Review
+      icon: codicon codicon-notebook
+      iframeUrl: /api/game-show/review
+      section: top
     - { toolName: game-show-stage,   label: Play,        icon: codicon codicon-game,           iframeUrl: /api/game-show/stage,               section: top }
     - { toolName: game-show-tv,      label: Big Screen,  icon: codicon codicon-device-desktop,  iframeUrl: /api/game-show/stage?view=tv,       section: top }
     - { toolName: game-show-clicker, label: Clicker,     icon: codicon codicon-radio-tower,     iframeUrl: /api/game-show/stage?view=clicker,  section: top }
@@ -147,6 +152,21 @@ ui:
 # except for the framework AppContext it receives (pool, orchestrator, logger).
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/review.js
+    factory: createReviewRoutes
+    mountPath: /api/game-show/review
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/game-show/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/game-show/_smoke
@@ -181,3 +201,24 @@ ribbon:
   hideChatPanel: true
   hideAssistant: true
   defaultView: game-show-stage
+
+summary:
+  path: /api/game-show/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+integrations:
+  offers:
+    - id: plan-meal
+      label: Plan a gathering meal
+      targetApp: eats
+      targetAction: plan-meal
+      contextType: planning-brief
+      version: 1
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

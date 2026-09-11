@@ -9,6 +9,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Preserve the framework source-map emit setting so canonical rebuilding does not create repository-wide generated-comment churn.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Honor package-local source-map formatting while retaining one shared type-check/emit program.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Avoid rewriting byte-different but Git-equivalent CRLF outputs on Windows while still replacing meaningful generated drift.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Add compile-only compatibility mode; preserve legacy JavaScript routes and never synchronize outputs in this mode.
  */
 
 import {
@@ -272,10 +273,10 @@ function syncOutputs(plans) {
 
 /**
  * @description Canonically rebuild every source-bearing store package with one TypeScript invocation.
- * @param {{storeRoot?: string, frameworkRoot: string}} options - Store and locked framework checkout roots.
+ * @param {{storeRoot?: string, frameworkRoot: string, checkOnly?: boolean}} options - Store and locked framework checkout roots; checkOnly skips output reconciliation.
  * @returns {{packages: number, sources: number, removedStale: number}} Deterministic rebuild counts.
  */
-export function rebuildStoreRoutes({ storeRoot = process.cwd(), frameworkRoot }) {
+export function rebuildStoreRoutes({ storeRoot = process.cwd(), frameworkRoot, checkOnly = false }) {
   const store = resolve(storeRoot);
   const framework = resolve(frameworkRoot ?? '');
   const compiler = join(framework, 'node_modules', 'typescript', 'bin', 'tsc');
@@ -291,6 +292,7 @@ export function rebuildStoreRoutes({ storeRoot = process.cwd(), frameworkRoot })
     compilerOutput = mkdtempSync(join(tmpdir(), 'oshal-store-parity-'));
     for (const pkg of packages) stagePackage(pkg, stageRoot);
     compileOnce(framework, compilerOutput);
+    if (checkOnly) return { packages: packages.length, sources: packages.reduce((sum, pkg) => sum + pkg.emittingSources.length, 0), removedStale: 0 };
     const stageName = relative(join(framework, 'src'), stageRoot);
     const plans = packages.map((pkg) => ({
       pkg,
@@ -309,20 +311,22 @@ function parseArgs(argv) {
   const values = {};
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
+    if (flag === '--check-only' && !values.checkOnly) { values.checkOnly = true; continue; }
     if (!['--store', '--framework'].includes(flag) || !argv[index + 1] || argv[index + 1].startsWith('--')) {
-      throw new Error(`Usage: rebuild-store-routes.mjs --store <store> --framework <framework>`);
+      throw new Error(`Usage: rebuild-store-routes.mjs --store <store> --framework <framework> [--check-only]`);
     }
     values[flag.slice(2)] = argv[index + 1];
     index += 1;
   }
   if (!values.framework) throw new Error('Missing required --framework checkout');
-  return { storeRoot: values.store ?? process.cwd(), frameworkRoot: values.framework };
+  return { storeRoot: values.store ?? process.cwd(), frameworkRoot: values.framework, checkOnly: values.checkOnly === true };
 }
 
 if (resolve(process.argv[1] ?? '') === fileURLToPath(import.meta.url)) {
   try {
-    const summary = rebuildStoreRoutes(parseArgs(process.argv.slice(2)));
-    console.log(`Canonical store rebuild passed: ${summary.sources} sources across ${summary.packages} packages; removed ${summary.removedStale} stale modules`);
+    const options = parseArgs(process.argv.slice(2));
+    const summary = rebuildStoreRoutes(options);
+    console.log(`Canonical store ${options.checkOnly ? 'compatibility' : 'rebuild'} passed: ${summary.sources} sources across ${summary.packages} packages; removed ${summary.removedStale} stale modules`);
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;

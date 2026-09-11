@@ -34,7 +34,7 @@ description: >-
   sizing) and a blade studio (NACA sections, panel-method polars, Cp sweeps,
   STL/OBJ/SCAD/DXF export). Every model runs in-process and deterministically;
   every site parameter is illustrative, not surveyed.
-version: 1.0.0
+version: 1.1.0
 status: active
 scope: person
 
@@ -255,3 +255,12 @@ ribbon:
     - operations
   hideChatPanel: true
   defaultView: ocean-lab-harvest-console
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare an analysis document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

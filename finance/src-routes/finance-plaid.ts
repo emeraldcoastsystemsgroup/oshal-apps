@@ -58,6 +58,7 @@ export interface FinanceHolding {
 /** The compact, bot-ready view of a user's finances (read-only aggregation). */
 export interface FinanceAggregate {
   generatedAt: string;
+  sourceEnvironment?: string;
   currency: string;
   netWorth: { assets: number; liabilities: number; net: number };
   accounts: FinanceAccount[];
@@ -309,7 +310,7 @@ function assembleAggregate(
     if (month) byMonth.set(month, m);
   }
   return {
-    generatedAt: new Date().toISOString(), currency,
+    generatedAt: new Date().toISOString(), sourceEnvironment: PLAID_ENV, currency,
     netWorth: { assets: round(assets), liabilities: round(liabilities), net: round(assets - liabilities) },
     accounts: acc.accounts.map((a) => ({ ...a, balance: round(a.balance) })),
     holdings: acc.holdings.sort((a, b) => b.value - a.value).map((h) => ({ ...h, value: round(h.value) })),

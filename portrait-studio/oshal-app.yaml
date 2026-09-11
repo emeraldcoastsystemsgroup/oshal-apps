@@ -23,7 +23,7 @@ description: >-
   whole crew from one group shot placed in a scene as a superhero team.
   Take the photo with your camera or upload one, crop the head (or every
   head), pick a style, generate.
-version: 1.9.0
+version: 1.11.0
 status: active
 # Deployment-wide tile visibility (the little-monsters lesson: person-scope hid
 # the installed row from every other user). Portrait DATA stays strictly
@@ -79,6 +79,10 @@ ragCollections: []
 # /cockpit/?app=portrait-studio&artifact=<ref> and the surface loads the image
 # straight into Step 1 (crop). Open mode needs no endpoint (Amendment A).
 artifacts:
+  provides:
+    - label: Portrait Studio
+      types: [image/png]
+      list: /api/portrait-studio/artifacts
   accepts:
     - id: restyle
       label: Restyle in Portrait Studio
@@ -118,6 +122,14 @@ ui:
 # (Jarvis / operator tools / smoke tests) pass X-Service-Secret + X-OSHAL-User-Sub,
 # which the mounter resolves into the caller sub (same pattern as eats/rides/spotify).
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/portrait-studio/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/portrait-studio/_smoke
@@ -140,3 +152,18 @@ theme: midnight
 
 ribbon:
   defaultView: portrait-studio
+
+summary:
+  path: /api/portrait-studio/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

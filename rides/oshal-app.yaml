@@ -34,7 +34,7 @@ description: >-
   AI transportation concierge on a real map — set pickup and destination by pin or
   address, see the measured distance, compare Uber ride types, and hand off a ready
   Uber ride link. Other swarm bots can ask it to plan a trip.
-version: 1.2.0
+version: 1.3.0
 status: active
 
 source:
@@ -143,6 +143,14 @@ ui:
       section: top
 
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/rides/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/rides/_smoke
@@ -209,3 +217,9 @@ integrations:
       targetAction: plan-trip
       contextType: planning-brief
       version: 1
+
+summary:
+  path: /api/rides/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items

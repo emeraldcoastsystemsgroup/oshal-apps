@@ -47,6 +47,12 @@ The package points at an engine tree via `AERO_LAB_ENGINE_DIR`. Two trees exist 
 The documented default resolution points at the upstream checkout, so **a cockpit started on a box
 that has it will 422 on every preset.**
 
+Since 1.2.0 this applies only to a local worker. An api running in Docker cannot see the
+scratchpad path and has no engine venv, so it uses the package's engine container, which is built
+from the vendored `engine/` tree (`ENGINE_DIR=/opt/aero-lab/engine` inside it). The upstream tree
+is picked only by a natively-run api or spec on a box that has the scratchpad, or when
+`AERO_LAB_ENGINE_DIR` points at it.
+
 **Done when:** either `AERO_LAB_ENGINE_DIR` defaults to the vendored engine, or the package is
 re-vendored once the engine settles. The surface already displays the engine fingerprint, so which
 tree answered is never a guess — that part is fine.

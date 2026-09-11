@@ -160,7 +160,7 @@ async function enqueueVidsTask(
   jobId: string,
   userSub: string,
   input: { name: string; arguments: Record<string, unknown> },
-  kind: 'clip' | 'story',
+  kind: 'clip' | 'story' | 'brand',
 ): Promise<string | null> {
   try {
     const task = await remoteClientRegistry.enqueueTask(worker.clientId, {
@@ -197,6 +197,40 @@ export function createVidsRoutes(ctx: AppContext): Router {
   // access. Require the separate exact subject and narrow the ambient DB identity before all route
   // work. An independently authenticated browser principal remains authoritative.
   router.use(requireTrustedServiceUserIdentity);
+
+  // Brand Graphics uses the same durable worker and owner ledger as clips/stories.
+  // Keep a distinct dispatch door so a brand request can never become a generic clip.
+  router.post('/brand', async (req: Request, res: Response) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    if (body.confirm !== true) { res.status(428).json({ error: 'confirmation_required' }); return; }
+    const userSub = callerSub(req);
+    if (!userSub) { res.status(401).json({ error: 'user_identity_required' }); return; }
+    const brief = typeof body.brief === 'string' ? body.brief.trim() : '';
+    const mode = body.brandMode ?? 'intro';
+    if (!brief || brief.length > 2_000 || !['intro','graphic'].includes(String(mode))
+        || ['voiceover','music'].some(key => body[key] !== undefined && typeof body[key] !== 'boolean')
+        || ['voice','musicMood'].some(key => body[key] !== undefined && (typeof body[key] !== 'string' || String(body[key]).length > 100))) {
+      res.status(400).json({ error: 'invalid_brand_brief' }); return;
+    }
+    const worker = findVidsWorker();
+    const jobId = (await ctx.pool.query(
+      `INSERT INTO vids_jobs (user_sub, client_id, status, idea, insert_mode, outcome)
+       VALUES ($1, $2, $3, $4, 'brand', $5::jsonb) RETURNING job_id`,
+      [userSub, worker?.clientId ?? null, worker ? 'queued' : 'failed', brief, JSON.stringify({kind:'brand',brandMode:mode})],
+    )).rows[0].job_id as string;
+    if (!worker) { res.status(503).json({ error: 'No Vids worker is registered.', job_id: jobId }); return; }
+    const tool = mode === 'graphic' ? 'brand.graphic' : 'brand.intro';
+    const args: Record<string, unknown> = { brief, subject: brief };
+    for (const key of ['voiceover','music','voice','musicMood']) if (body[key] !== undefined) args[key] = body[key];
+    const taskId = await enqueueVidsTask(ctx, worker, jobId, userSub, {name:tool,arguments:args}, 'brand');
+    if (!taskId) { res.status(503).json({error:'The worker could not accept the brand task.',job_id:jobId}); return; }
+    await ctx.pool.query(
+      `UPDATE vids_jobs SET outcome = outcome || jsonb_build_object('taskId',$2::text,'tool',$3::text), updated_at=now()
+       WHERE job_id=$1 AND user_sub=$4`, [jobId,taskId,tool,userSub],
+    );
+    watchTask(ctx, worker.clientId, taskId, jobId, userSub);
+    res.json({job_id:jobId,taskId,tool,status:'queued'});
+  });
 
   // POST /api/vids/jobs — enqueue a clip generate-job to the registered Vids worker.
   router.post('/jobs', async (req: Request, res: Response) => {

@@ -1,0 +1,16 @@
+# Build context for container/Dockerfile is this engine/ directory. WHITELIST:
+# only the runtime tree reaches the image -- never a local .venv, test suite,
+# mutation harness, or cache. Keep in step with RUNTIME_FILES / RUNTIME_TREES in
+# container/aero_engine_bridge.py (a spec asserts they agree).
+*
+!aero_lab_worker.py
+!service.py
+!export_build_files.py
+!HYBRID_common.py
+!HYBRID_piecewise.py
+!requirements.txt
+!requirements-lock.txt
+!aerosim
+!container
+**/__pycache__
+**/*.pyc

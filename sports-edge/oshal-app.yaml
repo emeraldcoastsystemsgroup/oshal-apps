@@ -81,7 +81,7 @@ description: >-
   allowed to stake anything. The Fantasy tab reads your ESPN league, scores ESPN'''s raw projections
   with YOUR league'''s own rules, and sets the lineup with the best chance of beating the team you
   actually play that week — which is not always the highest-projected one.
-version: 0.6.0
+version: 0.7.0
 status: active
 
 source:
@@ -168,6 +168,21 @@ settings:
 
 # ROUTES — the packaged surface router, mounted on activation. Handlers self-gate via callerSub.
 routes:
+  - module: routes/review.js
+    factory: createReviewRoutes
+    mountPath: /api/sports-edge/review
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/sports-edge/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/sports-edge/_smoke
@@ -196,6 +211,11 @@ migrations:
 # ─────────────────────────────────────────────────────────────────────────────
 ui:
   static:
+    - toolName: sports-edge-review
+      label: Sports Edge Review
+      icon: codicon codicon-notebook
+      iframeUrl: /api/sports-edge/review
+      section: top
     - toolName: sports-edge-home
       label: Sports Edge
       icon: codicon codicon-dashboard
@@ -211,3 +231,24 @@ ribbon:
     - logs
     - operations
   defaultView: sports-edge-home
+
+summary:
+  path: /api/sports-edge/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+integrations:
+  offers:
+    - id: plan-meal
+      label: Plan a gathering meal
+      targetApp: eats
+      targetAction: plan-meal
+      contextType: planning-brief
+      version: 1
+    - id: plan-trip
+      label: Discuss attending
+      targetApp: travel
+      targetAction: plan-trip
+      contextType: planning-brief
+      version: 1

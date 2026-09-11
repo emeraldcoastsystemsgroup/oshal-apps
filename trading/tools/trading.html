@@ -250,6 +250,13 @@
       <button class="btn ghost sm" id="refreshBtn">Refresh</button>
     </div>
   </div>
+  <section class="panel" id="researchDraftPanel" hidden aria-label="Research draft">
+    <h2>Continue your research</h2><p class="sub">Review the source context and choose a stock to investigate.</p>
+    <label for="researchDraft">Evidence and questions</label><textarea id="researchDraft" rows="4" maxlength="6000" style="width:100%;display:block;margin:10px 0;font:inherit"></textarea>
+    <label for="researchTicker">Stock ticker</label><input id="researchTicker" maxlength="10" placeholder="Enter a stock ticker">
+    <button class="btn" id="researchDraftGo">Research this stock</button><p class="sub" id="researchDraftStatus" role="status"></p>
+  </section>
+  <section class="panel connected-app-actions" aria-label="Connected application actions" style="display:flex;gap:12px;flex-wrap:wrap"></section>
   <div id="main"><div class="spin"><span class="dot"></span> Loading…</div></div>
 </div>
 
@@ -272,6 +279,7 @@
 <script src="/api/trading/ui/view-events.js"></script>
 <script src="/api/trading/ui/view-research.js"></script>
 <script src="/api/trading/ui/view-reports.js"></script>
+<script type="module" src="/api/trading/ui/connected-actions.js"></script>
 <!-- boot() runs on DOMContentLoaded from app.js — no inline script (CSP). -->
 </body>
 </html>

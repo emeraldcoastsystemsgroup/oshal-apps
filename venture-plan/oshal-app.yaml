@@ -61,7 +61,7 @@ description: >-
   Bots supply assumptions with a source, a band and a confidence; a deterministic engine does
   every calculation. Every number is either computed and traceable, or visibly a labelled guess
   you should go replace with a quote.
-version: 1.2.0
+version: 1.4.0
 status: active
 scope: person
 
@@ -230,6 +230,14 @@ bots:
 # the backstop.
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/venture-plan/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/venture-plan/_smoke
@@ -356,3 +364,9 @@ ribbon:
     - calendar
     - echo
   defaultView: venture-home
+
+summary:
+  path: /api/venture-plan/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items

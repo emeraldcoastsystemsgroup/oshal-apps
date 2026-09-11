@@ -40,7 +40,7 @@
 <body>
   <div class="page">
     <h1>📡 Social Signals</h1>
-    <div class="sub">Your social-media notifications, pulled from your inbox (the free feed). Captured on a 15-min cron — nothing missed.</div>
+    <div class="sub">Your social-media notifications, pulled from your inbox (the free feed). Captured by the inbox sync; coverage depends on enabled notifications and the last successful sync.</div>
     <div class="bar">
       <button class="btn primary" id="organizeBtn">✨ Organize with AI</button>
       <button class="btn ghost" id="refreshBtn">↻ Refresh</button>
@@ -49,6 +49,7 @@
     <div id="feed"><span class="spin">Loading…</span></div>
   </div>
 <script>
+let socialSignals=[];window.socialSignalContext=null;
 const $ = (id) => document.getElementById(id);
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function srcName(from){ const m=String(from||'').match(/<([^>]+)>/); const a=m?m[1]:from; return String(a).replace(/.*@/,'').replace(/\.(com|net|org)$/,''); }
@@ -58,17 +59,18 @@ async function load(){
   $('feed').innerHTML = '<span class="spin">Loading…</span>';
   const r = await fetch('/api/social/signals'); const j = await r.json().catch(()=>({}));
   if (!r.ok){ $('feed').innerHTML = '<div class="empty">Couldn’t load signals: '+esc((j&&j.error)||('HTTP '+r.status))+'</div>'; return; }
-  const sigs = j.signals || [];
+  const sigs = j.signals || [];socialSignals=sigs;
   if (!sigs.length){ $('feed').innerHTML = '<div class="empty">'+esc(j.note||'No social notifications captured yet.')+'</div>'; return; }
-  $('feed').innerHTML = sigs.map(s =>
+  $('feed').innerHTML = sigs.map((s,i) =>
     `<div class="sig"><div style="flex:1">
        <div class="src">${esc(srcName(s.from))}</div>
        <div class="subj">${esc(s.subject)||'(no subject)'}</div>
-       <div class="snip">${esc(s.snippet)}</div>
+       <div class="snip">${esc(s.snippet)}</div><button class="btn" data-review-signal="${i}">Review this signal</button>
      </div><div class="when">${esc(when(s.receivedAt))}</div></div>`
   ).join('');
 }
 
+$('feed').addEventListener('click',event=>{const button=event.target.closest('[data-review-signal]');if(!button)return;const signal=socialSignals[Number(button.dataset.reviewSignal)];if(!signal)return;window.socialSignalContext={title:String(signal.subject||'Social notification').slice(0,120),notes:('Inbox notification received '+signal.receivedAt+'\n'+String(signal.snippet||'')+'\nReview the original source before responding.').slice(0,2000)};document.getElementById('signalDraft').value=window.socialSignalContext.notes;document.getElementById('signalDraft').focus();});
 $('organizeBtn').addEventListener('click', async ()=>{
   $('organizeBtn').disabled = true; const o=$('organized'); o.className='organized show'; o.innerHTML='<h3>Organizing…</h3>The comms bot is reading your signals (~20s).';
   try {
@@ -81,6 +83,11 @@ $('organizeBtn').addEventListener('click', async ()=>{
 });
 $('refreshBtn').addEventListener('click', load);
 load();
+</script>
+<section style="max-width:1000px;margin:20px auto;padding:20px"><h2>Review a signal</h2><label>Draft<textarea id="signalDraft" rows="5" maxlength="2000" style="display:block;width:100%;box-sizing:border-box"></textarea></label><div id="signalActions"></div></section>
+<script type="module">
+import {mountConnectedActions} from '/cockpit/js/app-workflows.js';
+await mountConnectedActions({app:'social',element:document.getElementById('signalActions'),contextForOffer:()=>document.getElementById('signalDraft').value.trim()?{title:window.socialSignalContext?.title||'Social review',notes:document.getElementById('signalDraft').value}:null});
 </script>
 </body>
 </html>

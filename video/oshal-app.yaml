@@ -31,7 +31,7 @@ description: >-
   Make prompted short-form videos (TikTok / YouTube Shorts / Instagram Reels) from an idea.
   Shape the style, tone, length, captions and voiceover; the director storyboards it and the
   studio renders a real .mp4 with voiceover and captions, saved to your Files storage.
-version: 1.2.0
+version: 1.4.0
 status: active
 
 # Per-app skin (approved palette) — sakura so the media studio reads distinct.
@@ -129,6 +129,14 @@ migrations:
 # this package, auth: oidc — ADR-085 D2.)
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/video/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/video/_smoke
@@ -213,3 +221,9 @@ integrations:
         - title
         - notes
         - sourceUrl
+
+summary:
+  path: /api/video/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items

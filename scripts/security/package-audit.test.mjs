@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Add mutation-resistant APP-02 profile, binding, staged-policy, and real 47-record catalog coverage.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | Ledger to the real 53-app catalog (was 48): every record still truthfully pending, none verified, and enforce mode still refuses all 53.
  */
 
 import test from 'node:test';
@@ -161,15 +162,15 @@ test('catalog validation mutation-tests missing, noncanonical, and mismatched re
 test('the real store has one canonical truthfully pending record per catalog app', () => {
   const report = validatePackageAuditCatalog(process.cwd(), 'compatible');
   assert.deepEqual(report.errors, []);
-  assert.equal(report.records.length, 48);
-  assert.equal(report.records.filter(({ record }) => record.status === 'pending').length, 48);
+  assert.equal(report.records.length, 53);
+  assert.equal(report.records.filter(({ record }) => record.status === 'pending').length, 53);
   assert.equal(report.records.filter(({ decision }) => decision.verified).length, 0);
-  assert.equal(report.warnings.length, 48);
+  assert.equal(report.warnings.length, 53);
 });
 
 test('the real pending store cannot accidentally claim enforce readiness', () => {
   const report = validatePackageAuditCatalog(process.cwd(), 'enforce');
-  assert.equal(report.records.length, 48);
-  assert.ok(report.errors.length >= 48);
+  assert.equal(report.records.length, 53);
+  assert.ok(report.errors.length >= 53);
   assert.ok(report.records.every(({ decision }) => decision.allowed === false));
 });

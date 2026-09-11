@@ -5,8 +5,8 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Fixed in-process Bluesky post operation (twilio-sms-operation shape, ADR-133): the caller's stored identifier:app-password is decrypted inside this function, exchanged for a session at two fixed AT-proto endpoints only, and never returned, logged, placed in process.env, or passed to a child process. The declarative connector tier cannot express the createSession token exchange (connector-spec contract §5), so this schema-bounded server operation is the sanctioned rail.
-
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Same QueryablePool fix: derive the pool type from AppContext so this module compiles against the real framework types, not the package's ambient stub.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | postToBluesky was 52 lines; the createRecord call moved verbatim into createBlueskyPost so every function is under the 50-line limit. Same endpoint, headers, body, timeout, and sanitized error codes.
  *
  * @module marketing-bluesky-operation
  */
@@ -76,6 +76,35 @@ async function createBlueskySession(base, identifier, password) {
     return { accessJwt: session.accessJwt, did: session.did };
 }
 /**
+ * Create one app.bsky.feed.post record in the session owner's own repo at the fixed createRecord
+ * endpoint. Returns a sanitized result; the session token never leaves this call.
+ */
+async function createBlueskyPost(base, session, text, userSub) {
+    const response = await fetch(`${base}/xrpc/com.atproto.repo.createRecord`, {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${session.accessJwt}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            repo: session.did,
+            collection: 'app.bsky.feed.post',
+            record: {
+                $type: 'app.bsky.feed.post',
+                text,
+                createdAt: new Date().toISOString(),
+            },
+        }),
+        signal: AbortSignal.timeout(15_000),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || typeof result.uri !== 'string' || !result.uri.trim()) {
+        logger.warn({ userSub, status: response.status }, 'Bluesky post rejected');
+        return { posted: false, error: `bluesky_post_http_${response.status}` };
+    }
+    return { posted: true, uri: result.uri };
+}
+/**
  * @description Publish one text post to the authenticated user's own Bluesky account. The stored
  * `identifier:app-password` secret is decrypted inside this function, used only against two fixed
  * AT-proto endpoints (createSession then createRecord), and never returned, logged, placed in
@@ -104,33 +133,10 @@ async function postToBluesky(pool, userSub, text) {
             logger.warn({ userSub, error: session.error }, 'Bluesky session exchange failed');
             return { posted: false, error: session.error };
         }
-        const response = await fetch(`${base}/xrpc/com.atproto.repo.createRecord`, {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${session.accessJwt}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                repo: session.did,
-                collection: 'app.bsky.feed.post',
-                record: {
-                    $type: 'app.bsky.feed.post',
-                    text: boundedText,
-                    createdAt: new Date().toISOString(),
-                },
-            }),
-            signal: AbortSignal.timeout(15_000),
-        });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || typeof result.uri !== 'string' || !result.uri.trim()) {
-            logger.warn({ userSub, status: response.status }, 'Bluesky post rejected');
-            return { posted: false, error: `bluesky_post_http_${response.status}` };
-        }
-        return { posted: true, uri: result.uri };
+        return await createBlueskyPost(base, session, boundedText, userSub);
     }
     catch (error) {
         logger.error({ userSub, errorType: error instanceof Error ? error.name : 'unknown' }, 'Bluesky operation network failure');
         return { posted: false, error: 'bluesky_network_failed' };
     }
 }
-//# sourceMappingURL=marketing-bluesky-operation.js.map

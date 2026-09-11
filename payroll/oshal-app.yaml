@@ -40,7 +40,7 @@ description: >-
   dollar, and every tax constant cites the primary IRS/SSA document it was
   verified against. oshal computes and produces; your bank and the agencies
   execute. It transmits nothing.
-version: 2.2.0
+version: 2.3.0
 status: active
 
 theme: ocean
@@ -82,6 +82,14 @@ guestTier: blocked
 # every handler also self-checks callerSub; POST /runs/:id/approve additionally
 # requires the explicit write confirmation (428 without it).
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/payroll/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/payroll/_smoke
@@ -118,3 +126,23 @@ ribbon:
     - logs
     - operations
   defaultView: payroll-home
+
+summary:
+  path: /api/payroll/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+integrations:
+  offers:
+    - id: review-finance
+      label: Review with Finance
+      targetApp: finance
+      targetAction: review-context
+      contextType: financial-review
+      version: 1
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

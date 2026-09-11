@@ -206,6 +206,7 @@
 <div class="page">
   <div class="head"><span style="font-size:20px">💳</span><h1>Payments</h1></div>
   <div class="sub">Take a payment through your connected merchant account. Pick a provider, enter the amount, and charge — the payment runs on your own Square / PayPal account.</div>
+  <section class="panel" id="paymentReview"><h2>Continue from a payment</h2><p id="paymentSelection" class="sub" role="status">Select a saved payment below to review its evidence in Finance or prepare a document.</p><div class="connected-app-actions" style="display:flex;gap:12px;flex-wrap:wrap" aria-label="Connected application actions"></div></section>
   <div id="main"><div class="spin"><span class="dot"></span> Loading…</div></div>
 </div>
 <script>
@@ -295,6 +296,15 @@ async function loadHistory() {
     host.innerHTML = `<table><thead><tr><th>Date</th><th>Provider</th><th class="num">Amount</th><th>Status</th><th>Note</th></tr></thead><tbody>` +
       charges.map((c) => `<tr><td>${fmtDate(c.created_at)}</td><td>${PROVIDER_LABEL[c.provider] || c.provider}${c.test_mode ? ' <span class="sub">(test)</span>' : ''}</td><td class="num">${money(c.amount_cents)}</td><td>${c.status}${c.payer_url ? ' · <a href="' + c.payer_url + '" target="_blank" rel="noopener">invoice</a>' : ''}</td><td>${c.note || '—'}</td></tr>`).join('') +
       `</tbody></table>`;
+    host.querySelectorAll('tbody tr').forEach((row,index)=>{
+      const record=charges[index],cell=document.createElement('td'),button=document.createElement('button');
+      button.type='button';button.className='btn ghost';button.textContent='Review';
+      button.onclick=()=>{
+        const notes=[record.test_mode?'TEST charge':'LIVE charge',record.charge_id,'Provider: '+record.provider,'Amount: '+record.amount_cents+' cents ('+record.currency+')','Recorded status: '+record.status,'Last recorded: '+(record.updated_at||record.created_at),record.note||''].join('\n').slice(0,2000);
+        window.paymentReviewContext={title:'Review a recorded merchant payment',notes};
+        $('paymentSelection').textContent=notes;$('paymentReview').scrollIntoView({block:'center'});
+      };cell.append(button);row.append(cell);
+    });
   } catch (e) { host.innerHTML = '<div class="sub err">' + e.message + '</div>'; }
 }
 
@@ -318,6 +328,11 @@ async function loadHistory() {
     for (const [local, parentVar] of Object.entries(map)) { const v = cs.getPropertyValue(parentVar); if (v && v.trim()) document.documentElement.style.setProperty(local, v.trim()); }
   } catch { /* standalone — keep defaults */ }
 })();
+</script>
+<script type="module">
+import {mountConnectedActions} from '/cockpit/js/app-workflows.js';
+const element=document.querySelector('.connected-app-actions');
+void mountConnectedActions({app:'payments',element,contextForOffer:()=>window.paymentReviewContext||null}).then(()=>element.querySelectorAll('button').forEach(b=>b.classList.add('btn','ghost')));
 </script>
 </body>
 </html>

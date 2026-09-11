@@ -173,6 +173,7 @@
   .set-grid .locked { color: var(--dim); font-size: 11px; text-align: right; }
   .stale-pill { padding: 1px 7px; border-radius: 9px; background: #9e6a03aa; color: #ffe8b3; font-size: 11px; font-weight: 700; }
 </style>
+<style>@media(max-width:640px){footer{position:static;margin-top:20px}#marketReview{margin-bottom:24px}}</style>
 </head>
 <body>
 <div class="topbar">
@@ -361,6 +362,7 @@
       your saved channel + quiet hours from the notification preference center.
     </p>
   </section>
+<section id="marketReview" style="margin:16px;padding:16px;border:1px solid var(--line);border-radius:12px" aria-label="Continue market research"><h2>Continue market research</h2><p id="marketSelection" role="status">Select Review on an alert to continue from its recorded evidence.</p><div class="connected-app-actions" style="display:flex;gap:12px;flex-wrap:wrap"></div></section>
 </main>
 
 <dialog id="bet-dlg">
@@ -630,7 +632,13 @@
             '<td class="num edge-pos">+' + ((Number(a.edge_net) || 0) * 100).toFixed(1) + '¢</td>' +
             outcomeCell(a) +
             '<td class="meta">' + esc(a.channel || 'none') + (a.delivered ? '' : ' <span style="color:var(--amber)">(not delivered)</span>') + '</td>';
-          tb.appendChild(tr);
+          var cell=document.createElement('td'), review=document.createElement('button');
+          review.type='button';review.className='btn';review.textContent='Review';
+          review.onclick=function(){
+            window.kalshiReviewContext={title:'Research '+a.ticker,notes:['Recorded alert '+a.ticker,d.title||'', 'First seen: '+a.created_at,a.delivered?'Marked delivered':'Delivery not confirmed','This is an alert, not an order or realized profit.'].join('\n').slice(0,2000)};
+            document.getElementById('marketSelection').textContent=window.kalshiReviewContext.notes;
+            document.getElementById('marketReview').scrollIntoView({block:'center'});
+          };cell.appendChild(review);tr.appendChild(cell);tb.appendChild(tr);
         });
         $('alerts-empty').style.display = rows.length ? 'none' : '';
         renderAlertRecord(b.record);
@@ -1070,6 +1078,10 @@
   setInterval(loadAlerts, 120000);
   setInterval(loadPortfolio, 60000);
 })();
+</script>
+
+<script>
+(async()=>{const {mountConnectedActions}=await import('/cockpit/js/app-workflows.js');const element=document.querySelector('.connected-app-actions');await mountConnectedActions({app:'kalshi',element,contextForOffer:()=>window.kalshiReviewContext||null});element.querySelectorAll('button').forEach(button=>button.classList.add('btn'));})();
 </script>
 </body>
 </html>

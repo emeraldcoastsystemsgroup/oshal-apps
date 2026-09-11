@@ -39,7 +39,7 @@ description: >-
   separation checks. A flight-planning concierge drafts single or fleet
   missions from natural language; a human approves every flight. Sim engine
   built in, MAVLink (ArduPilot/PX4) at the drone node.
-version: 1.1.0
+version: 1.2.0
 status: active
 
 source:
@@ -175,6 +175,14 @@ ui:
 # secret itself: a node identity, never an operator browser.)
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/drone/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/drone/_smoke
@@ -206,3 +214,18 @@ ribbon:
     - operations
   hideChatPanel: true
   defaultView: drone-ops
+
+summary:
+  path: /api/drone/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a diagnostic brief
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

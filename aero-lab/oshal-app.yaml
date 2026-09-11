@@ -25,7 +25,7 @@ description: >-
   trace, polar, drag buildup, margins), and download the build package
   (STL / DXF / BOM). A design concierge turns plain language into a design
   vector; the deterministic engine is the only source of numbers.
-version: 1.0.0
+version: 1.2.0
 status: active
 
 source:
@@ -217,3 +217,12 @@ ribbon:
     - operations
   hideChatPanel: true
   defaultView: aero-lab
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare an analysis document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

@@ -30,7 +30,7 @@ description: >-
   Turn an idea into generated video. The Veo specialist drives Google Vids by
   clicking — describes the shot, generates the clip, places it on the timeline —
   on a remote operator machine, and learns what works over time.
-version: 1.2.0
+version: 1.4.0
 status: active
 
 theme: midnight
@@ -111,6 +111,14 @@ tools:
 # assertion. Fleet authentication alone never selects a user's queue — ADR-085 D2.)
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/vids/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/vids/_smoke
@@ -196,3 +204,9 @@ integrations:
         - title
         - notes
         - sourceUrl
+
+summary:
+  path: /api/vids/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items

@@ -22,7 +22,7 @@ description: >-
   AI food-delivery concierge — search Uber Eats restaurants, browse menus, build
   an order, and hand off a ready Uber Eats checkout. Other swarm bots can ask it
   to order food.
-version: 1.1.0
+version: 1.2.0
 status: active
 
 source:
@@ -172,6 +172,14 @@ ui:
 
 # ROUTES — app-owned API + surface, gated to this app's activation.
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/eats/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/eats/_smoke
@@ -239,3 +247,21 @@ integrations:
       targetAction: plan-ride
       contextType: planning-brief
       version: 1
+    - id: plan-movie
+      label: Plan a movie night
+      targetApp: movies
+      targetAction: plan-movie
+      contextType: planning-brief
+      version: 1
+    - id: plan-music
+      label: Plan music
+      targetApp: spotify
+      targetAction: plan-music
+      contextType: planning-brief
+      version: 1
+
+summary:
+  path: /api/eats/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items

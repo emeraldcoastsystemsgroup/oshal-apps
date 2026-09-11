@@ -22,6 +22,10 @@ dist/
 build/
 coverage/
 *.tsbuildinfo
+# Scratch + verification extracts (the core repo ignores output/ the same way). A
+# `git archive HEAD | tar -x` verify copy landed here once as 1,800 untracked files
+# and made every agent's `git status` look blocked. Nothing here is ever source.
+output/
 
 # Secrets and environment. Never commit a real .env; ship .env.example instead.
 .env

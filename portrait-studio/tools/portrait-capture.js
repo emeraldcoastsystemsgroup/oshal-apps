@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Camera-source decision module for Step 1: capability probe, live/file-capture/upload-only mode choice, honest unavailability + permission messages, facing-mode preference per portrait mode, device labelling, and the ONE photo-validation rule shared by upload and capture. Pure functions only (no DOM writes, no stream handling) so the zero-dep node runner can cover the fallback branches the surface cannot test inline. Loaded by the surface via <script src="/api/portrait-studio/capture.js">.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Group mode geometry: the face-count rule (2..MAX, the server's validateSubjects is the authority), the reference-sheet layout (numbered tiles, 2 columns up to 4 faces then 3), box placement helpers (a click-placed box, the next free box, a detector rectangle expanded into a head-and-shoulders crop, all clamped into the image at the crop aspect), and `group` now prefers the rear lens. Pure functions — covered by tests/capture.spec.js like everything else here.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Extend to the connected-asset picker over the framework's one storage rail (/api/files/roots|browse|download — OSHAL Storage, Career, Dropbox, Google Drive, GitHub): image filtering with a counted "hidden" line instead of a silently short list, MIME derived from the name because the download route streams octet-stream, HEIC-class formats flagged rather than failing as a mystery, provider-agnostic breadcrumbs (Drive's name~id segments collapse to the same shape), and an empty-folder message that names the drive.file scope as the cause instead of claiming there are no photos.
+ * 2026-09-10 | maintainer@emeraldcoastsystemsgroup.com | Use the framework artifact picker and remove the private file-picker implementation; source listings remain read-only and caller-scoped.
  */
 
 /**
@@ -195,139 +196,6 @@
     return { sx: Math.round((vw - sw) / 2), sy: Math.round((vh - sh) / 2), sw: sw, sh: sh };
   }
 
-  // ── Connected-asset picker ────────────────────────────────────────────────
-  // The framework already browses every storage source the caller has connected
-  // (GET /api/files/roots|browse|download): OSHAL Storage, Career, Dropbox, Google
-  // Drive, GitHub. The studio does not integrate with any of them individually — it
-  // reads that one rail and filters it down to pickable images.
-
-  /** Extensions the browser can actually decode into an <img>, mapped to their MIME. */
-  var IMAGE_MIME_BY_EXT = {
-    jpg: 'image/jpeg', jpeg: 'image/jpeg', jpe: 'image/jpeg',
-    png: 'image/png', webp: 'image/webp', gif: 'image/gif',
-    bmp: 'image/bmp', avif: 'image/avif',
-  };
-  /** Camera-roll formats most desktop browsers still cannot decode. Pickable, but flagged. */
-  var RISKY_IMAGE_EXT = { heic: 'image/heic', heif: 'image/heif', tif: 'image/tiff', tiff: 'image/tiff' };
-
-  /**
-   * @description File extension, lowercased, with no dot. Drive paths carry a `~<id>` suffix on
-   * each segment, so the id is stripped before the extension is read.
-   * @param {string} name File name or path segment.
-   * @returns {string}
-   */
-  function extensionOf(name) {
-    var base = String(name || '').split('/').pop().split('~')[0];
-    var dot = base.lastIndexOf('.');
-    return dot > 0 ? base.slice(dot + 1).toLowerCase() : '';
-  }
-
-  /**
-   * @description The image MIME a stored file will produce, or null when it is not a picture.
-   * This is the filter AND the type applied to the downloaded bytes: `/api/files/download`
-   * streams everything as `application/octet-stream`, so a blob taken straight from it would be
-   * refused by {@link photoRejectReason} for not being an image. Deriving the type from the name
-   * is what makes a stored file behave exactly like a dropped one.
-   * @param {string} name File name.
-   * @returns {string|null}
-   */
-  function imageMimeFromName(name) {
-    var ext = extensionOf(name);
-    return IMAGE_MIME_BY_EXT[ext] || RISKY_IMAGE_EXT[ext] || null;
-  }
-
-  /**
-   * @description Whether this browser is likely to fail to decode the format even though it is
-   * an image — HEIC off an iPhone being the common one. Pickable, but worth warning about
-   * rather than letting it fail as a mystery.
-   * @param {string} name File name.
-   * @returns {boolean}
-   */
-  function isRiskyImage(name) {
-    return Object.prototype.hasOwnProperty.call(RISKY_IMAGE_EXT, extensionOf(name));
-  }
-
-  /**
-   * @description Split one browse listing into what the picker shows. Folders always stay (they
-   * are how you reach the pictures); files are kept only when they are images small enough to
-   * use, and everything dropped is COUNTED so the surface can say "14 other files hidden"
-   * instead of pretending the folder was empty.
-   * @param {Array<{name:string,type:string,path:string,size?:number}>} entries Browse output.
-   * @returns {{folders:Array,images:Array,hiddenOther:number,hiddenTooBig:number}}
-   */
-  function partitionEntries(entries) {
-    var out = { folders: [], images: [], hiddenOther: 0, hiddenTooBig: 0 };
-    (entries || []).forEach(function (e) {
-      if (!e) return;
-      if (e.type === 'folder') { out.folders.push(e); return; }
-      var mime = imageMimeFromName(e.name);
-      if (!mime) { out.hiddenOther++; return; }
-      if (typeof e.size === 'number' && e.size > MAX_PHOTO_BYTES) { out.hiddenTooBig++; return; }
-      out.images.push({ name: e.name, path: e.path, size: e.size, mime: mime, risky: isRiskyImage(e.name) });
-    });
-    return out;
-  }
-
-  /**
-   * @description One line describing what the filter removed, or '' when it removed nothing.
-   * @param {{hiddenOther:number,hiddenTooBig:number}} part Result of {@link partitionEntries}.
-   * @returns {string}
-   */
-  function hiddenSummary(part) {
-    var bits = [];
-    if (part && part.hiddenOther) bits.push(part.hiddenOther + ' non-image file' + (part.hiddenOther === 1 ? '' : 's'));
-    if (part && part.hiddenTooBig) bits.push(part.hiddenTooBig + ' over 20 MB');
-    return bits.length ? bits.join(' and ') + ' hidden' : '';
-  }
-
-  /**
-   * @description Human path trail for the header, newest last. Google Drive segments are
-   * `<url-encoded name>~<file id>`; every other provider is a plain '/'-joined path. Both
-   * collapse to the same crumb list so the picker needs no per-provider branch.
-   * @param {string} p Provider-relative path ('' = that provider's root).
-   * @returns {Array<{label:string,path:string}>}
-   */
-  function breadcrumbs(p) {
-    var trail = [];
-    var segs = String(p || '').split('/').filter(Boolean);
-    var acc = '';
-    segs.forEach(function (seg) {
-      acc = acc ? acc + '/' + seg : seg;
-      var label = seg.split('~')[0];
-      try { label = decodeURIComponent(label); } catch (e) { /* leave it raw */ }
-      trail.push({ label: label, path: acc });
-    });
-    return trail;
-  }
-
-  /**
-   * @description The folder one level up.
-   * @param {string} p Current provider-relative path.
-   * @returns {string} Parent path ('' at the provider root).
-   */
-  function parentPath(p) {
-    var segs = String(p || '').split('/').filter(Boolean);
-    segs.pop();
-    return segs.join('/');
-  }
-
-  /**
-   * @description What to tell the caller when a provider lists nothing. Google Drive is the one
-   * source that can be connected and still legitimately look empty: the connector holds the
-   * per-file `drive.file` scope, which only ever sees files this app created — NOT the photos
-   * the user took. Saying "no images here" there would be a lie about the cause.
-   * @param {string} provider Provider id from /api/files/roots.
-   * @returns {string}
-   */
-  function emptyMessage(provider) {
-    if (provider === 'google-drive') {
-      return 'Nothing here yet. Drive is connected with per-file access, so oshal only sees files it ' +
-        'created — your own photos will not be listed until Drive access is widened.';
-    }
-    return 'No images in this folder.';
-  }
-
-
   // ── Group mode: several faces from ONE photo → a numbered reference sheet ──
   // The image engine takes exactly one anchor image, so the browser tiles every face crop into
   // a single contact sheet with a number badge per tile. The server's validateSubjects is the
@@ -472,13 +340,6 @@
     nextFaceBox: nextFaceBox,
     faceBoxFromDetection: faceBoxFromDetection,
     detectionsToBoxes: detectionsToBoxes,
-    imageMimeFromName: imageMimeFromName,
-    isRiskyImage: isRiskyImage,
-    partitionEntries: partitionEntries,
-    hiddenSummary: hiddenSummary,
-    breadcrumbs: breadcrumbs,
-    parentPath: parentPath,
-    emptyMessage: emptyMessage,
     photoRejectReason: photoRejectReason,
     readEnv: readEnv,
     chooseCaptureMode: chooseCaptureMode,

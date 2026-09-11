@@ -18,7 +18,7 @@ description: >-
   Print a document to the swarm and decide where it belongs. Everything lands in
   one inbox with a recommended filing — a bot's corpus, the swarm's shared
   knowledge, or private to you — and nothing is written until you approve it.
-version: 0.2.1
+version: 0.3.0
 
 # ADR-139 wave 1 — "Send to…" destination: any document becomes a print-inbox intake
 # (extracted to text on the kernel rail, then the normal dedupe/rules/approval queue).
@@ -117,6 +117,14 @@ migrations:
 # and internal callers pass X-Service-Secret + X-OSHAL-User-Sub, which the
 # mounter resolves into the caller sub.
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/print-ingest/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/print-ingest/_smoke
@@ -138,3 +146,18 @@ ui:
       icon: codicon codicon-inbox
       iframeUrl: /api/print-ingest/app
       section: bottom
+
+summary:
+  path: /api/print-ingest/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

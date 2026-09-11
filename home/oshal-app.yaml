@@ -24,7 +24,7 @@ description: >-
   Google Nest); the home-bot reads your real devices + scenes via your connector
   token and turns "turn off the living room lights" into the right commands.
   Destructive actions (locks, garage, thermostat) are confirmed first.
-version: 1.1.0
+version: 1.2.0
 status: active
 
 source:
@@ -159,3 +159,17 @@ ribbon:
     - logs
     - operations
   defaultView: home-dashboard
+
+summary:
+  path: /api/home/home-summary
+  metricsPointer: /metrics
+  tilesPointer: /tiles
+  itemsPointer: /items
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a diagnostic brief
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

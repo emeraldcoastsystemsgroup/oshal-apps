@@ -44,7 +44,7 @@ description: >-
   iPhone/LiDAR/drone capture), walk the Gaussian splat in a WebGL viewer, get live
   "walk/pan" guidance while you film, and paint Wi-Fi coverage onto the map.
   Handheld, imported, or sim-drone capture — one 3D space.
-version: 0.6.0
+version: 0.7.0
 
 # ADR-139 wave 2 — "Send to…" destination: a walkthrough video from anywhere in the swarm
 # starts a reconstruction (relay ceiling ~50MB bounds the clip; .ply/.splat models keep the
@@ -131,6 +131,14 @@ ui:
 # handler re-derives the caller sub and pins reads to it. OIDC only.)
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/spaces/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/spaces/_smoke
@@ -162,3 +170,18 @@ ribbon:
     - operations
   hideChatPanel: true
   defaultView: spaces-viewer
+
+summary:
+  path: /api/spaces/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a diagnostic brief
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

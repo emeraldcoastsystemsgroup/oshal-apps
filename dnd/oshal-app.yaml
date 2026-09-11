@@ -63,7 +63,7 @@ description: >-
   inventory, abilities, and spells. You control only your claimed hero; clearly
   labeled AI companions run empty seats. Choose a bundled SRD hero or import
   your own PDF/JSON character sheet. Rules run on the open CC-BY D&D SRD 5.1.
-version: 0.20.0
+version: 0.21.1
 
 # ADR-139 wave 2 — "Send to…" destination (open mode): a D&D Beyond PDF or JSON export from
 # anywhere in the swarm imports through the table's existing lane and lands in My Characters.
@@ -143,6 +143,11 @@ foundation:
 # ─────────────────────────────────────────────────────────────────────────────
 ui:
   static:
+    - toolName: dnd-review
+      label: Dungeon Master Review
+      icon: codicon codicon-notebook
+      iframeUrl: /api/dnd/review
+      section: top
     - { toolName: dnd-table,  label: The Table, icon: codicon codicon-game,      iframeUrl: /api/dnd/table,          section: top }
     - { toolName: dnd-party,  label: Party,     icon: codicon codicon-organization, iframeUrl: /api/dnd/table?panel=party, section: top }
     - { toolName: dnd-tv,     label: TV Mode,   icon: codicon codicon-device-desktop, iframeUrl: /api/dnd/table?mode=tv, section: top }
@@ -154,6 +159,21 @@ ui:
 # except for the framework AppContext it receives (pool, botNodeClient).
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/review.js
+    factory: createReviewRoutes
+    mountPath: /api/dnd/review
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/dnd/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/dnd/_smoke
@@ -190,3 +210,24 @@ ribbon:
   hideChatPanel: true
   hideAssistant: true
   defaultView: dnd-table
+
+summary:
+  path: /api/dnd/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+    - id: plan-meal
+      label: Plan a gathering meal
+      targetApp: eats
+      targetAction: plan-meal
+      contextType: planning-brief
+      version: 1

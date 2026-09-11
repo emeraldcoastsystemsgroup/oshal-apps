@@ -59,7 +59,7 @@ description: >-
   playable hands are ranked with Kelly-sized stakes and explicit risk flags. Portfolio view and
   order placement ride the per-user connector, confirm-gated and demo-exchange-first
   (KALSHI_LIVE_ENABLED gates live money; every order and refusal is audited).
-version: 1.2.0
+version: 1.4.0
 status: active
 
 source:
@@ -191,6 +191,14 @@ settings:
 # core server.ts this was createKalshiRoutes behind serviceSecretOr(requiresAuth),
 # same as /api/trading. Handlers also self-gate via callerSub.)
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/kalshi/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/kalshi/_smoke
@@ -237,3 +245,35 @@ ribbon:
     - logs
     - operations
   defaultView: kalshi-home
+
+summary:
+  path: /api/kalshi/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+integrations:
+  offers:
+    - id: review-finance
+      label: Review with Finance
+      targetApp: finance
+      targetAction: review-context
+      contextType: financial-review
+      version: 1
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+    - id: review-research
+      label: Research with Trading
+      targetApp: intelligent-trades
+      targetAction: review-research
+      contextType: research-brief
+      version: 1
+    - id: prepare-recap
+      label: Prepare a trade recap
+      targetApp: daily-trade-recap
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

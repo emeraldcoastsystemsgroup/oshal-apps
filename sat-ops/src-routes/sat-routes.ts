@@ -41,6 +41,7 @@
  *                     |                             | Same /api/sat paths, so live evidence probes stay valid.
  */
 
+import { satHomeSummary } from './home-summary';
 import * as path from 'path';
 import * as fs from 'fs';
 import { Router, type Request, type RequestHandler, type Response } from 'express';
@@ -199,6 +200,11 @@ export function createSatRoutes(arg: SatRouteOpts | Record<string, unknown> = {}
   const catalog = opts.catalog ?? new TleCatalog();
   const appPackageDir = (opts.ctx as { appPackageDir?: string } | undefined)?.appPackageDir;
   const router = Router();
+  router.get('/home-summary',(req,res)=>{
+    const oidc=(req as any).oidc;
+    if(!(oidc?.user?.sub||oidc?.user?.oid)||oidc?.isAuthenticated?.()!==true){res.status(401).json({error:'not_authenticated'});return;}
+    res.setHeader('Cache-Control','no-store');res.json(satHomeSummary(fleet.list(),catalog.list()));
+  });
 
   // ── W3 surface ─────────────────────────────────────────────────────────────
   router.get('/app', serveFile(surfaceHtml(appPackageDir, 'sat-ops.html')));

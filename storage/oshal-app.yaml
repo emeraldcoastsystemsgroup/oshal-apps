@@ -19,7 +19,7 @@ description: >-
   Your storage hub: choose where OSHAL saves generated code vs files (GitHub / Dropbox /
   OSHAL-local), and browse your files. Generators (e.g. Presentations) save to the target you
   set here.
-version: 1.1.0
+version: 1.2.0
 status: active
 
 source:
@@ -92,6 +92,14 @@ ui:
       section: top
 
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/storage/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/storage/_smoke
@@ -120,3 +128,9 @@ ribbon:
     - echo
     - operations
   defaultView: storage-assistant
+
+summary:
+  path: /api/storage/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items

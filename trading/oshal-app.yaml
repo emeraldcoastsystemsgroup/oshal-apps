@@ -55,7 +55,7 @@ description: >-
   reason over it, and place the trade through your broker (Alpaca) — with a full decision
   trail from every order back to the signal that triggered it. Paper-trade and live-trade as
   two separate books. Cash equities. No crypto.
-version: 1.11.0
+version: 1.13.0
 status: active
 
 source:
@@ -265,6 +265,14 @@ tools:
 # /api/trading exactly like the original BEFORE-ordering in server.ts.
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/trading/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/intelligent-trades/_smoke
@@ -335,3 +343,38 @@ ribbon:
   # bots/tickets/cost/queue status bar is swarm-operator telemetry a trader never needs (operator 2026-09-04).
   hideStatusBar: true
   defaultView: intelligent-trades-home
+
+summary:
+  path: /api/trading/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+integrations:
+  offers:
+    - id: review-finance
+      label: Review with Finance
+      targetApp: finance
+      targetAction: review-context
+      contextType: financial-review
+      version: 1
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+    - id: prepare-recap
+      label: Prepare a trade recap
+      targetApp: daily-trade-recap
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+  accepts:
+    - id: review-research
+      contextType: research-brief
+      version: 1
+      surface: intelligent-trades-home
+      fields:
+        - title
+        - notes
+        - sourceUrl

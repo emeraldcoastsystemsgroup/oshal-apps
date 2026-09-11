@@ -71,7 +71,7 @@ description: >-
   what you feed via mic; autonomous mode converses in character as a pumpkin. The
   swarm can drive it too: pumpkin-bot holds route-backed tools to list the live
   projector screens and make one speak on command.
-version: 1.2.0
+version: 1.3.0
 status: active
 
 source:
@@ -214,6 +214,11 @@ tools:
 # the full-screen projector page (/pumpkin/) on a second display.
 ui:
   static:
+    - toolName: pumpkin-review
+      label: Pumpkin Review
+      icon: codicon codicon-notebook
+      iframeUrl: /api/pumpkin/review
+      section: top
     - toolName: pumpkin-control
       label: Pumpkin
       icon: codicon codicon-flame
@@ -225,6 +230,21 @@ ui:
 # same as eats. Input endpoints add the optional PUMPKIN_ALLOWED_SUBS/EMAILS
 # allowlist on top; everything is owner-scoped by OIDC sub regardless.)
 routes:
+  - module: routes/review.js
+    factory: createReviewRoutes
+    mountPath: /api/pumpkin/review
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/pumpkin/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/pumpkin-routes.js
     factory: createPumpkinRoutes
     mountPath: /api/pumpkin
@@ -256,3 +276,18 @@ ribbon:
     - operations
   hideChatPanel: true
   defaultView: pumpkin-control
+
+summary:
+  path: /api/pumpkin/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+integrations:
+  offers:
+    - id: prepare-clip
+      label: Prepare a video clip
+      targetApp: vids
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

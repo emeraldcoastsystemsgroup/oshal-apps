@@ -17,7 +17,45 @@ re-implements physics.
 | `HYBRID_common.py`, `HYBRID_piecewise.py` | the hybrid-buoyancy study machinery (envelope sizing; the `hybrid` capability flag) |
 | `requirements.txt` | exact top-level pins the validation ran on |
 | `requirements-lock.txt` | full `pip freeze` of the validation interpreter |
-| `setup-venv.ps1` / `setup-venv.sh` | rebuild the dedicated venv on a fresh box |
+| `setup-venv.ps1` / `setup-venv.sh` | rebuild the dedicated venv on a dev box (Windows / glibc Python) |
+| `container/` | the engine container: `Dockerfile`, `compose.yaml`, and `aero_engine_bridge.py` (the TCP front) |
+| `install-engine.sh` | build + start the engine container on a box running the oshal stack, then self-test it |
+| `.dockerignore` | whitelist of exactly what the image bakes in |
+
+## Engine container — how a deployed oshal box runs the engine
+
+The oshal api image is Alpine (musl). casadi 3.7.2, which AeroSandbox imports,
+publishes glibc-only wheels, so no engine venv can be built in the api container.
+The package therefore runs the engine in its own container:
+
+- **Install** (from the host of the box; the package is deployed inside the api
+  container, which has the docker CLI):
+
+  ```sh
+  docker exec <api-container> sh /app/workspace-shared/deployed-apps/aero-lab/engine/install-engine.sh
+  ```
+
+  Aero Lab's engine-down banner prints this command with the real container id.
+  The script builds `oshal-aero-lab-engine:local` from `container/Dockerfile`,
+  starts it on the stack network (compose project `oshal-aero-lab-engine`, alias
+  `aero-lab-engine`, no host port, read-only root, all capabilities dropped), and
+  flies the R7 default design once as an acceptance self-test.
+- **Built locally, from upstream, every time.** The image starts from the official
+  `python:3.11-slim-bookworm` image and installs `requirements.txt` constrained by
+  `requirements-lock.txt` from PyPI. Nothing third-party is committed to this package
+  and the image is never published. License metadata PyPI publishes for the pinned
+  versions: AeroSandbox and NeuralFoil MIT, casadi LGPL-3.0-or-later, numpy / scipy /
+  pandas BSD, matplotlib PSF-based, the remaining transitive packages MIT / BSD /
+  Apache-2.0 / MPL-2.0.
+- **Transport.** With no explicit local engine config and no local venv, the Node
+  adapter connects to `AERO_LAB_ENGINE_ADDR` (default `aero-lab-engine:7411`). One
+  connection owns one worker process inside the container, so timeouts, kill/restart
+  and the idle shutdown behave exactly as with a local worker. Export files come back
+  inline and are written to the api-side workDir the download route reads.
+- **Stale-container guard.** The bridge's first line names the build hash of the
+  engine tree baked into the image; the adapter hashes this package's engine tree
+  and refuses (capability_unavailable, with the install command) when they differ.
+  After an aero-lab update that changes the engine, re-run the install script.
 
 ## Engine-dir contract
 
@@ -33,8 +71,9 @@ Python resolves as `AERO_LAB_PYTHON`, else `<engineDir>/.venv/Scripts/python.exe
 (win32) / `<engineDir>/.venv/bin/python`. Never a system python — the pins are
 part of the model.
 
-Fresh box: `powershell -File setup-venv.ps1` (or `bash setup-venv.sh`), then
-point `AERO_LAB_ENGINE_DIR` at this directory.
+Dev box with a Windows or glibc Python: `powershell -File setup-venv.ps1` (or
+`bash setup-venv.sh`), then point `AERO_LAB_ENGINE_DIR` at this directory. A deployed
+oshal box uses the engine container above instead.
 
 ## Honesty posture
 
@@ -73,4 +112,10 @@ usable_energy → screen_design`. The R7 winner vector reproduces
 ```bash
 cd engine
 echo '{"id":"1","cmd":"capabilities"}' | <venv-python> aero_lab_worker.py
+```
+
+Engine container (the same acceptance flight `install-engine.sh` ends with):
+
+```sh
+docker exec oshal-aero-lab-engine python /opt/aero-lab/engine/container/aero_engine_bridge.py --selftest
 ```

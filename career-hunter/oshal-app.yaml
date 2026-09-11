@@ -61,7 +61,7 @@ description: >-
   posting against your private career profile, and turns the best fits into a human-in-the-loop
   application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume +
   cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.
-version: 1.18.0
+version: 1.19.2
 
 # ── ADR-139 artifact exchange — this app as a "Send to…" DESTINATION ─────────
 # Any document anywhere in the swarm (files browser, another app) can be sent
@@ -386,6 +386,11 @@ tools:
 # ─────────────────────────────────────────────────────────────────────────────
 ui:
   static:
+    - toolName: career-review
+      label: Career Review
+      icon: codicon codicon-briefcase
+      iframeUrl: /api/career-hunter/review
+      section: top
     - toolName: career-mobile
       label: Mobile
       icon: codicon codicon-device-mobile
@@ -507,6 +512,22 @@ surface:
 # ROUTES — mounted conditionally by the loader.
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/review.js
+    factory: createReviewRoutes
+    mountPath: /api/career-hunter
+    auth: service-or-oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/career-hunter/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/career-hunter/_smoke
@@ -574,6 +595,7 @@ migrations:
   - migrations/101-career-apply-claim-lease.sql
   - migrations/102-career-apply-run-binding.sql
   - migrations/103-career-interview-source-identity.sql
+  - migrations/105-career-home-evidence-indexes.sql
 
 # ─────────────────────────────────────────────────────────────────────────────
 # WORKFLOW — career-application tickets route to the career-hunter worker bot.
@@ -606,3 +628,33 @@ ribbon:
     - logs
     - operations
   defaultView: career-board
+
+summary:
+  path: /api/career-hunter/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
+    - id: prepare-social
+      label: Prepare a networking draft
+      targetApp: social
+      targetAction: prepare-post
+      contextType: communication-brief
+      version: 1
+  accepts:
+    - id: prepare-brief
+      contextType: research-brief
+      version: 1
+      surface: career-review
+      fields:
+        - title
+        - notes
+        - sourceUrl

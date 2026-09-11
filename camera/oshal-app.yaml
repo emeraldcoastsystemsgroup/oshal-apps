@@ -36,7 +36,7 @@ description: >-
   run a low-latency preview. A control concierge turns natural language into one
   validated command; a human confirms anything destructive. Sim engine built in,
   real GoPro (Open GoPro HTTP) at the camera node.
-version: 1.0.0
+version: 1.1.0
 status: active
 
 source:
@@ -176,6 +176,14 @@ ui:
 # secret itself: a node identity, never an operator browser.)
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/camera/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/camera/_smoke
@@ -207,3 +215,18 @@ ribbon:
     - operations
   hideChatPanel: true
   defaultView: camera-ops
+
+summary:
+  path: /api/camera/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a diagnostic brief
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

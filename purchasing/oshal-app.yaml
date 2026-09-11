@@ -25,7 +25,7 @@ description: >-
   AI shopping concierge — search Walmart/Amazon, build lists, learn your
   preferences, find deals, and hand off a ready-to-checkout cart. Other swarm
   bots can ask it to make a purchase.
-version: 1.1.0
+version: 1.2.0
 status: active  # active | inactive
 
 source:
@@ -200,6 +200,14 @@ ui:
 # ROUTES — app-owned API + surface, gated to this app's activation.
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/purchasing/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/purchasing/_smoke
@@ -278,3 +286,9 @@ integrations:
       targetAction: plan-meal
       contextType: planning-brief
       version: 1
+
+summary:
+  path: /api/purchasing/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items

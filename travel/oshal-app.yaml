@@ -29,7 +29,7 @@ description: >-
   the swarm's shared price history, watch routes for a fare drop, and book via a deep-link
   handoff. Hotels and cars are deep-link handoffs today. Other swarm bots can ask it to plan a
   trip or check a fare on a traveller's behalf.
-version: 1.1.0
+version: 1.2.0
 status: active
 
 # Guest tier REQUEST (ADR-085 D4): travel was core Tier-A (deep-link handoff, does not
@@ -247,6 +247,14 @@ ui:
 # server.ts this was createTravelRoutes behind serviceSecretOr(requiresAuth).)
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/travel/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/travel/_smoke
@@ -318,3 +326,21 @@ integrations:
       targetAction: plan-purchase
       contextType: planning-brief
       version: 1
+    - id: plan-movie
+      label: Plan a movie night
+      targetApp: movies
+      targetAction: plan-movie
+      contextType: planning-brief
+      version: 1
+    - id: plan-music
+      label: Plan music
+      targetApp: spotify
+      targetAction: plan-music
+      contextType: planning-brief
+      version: 1
+
+summary:
+  path: /api/travel/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items

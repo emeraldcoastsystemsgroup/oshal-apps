@@ -251,12 +251,21 @@ async function resolveUnboundPrincipal(pool, identity, isTeacherByAllowlist) {
  * @returns the resolved AuthedStudent
  * @throws EducationAccessError(401) when the request is unauthenticated
  */
-async function resolveAuthedStudent(req, pool) {
+async function resolveAuthedStudent(req, pool, options = {}) {
     const id = readIdentity(req);
     if (!id)
         throw new EducationAccessError('Not authenticated', 401);
     const isTeacherByAllowlist = id.email ? teacherEmails().has(id.email) : false;
     let row = await findBoundPrincipal(pool, id);
+    // Dashboard reads must never adopt an account, provision a learner or promote a role.
+    if (options.readOnly) {
+        if (!row)
+            throw new EducationAccessError('Open Little Monsters to complete school setup', 403);
+        if (!row.tenant_id || !row.role || !['student', 'teacher', 'admin'].includes(row.role)) {
+            throw new EducationAccessError('School identity configuration requires review', 403);
+        }
+        return { studentId: row.student_id, email: row.email, name: row.name, role: row.role, tenantId: row.tenant_id };
+    }
     if (!row) {
         row = await resolveUnboundPrincipal(pool, id, isTeacherByAllowlist);
         logger.info({ studentId: row.student_id, tenantId: row.tenant_id }, 'Linked or provisioned student from issuer-bound OIDC identity');
@@ -426,4 +435,3 @@ async function listAccessibleClassIds(pool, student) {
      SELECT class_id FROM lm_classes WHERE teacher_student_id = $1 AND tenant_id = $2`, [student.studentId, student.tenantId]);
     return r.rows.map((x) => x.class_id);
 }
-//# sourceMappingURL=education-access.js.map

@@ -314,12 +314,20 @@ async function resolveUnboundPrincipal(
  * @returns the resolved AuthedStudent
  * @throws EducationAccessError(401) when the request is unauthenticated
  */
-export async function resolveAuthedStudent(req: Request, pool: Pool): Promise<AuthedStudent> {
+export async function resolveAuthedStudent(req: Request, pool: Pool, options: { readOnly?: boolean } = {}): Promise<AuthedStudent> {
   const id = readIdentity(req);
   if (!id) throw new EducationAccessError('Not authenticated', 401);
 
   const isTeacherByAllowlist = id.email ? teacherEmails().has(id.email) : false;
   let row = await findBoundPrincipal(pool, id);
+  // Dashboard reads must never adopt an account, provision a learner or promote a role.
+  if (options.readOnly) {
+    if (!row) throw new EducationAccessError('Open Little Monsters to complete school setup', 403);
+    if (!row.tenant_id || !row.role || !['student', 'teacher', 'admin'].includes(row.role)) {
+      throw new EducationAccessError('School identity configuration requires review', 403);
+    }
+    return { studentId: row.student_id, email: row.email, name: row.name, role: row.role, tenantId: row.tenant_id };
+  }
   if (!row) {
     row = await resolveUnboundPrincipal(pool, id, isTeacherByAllowlist);
     logger.info(

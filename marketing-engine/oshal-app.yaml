@@ -7,6 +7,15 @@
 #     four inline concierge bots. Per oshal docs/business/marketing-engine-spec.md + ADR-131.
 #     Publishing rides existing rails (LinkedIn action, Mastodon action, Bluesky fixed op, Resend
 #     action); campaign import NEVER arms spend or consent (the series-pump import rule).
+# 2 | maintainer@emeraldcoastsystemsgroup.com   | 0.4.1: every bot declares a one-line
+#     selectorDescriptor + natural-language routingKeywords on its manifest entry (ADR-083
+#     DECLARED precondition). The loader resolves persona paths from the server cwd, so for a
+#     store package only the manifest fields reach agents.base_selector_descriptor; without them
+#     routing fell back to hyphenated capability tags and Jarvis described the app generically.
+#     Keywords carry no bare cross-domain collision term (post, linkedin, budget, target) and no
+#     phrase already owned by another active bot (go-to-market, press release).
+#     Home summary footnote now fits the core 120-char item cap. Guarded by
+#     tests/marketing-manifest.test.mjs and tests/home-summary.test.mjs.
 
 name: marketing-engine
 displayName: Marketing Engine
@@ -15,7 +24,7 @@ description: >-
   intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic
   metrics scorecard, experiment registry, budget proposals a human approves, and weekly review
   tickets worked by inline concierge bots only after human approval.
-version: 0.2.0
+version: 0.4.1
 status: active
 suite: ai-productivity
 theme: midnight
@@ -53,10 +62,25 @@ bots:
   # All four are INLINE concierges: no container key on purpose (reasoning rides the caller's
   # hosted/BYO brain via executeBotOrInline; connector reads/writes happen in routes, never on
   # the bot). capabilities lists are the FULL identity — manifest reload clobbers the array.
+  # selectorDescriptor + routingKeywords are declared HERE, not in the persona: the loader reads
+  # persona routing fields from a server-cwd path a store package never lives at (ADR-083).
   - agentId: cadf0000-0000-4000-8000-000000000001
     name: campaign-director
     persona: personas/campaign-director.yaml
     role: marketing/campaign-strategy
+    selectorDescriptor: "Select when the user wants to plan, review, or steer a marketing campaign: stage-gate reviews, the weekly marketing scorecard, campaign copy from a brief, experiments, or a budget reallocation proposal. Drafts and proposes only; never publishes or spends."
+    routingKeywords:
+      - marketing campaign
+      - campaign plan
+      - campaign review
+      - weekly marketing review
+      - campaign brief
+      - channel copy
+      - marketing experiment
+      - a/b test
+      - marketing budget
+      - ad spend
+      - budget reallocation
     capabilities:
       - campaign-planning
       - marketing-scorecard-review
@@ -67,6 +91,19 @@ bots:
     name: market-analyst
     persona: personas/market-analyst.yaml
     role: marketing/market-research
+    selectorDescriptor: "Select when the user wants market research for a campaign: an ideal customer profile (ICP), where that audience gathers, competitor positioning, SEO keyword research, or pricing comparables. Researches and structures only; never contacts anyone."
+    routingKeywords:
+      - ideal customer profile
+      - icp card
+      - audience research
+      - market research
+      - competitor scan
+      - competitive positioning
+      - keyword research
+      - seo keywords
+      - pricing comparables
+      - buyer objections
+      - message angles
     capabilities:
       - icp-research
       - competitor-scan
@@ -76,6 +113,19 @@ bots:
     name: growth-analyst
     persona: personas/growth-analyst.yaml
     role: marketing/measurement
+    selectorDescriptor: "Select when the user wants marketing numbers explained: a weekly scorecard narrative from Search Console, PostHog, or GitHub traffic, funnel analysis, or traffic and signup anomalies. Reads and explains only; never changes a campaign."
+    routingKeywords:
+      - scorecard narrative
+      - growth metrics
+      - funnel analysis
+      - conversion funnel
+      - traffic trends
+      - search console
+      - posthog
+      - github traffic
+      - signup trends
+      - week-over-week change
+      - traffic anomaly
     capabilities:
       - funnel-analysis
       - scorecard-narrative
@@ -84,6 +134,20 @@ bots:
     name: launch-coordinator
     persona: personas/launch-coordinator.yaml
     role: marketing/launches
+    selectorDescriptor: "Select when the user is preparing a product launch: a launch checklist, Hacker News, Reddit, or Product Hunt drafts a human posts by hand, press outreach drafts, or a launch retrospective. Drafts only; never posts or submits."
+    routingKeywords:
+      - product launch
+      - launch checklist
+      - launch plan
+      - launch day
+      - show hn
+      - hacker news
+      - reddit launch
+      - product hunt
+      - press outreach
+      - media pitch
+      - launch retro
+      - community launch drafts
     capabilities:
       - launch-checklists
       - community-post-drafts
@@ -117,6 +181,14 @@ schedules:
     handler: runMarketingWeeklyReview
 
 routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/marketing-engine/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/marketing-routes.js
     factory: createMarketingRoutes
     mountPath: /api/marketing
@@ -212,4 +284,15 @@ integrations:
       targetAction: prepare-brief
       contextType: research-brief
       version: 1
+    - id: prepare-brand
+      label: Prepare a brand graphic
+      targetApp: brand-graphics
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
 
+summary:
+  path: /api/marketing-engine/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items

@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Mutation-resistant behavioral contract for the one-pass store route rebuild, relative module mapping, factory enforcement, rollback, and transient cleanup.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Check-only mode compiles but preserves compiled and legacy routes without factory/output reconciliation.
  */
 
 import test from 'node:test';
@@ -47,6 +48,24 @@ for (const source of walk(path.join(framework, 'src'))) {
   fs.writeFileSync(destination, body + '\n//# sourceMappingURL=' + path.basename(destination) + '.map');
 }
 `;
+
+test('check-only compiles without rewriting generated files or requiring legacy route sources', () => {
+  const root = mkdtempSync(join(tmpdir(), 'store-parity-check-'));
+  try {
+    const framework = createFramework(root);
+    const store = join(root, 'store');
+    mkdirSync(store);
+    const pkg = createPackage(store, 'legacy', 'createLegacyRoutes', 'exports.createOtherRoutes = function() {};\n');
+    writeFixture(join(pkg, 'routes', 'main-routes.js'), 'exports.saved = true;\n');
+    writeFixture(join(pkg, 'routes', 'legacy-only.js'), 'exports.legacy = true;\n');
+    const result = rebuildStoreRoutes({ storeRoot: store, frameworkRoot: framework, checkOnly: true });
+    assert.equal(result.sources, 1);
+    assert.equal(readFileSync(join(framework, 'compiler-invocations.log'), 'utf8'), 'compile\n');
+    assert.equal(readFileSync(join(pkg, 'routes', 'main-routes.js'), 'utf8'), 'exports.saved = true;\n');
+    assert.equal(readFileSync(join(pkg, 'routes', 'legacy-only.js'), 'utf8'), 'exports.legacy = true;\n');
+    assert.deepEqual(compilerStages(framework), []);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
 
 /** @description Write a fixture file while creating its parent directories. */
 function writeFixture(path, contents) {

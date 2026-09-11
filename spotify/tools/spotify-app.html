@@ -189,6 +189,9 @@
     <div class="brand">OSHAL Spotify<small>Music concierge</small></div>
     <div class="pill"><span class="dot" id="connDot"></span><span id="connTxt">checking…</span></div>
   </header>
+<section class="col" id="planningPanel" hidden aria-label="Planning draft"><h2>Plan your music</h2><label for="planningDraft">Review your request</label><textarea id="planningDraft" rows="4" maxlength="6000" style="display:block;box-sizing:border-box;width:100%;margin:10px 0;padding:12px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:12px;font:inherit"></textarea><button type="button" class="btn" id="usePlanningDraft">Use in concierge</button><p id="planningStatus" role="status">Connect below when needed, then move this draft into the concierge. Sending remains your choice.</p></section>
+<section class="col connected-app-actions" aria-label="Connected application actions" style="display:flex;gap:12px;flex-wrap:wrap"></section>
+
 
   <!-- Connect gate (shown until Spotify is connected) -->
   <div class="col" id="gateWrap" style="display:none">
@@ -400,6 +403,16 @@ async function boot(){
     cv.messages.forEach(m=>pushMsg(m.role==='user'?'me':'bot',m.content));}}catch(e){}
 }
 boot();
+</script>
+
+<script type="module">
+import {receiveHandoff} from '/cockpit/js/app-handoff.js';
+import {mountConnectedActions} from '/cockpit/js/app-workflows.js';
+const panel=document.getElementById('planningPanel'),draft=document.getElementById('planningDraft');
+receiveHandoff({"app":"spotify","action":"plan-music","contextType":"planning-brief","version":1,"fields":["title","notes","sourceUrl"]},context=>{draft.value=[context.title,context.notes,context.sourceUrl?'Source: '+context.sourceUrl:''].filter(Boolean).join('\n\n');panel.hidden=false;draft.focus();});
+document.getElementById('usePlanningDraft').onclick=()=>{if(document.getElementById('appWrap').style.display==='none'){document.getElementById('planningStatus').textContent='Your draft is ready. Complete the connection below, refresh its status, then use this draft.';return;}const input=document.getElementById('chatq');input.value=draft.value.replace(/\s+/g,' ').trim();input.focus();input.scrollIntoView({block:'center'});document.getElementById('planningStatus').textContent='Draft copied to the concierge. Review it and choose Send when ready.';};
+const element=document.querySelector('.connected-app-actions');
+void mountConnectedActions({app:"spotify",element,contextForOffer:()=>{const notes=(panel.hidden?'':draft.value.trim())||document.getElementById('chatq').value.trim()||document.getElementById('q').value.trim();return notes?{title:"Plan around my music request",notes:notes.slice(0,2000)}:null;}}).then(()=>element.querySelectorAll('button').forEach(b=>b.classList.add('btn')));
 </script>
 </body>
 </html>

@@ -63,7 +63,9 @@ margins as design guidance, not flight certification.
   `aero-designer` concierge `/chat`), the surface (`tools/aero-lab.html`), the
   `aero-designer` persona for the registrar, the Python protocol worker + the
   parameterized FINAL_PRODUCT export generator (`engine/`), exact-pinned
-  `engine/requirements.txt` + venv setup scripts, and the route/adapter specs
+  `engine/requirements.txt` + venv setup scripts, the engine container
+  (`engine/container/`: Dockerfile, compose file, TCP bridge) and its installer
+  `engine/install-engine.sh`, and the route/adapter/container-transport specs
   (`tests/`).
 - **Cross-runtime and export guards:** the three browser input readouts execute a
   dedicated helper parity-tested against `engine/service.py` to `1e-12`, including
@@ -73,10 +75,12 @@ margins as design guidance, not flight certification.
   regression sweeps nominal and legal geometry-box corners.
 - **Vendored:** a pinned snapshot of the aerosim engine tree (58 modules under
   `engine/aerosim/`, fingerprint `603cf4c5e8d9e4c9`), so the package runs on a
-  fresh box with no external checkout. `AERO_LAB_ENGINE_DIR` still overrides it
-  and points at a concurrently-developed upstream tree when set. If neither
-  resolves, every capability reports `false` and the surface says exactly why
-  nothing runs — no fabricated numbers, ever.
+  fresh box with no external checkout. The engine container is built from this
+  tree, so a deployed box always answers from the vendored snapshot.
+  `AERO_LAB_ENGINE_DIR` still overrides it for a local worker and points at a
+  concurrently-developed upstream tree when set. If no engine is reachable,
+  every capability reports `false` and the surface says exactly why nothing
+  runs — no fabricated numbers, ever.
 
   ⚠ The two trees currently **disagree**: the vendored snapshot runs 3 of 4
   presets and reproduces the recorded numbers; the live upstream tree
@@ -98,6 +102,20 @@ node scripts/oshal-app.js install aero-lab
 
 No migrations — evaluations are computed on demand and exports live in a
 per-run temp dir; this surface owns no tables.
+
+## Engine on a deployed box — the engine container
+
+The oshal api image is Alpine (musl) and casadi (via AeroSandbox) ships glibc-only
+wheels, so a deployed box runs the engine in the package's own container, built
+locally from upstream sources. After installing or updating aero-lab, run once from
+the host (Aero Lab's engine-down banner prints the exact command):
+
+```sh
+docker exec <api-container> sh /app/workspace-shared/deployed-apps/aero-lab/engine/install-engine.sh
+```
+
+Details — image contents, licenses, transport, the stale-container guard — are in
+[engine/README.md](engine/README.md#engine-container--how-a-deployed-oshal-box-runs-the-engine).
 
 ## Local dev setup
 
@@ -164,9 +182,9 @@ passed on a selected real candidate (BACKLOG §A).
   through `PackEcm.step_power` and the mission observes that live SOC/aging
   trajectory; flat replay is ideal-only. The packaged default remains ideal
   until a real candidate passes the promotion gate in BACKLOG §A.
-- **The engine tree is external.** No checkout at `AERO_LAB_ENGINE_DIR` means
-  every capability is false and the surface says so. That is the shipped
-  posture, not an error state.
+- **The engine runs outside the api process.** With no reachable engine — no local
+  venv and no engine container (or one built from a different engine tree) — every
+  capability is false and the surface says why, with the install command.
 - **Export vent part pending.** The build package reproduces the validated
   FINAL_PRODUCT set (wing/panel STLs, rib + gore DXF, airfoil dat/template,
   BOM, build sheet); the hybrid envelope's vent fitting is not yet a generated

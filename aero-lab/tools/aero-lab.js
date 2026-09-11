@@ -10,6 +10,12 @@
  *                     |                             | closes the browser/server 79.9 m span-cap
  *                     |                             | drift without making the browser a source
  *                     |                             | of performance claims.
+ * 2026-09-11 01:40:00 | maintainer@emeraldcoastsystemsgroup.com | Engine card names where the engine
+ *                     |                             | runs (local venv or the engine container), and
+ *                     |                             | the engine-down banner shows the route's own
+ *                     |                             | reason — which carries the exact install command
+ *                     |                             | — instead of a hardcoded venv instruction that
+ *                     |                             | was wrong on every deployed (Alpine) box.
  */
 /* Served by the package route as /api/aero-lab/app.js next to /app (the HTML).
    All data flows from the routes in BUILD_CONTRACT §2a; the only client-side
@@ -354,11 +360,15 @@
       if (!on) chip.title = 'The engine reports "' + k + '" unavailable — its run button will refuse honestly. Modules may be mid-upgrade on this box.';
       chips.appendChild(chip);
     }
+    const container = eng.transport === 'container';
     const rows = [
       ['status', eng.present ? 'live' : 'not found'],
+      ['runs in', container ? 'engine container · ' + (eng.engineAddr || '?') : 'local venv'],
       ['dir', eng.engineDir || '—'],
       ['python', eng.python || '—'],
-      ['venv', eng.venvOk == null ? '—' : (eng.venvOk ? 'ok' : 'missing')],
+      container
+        ? ['venv', 'baked into the image']
+        : ['venv', eng.venvOk == null ? '—' : (eng.venvOk ? 'ok' : 'missing')],
       ['version', eng.version || 'unknown'],
     ];
     $('engineCard').innerHTML = rows.map(([k, v]) =>
@@ -371,9 +381,10 @@
         : 'All feature-detected modules present.')
       : '';
     if (!eng.present) {
-      renderEngineDown('No aerosim engine at AERO_LAB_ENGINE_DIR' +
-        (eng.engineDir ? ' (' + eng.engineDir + ')' : '') +
-        '. Every run button will refuse until an engine checkout + venv exist — see the package engine/README.md.');
+      // The route's reason is the honest one: a missing venv, or an absent / out-of-date engine
+      // container with the exact command that installs it on this box.
+      renderEngineDown('Aero Lab engine unavailable: ' + (caps.reason || 'no reason given') +
+        '. Every run button will refuse until it is fixed — see the package engine/README.md.');
     } else {
       $('engineDownBanner').style.display = 'none';
     }

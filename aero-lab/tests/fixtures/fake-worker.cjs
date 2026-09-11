@@ -12,9 +12,15 @@
  *                     |                             | (__sleepMs, __garbage, __fail). Runs under node so
  *                     |                             | the transport specs need no Python at all — the
  *                     |                             | adapter's pythonPath/workerPath are injectable.
+ * 2026-09-11 01:40:00 | maintainer@emeraldcoastsystemsgroup.com | __export: write the named files under
+ *                     |                             | the workDir it was HANDED (as cmd_export does) and
+ *                     |                             | echo that workDir, so the container-transport spec
+ *                     |                             | can prove the bridge pins it and ships the bytes.
  */
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const readline = require('readline');
 
 const rl = readline.createInterface({ input: process.stdin, terminal: false });
@@ -40,6 +46,15 @@ rl.on('line', (line) => {
     if (args.__garbage) process.stdout.write('this is not JSON — the adapter must drop it\n');
     if (args.__fail) {
       respond({ id, ok: false, error: { code: args.__fail.code, message: args.__fail.message } });
+      return;
+    }
+    if (cmd === 'export' && args.__export) {
+      const exportId = 'exp-0123456789ab';
+      const dir = path.join(String(args.workDir), 'exports', exportId);
+      fs.mkdirSync(dir, { recursive: true });
+      const files = args.__export.files || {};
+      for (const name of Object.keys(files)) fs.writeFileSync(path.join(dir, path.basename(name)), files[name]);
+      respond({ id, ok: true, result: { exportId, files: args.__export.names || Object.keys(files), workDirSeen: args.workDir } });
       return;
     }
     if (cmd === 'capabilities') {

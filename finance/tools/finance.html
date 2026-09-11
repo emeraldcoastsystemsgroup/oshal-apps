@@ -100,6 +100,16 @@
     </div>
   </div>
   <div class="sub">Your money in one view — balances, holdings, and spending across every linked bank and brokerage, with a plain-English brief. Reading is read-only; the only action that moves funds is the Send-money panel. No trading, no crypto.</div>
+  <section class="panel" id="reviewPanel" hidden aria-label="Financial review draft">
+    <h2>Review with your saved accounts</h2>
+    <p class="sub">Check this context, then ask your finance analyst to compare it with your last account snapshot.</p>
+    <label for="reviewTitle">Title</label><input id="reviewTitle" maxlength="2000">
+    <label for="reviewNotes">Evidence and questions</label><textarea id="reviewNotes" rows="5" maxlength="2000"></textarea>
+    <label for="reviewSource">Source link</label><input id="reviewSource" type="url" maxlength="2000">
+    <button class="btn primary" id="reviewBtn">Review with saved accounts</button>
+    <p id="reviewStatus" role="status"></p><div class="brief" id="reviewResult"></div>
+  </section>
+  <section class="panel connected-app-actions" aria-label="Connected application actions" style="display:flex;gap:12px;flex-wrap:wrap"></section>
   <div id="main"><div class="spin"><span class="dot"></span> Loading…</div></div>
 </div>
 
@@ -304,7 +314,7 @@ async function loadBrief(forceRefresh) {
   const panel = $('briefPanel');
   if (!panel) return;
   try {
-    const j = await api('/brief' + (forceRefresh ? '?refresh=1' : ''));
+    const j = await api('/brief' + (forceRefresh ? '?refresh=1' : '?cached=1'));
     panel.innerHTML = renderMarkdown(j.brief);
   } catch (e) { panel.innerHTML = '<div class="notice err">' + e.message + '</div>'; }
 }
@@ -322,13 +332,35 @@ $('briefBtn').onclick = () => loadBrief(true);
 (async function init() {
   try {
     const st = await api('/status');
-    if (st.connected > 0 && st.hasData) await renderDashboard(false);
-    else if (st.connected > 0) await doSync();
+    if (st.connected > 0) await renderDashboard(false);
     else renderConnect(st);
   } catch (e) {
     main.innerHTML = '<div class="notice err">Could not load: ' + e.message + '</div>';
   }
 })();
+</script>
+<style>#reviewPanel input,#reviewPanel textarea{display:block;box-sizing:border-box;width:100%;margin:8px 0 16px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);color:var(--text);font:inherit}#reviewStatus{white-space:pre-wrap}</style>
+<script type="module">
+import {receiveHandoff} from '/cockpit/js/app-handoff.js';
+import {mountConnectedActions} from '/cockpit/js/app-workflows.js';
+const field=id=>document.getElementById(id);
+const draft=()=>({title:field('reviewTitle').value.trim(),notes:field('reviewNotes').value.trim(),...(field('reviewSource').value.trim()?{sourceUrl:field('reviewSource').value.trim()}:{})});
+receiveHandoff({app:'finance',action:'review-context',contextType:'financial-review',version:1,fields:['title','notes','sourceUrl']},context=>{
+ field('reviewTitle').value=context.title||'';field('reviewNotes').value=context.notes||'';field('reviewSource').value=context.sourceUrl||'';
+ field('reviewPanel').hidden=false;field('reviewTitle').focus();field('reviewResult').textContent='';
+ field('reviewStatus').textContent='Draft ready. Review uses saved account data and produces advice. It does not move funds.';
+});
+field('reviewBtn').onclick=async()=>{
+ const context=draft();if(!context.title||!context.notes){field('reviewStatus').textContent='Add a title and evidence to review.';return;}
+ field('reviewBtn').disabled=true;field('reviewStatus').textContent='Reviewing against your saved snapshot…';
+ try{const r=await api('/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...context,confirm:true})});field('reviewResult').innerHTML=renderMarkdown(r.brief);field('reviewStatus').textContent='Advisory review complete. Account snapshot: '+(r.snapshotAt||'date unknown')+'.';}
+ catch(e){field('reviewStatus').textContent=e.message;}finally{field('reviewBtn').disabled=false;}
+};
+const element=document.querySelector('.connected-app-actions');
+void mountConnectedActions({app:'finance',element,contextForOffer:()=>{
+ if(!field('reviewPanel').hidden){const d=draft();return d.title&&d.notes?d:null;}
+ const notes=field('briefPanel')?.innerText.trim();return notes&&!field('briefPanel').querySelector('.notice,.spin')?{title:'My saved financial brief',notes:notes.slice(0,2000)}:null;
+}}).then(()=>element.querySelectorAll('button').forEach(b=>b.classList.add('btn','ghost')));
 </script>
 </body>
 </html>

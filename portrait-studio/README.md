@@ -2,6 +2,16 @@
 
 Turn any photo into a portrait worth framing.
 
+**Choose from OSHAL (1.11.0):** Step 1 opens the shared file picker over your connected storage
+and registered app sources, including your finished Portrait Studio images. Selecting a photo
+loads it into the existing crop stage; it does not generate or publish anything. Folders, Back,
+image/size filtering and Cancel are shared framework behavior. The old connected-files modal
+and its private filtering/navigation helpers have been removed.
+
+The package also declares a read-only `/api/portrait-studio/artifacts` source, listing only the
+caller's completed images, at most 50 per page. It returns owner-scoped image URLs through the
+existing short-lived artifact handles. This requires core's ADR-139 Stage 4a picker routes.
+
 - **Professional mode** — upload a photo, crop the head, and pick a **formal
   people profile**: LinkedIn Classic, The Executive, Creative Pro, Black Tie,
   The Graduate (gown + cap + diploma), The Doctor, The Judge, Dress Uniform,
@@ -159,13 +169,13 @@ generations per user per 24 h.
   (retry/backoff semantics, error classification, timeout, semaphore FIFO), and
   the photo-source decisions (live / camera-app / hidden across every capability
   combination, the shared photo rule, honest permission and insecure-page
-  messages, lens preference, device labelling, frame box, and the connected-asset
-  picker's image filter, hidden counts, provider-agnostic breadcrumbs and
-  empty-folder causes), and the group-mode geometry (face-count rule, sheet
+  messages, lens preference, device labelling and frame box), and the group-mode geometry (face-count rule, sheet
   layout in reading order with no overlaps, box placement clamped into the image,
   detector rectangles expanded into head-and-shoulders crops, left-to-right
   numbering). `tests/browser/camera-proof.js` is the hand-run browser proof of
   the DOM wiring — see [BACKLOG.md](BACKLOG.md).
+  The framework's `tests/unit/artifact-picker.spec.ts` checks shared source discovery, owner-only
+  file/handle access, folder navigation, filtering, cancellation and the actual crop-stage handoff.
 
 ## Package layout
 

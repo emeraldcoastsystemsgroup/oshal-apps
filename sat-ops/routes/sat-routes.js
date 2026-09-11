@@ -76,6 +76,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createSatRoutes = createSatRoutes;
+const home_summary_1 = require("./home-summary");
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 const express_1 = require("express");
@@ -213,6 +214,15 @@ function createSatRoutes(arg = {}) {
     const catalog = opts.catalog ?? new sat_ops_1.TleCatalog();
     const appPackageDir = opts.ctx?.appPackageDir;
     const router = (0, express_1.Router)();
+    router.get('/home-summary', (req, res) => {
+        const oidc = req.oidc;
+        if (!(oidc?.user?.sub || oidc?.user?.oid) || oidc?.isAuthenticated?.() !== true) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        res.setHeader('Cache-Control', 'no-store');
+        res.json((0, home_summary_1.satHomeSummary)(fleet.list(), catalog.list()));
+    });
     // ── W3 surface ─────────────────────────────────────────────────────────────
     router.get('/app', serveFile(surfaceHtml(appPackageDir, 'sat-ops.html')));
     /** POST /nodes/heartbeat — node identity only: the swarm service secret is REQUIRED. */
@@ -467,4 +477,3 @@ function createSatRoutes(arg = {}) {
     });
     return router;
 }
-//# sourceMappingURL=sat-routes.js.map

@@ -29,7 +29,7 @@ description: >-
   grade every output on the shared quality judge against your own rubric, and get one
   recommendation: the cheapest lane that still clears your quality bar, and what switching saves
   per month. Refuses to recommend anything it cannot honestly measure.
-version: 1.0.0
+version: 1.1.0
 status: active
 scope: person
 
@@ -122,6 +122,21 @@ bots:
 # RLS underneath as the backstop.
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/review.js
+    factory: createReviewRoutes
+    mountPath: /api/bake-off/review
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/bake-off/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/bake-off/_smoke
@@ -147,6 +162,11 @@ migrations:
 # ─────────────────────────────────────────────────────────────────────────────
 ui:
   static:
+    - toolName: bake-off-review
+      label: AI Bake-Off Review
+      icon: codicon codicon-notebook
+      iframeUrl: /api/bake-off/review
+      section: top
     - toolName: bake-off-home
       label: AI Bake-Off
       icon: codicon codicon-dashboard
@@ -182,3 +202,18 @@ ribbon:
     - calendar
     - echo
   defaultView: bake-off-home
+
+summary:
+  path: /api/bake-off/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a document
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1
