@@ -25,7 +25,7 @@ description: >-
   Phone-friendly: dictate instead of typing, resume recent files in one tap, and drive
   edits with tap chips. My files is a real file browser - click a file for
   download, open-in-provider, or edit-and-regenerate. Saves to Dropbox, Google Drive, OneDrive, or OSHAL local.
-version: 2.9.0
+version: 2.11.1
 
 # ADR-139 wave 1 — "Send to…" destination (open mode): an Office file from anywhere in the
 # swarm opens straight into the outline editor (the surface's existing /sections/import lane).

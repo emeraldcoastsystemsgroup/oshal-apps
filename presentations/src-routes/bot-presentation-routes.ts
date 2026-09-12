@@ -12,6 +12,7 @@
  * 2026-07-18 21:10:00 | roger.murphy@emeraldcoastsystemsgroup.com | DELETE /file follows the ROW's provider when it says oshal-local (deterministic path, no folder prefs) — live QA orphaned local copies behind a target switch; other cross-provider rows keep current-target semantics because their folder config may have drifted since the save.
  * 2026-07-19 18:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | Carved out of OSHAL core into the presentations app package (ADR-085 Wave 2, "skill with a surface" — the deck-generation ENGINE stays a kernel skill; this app is the AI Office surface + studio routes over it). Standard (ctx) factory; the surface serves from ctx.appPackageDir/tools (load-time env fallback, D10); shared core helpers (storage-target skill, inline-bot-execution, connectors, email senders) import via @/app/routes aliases; ensurePresentationsSchema appends buildOwnerRlsPolicyStatements (A1.2 fresh-DB chokepoint parity with migration 060).
  * 2026-08-06 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | ADR-043 item A — make the resolved save destination visible before a paid render. GET /destination resolves only the authenticated caller's Files target; a validated `?provider=` previews a one-off override through the same cleanOverride contract as Generate. Anonymous calls stop before preference lookup and lookup failures return 502 rather than guessing a provider.
+ * 2026-09-11 18:00:00 | maintainer@emeraldcoastsystemsgroup.com | GET /starters — the purpose-first starter catalog (office-starters.ts), per kind and grouped, served like /themes so the studio and the Create front door render one catalog.
  */
 
 import { Router, raw, type Request, type Response } from 'express';
@@ -31,6 +32,7 @@ import { executeBotOrInline } from '@/app/routes/inline-bot-execution';
 import { getValidAccessToken } from '@/app/routes/connectors-routes';
 import { sendGmail, sendOutlookMail } from '@/app/routes/email-routes';
 import { confirmationRequiredPayload, hasExplicitWriteConfirmation } from '@/shared/security/explicit-write-confirmation';
+import { starterCatalog } from './office-starters';
 
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -244,6 +246,16 @@ export function createBotPresentationRoutes(ctx: AppContext): Router {
    */
   router.get('/themes', (_req: Request, res: Response) => {
     res.json({ themes: themeCatalog(), layouts: layoutCatalog(), defaultTheme: DEFAULT_THEME_ID });
+  });
+
+  /**
+   * @description The purpose-first starter catalog, per artifact kind and grouped: what a document,
+   * a workbook and a deck are each FOR, with a real outline per purpose. The studio's walkthrough and
+   * the Create front door both render this — the catalog lives here so nothing is copied. Static
+   * data with no per-user content; inherits the mount's auth like /themes.
+   */
+  router.get('/starters', (_req: Request, res: Response) => {
+    res.json(starterCatalog());
   });
 
   /**

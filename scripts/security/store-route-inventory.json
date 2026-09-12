@@ -27,6 +27,8 @@
     "career-hunter|routes/review.js|createReviewRoutes|/api/career-hunter|service-or-oidc|no-sql-write",
     "cloud|routes/home-summary.js|createHomeSummaryRoutes|/api/cloud/home-summary|oidc|no-sql-write",
     "cloud|routes/package-smoke.js|createPackageSmokeRoutes|/api/cloud/_smoke|service|no-sql-write",
+    "create|routes/create-routes.js|createCreateRoutes|/api/create|oidc|no-sql-write",
+    "create|routes/package-smoke.js|createPackageSmokeRoutes|/api/create/_smoke|service|no-sql-write",
     "creative-studio|routes/home-summary.js|createHomeSummaryRoutes|/api/creative-studio/home-summary|oidc|no-sql-write",
     "creative-studio|routes/package-smoke.js|createPackageSmokeRoutes|/api/creative-studio/_smoke|service|no-sql-write",
     "creative-studio|routes/review.js|createReviewRoutes|/api/creative-studio|oidc|no-sql-write",

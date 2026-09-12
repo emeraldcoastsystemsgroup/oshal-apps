@@ -4,6 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>AI Office — OSHAL</title>
+<!-- 2.10.0: starters are served per kind by GET /starters and grouped by purpose; ?kind=&starter=&theme=&topic= deep links (the Create front door). -->
+<!-- 2.11.1: the making bar uses the starter's own article (a Budget, an Invoice), not the kind's. -->
+<!-- 2.11.0: the studio speaks the purpose — a starter folds the setup away behind one "making" bar, every label uses the kind's words (sections / sheets / slides), the AI-draft prompt is the purpose's own. -->
 <!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
      Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
      matters — without it the surface would have no colors at all. -->
@@ -265,6 +268,17 @@
   .wzStrip { display:flex; flex-direction:column; gap:4px; }
   .wzSl { display:flex; align-items:center; gap:7px; background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:4px 8px; font-size:10.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .wzSl span { flex:0 0 14px; height:14px; border-radius:4px; background:var(--panel2); color:var(--muted); font-size:9px; text-align:center; line-height:14px; }
+  .wzGroup { grid-column:1 / -1; font-size:11px; letter-spacing:1.2px; text-transform:uppercase; color:var(--muted); margin:6px 2px -4px; font-weight:700; }
+  .wzGroup:first-child { margin-top:0; }
+  .wzKu { color:var(--text); font-size:12px; margin:6px 14px 2px; line-height:1.4; min-height:1.4em; }
+  .tplGroup { flex-basis:100%; font-size:10.5px; letter-spacing:1px; text-transform:uppercase; color:var(--muted); margin:4px 0 -2px; font-weight:700; }
+  .making { display:flex; align-items:center; gap:12px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px 14px; margin-bottom:12px; }
+  .making .mk { flex:1; font-size:13.5px; } .making .mk b { color:var(--text); }
+  .btn.sm { padding:7px 12px; font-size:12.5px; }
+  details.setup > summary { cursor:pointer; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.6px; margin:0 0 10px; list-style:none; }
+  details.setup > summary::-webkit-details-marker { display:none; }
+  details.setup[open] > summary { display:none; }
+  body.focused details.setup:not([open]) > summary { display:block; }
   .wzOr { color:var(--muted); font-size:11px; letter-spacing:1.4px; text-transform:uppercase; margin:3.5vh 0 2vh; display:flex; align-items:center; gap:14px; width:100%; max-width:640px; }
   .wzOr::before, .wzOr::after { content:""; flex:1; height:1px; background:var(--line); }
   .wzTopicRow { display:flex; gap:10px; width:100%; max-width:640px; }
@@ -350,6 +364,7 @@
           </svg></div>
           <div class="wzKn">📊 A deck</div>
           <div class="wzKd">A themed presentation — real slide masters, native charts, twenty smart layouts.</div>
+          <div class="wzKu" data-kind-uses="pptx"></div>
           <div class="wzKo">PowerPoint · Slides · Impress</div>
         </div>
         <div class="wzKind" data-kind="docx" role="button" tabindex="0" aria-label="Make a document">
@@ -368,6 +383,7 @@
           </svg></div>
           <div class="wzKn">📄 A document</div>
           <div class="wzKd">A themed report — real heading styles, tables, page numbers, the works.</div>
+          <div class="wzKu" data-kind-uses="docx"></div>
           <div class="wzKo">Word · Docs · Writer</div>
         </div>
         <div class="wzKind" data-kind="xlsx" role="button" tabindex="0" aria-label="Make a spreadsheet">
@@ -385,6 +401,7 @@
           </svg></div>
           <div class="wzKn">📈 A spreadsheet</div>
           <div class="wzKd">A live workbook — typed cells, real formulas, frozen headers.</div>
+          <div class="wzKu" data-kind-uses="xlsx"></div>
           <div class="wzKo">Excel · Sheets · Calc</div>
         </div>
       </div>
@@ -432,6 +449,13 @@
   </div>
   <div class="split">
     <div class="pane left">
+      <!-- Focus mode (a starter applied): what you are making, in its own words, with one way back. -->
+      <div class="making" id="makingBar" hidden>
+        <span class="mk" id="makingText"></span>
+        <button class="btn ghost sm" id="makingChange" type="button">Change ▸</button>
+      </div>
+      <details class="fold setup" id="setupFold" open>
+      <summary id="setupSummary">Setup — what you are making, the look, the shape ▸</summary>
       <div class="lbl">1 · What are you making?</div>
       <div class="kinds" id="kinds"></div>
 
@@ -451,14 +475,15 @@
         <button class="btn ghost" id="openBtn" title="Open an existing .docx / .pptx / .xlsx — its content loads into the editor for AI edits, then regenerate in any format">📂 Open a file</button>
         <input type="file" id="openFile" accept=".docx,.pptx,.xlsx" style="display:none" />
       </div>
+      </details>
 
-      <div class="lbl">4 · Title + outline</div>
+      <div class="lbl" id="outlineStep">4 · Title + outline</div>
       <input id="title" data-bridge-field="title" placeholder="Deck title (e.g. Q3 Strategy Review)" />
-      <label>Slides — one block each: first line = slide title, following lines = the body, blank line between slides</label>
+      <label id="outlineLabel">Slides — one block each: first line = slide title, following lines = the body, blank line between slides</label>
       <textarea id="outline" data-bridge-region="outline" placeholder="Pick a shape above, or write your own…"></textarea>
 
       <details class="syn">
-        <summary>Slide syntax + the 20 layouts ▸</summary>
+        <summary id="synSummary">Slide syntax + the 20 layouts ▸</summary>
         <div class="grid">
           <code>plain lines</code><span class="g">Bullets — the default.</span>
           <code>## Heading</code><span class="g">A column heading; lines under it are its bullets. Two groups → comparison, four → quadrant.</span>
@@ -493,6 +518,7 @@
 
       <div class="bar">
         <button class="btn" id="genBtn">Generate .pptx ▸</button>
+        <span class="hint" id="altHint">also as</span>
         <button class="btn ghost" id="genAlt1"></button>
         <button class="btn ghost" id="genAlt2"></button>
         <button class="btn ghost" id="emailBtn" title="Email the current outline as a rendered attachment — sent from your own mailbox, only when you click Send">✉ Email</button>
@@ -561,12 +587,42 @@ function renderKinds(){
   $('genAlt2').textContent = others[1].icon + ' .' + others[1].id; $('genAlt2').dataset.fmt = others[1].id;
   $('emailSend').textContent = 'Send .' + KIND + ' ✉';
 }
-function pickKind(id){ KIND = id; renderKinds(); pvKick(); }
+function pickKind(id){ KIND = id; renderKinds(); if (SEL && SEL !== 'blank' && !templatesFor(KIND).some(t => t.id === SEL)) SEL = null; renderTemplates(); applyKindVocabulary(); pvKick(); }
+
+// ── The kind's own words. A resume is a document with SECTIONS, a budget is a workbook with SHEETS,
+// a pitch is a deck with SLIDES — the studio must never talk slides to someone writing a resume.
+const VOCAB = {
+  pptx: { thing:'deck', unit:'Slides', step:'4 · Title + outline', label:'Slides — one block each: first line = slide title, following lines = the body, blank line between slides', syntax:'Slide syntax + the 20 layouts ▸', title:'Deck title (e.g. Q3 Strategy Review)', empty:'Pick a shape above, or write your own…', prompt:'e.g. Our 2026 go-to-market for agentic automation', article:'a' },
+  docx: { thing:'Word document', unit:'Sections', step:'4 · Title + sections', label:'Sections — one block each: first line = the heading, following lines = the text, blank line between sections', syntax:'Document syntax ▸', title:'Document title (e.g. Resume)', empty:'Pick a shape above, or write the sections yourself…', prompt:'e.g. a resume for a senior architect moving into AI platform work', article:'a' },
+  xlsx: { thing:'Excel workbook', unit:'Sheets', step:'4 · Title + sheets', label:'Sheets — one block each: first line = the sheet name, then its rows — | a | b | for a table, Label: 120 for a value with a live total — blank line between sheets', syntax:'Workbook syntax ▸', title:'Workbook title (e.g. Monthly Budget)', empty:'Pick a shape above, or write the sheets yourself…', prompt:'e.g. a monthly household budget for a family of four', article:'an' },
+};
+function applyKindVocabulary(){
+  const v = VOCAB[KIND] || VOCAB.pptx;
+  $('outlineStep').textContent = v.step; $('outlineLabel').textContent = v.label; $('synSummary').textContent = v.syntax;
+  $('title').placeholder = v.title; $('outline').placeholder = v.empty;
+  const st = SEL && SEL !== 'blank' ? allTemplates().find(t => t.id === SEL) : null;
+  $('topic').placeholder = (st && st.prompt) ? st.prompt : v.prompt;
+}
+/** Focus on what is being made: fold the setup away, say it in one line, keep one way back. */
+function enterFocus(starter){
+  const v = VOCAB[starter.kind] || VOCAB.pptx;
+  const t = THEMES.find(x => x.id === THEME);
+  const an = /^[aeiou]/i.test(starter.name) ? 'an' : 'a';   // the starter's own article: a Budget, an Invoice
+  $('makingText').innerHTML = 'Making ' + an + ' <b>' + esc(starter.name) + '</b> — ' + esc(v.article === 'an' ? 'an ' : 'a ') + esc(v.thing) + (t ? ' in the <b>' + esc(t.name) + '</b> look' : '') + '. Fill in the ' + v.unit.toLowerCase() + '; the draft on the right updates as you type.';
+  $('makingBar').hidden = false; $('setupFold').open = false; $('setupSummary').hidden = false;
+  document.body.classList.add('focused');
+  applyKindVocabulary();
+}
+function leaveFocus(){ $('makingBar').hidden = true; $('setupFold').open = true; document.body.classList.remove('focused'); }
+$('makingChange').onclick = () => { leaveFocus(); openWiz(); };
+$('setupSummary').onclick = () => { setTimeout(() => { if ($('setupFold').open) $('makingBar').hidden = true; }, 0); };
 
 // ── Deck themes ────────────────────────────────────────────────────────────
 // Served by GET /themes — the SAME catalog the renderer uses, so a theme added server-side
 // shows up here with no front-end change. Never hardcode the list.
 let THEMES = [], LAYOUTS = [], THEME = null;
+/** Resolves once loadThemes has settled (loaded or failed) — the deep link validates a look against it. */
+let themesLoaded; const themesReady = new Promise(r => { themesLoaded = r; });
 
 /** Scale from deck inches (13.333 x 7.5) to the thumbnail's viewBox. */
 const TW = 160, TH = 90, SC = TW / 13.333;
@@ -671,34 +727,59 @@ async function loadThemes(){
     $('themes').innerHTML = '<div class="empty">Couldn’t load themes.</div>';
     $('wzThemes').innerHTML = '<div class="empty">Couldn’t load the looks — a default is picked for you, keep going.</div>';
   }
+  if (themesLoaded) themesLoaded();
 }
 
-// ── Starter outlines (the SHAPE of a deck — distinct from its look) ────────
-const TEMPLATES = [
-  { id:'pitch', icon:'🚀', name:'Pitch', desc:'problem → why now → solution → traction → ask',
-    title:'Pitch', outline:'The problem\nwho feels it and how badly\nwhat it costs them today\n\nWhy now\nwhat changed in the market\nwhy this moment matters\n\nOur solution\nwhat it is in one line\nthe one thing it does best\n\nTraction\nTBD :: replace with a real metric\nTBD :: who is already using it\n\nThe ask\nwhat we want from this room\nthe next step' },
-  { id:'strategy', icon:'🧭', name:'Strategy Review', desc:'where we are → changed → options → recommendation',
-    title:'Strategy Review', outline:'Where we are\ncurrent state in 2-3 bullets\nthe key number that matters\n\nWhat changed\nthe new signal or shift\nwhy it forces a decision\n\nBuild vs buy\n## Build\nfull control of the roadmap\nour IP\nslower to ship\n## Buy\nlive next quarter\nvendor lock-in\n\nRecommendation\nwhich option and why\nwhat we are NOT doing\n\nNext steps\nowner + date\nowner + date' },
-  { id:'update', icon:'📈', name:'Project Update', desc:'goal → progress → risks → decisions → timeline',
-    title:'Project Update', outline:'Goal\nwhat done looks like\nwhy it matters\n\nWhere we are\nTBD :: percent complete\nTBD :: shipped this month\nTBD :: open risks\n\nProgress\nshipped since last update\nin flight now\n\nRisks\ntop risk + mitigation\nsecond risk + mitigation\n\nTimeline\nQ1 2026 :: Private preview\nQ2 2026 :: General availability\nQ3 2026 :: Scale' },
-  { id:'teach', icon:'🎓', name:'Teaching', desc:'what → why → how → example → takeaway',
-    title:'Explainer', outline:'What it is\nplain-language definition\nwhat it is NOT\n\nWhy it matters\nthe problem it solves\nwho should care\n\nHow it works\nDiscover :: gather the inputs\nDecide :: pick the approach\nDeliver :: ship and measure\n\nExample\na concrete walkthrough\nwhat to notice\n\nThe one thing to remember\nthe single takeaway' },
-  { id:'review', icon:'📊', name:'Numbers Review', desc:'headline → trend → breakdown → detail → actions',
-    title:'Quarterly Review', outline:'The headline\nTBD :: the one number that matters\n\nTrend\nQ1: 120\nQ2: 180\nQ3: 240\nQ4: 310\n\nRevenue mix\nEnterprise: 55\nMid-market: 30\nSelf-serve: 15\n\nBy segment\n| Segment | Revenue | Growth |\n| Enterprise | TBD | TBD |\n| Mid-market | TBD | TBD |\n\nActions\nowner + date\nowner + date' },
-  { id:'blank', icon:'▢', name:'Blank', desc:'start empty', title:'', outline:'' },
-];
+// ── Starter outlines (the SHAPE of the thing — distinct from its look) ────────
+// Served by GET /starters, per KIND and grouped by purpose (the same catalog the Create front
+// door renders): a document is a resume, a flyer, a letter, a report; a spreadsheet is a budget,
+// a plan, a tracker; a deck tells a story, explains, runs a meeting or sells. Never hardcode it.
+let STARTER_KINDS = [], STARTERS = [];
+const BLANK = { id:'blank', icon:'▢', name:'Blank', desc:'start empty', title:'', outline:'', kind:'*', group:'' };
+function templatesFor(kind){ return STARTERS.filter(t => t.kind === kind).concat([BLANK]); }
+function allTemplates(){ return STARTERS.concat([BLANK]); }
+function kindGroups(kind){ const k = STARTER_KINDS.find(x => x.id === kind); return k ? k.groups : []; }
+function groupLabel(kind, id){ const g = kindGroups(kind).find(x => x.id === id); return g ? g.label : ''; }
+/** Kind cards say what they MAKE, from the catalog, so the list can never drift from the shapes offered. */
+function renderKindUses(){
+  document.querySelectorAll('[data-kind-uses]').forEach(el => {
+    const names = STARTERS.filter(t => t.kind === el.dataset.kindUses).map(t => t.name);
+    el.textContent = names.length ? 'Make a ' + names.slice(0, 5).map(n => n.toLowerCase()).join(', a ') + (names.length > 5 ? ', and more' : '') : '';
+  });
+}
+async function loadStarters(){
+  try {
+    const r = await fetch('/api/presentations/sections/starters');
+    const j = await r.json();
+    STARTER_KINDS = j.kinds || []; STARTERS = (j.starters || []).filter(t => t && /^[a-z0-9-]+$/.test(String(t.id)));
+  } catch(e){
+    STARTER_KINDS = []; STARTERS = [];
+    $('tpls').innerHTML = '<div class="empty">Couldn’t load the starters — type your outline or ask the Guide.</div>';
+  }
+  renderTemplates(); renderKindUses();
+  if ($('wzS3').classList.contains('on')) renderWizTpls();
+}
 let SEL = null;
 
 function renderTemplates(){
-  $('tpls').innerHTML = TEMPLATES.map(t =>
-    `<div class="tpl${SEL===t.id?' sel':''}" data-id="${t.id}"><b>${t.icon} ${esc(t.name)}</b><span class="d">${esc(t.desc)}</span></div>`).join('');
+  if (!STARTERS.length){ $('tpls').innerHTML = '<div class="empty">Loading starters…</div>'; return; }
+  const groups = kindGroups(KIND);
+  const card = t => `<div class="tpl${SEL===t.id?' sel':''}" data-id="${t.id}" title="${esc(t.desc)}"><b>${t.icon} ${esc(t.name)}</b><span class="d">${esc(t.desc)}</span></div>`;
+  $('tpls').innerHTML = groups.map(g => {
+    const own = templatesFor(KIND).filter(t => t.group === g.id);
+    return own.length ? `<div class="tplGroup">${esc(g.label)}</div>` + own.map(card).join('') : '';
+  }).join('') + card(BLANK);
   $('tpls').querySelectorAll('.tpl').forEach(el => el.onclick = () => pickTemplate(el.dataset.id));
 }
-function pickTemplate(id){
-  const t = TEMPLATES.find(x => x.id === id); if (!t) return;
+/** Load a starter's shape into the editor. `applyTheme` = also take its suggested look (deep links
+ *  and the Create front door do; the walkthrough does not — the person already picked a look). */
+function pickTemplate(id, applyTheme){
+  const t = allTemplates().find(x => x.id === id); if (!t) return;
+  if (t.kind !== '*' && t.kind !== KIND) pickKind(t.kind);
   SEL = id; renderTemplates();
   $('outline').value = t.outline;
   if (!$('title').value.trim() && t.title) $('title').value = t.title;
+  if (applyTheme && t.theme) pickTheme(t.theme);
   $('outline').focus();
 }
 $('clearTpl').onclick = () => { SEL = null; renderTemplates(); $('outline').value = ''; };
@@ -1154,6 +1235,9 @@ $('destChip').onclick = () => {
 };
 
 renderKinds(); renderTemplates(); loadThemes(); loadDecks(); refreshDest();
+applyKindVocabulary();
+// The starters and the deep link ride the same boot: once the looks AND the shapes are known.
+Promise.all([themesReady, loadStarters()]).then(applyDeepLink);
 
 // ── The front-door walkthrough ─────────────────────────────────────────────
 // Drives the studio's own pickers, owns no duplicate state. Session-scoped skip: dismissing it
@@ -1198,16 +1282,23 @@ function wzStrip(t){
   return `<div class="wzStrip">${titles.slice(0,5).map((s,i) => `<div class="wzSl"><span>${i+1}</span>${esc(s)}</div>`).join('')}</div>`;
 }
 function renderWizTpls(){
-  $('wzTpls').innerHTML = TEMPLATES.filter(t => t.id !== 'blank').map(t => `
+  if (!STARTERS.length){ $('wzTpls').innerHTML = '<div class="empty">Loading starters…</div>'; return; }
+  const own = templatesFor(KIND).filter(t => t.id !== 'blank');
+  const card = t => `
     <div class="wzTpl" data-id="${t.id}" role="button" tabindex="0" aria-label="Start from the ${esc(t.name)} shape">
       <div class="n">${t.icon} ${esc(t.name)}</div>
       <div class="d">${esc(t.desc)}</div>
       ${wzStrip(t)}
-    </div>`).join('');
+    </div>`;
+  $('wzTpls').innerHTML = kindGroups(KIND).map(g => {
+    const mine = own.filter(t => t.group === g.id);
+    return mine.length ? `<div class="wzGroup">${esc(g.label)}</div>` + mine.map(card).join('') : '';
+  }).join('');
   bindCards($('wzTpls'), '.wzTpl', el => {
-    const t = TEMPLATES.find(x => x.id === el.dataset.id);
+    const t = allTemplates().find(x => x.id === el.dataset.id);
     pickTemplate(el.dataset.id);
     closeWiz(true);
+    if (t) enterFocus(t);
     showTab('preview');
     landOnPreview();
     res('✓ Loaded the <b>' + esc(t ? t.name : '') + '</b> shape — fill in the outline, watch the themed preview update live, then hit Generate.', true);
@@ -1258,6 +1349,28 @@ $('wzDraft').onclick = () => {
   $('aiBtn').click(); // the studio shows the drafting status, result link and My files
 };
 $('wzTopic').addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); $('wzDraft').onclick(); } });
+// ── Deep link (the Create front door, or any link): ?kind=docx&starter=resume&theme=paper&topic=…
+// A starter opens the studio on that shape (and its suggested look unless the link chose one);
+// a kind alone lands on the walkthrough's purpose step for that kind. Every value is validated
+// against the catalogs — an unknown id is simply ignored, and nothing here ever generates.
+function applyDeepLink(){
+  let p; try { p = new URLSearchParams(location.search); } catch(e){ return; }
+  const kind = p.get('kind'), starter = p.get('starter'), theme = p.get('theme'), topic = p.get('topic');
+  const kindOk = KINDS.some(k => k.id === kind);
+  const starterT = starter && /^[a-z0-9-]+$/.test(starter) ? STARTERS.find(t => t.id === starter) : null;
+  const themeOk = theme && THEMES.some(t => t.id === theme);
+  if (!kindOk && !starterT && !themeOk && !topic) return;
+  if (kindOk) pickKind(kind);
+  if (themeOk) pickTheme(theme);
+  if (topic && typeof topic === 'string') $('topic').value = topic.slice(0, 240);
+  if (starterT){
+    pickTemplate(starterT.id, !themeOk);
+    closeWiz(true); enterFocus(starterT); showTab('preview'); landOnPreview();
+    res('✓ Started a <b>' + esc(starterT.name) + '</b> — fill in the outline, watch the themed preview, then Generate .' + esc(starterT.kind) + '.', true);
+    return;
+  }
+  if (kindOk && $('wiz').classList.contains('on')) wzStepGo(themeOk ? 3 : 2);
+}
 // ── Jump back in: the most recent files as one-tap resumes on the front door. Their outline
 // rides the list record (server-side), so resume loads the editor with NO file download.
 function renderWizRecent(decks){

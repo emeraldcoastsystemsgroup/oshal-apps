@@ -1,0 +1,407 @@
+<!doctype html>
+<!--
+  Create — "What would you like to create?" The purpose-first front door: pick what you are
+  making (a resume, a budget, a launch deck, a headshot, a short video…) and the studio that
+  owns it opens already set up for that purpose and look.
+
+  The Office cards come from AI Office's OWN starter catalog (GET /api/presentations/sections/
+  starters), so this screen never copies a template: the owning app publishes what it can make.
+  A card opens its studio through the ribbon's `app-navigate` dialect with a query the cockpit
+  appends to the studio's URL (kind / starter / theme); opened standalone, the card falls back
+  to the studio's own URL with the same query.
+
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  SEQ | AUTHOR                                      | DESCRIPTION
+  -----------------------------------------------------------------------------
+  1   | maintainer@emeraldcoastsystemsgroup.com     | Initial — categories rail, search, purpose chips, template cards drawn from each studio's catalog
+  2   | maintainer@emeraldcoastsystemsgroup.com     | Authorization-aware: a studio the person is not provisioned for renders LOCKED with the Access link, never opens (GET /api/authorization/me?app=)
+-->
+<html lang="en" data-theme="create">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Create — New</title>
+<link rel="stylesheet" href="/api/create/theme.css" />
+<style>
+  :root {
+    --bg: var(--bg-primary, #f8f7fd);
+    --paper: var(--bg-card-hover, #ffffff);
+    --panel: var(--bg-tertiary, #f3f0fb);
+    --line: var(--border-color, rgba(23,18,54,.08));
+    --line-hover: var(--border-color-hover, rgba(23,18,54,.16));
+    --text: var(--text-primary, #171236);
+    --muted: var(--text-secondary, #4b4670);
+    --faint: var(--text-muted, #8b86a8);
+    --accent: var(--accent-primary, #7d2ae8);
+    --accent-hover: var(--accent-primary-hover, #6a1fcf);
+    --gradient: var(--accent-gradient, linear-gradient(135deg,#7d2ae8 0%,#a259ff 48%,#00c4cc 100%));
+    --glow: var(--accent-glow, rgba(125,42,232,.22));
+    --peach: var(--create-tint-peach, #ffe6d9);
+    --lilac: var(--create-tint-lilac, #ebe2ff);
+    --sky: var(--create-tint-sky, #dcefff);
+    --mint: var(--create-tint-mint, #d9f7ec);
+    --lemon: var(--create-tint-lemon, #fff3c9);
+    --rose: var(--create-tint-rose, #ffe0ee);
+    --shadow: var(--card-shadow, 0 2px 10px rgba(23,18,54,.06));
+    --shadow-deep: var(--depth-shadow, 0 24px 60px rgba(23,18,54,.12));
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); }
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  .shell { display: grid; grid-template-columns: 250px 1fr; min-height: 100vh; }
+  @media (max-width: 760px) { .shell { grid-template-columns: 1fr; } }
+
+  /* ── Categories rail ─────────────────────────────────────────────────── */
+  .cats { padding: 26px 16px; border-right: 1px solid var(--line); background: var(--paper); }
+  .cats h1 { margin: 0 12px 18px; font-size: 26px; letter-spacing: -0.03em; font-weight: 800; }
+  .cat { display: flex; align-items: center; gap: 12px; width: 100%; border: 0; background: transparent; text-align: left; padding: 10px 12px; border-radius: 12px; font-weight: 600; color: var(--text); cursor: pointer; }
+  .cat:hover { background: var(--panel); }
+  .cat.on { background: rgba(125,42,232,.10); color: var(--accent); }
+  .cat .ic { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; flex: 0 0 auto; }
+  .cat .ic svg { width: 16px; height: 16px; }
+  .cat .n { flex: 1; }
+  .cat .c { font-size: 11.5px; color: var(--faint); font-weight: 600; }
+  .cat.on .c { color: var(--accent); }
+  @media (max-width: 760px) { .cats { border-right: 0; border-bottom: 1px solid var(--line); padding: 16px; } .cats h1 { margin-bottom: 10px; } .catlist { display: flex; gap: 6px; overflow-x: auto; } .cat { width: auto; white-space: nowrap; } .cat .c { display: none; } }
+
+  /* ── Main ────────────────────────────────────────────────────────────── */
+  main { padding: 26px 30px 60px; min-width: 0; }
+  @media (max-width: 760px) { main { padding: 16px; } }
+  .search { display: flex; align-items: center; gap: 12px; height: 54px; padding: 0 18px; border-radius: 16px; background: var(--paper); border: 2px solid rgba(125,42,232,.28); box-shadow: 0 12px 40px -22px var(--glow); margin-bottom: 18px; }
+  .search:focus-within { border-color: var(--accent); }
+  .search svg { color: var(--faint); flex: 0 0 auto; }
+  .search input { flex: 1; border: 0; background: transparent; font-size: 16px; color: var(--text); min-width: 0; }
+  .search input::placeholder { color: var(--faint); }
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 26px; }
+  .chips button { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--paper); border-radius: 999px; padding: 8px 15px; font-weight: 600; color: var(--text); cursor: pointer; box-shadow: var(--shadow); }
+  .chips button.on { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 3px rgba(125,42,232,.12); }
+  .chips .sw { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+  h2 { margin: 0 0 12px; font-size: 20px; letter-spacing: -0.02em; font-weight: 750; }
+  .sec { margin-bottom: 34px; }
+  .sec .sub { color: var(--faint); font-size: 13px; margin: -6px 0 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 16px; }
+
+  /* Card: a drawn preview of the actual shape, the name, what it is for, the format. */
+  .card { border: 0; padding: 0; background: transparent; text-align: left; cursor: pointer; border-radius: 18px; }
+  .card .pv { position: relative; border-radius: 18px; padding: 22px 22px 0; height: 190px; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; transition: transform .15s ease, box-shadow .15s ease; box-shadow: var(--shadow); }
+  .card:hover .pv { transform: translateY(-3px); box-shadow: var(--shadow-deep); }
+  .card .pv .badge { position: absolute; left: 12px; top: 12px; font-size: 10.5px; font-weight: 800; letter-spacing: .06em; color: var(--text); background: rgba(255,255,255,.75); border-radius: 999px; padding: 3px 9px; }
+  .card .pv .icon { position: absolute; right: 12px; top: 10px; font-size: 18px; }
+  .card .name { font-weight: 750; margin: 10px 2px 0; }
+  .card .for { color: var(--muted); font-size: 12.5px; margin: 1px 2px 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .card.hidden { display: none; }
+  .card.locked .pv { filter: saturate(.35); opacity: .75; }
+  .card.locked { cursor: not-allowed; }
+  .card .pv .lock { position: absolute; left: 12px; bottom: 10px; font-size: 11px; font-weight: 800; color: #fff; background: rgba(23,18,54,.72); border-radius: 999px; padding: 4px 10px; }
+  .card .pv .lock.unknown { background: rgba(217,119,6,.85); }
+  .card .for .access { color: var(--accent); font-weight: 700; text-decoration: none; }
+  .t-peach { background: var(--peach); } .t-lilac { background: var(--lilac); } .t-sky { background: var(--sky); }
+  .t-mint { background: var(--mint); } .t-lemon { background: var(--lemon); } .t-rose { background: var(--rose); }
+
+  /* Drawn previews: a page, a slide, a sheet — with the starter's real section titles as strips. */
+  .mock { background: #fff; border-radius: 10px 10px 0 0; box-shadow: 0 10px 24px rgba(23,18,54,.14); overflow: hidden; }
+  .mock.page { width: 132px; height: 168px; padding: 14px 12px; }
+  .mock.slide { width: 188px; height: 112px; padding: 12px 14px; border-radius: 8px 8px 0 0; }
+  .mock.sheet { width: 188px; height: 130px; padding: 0; }
+  .mock .t { height: 9px; border-radius: 3px; background: var(--accent); margin-bottom: 8px; }
+  .mock.slide .t { width: 60%; height: 10px; }
+  .mock .l { height: 4px; border-radius: 2px; background: #d9d3ee; margin-bottom: 5px; }
+  .mock .h { font-size: 8px; font-weight: 800; color: #2a2350; letter-spacing: .02em; margin: 5px 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mock.page .h { font-size: 7.5px; }
+  .mock.slide .cols { display: flex; gap: 8px; }
+  .mock.slide .col { flex: 1; }
+  .mock.slide .bar { height: 26px; border-radius: 3px 3px 0 0; background: var(--accent); opacity: .85; align-self: flex-end; }
+  .mock.sheet .hd { display: flex; background: var(--accent); }
+  .mock.sheet .hd span, .mock.sheet .r span { flex: 1; font-size: 6.5px; padding: 3px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid rgba(255,255,255,.35); }
+  .mock.sheet .hd span { color: #fff; font-weight: 800; }
+  .mock.sheet .r { display: flex; border-bottom: 1px solid #ece8f5; }
+  .mock.sheet .r span { color: #4b4670; border-right: 1px solid #ece8f5; }
+  .mock.sheet .r.tot span { font-weight: 800; color: var(--accent); }
+  .mock.photo { width: 132px; height: 150px; display: grid; place-items: center; background: linear-gradient(180deg,#fff,#f3f0fb); }
+  .mock.photo svg { width: 80px; height: 80px; }
+  .mock.phone { width: 76px; height: 150px; border-radius: 12px 12px 0 0; padding: 10px 8px; display: flex; flex-direction: column; justify-content: center; }
+  .mock.phone .screen { height: 100%; border-radius: 6px; background: var(--accent); display: grid; place-items: center; }
+  .mock.phone .screen svg { width: 24px; height: 24px; }
+  .empty { color: var(--faint); padding: 26px; border: 1px dashed var(--line-hover); border-radius: 18px; text-align: center; }
+  #status { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 9px 14px; border-radius: 999px; font-size: 13px; box-shadow: var(--shadow-deep); opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+  #status.show { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { .card .pv { transition: none; } }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="cats" aria-label="Categories">
+    <h1>Create a design</h1>
+    <div class="catlist" id="cats" role="tablist"></div>
+  </nav>
+  <main>
+    <form class="search" id="searchForm" role="search" autocomplete="off">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+      <input id="q" type="search" placeholder="What would you like to create?" aria-label="What would you like to create?" />
+    </form>
+    <div class="chips" id="chips" role="group" aria-label="Purpose"></div>
+    <div id="sections"></div>
+  </main>
+</div>
+<div id="status" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── Which rail tile owns which kind of thing. Pinned to the manifest by the package tests. ── */
+  var STUDIO = {
+    office:   { tool: 'create-office',   app: 'presentations',   name: 'AI Office',       url: '/api/presentations/sections/ui' },
+    portrait: { tool: 'create-portrait', app: 'portrait-studio', name: 'Portrait Studio', url: '/api/portrait-studio/app' },
+    video:    { tool: 'create-video',    app: 'video',           name: 'Video Studio',    url: '/api/video/ui' },
+    vids:     { tool: 'create-vids',     app: 'vids',            name: 'Vids Studio',     url: '/api/vids/app' },
+    story:    { tool: 'create-story',    app: 'creative-studio', name: 'Stories',         url: '/api/creative-studio/review' }
+  };
+
+  /* ── Categories (the left rail). Office kinds carry the catalog's own groups once loaded. ── */
+  var CATEGORIES = [
+    { id: 'foryou',   name: 'For you',        tint: 'lilac', mark: 'spark' },
+    { id: 'pptx',     name: 'Presentations',  tint: 'peach', mark: 'deck',  office: true },
+    { id: 'docx',     name: 'Documents',      tint: 'lilac', mark: 'doc',   office: true },
+    { id: 'xlsx',     name: 'Spreadsheets',   tint: 'mint',  mark: 'sheet', office: true },
+    { id: 'portrait', name: 'Portraits',      tint: 'sky',   mark: 'portrait' },
+    { id: 'video',    name: 'Video',          tint: 'rose',  mark: 'video' },
+    { id: 'story',    name: 'Stories',        tint: 'lemon', mark: 'film' }
+  ];
+  var TINT = { pptx: 'peach', docx: 'lilac', xlsx: 'mint', portrait: 'sky', video: 'rose', story: 'lemon' };
+  var SWATCH = { story: '#ff8a5b', explain: '#7d2ae8', meeting: '#2f9bff', sell: '#ffb020', career: '#7d2ae8', marketing: '#ff5c8a', writing: '#2f9bff', reports: '#10b981', money: '#10b981', plans: '#2f9bff', tracking: '#ffb020', sales: '#ff8a5b', portrait: '#7d2ae8', video: '#2f9bff', story2: '#ffb020' };
+
+  /* ── Cards that are not Office starters: the other studios' shapes. ── */
+  var OTHER = [
+    { id: 'headshot',  cat: 'portrait', group: 'professional', groupLabel: 'Professional', studio: 'portrait', name: 'Headshot',           desc: 'A studio portrait from one photo — for LinkedIn, a bio, a badge.', preview: 'photo' },
+    { id: 'character', cat: 'portrait', group: 'character',    groupLabel: 'Character',    studio: 'portrait', name: 'Character portrait', desc: 'Your face, or your pet’s, in a scene — superhero, astronaut, vintage tintype.', preview: 'photo' },
+    { id: 'group',     cat: 'portrait', group: 'group',        groupLabel: 'Group',        studio: 'portrait', name: 'Group portrait',     desc: 'Everyone from one photo, boxed and placed into a single scene together.', preview: 'photo' },
+    { id: 'short',     cat: 'video',    group: 'shortform',    groupLabel: 'Short-form',   studio: 'video',    name: 'Short video',        desc: 'Reels, Shorts and TikTok from a storyboard you approve before anything renders.', preview: 'phone' },
+    { id: 'clip',      cat: 'video',    group: 'render',       groupLabel: 'Render queue', studio: 'vids',     name: 'Video clip',         desc: 'A clip rendered on your own desktop worker and delivered to your Drive.', preview: 'phone' },
+    { id: 'episode',   cat: 'story',    group: 'episodes',     groupLabel: 'Episodes',     studio: 'story',    name: 'Story episode',      desc: 'A kid-safe animated episode from the rotating story library, produced on a schedule.', preview: 'phone' }
+  ];
+
+  /* ── Access: what the signed-in person may open, from the authorization service (ADR-149) ──
+     GET /api/authorization/me?app=<name> answers { status, tier, denied }: `legacy` = the package
+     runs in the reviewed compatibility mode (open); `admin-required` / `catalog` = enforced, open
+     only when the tier is not deny. A studio that is not provisioned is shown LOCKED — never
+     opened, its probes never asked — with the Access link an administrator uses. A probe that
+     cannot answer (401/404/timeout) is 'unknown': the card stays, marked "can't check". */
+  function accessFor(app) {
+    return fetchJson('/api/authorization/me?app=' + encodeURIComponent(app), 3000).then(function (a) {
+      if (!a || typeof a !== 'object') return 'unknown';
+      if (a.status === 'legacy') return 'open';
+      return (a.denied !== true && typeof a.tier === 'string' && a.tier !== 'deny') ? 'open' : 'locked';
+    }).catch(function () { return 'unknown'; });
+  }
+  function accessLink(app) {
+    var a = el('a', 'access', 'Open Access ↗'); a.href = '/access?app=' + encodeURIComponent(app); a.target = '_top'; a.rel = 'noopener';
+    a.addEventListener('click', function (e) { e.stopPropagation(); });
+    return a;
+  }
+
+  /* ── DOM helpers ── */
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = String(text); return n; }
+  function svgNode(markup) { var w = document.createElement('div'); w.innerHTML = markup; return w.firstChild; }
+  var statusEl = document.getElementById('status'), statusTimer = 0;
+  function toast(msg) { statusEl.textContent = msg; statusEl.classList.add('show'); clearTimeout(statusTimer); statusTimer = setTimeout(function () { statusEl.classList.remove('show'); }, 2600); }
+  function mark(kind) {
+    var s = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+    switch (kind) {
+      case 'spark': return s + '<path d="M12 3v18M3 12h18M6 6l12 12M18 6L6 18"/></svg>';
+      case 'deck': return s + '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>';
+      case 'doc': return s + '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h6"/></svg>';
+      case 'sheet': return s + '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg>';
+      case 'portrait': return s + '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 5-7 8-7s7 2 8 7"/></svg>';
+      case 'video': return s + '<rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></svg>';
+      case 'film': return s + '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14M3 9h4M3 15h4M17 9h4M17 15h4"/></svg>';
+      default: return s + '</svg>';
+    }
+  }
+
+  /* ── Navigation: the ribbon's app-navigate dialect WITH a query the cockpit appends ── */
+  var embedded = (function () { try { return window.parent && window.parent !== window; } catch (_) { return false; } })();
+  function go(studio, query) {
+    var s = STUDIO[studio]; if (!s) return;
+    if (embedded) {
+      var msg = { type: 'app-navigate', tool: s.tool };
+      if (query) msg.query = query;
+      window.parent.postMessage(msg, window.location.origin);
+      toast('Opening ' + s.name + '…');
+      return;
+    }
+    window.location.assign(s.url + (query ? (s.url.indexOf('?') === -1 ? '?' : '&') + query : ''));
+  }
+  function officeQuery(st) { return 'kind=' + encodeURIComponent(st.kind) + '&starter=' + encodeURIComponent(st.id) + '&theme=' + encodeURIComponent(st.theme || ''); }
+
+  /* ── Previews drawn from the starter's real section titles ── */
+  function titlesOf(outline) { return String(outline || '').split(/\n\s*\n/).map(function (b) { return (b.split('\n')[0] || '').trim(); }).filter(Boolean); }
+  function firstTable(outline) {
+    var rows = String(outline || '').split('\n').filter(function (l) { return /^\s*\|/.test(l); }).slice(0, 4);
+    return rows.map(function (r) { return r.replace(/^\s*\||\|\s*$/g, '').split('|').map(function (c) { return c.trim(); }); });
+  }
+  function firstSeries(outline) {
+    return String(outline || '').split('\n').map(function (l) { var m = /^([^:|#>]{1,24}):\s*(-?[\d.,]+[kmbt%x]?)$/i.exec(l.trim()); return m ? [m[1], m[2]] : null; }).filter(Boolean).slice(0, 3);
+  }
+  function preview(st) {
+    var t = titlesOf(st.outline);
+    if (st.kind === 'docx') {
+      var page = el('div', 'mock page'); page.appendChild(el('div', 't'));
+      t.slice(0, 4).forEach(function (h) { page.appendChild(el('div', 'h', h)); page.appendChild(el('div', 'l')); page.appendChild(el('div', 'l')).style.width = '70%'; });
+      return page;
+    }
+    if (st.kind === 'xlsx') {
+      var sheet = el('div', 'mock sheet'); var tb = firstTable(st.outline); var sr = firstSeries(st.outline);
+      if (tb.length) { var hd = el('div', 'hd'); tb[0].forEach(function (c) { hd.appendChild(el('span', null, c)); }); sheet.appendChild(hd); tb.slice(1).forEach(function (r) { var row = el('div', 'r'); r.forEach(function (c) { row.appendChild(el('span', null, c)); }); sheet.appendChild(row); }); }
+      else { var hd2 = el('div', 'hd'); ['Label', 'Value'].forEach(function (c) { hd2.appendChild(el('span', null, c)); }); sheet.appendChild(hd2); sr.forEach(function (p) { var row = el('div', 'r'); row.appendChild(el('span', null, p[0])); row.appendChild(el('span', null, p[1])); sheet.appendChild(row); }); var tot = el('div', 'r tot'); tot.appendChild(el('span', null, 'Total')); tot.appendChild(el('span', null, '=SUM')); sheet.appendChild(tot); }
+      return sheet;
+    }
+    var slide = el('div', 'mock slide'); slide.appendChild(el('div', 't'));
+    var cols = el('div', 'cols'); var left = el('div', 'col'); t.slice(0, 3).forEach(function (h) { left.appendChild(el('div', 'h', h)); left.appendChild(el('div', 'l')); }); cols.appendChild(left);
+    var right = el('div', 'col'); right.style.display = 'flex'; right.style.alignItems = 'flex-end'; right.style.gap = '4px';
+    [10, 18, 26, 22].forEach(function (hgt) { var b = el('div', 'bar'); b.style.height = hgt + 'px'; b.style.flex = '1'; right.appendChild(b); }); cols.appendChild(right); slide.appendChild(cols);
+    return slide;
+  }
+  function otherPreview(item) {
+    if (item.preview === 'photo') { var p = el('div', 'mock photo'); p.appendChild(svgNode('<svg viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="30" r="14" fill="#7d2ae8"/><path d="M12 76c3-18 15-24 28-24s25 6 28 24" fill="#a259ff"/></svg>')); return p; }
+    var ph = el('div', 'mock phone'); var sc = el('div', 'screen'); sc.appendChild(svgNode('<svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M8 6l10 6-10 6z"/></svg>')); ph.appendChild(sc); return ph;
+  }
+
+  /* ── State ── */
+  var KINDS = [], STARTERS = [], activeCat = 'foryou', activeGroup = 'all', query = '';
+  var ACCESS = {};   // app → 'open' | 'locked' | 'unknown' (absent until the probe answers)
+  function kindOf(id) { for (var i = 0; i < KINDS.length; i++) if (KINDS[i].id === id) return KINDS[i]; return null; }
+  function groupLabel(kindId, groupId) { var k = kindOf(kindId); if (!k) return groupId; for (var i = 0; i < k.groups.length; i++) if (k.groups[i].id === groupId) return k.groups[i].label; return groupId; }
+
+  /* Every card, normalised: office starters + the other studios' shapes. */
+  function allCards() {
+    var out = STARTERS.map(function (st) { return { id: 'office-' + st.id, cat: st.kind, group: st.group, groupLabel: groupLabel(st.kind, st.group), name: st.name, desc: st.desc, icon: st.icon, badge: '.' + st.kind, tint: TINT[st.kind], studio: 'office', app: STUDIO.office.app, st: st }; });
+    OTHER.forEach(function (o) { out.push({ id: 'other-' + o.id, cat: o.cat, group: o.group, groupLabel: o.groupLabel, name: o.name, desc: o.desc, badge: STUDIO[o.studio].name, tint: TINT[o.cat], studio: o.studio, app: STUDIO[o.studio].app, other: o }); });
+    return out;
+  }
+  function cardNode(c) {
+    var access = ACCESS[c.app];   // undefined until the probe answers: no badge, still opens
+    var b = el('button', 'card' + (access === 'locked' ? ' locked' : '')); b.type = 'button'; b.dataset.q = (c.name + ' ' + c.desc + ' ' + c.groupLabel + ' ' + c.cat).toLowerCase();
+    var pv = el('div', 'pv t-' + c.tint); pv.appendChild(el('span', 'badge', c.badge)); if (c.icon) pv.appendChild(el('span', 'icon', c.icon));
+    if (access === 'locked') pv.appendChild(el('span', 'lock', '🔒 Not provisioned'));
+    else if (access === 'unknown') pv.appendChild(el('span', 'lock unknown', 'Access: can’t check'));
+    pv.appendChild(c.st ? preview(c.st) : otherPreview(c.other)); b.appendChild(pv);
+    b.appendChild(el('div', 'name', c.name));
+    if (access === 'locked') {
+      var why = el('div', 'for'); why.appendChild(document.createTextNode(STUDIO[c.studio].name + ' is not assigned to you yet. An administrator assigns access in Access. ')); why.appendChild(accessLink(c.app)); b.appendChild(why);
+      b.setAttribute('aria-label', c.name + ' — not provisioned: ' + STUDIO[c.studio].name + ' is not assigned to you');
+      b.setAttribute('aria-disabled', 'true');
+      b.addEventListener('click', function () { toast(STUDIO[c.studio].name + ' is not assigned to you — an administrator grants it in Access.'); });
+      return b;
+    }
+    b.appendChild(el('div', 'for', c.desc));
+    b.setAttribute('aria-label', c.name + ' — ' + c.desc);
+    b.addEventListener('click', function () { go(c.studio, c.st ? officeQuery(c.st) : ''); });
+    return b;
+  }
+
+  /* ── Render ── */
+  var catsEl = document.getElementById('cats'), chipsEl = document.getElementById('chips'), secEl = document.getElementById('sections');
+  function renderCats() {
+    catsEl.replaceChildren();
+    var cards = allCards();
+    CATEGORIES.forEach(function (c) {
+      var b = el('button', 'cat' + (c.id === activeCat ? ' on' : '')); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', c.id === activeCat ? 'true' : 'false');
+      var ic = el('span', 'ic t-' + c.tint); ic.appendChild(svgNode(mark(c.mark))); b.appendChild(ic);
+      b.appendChild(el('span', 'n', c.name));
+      var n = c.id === 'foryou' ? cards.length : cards.filter(function (x) { return x.cat === c.id; }).length;
+      b.appendChild(el('span', 'c', n));
+      b.addEventListener('click', function () { activeCat = c.id; activeGroup = 'all'; render(); });
+      catsEl.appendChild(b);
+    });
+  }
+  function groupsFor(cat) {
+    if (cat === 'foryou') return [];
+    var seen = {}, out = [];
+    allCards().filter(function (c) { return c.cat === cat; }).forEach(function (c) { if (!seen[c.group]) { seen[c.group] = true; out.push({ id: c.group, label: c.groupLabel }); } });
+    return out;
+  }
+  function renderChips() {
+    chipsEl.replaceChildren();
+    var groups = groupsFor(activeCat); if (!groups.length) return;
+    [{ id: 'all', label: 'Everything' }].concat(groups).forEach(function (g) {
+      var b = el('button', g.id === activeGroup ? 'on' : ''); b.type = 'button';
+      var sw = el('span', 'sw'); sw.style.background = g.id === 'all' ? 'var(--gradient)' : (SWATCH[g.id] || '#7d2ae8'); b.appendChild(sw); b.appendChild(el('span', null, g.label));
+      b.addEventListener('click', function () { activeGroup = g.id; render(); });
+      chipsEl.appendChild(b);
+    });
+  }
+  function section(title, sub, cards) {
+    var s = el('section', 'sec'); s.appendChild(el('h2', null, title)); if (sub) s.appendChild(el('div', 'sub', sub));
+    var g = el('div', 'grid'); cards.forEach(function (c) { g.appendChild(cardNode(c)); }); s.appendChild(g); return s;
+  }
+  function renderSections() {
+    secEl.replaceChildren();
+    var cards = allCards();
+    var q = query.trim().toLowerCase();
+    if (q) {
+      var hits = cards.filter(function (c) { return (c.name + ' ' + c.desc + ' ' + c.groupLabel + ' ' + c.cat).toLowerCase().indexOf(q) !== -1; });
+      secEl.appendChild(hits.length ? section('Results', hits.length + ' match' + (hits.length === 1 ? '' : 'es') + ' for “' + query.trim() + '”', hits) : el('div', 'empty', 'Nothing matches “' + query.trim() + '”. Try “resume”, “budget” or “launch”.'));
+      return;
+    }
+    if (activeCat === 'foryou') {
+      var popular = ['office-pitch', 'office-resume', 'office-budget', 'other-headshot', 'office-launch', 'office-project-plan', 'other-short', 'office-report'];
+      var pop = popular.map(function (id) { return cards.filter(function (c) { return c.id === id; })[0]; }).filter(Boolean);
+      if (pop.length) secEl.appendChild(section('Popular', 'The shapes people reach for first.', pop));
+      KINDS.forEach(function (k) {
+        var own = cards.filter(function (c) { return c.cat === k.id; });
+        if (own.length) secEl.appendChild(section(k.name + 's', 'Opens in ' + k.opens + '.', own));
+      });
+      ['portrait', 'video', 'story'].forEach(function (cat) {
+        var own = cards.filter(function (c) { return c.cat === cat; });
+        var c = CATEGORIES.filter(function (x) { return x.id === cat; })[0];
+        if (own.length) secEl.appendChild(section(c.name, '', own));
+      });
+      return;
+    }
+    var k = kindOf(activeCat);
+    var mine = cards.filter(function (c) { return c.cat === activeCat && (activeGroup === 'all' || c.group === activeGroup); });
+    if (!mine.length) { secEl.appendChild(el('div', 'empty', k ? 'AI Office has not published its ' + k.noun + ' starters yet — open the studio and pick a shape there.' : 'Nothing here yet.')); return; }
+    if (activeGroup !== 'all') { secEl.appendChild(section(groupLabel(activeCat, activeGroup) || activeGroup, k ? 'Opens in ' + k.opens + '.' : '', mine)); return; }
+    groupsFor(activeCat).forEach(function (g) {
+      var own = mine.filter(function (c) { return c.group === g.id; });
+      if (own.length) secEl.appendChild(section(g.label, k ? 'Opens in ' + k.opens + '.' : '', own));
+    });
+  }
+  function render() { renderCats(); renderChips(); renderSections(); }
+
+  /* ── Search ── */
+  var qEl = document.getElementById('q');
+  qEl.addEventListener('input', function () { query = qEl.value; renderSections(); });
+  document.getElementById('searchForm').addEventListener('submit', function (e) { e.preventDefault(); var first = secEl.querySelector('.card'); if (first) first.click(); });
+
+  /* ── The Office catalog, from the owning app ── */
+  function fetchJson(url, ms) {
+    var ctl = new AbortController(); var t = setTimeout(function () { ctl.abort(); }, ms || 4000);
+    return fetch(url, { credentials: 'same-origin', cache: 'no-store', signal: ctl.signal, headers: { Accept: 'application/json' } })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .finally(function () { clearTimeout(t); });
+  }
+  render();
+  Object.keys(STUDIO).forEach(function (key) {
+    var app = STUDIO[key].app;
+    accessFor(app).then(function (state) { ACCESS[app] = state; render(); });
+  });
+  fetchJson('/api/presentations/sections/starters').then(function (cat) {
+    KINDS = Array.isArray(cat.kinds) ? cat.kinds : [];
+    STARTERS = (Array.isArray(cat.starters) ? cat.starters : []).filter(function (s) { return s && /^[a-z0-9-]+$/.test(String(s.id)) && /^(pptx|docx|xlsx)$/.test(String(s.kind)); });
+    render();
+  }).catch(function () {
+    toast('AI Office starters could not be loaded — the studios still open.');
+  });
+
+  /* Deep link into a category: /api/create/new?cat=docx */
+  try { var want = new URLSearchParams(location.search).get('cat'); if (want && CATEGORIES.some(function (c) { return c.id === want; })) { activeCat = want; render(); } } catch (_) {}
+})();
+</script>
+</body>
+</html>

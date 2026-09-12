@@ -1,0 +1,196 @@
+/* ═══ Create — the studio skin ═══
+ *
+ * A light, airy design-tool look: white paper, a lilac→sky→mint wash behind the
+ * page, one violet accent with a violet→teal signature gradient, generous corners,
+ * and a rail that shows icon + label the way a design app does — not the
+ * operator console's collapsed icon strip.
+ *
+ * Everything here is scoped to [data-theme="create"] — it cannot affect any other
+ * theme or app. The cockpit applies it transiently while ?app=create is focused
+ * (manifest `theme: create`, served from /api/swarm/apps/create/theme.css), so the
+ * operator's global theme is preserved for plain /cockpit visits. The home surface
+ * links the same file from /api/create/theme.css, and an iframed studio inherits
+ * it through the shared surface-theme bootstrap when the surrounding cockpit wears
+ * a package-bundled skin.
+ *
+ * Token names are the framework's (see any /cockpit/css/themes/*.css). Keep the
+ * SET complete — a surface reads tokens by name and a missing one falls to that
+ * surface's own hex fallback, which is exactly the mismatch this skin exists to end.
+ *
+ * CHANGE LOG
+ * ---------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                                      | DESCRIPTION
+ * ---------------------------------------------------------------------------
+ * 1   | maintainer@emeraldcoastsystemsgroup.com     | Initial skin — light studio palette, labelled rail, gradient wordmark
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | The New tile renders as the gradient plus button
+ * ---------------------------------------------------------------------------
+ */
+
+[data-theme="create"] {
+  /* ── Background: white paper on a faint lilac wash ── */
+  --bg-primary: #f8f7fd;
+  --bg-secondary: rgba(255, 255, 255, 0.92);
+  --bg-tertiary: rgba(243, 240, 251, 0.9);
+  --bg-card: rgba(255, 255, 255, 0.82);
+  --bg-card-hover: rgba(255, 255, 255, 1);
+
+  /* ── Borders: hairline ink ── */
+  --border-color: rgba(23, 18, 54, 0.08);
+  --border-color-hover: rgba(23, 18, 54, 0.16);
+
+  /* ── Text: deep indigo ink ── */
+  --text-primary: #171236;
+  --text-secondary: #4b4670;
+  --text-muted: #8b86a8;
+
+  /* ── Accent: studio violet, with the violet→teal signature gradient ── */
+  --accent-primary: #7d2ae8;
+  --accent-primary-hover: #6a1fcf;
+  --accent-gradient: linear-gradient(135deg, #7d2ae8 0%, #a259ff 48%, #00c4cc 100%);
+  --accent-glow: rgba(125, 42, 232, 0.22);
+
+  /* ── Status: clear on white ── */
+  --status-success: #0f9d58;
+  --status-active: #2563eb;
+  --status-warning: #d97706;
+  --status-error: #dc2626;
+
+  /* ── Glass: white frost ── */
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-bg-heavy: rgba(125, 42, 232, 0.08);
+  --glass-border: rgba(23, 18, 54, 0.08);
+  --glass-highlight: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 55%);
+  --glass-blur: 18px;
+  --glass-blur-light: 10px;
+
+  /* ── Scrollbar ── */
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: rgba(23, 18, 54, 0.14);
+
+  /* ── Shadows: soft, light ── */
+  --panel-shadow: 0 10px 30px rgba(23, 18, 54, 0.07), inset 0 1px 0 rgba(255,255,255,0.9);
+  --card-shadow: 0 2px 10px rgba(23, 18, 54, 0.06), inset 0 1px 0 rgba(255,255,255,0.8);
+  --depth-shadow: 0 24px 60px rgba(23, 18, 54, 0.12);
+
+  /* ── Create custom tokens (read by the home surface) ── */
+  --create-hero: linear-gradient(120deg, #e9e2ff 0%, #d9f1ff 48%, #dcfbf1 100%);
+  --create-tint-peach: #ffe6d9;
+  --create-tint-lilac: #ebe2ff;
+  --create-tint-sky: #dcefff;
+  --create-tint-mint: #d9f7ec;
+  --create-tint-lemon: #fff3c9;
+  --create-tint-rose: #ffe0ee;
+  --create-ink-on-tint: #2a2350;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * Cockpit chrome — all scoped to the Create skin so nothing else is touched.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/* A faint studio wash behind the whole cockpit: lilac top-left, sky top-right. */
+[data-theme="create"] body,
+[data-theme="create"] .cockpit-body {
+  background-image:
+    radial-gradient(900px 520px at 10% -10%, rgba(162, 89, 255, 0.14), transparent 60%),
+    radial-gradient(760px 500px at 100% -6%, rgba(0, 196, 204, 0.12), transparent 55%);
+  background-attachment: fixed;
+}
+
+/* Header: a gradient tile in place of the generic polygon glyph, gradient wordmark. */
+[data-theme="create"] .logo > svg { display: none; }
+[data-theme="create"] .logo::before {
+  content: "";
+  display: inline-block;
+  vertical-align: middle;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  margin-right: 6px;
+  border-radius: 9px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 4v16M4 12h16M6.5 6.5l11 11M17.5 6.5l-11 11'/%3E%3C/svg%3E") center / 60% no-repeat,
+    linear-gradient(135deg, #7d2ae8 0%, #a259ff 48%, #00c4cc 100%);
+  box-shadow: 0 4px 12px -4px rgba(125, 42, 232, 0.55);
+}
+[data-theme="create"] .logo-text {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+[data-theme="create"] .header-btn { border-radius: 10px; }
+
+/* The rail: a design-tool rail — always 76px wide, icon above label, a soft
+   violet pill for the active studio, no left accent bar. Desktop only: the
+   ≤640px drawer keeps the framework's mobile behaviour untouched. */
+@media (min-width: 641px) {
+  [data-theme="create"] .ribbon-nav,
+  [data-theme="create"] .ribbon-nav:hover,
+  [data-theme="create"] .ribbon-nav.ribbon-pinned {
+    width: 76px;
+    min-width: 76px;
+    border-radius: 18px;
+    padding: 10px 0;
+  }
+  [data-theme="create"] .ribbon-pin { display: none; }
+  [data-theme="create"] .ribbon-btn,
+  [data-theme="create"] .ribbon-nav:hover .ribbon-btn,
+  [data-theme="create"] .ribbon-nav.ribbon-pinned .ribbon-btn {
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    width: calc(100% - 12px);
+    height: auto;
+    min-height: 56px;
+    padding: 7px 4px 6px;
+    border-radius: 14px;
+    transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
+  }
+  [data-theme="create"] .ribbon-btn i { font-size: 20px; min-width: 0; }
+  [data-theme="create"] .ribbon-label,
+  [data-theme="create"] .ribbon-nav:hover .ribbon-label,
+  [data-theme="create"] .ribbon-nav.ribbon-pinned .ribbon-label {
+    opacity: 1;
+    transform: none;
+    font-size: 10.5px;
+    font-weight: 600;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  [data-theme="create"] .ribbon-btn:hover { transform: translateY(-1px); background: var(--glass-bg-heavy); }
+  [data-theme="create"] .ribbon-btn.active {
+    background: rgba(125, 42, 232, 0.10);
+    color: var(--accent-primary);
+  }
+  [data-theme="create"] .ribbon-btn.active::before { display: none; }
+  [data-theme="create"] .ribbon-group-label,
+  [data-theme="create"] .ribbon-nav:hover .ribbon-group-label,
+  [data-theme="create"] .ribbon-nav.ribbon-pinned .ribbon-group-label {
+    max-height: 22px;
+    padding: 8px 0 2px;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-align: center;
+    color: var(--text-muted);
+  }
+}
+
+/* The New tile is the studio's "+ Create" button: gradient, white glyph, always inviting. */
+[data-theme="create"] .ribbon-btn[data-view="tool-create-new"] {
+  background: var(--accent-gradient);
+  color: #fff;
+  box-shadow: 0 8px 18px -8px var(--accent-glow);
+}
+[data-theme="create"] .ribbon-btn[data-view="tool-create-new"]:hover { filter: brightness(1.06); color: #fff; }
+[data-theme="create"] .ribbon-btn[data-view="tool-create-new"].active { background: var(--accent-gradient); color: #fff; }
+
+/* Friendlier corners on the big surfaces. */
+[data-theme="create"] .main-content,
+[data-theme="create"] .glass-card,
+[data-theme="create"] .panel,
+[data-theme="create"] .card {
+  border-radius: 18px;
+}

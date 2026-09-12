@@ -1,0 +1,458 @@
+<!doctype html>
+<!--
+  Create — the home page of the Create studio ("What will you create today?").
+  Served by create-routes at /api/create/home. Self-contained: no CDN scripts,
+  no inline event handlers, cockpit-iframe friendly.
+
+  Everything it shows is real: the studio rail comes from this app's own cockpit
+  profile (GET /api/ui/profile?name=create), "Continue creating" and "This week"
+  come from each member studio's Home summary probe (GET /api/<app>/home-summary),
+  asked here in the signed-in user's own session — never impersonated, never cached
+  server-side. A probe that fails or times out renders "can't check", not a zero.
+
+  Navigation speaks the ribbon's `app-navigate` dialect (postMessage to the
+  cockpit shell); opened standalone, a tile falls back to the studio's own URL.
+
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  SEQ | AUTHOR                                      | DESCRIPTION
+  -----------------------------------------------------------------------------
+  1   | maintainer@emeraldcoastsystemsgroup.com     | Initial home surface — hero, search, starters, continue creating, studios, this week
+  2   | maintainer@emeraldcoastsystemsgroup.com     | Unwrap the profile envelope ({ profile: {...} }) — the studios row rendered its empty state against the live api
+  3   | maintainer@emeraldcoastsystemsgroup.com     | Starters open their studio on a purpose (app-navigate + query: kind=pptx|docx|xlsx); See every template → the New screen
+  4   | maintainer@emeraldcoastsystemsgroup.com     | Authorization-aware: access asked first (GET /api/authorization/me?app=); a locked studio never opens and its probes are never asked
+-->
+<html lang="en" data-theme="create">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Create</title>
+<!-- The package skin: the SAME tokens the cockpit wears while this app is focused. -->
+<link rel="stylesheet" href="/api/create/theme.css" />
+<style>
+  /* Short alias names, each DERIVED from the framework tokens the skin defines. The hex after the
+     comma is a last-resort fallback for a standalone open before the skin route answers. */
+  :root {
+    --bg: var(--bg-primary, #f8f7fd);
+    --paper: var(--bg-card-hover, #ffffff);
+    --panel: var(--bg-tertiary, #f3f0fb);
+    --line: var(--border-color, rgba(23,18,54,.08));
+    --line-hover: var(--border-color-hover, rgba(23,18,54,.16));
+    --text: var(--text-primary, #171236);
+    --muted: var(--text-secondary, #4b4670);
+    --faint: var(--text-muted, #8b86a8);
+    --accent: var(--accent-primary, #7d2ae8);
+    --accent-hover: var(--accent-primary-hover, #6a1fcf);
+    --gradient: var(--accent-gradient, linear-gradient(135deg,#7d2ae8 0%,#a259ff 48%,#00c4cc 100%));
+    --glow: var(--accent-glow, rgba(125,42,232,.22));
+    --ok: var(--status-success, #0f9d58);
+    --warn: var(--status-warning, #d97706);
+    --hero: var(--create-hero, linear-gradient(120deg,#e9e2ff 0%,#d9f1ff 48%,#dcfbf1 100%));
+    --peach: var(--create-tint-peach, #ffe6d9);
+    --lilac: var(--create-tint-lilac, #ebe2ff);
+    --sky: var(--create-tint-sky, #dcefff);
+    --mint: var(--create-tint-mint, #d9f7ec);
+    --lemon: var(--create-tint-lemon, #fff3c9);
+    --rose: var(--create-tint-rose, #ffe0ee);
+    --ink-on-tint: var(--create-ink-on-tint, #2a2350);
+    --shadow: var(--card-shadow, 0 2px 10px rgba(23,18,54,.06));
+    --shadow-deep: var(--depth-shadow, 0 24px 60px rgba(23,18,54,.12));
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; }
+  a { color: var(--accent); }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  main { max-width: 1240px; margin: 0 auto; padding: 0 28px 64px; }
+  @media (max-width: 720px) { main { padding: 0 16px 48px; } }
+
+  /* ── Hero ─────────────────────────────────────────────────────────────── */
+  .hero { position: relative; margin: 18px 0 30px; padding: 54px 24px 30px; border-radius: 28px; background: var(--hero); overflow: hidden; text-align: center; }
+  .hero::before { content: ""; position: absolute; inset: 0; background: radial-gradient(600px 240px at 50% 0%, rgba(255,255,255,.55), transparent 70%); pointer-events: none; }
+  .hero > * { position: relative; }
+  .hero h1 { margin: 0 0 18px; font-size: clamp(30px, 4.6vw, 52px); line-height: 1.08; letter-spacing: -0.03em; font-weight: 800; background: var(--gradient); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .seg { display: inline-flex; gap: 6px; padding: 5px; border-radius: 999px; background: rgba(255,255,255,.65); border: 1px solid rgba(255,255,255,.8); margin-bottom: 20px; }
+  .seg button { border: 0; background: transparent; border-radius: 999px; padding: 8px 16px; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .seg button.on { background: var(--paper); color: var(--text); box-shadow: var(--shadow); }
+  .search { max-width: 860px; margin: 0 auto 16px; display: flex; align-items: center; gap: 12px; padding: 0 18px; height: 60px; border-radius: 18px; background: var(--paper); border: 2px solid rgba(125,42,232,.35); box-shadow: 0 12px 40px -18px var(--glow); }
+  .search:focus-within { border-color: var(--accent); }
+  .search svg { flex: 0 0 auto; color: var(--faint); }
+  .search input { flex: 1; border: 0; background: transparent; font-size: 17px; color: var(--text); min-width: 0; }
+  .search input::placeholder { color: var(--faint); }
+  .search .clear { border: 0; background: var(--panel); border-radius: 999px; width: 28px; height: 28px; cursor: pointer; color: var(--muted); display: none; }
+  .search.has-q .clear { display: inline-flex; align-items: center; justify-content: center; }
+  .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+  .chips button { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--paper); border-radius: 999px; padding: 9px 16px; font-weight: 600; color: var(--text); cursor: pointer; box-shadow: var(--shadow); }
+  .chips button .dot { width: 18px; height: 18px; border-radius: 6px; display: inline-block; }
+  .chips button.on { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(125,42,232,.12); }
+
+  /* ── Sections ─────────────────────────────────────────────────────────── */
+  section { margin: 0 0 40px; }
+  .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  h2 { margin: 0; font-size: 24px; letter-spacing: -0.02em; font-weight: 750; }
+  .sec-head .note { color: var(--faint); font-size: 13px; }
+  .link { border: 0; background: none; color: var(--accent); font-weight: 700; cursor: pointer; padding: 0; }
+  .link:hover { text-decoration: underline; }
+  .empty { color: var(--faint); padding: 26px; border: 1px dashed var(--line-hover); border-radius: 18px; text-align: center; }
+
+  /* Starters: a scrolling row of pastel cards with a floating mini-mock. */
+  .tiles { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 1fr); gap: 14px; overflow-x: auto; padding: 6px 2px 14px; scroll-snap-type: x proximity; scrollbar-width: thin; }
+  .tile { position: relative; scroll-snap-align: start; text-align: left; border: 0; border-radius: 20px; padding: 18px 16px 16px; min-height: 124px; cursor: pointer; color: var(--ink-on-tint); display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; box-shadow: var(--shadow); transition: transform .15s ease, box-shadow .15s ease; overflow: hidden; }
+  .tile:hover { transform: translateY(-3px); box-shadow: var(--shadow-deep); }
+  .tile .art { position: absolute; right: 12px; top: 12px; width: 88px; height: 66px; filter: drop-shadow(0 8px 14px rgba(23,18,54,.16)); transition: transform .2s ease; }
+  .tile:hover .art { transform: translateY(-3px) rotate(-3deg); }
+  .tile b { font-size: 16px; font-weight: 750; letter-spacing: -0.01em; }
+  .tile span { font-size: 12px; opacity: .72; }
+  .tile.hidden { display: none; }
+  .tile.locked { cursor: not-allowed; filter: saturate(.35); opacity: .8; }
+  .tile .lock { position: absolute; left: 12px; top: 12px; font-size: 10.5px; font-weight: 800; color: #fff; background: rgba(23,18,54,.72); border-radius: 999px; padding: 3px 9px; }
+  .card.locked { opacity: .85; cursor: not-allowed; }
+  .card .blurb .access { color: var(--accent); font-weight: 700; text-decoration: none; }
+  .t-peach { background: var(--peach); } .t-lilac { background: var(--lilac); } .t-sky { background: var(--sky); }
+  .t-mint { background: var(--mint); } .t-lemon { background: var(--lemon); } .t-rose { background: var(--rose); }
+
+  /* Continue creating + studios: card grids. */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+  .card { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; padding: 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px; min-width: 0; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+  .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-deep); border-color: var(--line-hover); }
+  .card.hidden { display: none; }
+  .badge { display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  .badge .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .card .title { font-weight: 700; font-size: 15.5px; overflow-wrap: anywhere; }
+  .card .detail { color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .card .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; }
+  .card .when { color: var(--faint); font-size: 12px; }
+  .btn { border: 0; border-radius: 12px; padding: 9px 14px; font-weight: 700; cursor: pointer; background: var(--accent); color: #fff; transition: background .12s ease, transform .12s ease; }
+  .btn:hover { background: var(--accent-hover); transform: translateY(-1px); }
+  .btn.ghost { background: var(--panel); color: var(--text); }
+  .studio { flex-direction: row; align-items: center; gap: 14px; cursor: pointer; text-align: left; }
+  .studio .mark { flex: 0 0 auto; width: 54px; height: 54px; border-radius: 16px; display: grid; place-items: center; }
+  .studio .mark svg { width: 30px; height: 30px; }
+  .studio .name { font-weight: 750; font-size: 15.5px; }
+  .studio .blurb { color: var(--muted); font-size: 12.5px; }
+  .warnline { color: var(--warn); font-size: 12.5px; margin: 8px 0 0; }
+
+  /* This week: metric pills. */
+  .metrics { display: flex; flex-wrap: wrap; gap: 10px; }
+  .metric { display: inline-flex; align-items: center; gap: 10px; background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; box-shadow: var(--shadow); }
+  .metric .sw { width: 10px; height: 10px; border-radius: 3px; }
+  .metric strong { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; }
+  .metric span { color: var(--muted); font-size: 12.5px; }
+
+  footer { color: var(--faint); font-size: 12px; text-align: center; padding-top: 12px; border-top: 1px solid var(--line); }
+  #status { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 9px 14px; border-radius: 999px; font-size: 13px; box-shadow: var(--shadow-deep); opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+  #status.show { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { .tile, .card, .btn, .tile .art { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <section class="hero" aria-labelledby="heroTitle">
+    <h1 id="heroTitle">What will you create today?</h1>
+    <div class="seg" role="tablist" aria-label="Sections">
+      <button type="button" role="tab" class="on" data-jump="starters" aria-selected="true">For you</button>
+      <button type="button" role="tab" data-jump="recent" aria-selected="false">Recent</button>
+      <button type="button" role="tab" data-jump="studios" aria-selected="false">Studios</button>
+    </div>
+    <form class="search" id="searchForm" role="search" autocomplete="off">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+      <input id="q" type="search" placeholder="Search starters, studios and your recent work" aria-label="Search starters, studios and your recent work" />
+      <button type="button" class="clear" id="clearQ" aria-label="Clear search">×</button>
+    </form>
+    <div class="chips" id="chips" role="group" aria-label="Filter starters">
+      <button type="button" data-cat="all" class="on"><span class="dot" style="background:var(--gradient)"></span>Everything</button>
+      <button type="button" data-cat="documents"><span class="dot" style="background:#ff8a5b"></span>Documents</button>
+      <button type="button" data-cat="images"><span class="dot" style="background:#7d2ae8"></span>Portraits</button>
+      <button type="button" data-cat="video"><span class="dot" style="background:#2f9bff"></span>Video</button>
+      <button type="button" data-cat="story"><span class="dot" style="background:#ffb020"></span>Stories</button>
+      <button type="button" data-cat="training"><span class="dot" style="background:#10b981"></span>Training</button>
+    </div>
+  </section>
+
+  <section id="starters" aria-labelledby="startersTitle">
+    <div class="sec-head"><h2 id="startersTitle">Start creating</h2><span class="note">Pick a shape — the studio opens ready for it. <button type="button" class="link" id="seeAll">See every template →</button></span></div>
+    <div class="tiles" id="starterTiles"></div>
+  </section>
+
+  <section id="recent" aria-labelledby="recentTitle">
+    <div class="sec-head"><h2 id="recentTitle">Continue creating</h2><span class="note" id="recentNote">Checking your studios…</span></div>
+    <div class="grid" id="recentGrid" aria-live="polite"></div>
+  </section>
+
+  <section id="studios" aria-labelledby="studiosTitle">
+    <div class="sec-head"><h2 id="studiosTitle">Your studios</h2><span class="note">Everything installed, one rail.</span></div>
+    <div class="grid" id="studioGrid"></div>
+  </section>
+
+  <section id="week" aria-labelledby="weekTitle">
+    <div class="sec-head"><h2 id="weekTitle">This week</h2><span class="note" id="weekNote"></span></div>
+    <div class="metrics" id="metrics"></div>
+  </section>
+
+  <footer>Create is part of oshal. Every studio here is yours — nothing is generated or sent from this page.</footer>
+</main>
+<div id="status" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── The studio catalog: which member app backs which rail tile ───────────────
+     `tool` is the rail toolName (manifest ui.static); `app` is the member package whose
+     Home summary is read; `url` is only the standalone fallback (the profile's own
+     iframeUrl wins whenever it answers). The routes test pins every entry against the
+     manifest so this list can never drift from the rail. */
+  var STUDIOS = [
+    { tool: 'create-office',   app: 'presentations',   name: 'AI Office',       swatch: '#ff8a5b', tint: 'peach', art: 'deck',      url: '/api/presentations/sections/ui', blurb: 'Decks, documents and live workbooks from one outline.' },
+    { tool: 'create-portrait', app: 'portrait-studio', name: 'Portrait Studio', swatch: '#7d2ae8', tint: 'lilac', art: 'portrait',  url: '/api/portrait-studio/app',      blurb: 'Headshots, characters and group scenes from a photo.' },
+    { tool: 'create-video',    app: 'video',           name: 'Video Studio',    swatch: '#2f9bff', tint: 'sky',   art: 'video',     url: '/api/video/ui',                 blurb: 'Short-form video from a storyboard.' },
+    { tool: 'create-lora',     app: 'lora',            name: 'LoRA Studio',     swatch: '#10b981', tint: 'mint',  art: 'nodes',     url: '/api/lora/ui',                  blurb: 'Train and score your own characters.' },
+    { tool: 'create-vids',     app: 'vids',            name: 'Vids Studio',     swatch: '#00b8c4', tint: 'sky',   art: 'clip',      url: '/api/vids/app',                 blurb: 'The render queue for clips and episodes.' },
+    { tool: 'create-story',    app: 'creative-studio', name: 'Stories',         swatch: '#ffb020', tint: 'lemon', art: 'film',      url: '/api/creative-studio/review',   blurb: 'Kid-safe story episodes, produced on a schedule.' }
+  ];
+  var byTool = {}; STUDIOS.forEach(function (s) { byTool[s.tool] = s; });
+  byTool['create-new'] = { tool: 'create-new', name: 'Create', url: '/api/create/new' };
+
+  /* ── Starters: the shapes you can begin with, each opening its studio ─────── */
+  var STARTERS = [
+    { id: 'deck',      label: 'Presentation',       hint: 'Themed deck',          cat: 'documents', tool: 'create-office',   tint: 'peach', art: 'deck',      query: 'kind=pptx' },
+    { id: 'doc',       label: 'Document',           hint: 'Word document',        cat: 'documents', tool: 'create-office',   tint: 'lilac', art: 'doc',       query: 'kind=docx' },
+    { id: 'sheet',     label: 'Spreadsheet',        hint: 'Live workbook',        cat: 'documents', tool: 'create-office',   tint: 'mint',  art: 'sheet',     query: 'kind=xlsx' },
+    { id: 'headshot',  label: 'Headshot',           hint: 'Studio portrait',      cat: 'images',    tool: 'create-portrait', tint: 'sky',   art: 'portrait' },
+    { id: 'character', label: 'Character portrait', hint: 'You, in a scene',      cat: 'images',    tool: 'create-portrait', tint: 'rose',  art: 'character' },
+    { id: 'group',     label: 'Group portrait',     hint: 'Everyone in one shot', cat: 'images',    tool: 'create-portrait', tint: 'lemon', art: 'group' },
+    { id: 'short',     label: 'Short video',        hint: 'Reels, Shorts, TikTok', cat: 'video',    tool: 'create-video',    tint: 'lilac', art: 'video' },
+    { id: 'clip',      label: 'Video clip',         hint: 'Rendered on the node', cat: 'video',     tool: 'create-vids',     tint: 'sky',   art: 'clip' },
+    { id: 'episode',   label: 'Story episode',      hint: 'Kid-safe animation',   cat: 'story',     tool: 'create-story',    tint: 'peach', art: 'film' },
+    { id: 'lora',      label: 'LoRA character',     hint: 'Train your own look',  cat: 'training',  tool: 'create-lora',     tint: 'mint',  art: 'nodes' }
+  ];
+
+  /* ── Tiny illustrations (static markup, no user data) ────────────────────── */
+  function art(kind) {
+    var s = '<svg viewBox="0 0 88 66" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">';
+    var paper = '<rect x="10" y="6" width="68" height="54" rx="8" fill="#fff"/>';
+    switch (kind) {
+      case 'deck': return s + paper + '<rect x="18" y="14" width="34" height="6" rx="3" fill="#7d2ae8"/><rect x="18" y="26" width="52" height="4" rx="2" fill="#d9d3ee"/><rect x="18" y="34" width="44" height="4" rx="2" fill="#d9d3ee"/><rect x="18" y="44" width="16" height="10" rx="3" fill="#ff8a5b"/><rect x="38" y="42" width="16" height="12" rx="3" fill="#00c4cc"/></svg>';
+      case 'doc': return s + '<rect x="22" y="4" width="44" height="58" rx="6" fill="#fff"/><rect x="30" y="14" width="20" height="5" rx="2.5" fill="#7d2ae8"/><rect x="30" y="24" width="28" height="3" rx="1.5" fill="#d9d3ee"/><rect x="30" y="31" width="28" height="3" rx="1.5" fill="#d9d3ee"/><rect x="30" y="38" width="22" height="3" rx="1.5" fill="#d9d3ee"/><rect x="30" y="45" width="26" height="3" rx="1.5" fill="#d9d3ee"/></svg>';
+      case 'sheet': return s + paper + '<path d="M18 18h52M18 28h52M18 38h52M18 48h52M34 18v34M52 18v34" stroke="#d9d3ee" stroke-width="2"/><rect x="18" y="18" width="52" height="10" fill="#10b981" opacity=".25"/><rect x="36" y="40" width="14" height="6" rx="2" fill="#7d2ae8"/></svg>';
+      case 'portrait': return s + '<rect x="18" y="4" width="52" height="58" rx="10" fill="#fff"/><circle cx="44" cy="26" r="10" fill="#7d2ae8"/><path d="M26 56c2-12 10-16 18-16s16 4 18 16" fill="#a259ff"/></svg>';
+      case 'character': return s + '<rect x="18" y="4" width="52" height="58" rx="10" fill="#fff"/><circle cx="44" cy="24" r="9" fill="#ff5c8a"/><path d="M28 56c2-12 9-15 16-15s14 3 16 15" fill="#ffb020"/><path d="M37 12l3 5h-6zM51 12l3 5h-6z" fill="#ff5c8a"/><circle cx="60" cy="16" r="3" fill="#00c4cc"/></svg>';
+      case 'group': return s + '<rect x="6" y="4" width="76" height="58" rx="10" fill="#fff"/><circle cx="26" cy="26" r="7" fill="#ffb020"/><circle cx="44" cy="22" r="8" fill="#7d2ae8"/><circle cx="62" cy="26" r="7" fill="#00c4cc"/><path d="M14 54c2-9 7-12 12-12s10 3 12 12M32 54c2-11 7-14 12-14s10 3 12 14M50 54c2-9 7-12 12-12s10 3 12 12" fill="#d9d3ee"/></svg>';
+      case 'video': return s + '<rect x="30" y="2" width="28" height="62" rx="7" fill="#fff"/><rect x="34" y="8" width="20" height="46" rx="4" fill="#7d2ae8"/><path d="M41 24l10 7-10 7z" fill="#fff"/></svg>';
+      case 'clip': return s + paper + '<rect x="18" y="14" width="52" height="30" rx="5" fill="#2f9bff"/><path d="M40 22l12 7-12 7z" fill="#fff"/><rect x="18" y="50" width="52" height="4" rx="2" fill="#d9d3ee"/><rect x="18" y="50" width="30" height="4" rx="2" fill="#00c4cc"/></svg>';
+      case 'film': return s + '<rect x="8" y="12" width="72" height="42" rx="6" fill="#fff"/><path d="M8 20h72M8 46h72" stroke="#d9d3ee" stroke-width="2"/><rect x="14" y="14" width="5" height="4" rx="1" fill="#ffb020"/><rect x="26" y="14" width="5" height="4" rx="1" fill="#ffb020"/><rect x="38" y="14" width="5" height="4" rx="1" fill="#ffb020"/><rect x="50" y="14" width="5" height="4" rx="1" fill="#ffb020"/><rect x="62" y="14" width="5" height="4" rx="1" fill="#ffb020"/><rect x="14" y="48" width="5" height="4" rx="1" fill="#ffb020"/><rect x="26" y="48" width="5" height="4" rx="1" fill="#ffb020"/><rect x="38" y="48" width="5" height="4" rx="1" fill="#ffb020"/><rect x="50" y="48" width="5" height="4" rx="1" fill="#ffb020"/><rect x="62" y="48" width="5" height="4" rx="1" fill="#ffb020"/><rect x="16" y="24" width="24" height="18" rx="3" fill="#ff8a5b"/><rect x="46" y="24" width="26" height="18" rx="3" fill="#7d2ae8"/></svg>';
+      case 'nodes': return s + paper + '<path d="M26 44L44 20L62 44M26 44h36M44 20v24" stroke="#10b981" stroke-width="2.5"/><circle cx="26" cy="44" r="6" fill="#7d2ae8"/><circle cx="62" cy="44" r="6" fill="#00c4cc"/><circle cx="44" cy="20" r="6" fill="#ff8a5b"/><circle cx="44" cy="44" r="4" fill="#10b981"/></svg>';
+      default: return s + paper + '</svg>';
+    }
+  }
+
+  /* ── Access: what the signed-in person may open, from the authorization service (ADR-149) ──
+     GET /api/authorization/me?app=<name> answers { status, tier, denied }: `legacy` = the package
+     runs in the reviewed compatibility mode (open); `admin-required` / `catalog` = enforced, open
+     only when the tier is not deny. A studio that is not provisioned is shown LOCKED — never
+     opened, its probes never asked — with the Access link an administrator uses. A probe that
+     cannot answer (401/404/timeout) is 'unknown': the card stays, marked "can't check". */
+  function accessFor(app) {
+    return fetchJson('/api/authorization/me?app=' + encodeURIComponent(app), 3000).then(function (a) {
+      if (!a || typeof a !== 'object') return 'unknown';
+      if (a.status === 'legacy') return 'open';
+      return (a.denied !== true && typeof a.tier === 'string' && a.tier !== 'deny') ? 'open' : 'locked';
+    }).catch(function () { return 'unknown'; });
+  }
+  function accessLink(app) {
+    var a = el('a', 'access', 'Open Access ↗'); a.href = '/access?app=' + encodeURIComponent(app); a.target = '_top'; a.rel = 'noopener';
+    a.addEventListener('click', function (e) { e.stopPropagation(); });
+    return a;
+  }
+
+  /* ── DOM helpers ──────────────────────────────────────────────────────────── */
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = String(text); return n; }
+  function svgNode(markup) { var w = document.createElement('div'); w.innerHTML = markup; return w.firstChild; }
+  var statusEl = document.getElementById('status'), statusTimer = 0;
+  function toast(msg) { statusEl.textContent = msg; statusEl.classList.add('show'); clearTimeout(statusTimer); statusTimer = setTimeout(function () { statusEl.classList.remove('show'); }, 2600); }
+
+  /* ── Navigation: the ribbon's app-navigate dialect, or the studio URL standalone ── */
+  var embedded = (function () { try { return window.parent && window.parent !== window; } catch (_) { return false; } })();
+  var surfaceUrls = {};   // toolName → iframeUrl, from this app's own cockpit profile
+  var ACCESS = {};        // app → 'open' | 'locked' | 'unknown'
+  function go(tool, query) {
+    var studio = byTool[tool];
+    if (studio && studio.app && ACCESS[studio.app] === 'locked') { toast(studio.name + ' is not assigned to you — an administrator grants it in Access.'); return; }
+    if (embedded) {
+      var msg = { type: 'app-navigate', tool: tool };
+      if (query) msg.query = query;   // the cockpit appends it to the tile's own URL (kind / starter / theme)
+      window.parent.postMessage(msg, window.location.origin);
+      toast('Opening ' + (studio ? studio.name : tool) + '…');
+      return;
+    }
+    var url = surfaceUrls[tool] || (studio && studio.url) || (tool === 'create-new' ? '/api/create/new' : '');
+    if (url) window.location.assign(url + (query ? (url.indexOf('?') === -1 ? '?' : '&') + query : ''));
+  }
+
+  /* ── Starters ─────────────────────────────────────────────────────────────── */
+  var tilesEl = document.getElementById('starterTiles');
+  STARTERS.forEach(function (st) {
+    var b = el('button', 'tile t-' + st.tint); b.type = 'button'; b.dataset.tool = st.tool; b.dataset.cat = st.cat; b.dataset.q = (st.label + ' ' + st.hint + ' ' + (byTool[st.tool] || {}).name).toLowerCase();
+    var a = svgNode(art(st.art)); a.setAttribute('class', 'art'); b.appendChild(a);
+    b.appendChild(el('b', null, st.label)); b.appendChild(el('span', null, st.hint));
+    b.setAttribute('aria-label', st.label + ' — opens ' + ((byTool[st.tool] || {}).name || st.tool));
+    b.dataset.app = (byTool[st.tool] || {}).app || '';
+    b.addEventListener('click', function () { go(st.tool, st.query || ''); });
+    tilesEl.appendChild(b);
+  });
+  function applyAccessToStarters() {
+    Array.prototype.forEach.call(tilesEl.children, function (t) {
+      var locked = ACCESS[t.dataset.app] === 'locked';
+      t.classList.toggle('locked', locked);
+      var tag = t.querySelector('.lock');
+      if (locked && !tag) { tag = el('span', 'lock', '🔒 Not provisioned'); t.appendChild(tag); }
+      if (!locked && tag) tag.remove();
+      t.setAttribute('aria-disabled', locked ? 'true' : 'false');
+    });
+  }
+
+  document.getElementById('seeAll').addEventListener('click', function () { go('create-new'); });
+
+  /* ── Filters: chips (category) + search (text) ────────────────────────────── */
+  var activeCat = 'all', query = '';
+  var qEl = document.getElementById('q'), form = document.getElementById('searchForm');
+  function applyFilters() {
+    var q = query.trim().toLowerCase();
+    form.classList.toggle('has-q', q.length > 0);
+    var shownStarters = 0;
+    Array.prototype.forEach.call(tilesEl.children, function (t) {
+      var ok = (activeCat === 'all' || t.dataset.cat === activeCat) && (!q || t.dataset.q.indexOf(q) !== -1);
+      t.classList.toggle('hidden', !ok); if (ok) shownStarters++;
+    });
+    ['recentGrid', 'studioGrid'].forEach(function (id) {
+      Array.prototype.forEach.call(document.getElementById(id).children, function (c) {
+        if (!c.dataset.q) return;
+        c.classList.toggle('hidden', !!q && c.dataset.q.indexOf(q) === -1);
+      });
+    });
+    return shownStarters;
+  }
+  document.getElementById('chips').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-cat]'); if (!b) return;
+    activeCat = b.dataset.cat;
+    Array.prototype.forEach.call(this.children, function (c) { c.classList.toggle('on', c === b); });
+    applyFilters();
+  });
+  qEl.addEventListener('input', function () { query = qEl.value; applyFilters(); });
+  document.getElementById('clearQ').addEventListener('click', function () { qEl.value = ''; query = ''; applyFilters(); qEl.focus(); });
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var first = tilesEl.querySelector('.tile:not(.hidden)');
+    if (first) go(first.dataset.tool);
+  });
+
+  /* ── Section tabs ─────────────────────────────────────────────────────────── */
+  document.querySelector('.seg').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-jump]'); if (!b) return;
+    Array.prototype.forEach.call(this.children, function (c) { c.classList.toggle('on', c === b); c.setAttribute('aria-selected', c === b ? 'true' : 'false'); });
+    var target = document.getElementById(b.dataset.jump);
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  /* ── Studios: from this app's OWN cockpit profile, so the cards are the rail ── */
+  var studioGrid = document.getElementById('studioGrid');
+  function renderStudios(items) {
+    studioGrid.replaceChildren();
+    var rendered = 0;
+    items.forEach(function (it) {
+      var tool = String(it.id || '').replace(/^tool-/, '');
+      var s = byTool[tool]; if (!s) return;
+      var locked = ACCESS[s.app] === 'locked', unknown = !ACCESS[s.app] || ACCESS[s.app] === 'unknown';
+      var c = el('button', 'card studio' + (locked ? ' locked' : '')); c.type = 'button'; c.dataset.q = (s.name + ' ' + s.blurb).toLowerCase();
+      var mark = el('div', 'mark t-' + s.tint); mark.appendChild(svgNode(art(s.art))); c.appendChild(mark);
+      var body = el('div'); body.appendChild(el('div', 'name', it.label || s.name));
+      if (locked) { var why = el('div', 'blurb'); why.appendChild(document.createTextNode('🔒 Not assigned to you yet — an administrator grants it in Access. ')); why.appendChild(accessLink(s.app)); body.appendChild(why); c.setAttribute('aria-disabled', 'true'); }
+      else { body.appendChild(el('div', 'blurb', (unknown ? 'Access: can’t check · ' : '') + s.blurb)); }
+      c.appendChild(body);
+      c.addEventListener('click', function () { go(tool); });
+      studioGrid.appendChild(c); rendered++;
+    });
+    if (!rendered) studioGrid.appendChild(el('div', 'empty', 'No studio is installed yet. Install AI Office, Portrait Studio, Video Studio or LoRA Studio from the store and they appear here.'));
+  }
+  function loadProfile() {
+    return fetchJson('/api/ui/profile?name=create', 4000).then(function (body) {
+      // The profile endpoint answers { profile: {...} }; older builds answered the profile bare.
+      var p = (body && body.profile && typeof body.profile === 'object') ? body.profile : body;
+      var items = (p && p.ribbon && Array.isArray(p.ribbon.items)) ? p.ribbon.items : [];
+      items.forEach(function (it) { if (it && it.toolUi && it.toolUi.iframeUrl) surfaceUrls[String(it.id || '').replace(/^tool-/, '')] = it.toolUi.iframeUrl; });
+      renderStudios(items.filter(function (it) { return it && typeof it === 'object' && it.toolUi; }));
+    }).catch(function () {
+      // No profile (standalone open, or the loader is still booting): the catalog is the rail.
+      renderStudios(STUDIOS.map(function (s) { return { id: 'tool-' + s.tool, label: s.name, toolUi: { iframeUrl: s.url } }; }));
+    });
+  }
+
+  /* ── Member summaries: asked here, in the viewer's own session ───────────── */
+  var PROBE_TIMEOUT_MS = 3000;
+  function fetchJson(url, ms) {
+    var ctl = new AbortController(); var t = setTimeout(function () { ctl.abort(); }, ms || PROBE_TIMEOUT_MS);
+    return fetch(url, { credentials: 'same-origin', cache: 'no-store', signal: ctl.signal, headers: { Accept: 'application/json' } })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .finally(function () { clearTimeout(t); });
+  }
+  var ISO = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/;
+  function whenText(detail) {
+    var m = ISO.exec(String(detail || '')); if (!m) return '';
+    var t = Date.parse(m[0]); if (!Number.isFinite(t)) return '';
+    var days = Math.floor((Date.now() - t) / 86400000);
+    if (days <= 0) return 'Today'; if (days === 1) return 'Yesterday'; if (days < 7) return days + ' days ago';
+    return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+  function stripWhen(detail) { return String(detail || '').replace(/\s*·\s*(?:updated|registered)?\s*\d{4}-\d{2}-\d{2}T[\d:.]+Z/g, '').replace(ISO, '').trim(); }
+
+  var recentGrid = document.getElementById('recentGrid'), recentNote = document.getElementById('recentNote');
+  var metricsEl = document.getElementById('metrics'), weekNote = document.getElementById('weekNote');
+  function recordCard(studio, item) {
+    var c = el('article', 'card'); c.dataset.q = (studio.name + ' ' + item.text + ' ' + (item.detail || '')).toLowerCase();
+    var badge = el('div', 'badge'); var sw = el('span', 'sw'); sw.style.background = studio.swatch; badge.appendChild(sw); badge.appendChild(el('span', null, studio.name)); c.appendChild(badge);
+    c.appendChild(el('div', 'title', item.text));
+    var d = stripWhen(item.detail); if (d) c.appendChild(el('div', 'detail', d));
+    var row = el('div', 'row'); row.appendChild(el('span', 'when', whenText(item.detail)));
+    var open = el('button', 'btn', 'Open'); open.type = 'button'; open.addEventListener('click', function () { go(studio.tool); }); row.appendChild(open);
+    c.appendChild(row); return c;
+  }
+  function metricPill(studio, m) {
+    var p = el('div', 'metric'); var sw = el('span', 'sw'); sw.style.background = studio.swatch; p.appendChild(sw);
+    p.appendChild(el('strong', null, m.value === 'Unavailable' ? '—' : m.value)); p.appendChild(el('span', null, m.label)); return p;
+  }
+  function loadSummaries() {
+    recentGrid.replaceChildren(); metricsEl.replaceChildren();
+    var cards = [], pills = [], cantCheck = [];
+    return Promise.all(STUDIOS.map(function (studio) {
+      if (ACCESS[studio.app] === 'locked') return Promise.resolve();   // not provisioned: nothing to ask, nothing to show
+      return fetchJson('/api/' + studio.app + '/home-summary').then(function (data) {
+        (Array.isArray(data.items) ? data.items : []).forEach(function (it) {
+          if (!it || typeof it !== 'object' || !Array.isArray(it.actions) || !it.actions.length) return;   // footnotes carry no actions
+          cards.push({ studio: studio, item: it, t: (function () { var m = ISO.exec(String(it.detail || '')); return m ? Date.parse(m[0]) : 0; })() });
+        });
+        (Array.isArray(data.metrics) ? data.metrics : []).slice(0, 3).forEach(function (m) { if (m && typeof m.label === 'string' && typeof m.value === 'string') pills.push({ studio: studio, m: m }); });
+        if (data.partial === true) cantCheck.push(studio.name);
+      }).catch(function () { cantCheck.push(studio.name); });
+    })).then(function () {
+      cards.sort(function (a, b) { return b.t - a.t; });
+      cards.slice(0, 12).forEach(function (c) { recentGrid.appendChild(recordCard(c.studio, c.item)); });
+      if (!cards.length) recentGrid.appendChild(el('div', 'empty', 'Nothing in progress yet — pick a starter above and your work shows up here.'));
+      recentNote.textContent = cards.length ? cards.length + ' recent piece' + (cards.length === 1 ? '' : 's') + ' across your studios' : '';
+      pills.forEach(function (p) { metricsEl.appendChild(metricPill(p.studio, p.m)); });
+      if (!pills.length) metricsEl.appendChild(el('div', 'empty', 'No counts yet.'));
+      weekNote.textContent = cantCheck.length ? "Can't check: " + cantCheck.join(', ') : 'Counts come from each studio\'s own saved records.';
+      applyFilters();
+    });
+  }
+
+  Promise.all(STUDIOS.map(function (s) { return accessFor(s.app).then(function (state) { ACCESS[s.app] = state; }); })).then(function () {
+    applyAccessToStarters();
+    loadProfile();
+    loadSummaries();
+  });
+})();
+</script>
+</body>
+</html>

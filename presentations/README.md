@@ -31,7 +31,8 @@ surface"** carve — only the surface layer ships here:
 
 | Tile | URL | What |
 |---|---|---|
-| AI Office | `/api/presentations/sections/ui` | Guided front door (make → look → start, or talk / upload / one-line draft) over the fine-tune studio: outline → deck/doc/workbook |
+| AI Office | `/api/presentations/sections/ui` | Guided front door (make → look → start, or talk / upload / one-line draft) over the fine-tune studio: outline → deck/doc/workbook. Deep link: `?kind=pptx\|docx\|xlsx&starter=<id>&theme=<id>&topic=<text>` opens the studio on that purpose (a kind alone lands on the walkthrough's purpose step) |
+| Starters | `GET /api/presentations/sections/starters` | The purpose-first starter catalog (`src-routes/office-starters.ts`): per kind, grouped — a document is a resume, a flyer, a letter, a report; a spreadsheet is a budget, a plan, a tracker, an invoice; a deck tells a story, explains, runs a meeting or sells. Served like `/themes` so the studio and the Create front door render one catalog |
 
 The surface opens on a full-screen visual walkthrough — pick the artifact, pick a look
 (live-drawn theme cards from the real render catalog), then a starter shape, one typed

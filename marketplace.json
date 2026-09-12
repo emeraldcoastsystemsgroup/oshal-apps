@@ -332,7 +332,7 @@
       "suite": "ai-productivity",
       "displayName": "AI Office",
       "description": "One outline, three artifacts — a themed PowerPoint deck, Word document, or live Excel workbook. Ten shared looks, twenty layouts, fully editable in Microsoft Office, Google Workspace or LibreOffice; saves to Dropbox, Google Drive, OneDrive, or OSHAL local. A guided visual start walks you from artifact to look to outline — or talk to the Guide, open a file, or type one line and AI drafts it all. Phone-friendly: dictate instead of typing, resume recent files in one tap, drive edits with tap chips. My files is a real file browser - click a file for download, open-in-provider, or edit-and-regenerate. The deck-generation engine stays framework-resident (kernel skill); this package is the studio surface.",
-      "version": "2.9.0",
+      "version": "2.11.1",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -731,6 +731,37 @@
       },
       "audit": {
         "record": "audits/creative-studio.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
+      "status": "ready"
+    },
+    {
+      "name": "create",
+      "suite": "ai-creative",
+      "displayName": "Create",
+      "description": "One studio for everything you make: decks, documents and workbooks from AI Office, portraits, short videos, story episodes and your own LoRA characters - a single home page that shows what you were working on and one tap to pick up where you left off, in every studio you already have. A launcher with a face: the manifest, a package-bundled cockpit skin, the home surface and two static routes; every studio tile is the member app's own surface and the members own their domains.",
+      "version": "1.2.0",
+      "theme": "create",
+      "dependencies": {
+        "apps": [
+          "presentations",
+          "portrait-studio",
+          "video",
+          "lora",
+          "vids",
+          "creative-studio"
+        ],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "create",
+        "ref": "main"
+      },
+      "audit": {
+        "record": "audits/create.json",
         "sourceSha": "0000000000000000000000000000000000000000"
       },
       "status": "ready"

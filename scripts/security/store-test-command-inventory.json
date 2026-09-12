@@ -4,6 +4,7 @@
     ".|node --test scripts/check-catalog.test.mjs",
     "bake-off|node --test \"tests/*.test.js\"",
     "career-hunter|node --test \"tests/*.test.mjs\"",
+    "create|node --test \"tests/*.test.js\"",
     "dnd|node --test \"tests/*.test.js\"",
     "game-show|npm test",
     "kalshi|node --test \"tests/*.test.js\"",

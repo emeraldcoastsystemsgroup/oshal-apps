@@ -1,0 +1,168 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1   | maintainer@emeraldcoastsystemsgroup.com     | Initial package — the Create front door: one branded skin over the creative studios
+# 2   | maintainer@emeraldcoastsystemsgroup.com     | 1.0.1 — home surface unwraps the profile envelope so the studios row renders against the live api
+# 3   | maintainer@emeraldcoastsystemsgroup.com     | 1.1.0 — the New screen (tools/create-new.html, /api/create/new): categories, purpose chips and template cards drawn from AI Office's starter catalog; every card opens its studio on that purpose through app-navigate + query
+# 4   | maintainer@emeraldcoastsystemsgroup.com     | 1.2.0 — authorization-aware surfaces: a studio the person is not provisioned for is shown locked (ADR-149 GET /api/authorization/me), never opened, never probed
+# -----------------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — create ("Create")
+#
+# The Canva-shaped front door for everything you make with oshal: one rail, one
+# skin, one home page ("What will you create today?") over the studios that are
+# already installed — AI Office (deck / document / workbook), Portrait Studio,
+# Video Studio, LoRA Studio, Vids Studio and the Creative Studio story pipeline.
+#
+# What this package IS: the manifest, a package-bundled cockpit skin
+# (ui/create.css — applied transiently while ?app=create is focused, the ADR-085
+# bundled-skin mechanism Little Monsters uses), the home surface
+# (tools/create-home.html), and two tiny routes that serve them.
+#
+# What it is NOT: a second copy of any studio. Every studio tile below is the
+# member app's OWN surface URL (the launcher shape of `life` / `games` /
+# `creative-studio`); the home page reads each member's Home summary probe in the
+# signed-in user's session for "Continue creating", and navigates the cockpit to
+# the member's tile with the ribbon's `app-navigate` dialect. No provider call,
+# no schema, no bots — the members own their domains (ADR-036).
+#
+# Framework: OSHAL (docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: create
+suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
+displayName: Create
+description: >-
+  One studio for everything you make: decks, documents and workbooks from AI
+  Office, portraits, short videos, story episodes and your own LoRA characters —
+  a single home page that shows what you were working on and one tap to pick up
+  where you left off, in every studio you already have.
+version: 1.2.0
+status: active
+scope: public
+theme: create   # package-bundled skin: ui/create.css (ADR-085), worn by the cockpit while this app is focused
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: create
+  ref: main
+
+# Installing Create resolves every studio it fronts (npm-style, fail-closed); the
+# reverse-dependency guard blocks a member's uninstall while Create is active.
+# `presentations` is deliberately an APP dependency here, not `uses: [deck-generation]`:
+# Create embeds AI Office's SURFACE (/api/presentations/sections/ui), which only exists
+# while that package is installed — the validator's kernel-skill warning is about the
+# engine (Little Monsters' old mis-declaration), which this package never calls.
+dependencies:
+  apps:
+    - presentations
+    - portrait-studio
+    - video
+    - lora
+    - vids
+    - creative-studio
+  tools: []
+  connectors: []
+
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+routes:
+  - module: routes/create-routes.js
+    factory: createCreateRoutes
+    mountPath: /api/create
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/create/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/create/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# UI — the Create rail. The first tile is this package's own home; the rest are
+# the member studios' own surfaces (ADR-085 D11: toolNames are global, hence the
+# create- prefix). `group:` bands render in first-appearance order.
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: create-new
+      label: Create
+      icon: codicon codicon-add
+      iframeUrl: /api/create/new
+      section: top
+    - toolName: create-home
+      label: Home
+      icon: codicon codicon-home
+      iframeUrl: /api/create/home
+      section: top
+    - toolName: create-office
+      label: AI Office
+      icon: codicon codicon-files
+      iframeUrl: /api/presentations/sections/ui
+      section: top
+      group: Studios
+    - toolName: create-portrait
+      label: Portrait
+      icon: codicon codicon-person
+      iframeUrl: /api/portrait-studio/app
+      section: top
+      group: Studios
+    - toolName: create-video
+      label: Video
+      icon: codicon codicon-device-camera-video
+      iframeUrl: /api/video/ui
+      section: top
+      group: Studios
+    - toolName: create-lora
+      label: LoRA
+      icon: codicon codicon-circuit-board
+      iframeUrl: /api/lora/ui
+      section: top
+      group: Studios
+    - toolName: create-vids
+      label: Vids
+      icon: codicon codicon-play-circle
+      iframeUrl: /api/vids/app
+      section: top
+      group: Pipeline
+    - toolName: create-story
+      label: Stories
+      icon: codicon codicon-sparkle
+      iframeUrl: /api/creative-studio/review
+      section: top
+      group: Pipeline
+
+# Ribbon chrome while /cockpit?app=create is focused: a creative tool, not a
+# ticket/queue console — the operational trays go, Settings stays (that is where
+# storage targets and connections live), and the global assistant orb stays as
+# the "ask for it" path.
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  hideChatPanel: true
+  hideStatusBar: true
+  defaultView: create-home

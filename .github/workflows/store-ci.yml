@@ -262,6 +262,23 @@ jobs:
         working-directory: presentations
         run: node --test "tests/*.test.*"
 
+  create:
+    name: create package suites
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # The Create home is one served HTML file over the other studios' surfaces — no compiler
+      # parses its inline script, and its studio catalog, starters and rail must never drift from
+      # the manifest. The routes suite drives the compiled route over real loopback HTTP behind the
+      # same express seam stub the AI Office destination suite uses. Plain node, no install.
+      - name: Run create suites
+        working-directory: create
+        run: node --test "tests/*.test.js"
+
   spaces:
     name: spaces package suites
     needs: [test-discovery, catalog-parity]

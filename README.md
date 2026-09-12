@@ -21,7 +21,7 @@ See [APP-HOME-EXTRACTION-PLAN.md](APP-HOME-EXTRACTION-PLAN.md) for the per-packa
 
 <!-- apps-table:begin (generated - run `node scripts/gen-readme-apps-table.mjs`; do not edit by hand) -->
 
-All **53 packages**, shelved by ADR-097 suite. Versions and status come from
+All **54 packages**, shelved by ADR-097 suite. Versions and status come from
 [`marketplace.json`](marketplace.json), which mirrors each package's `oshal-app.yaml`.
 
 ### AI Productivity
@@ -33,7 +33,7 @@ All **53 packages**, shelved by ADR-097 suite. Versions and status come from
 | **Identity Hub** | [`identity/`](identity/) | 1.1.0 | ready | Every account you've connected, in one place - click to jump straight into Gmail, LinkedIn, your smart-home app, and more, reconnect a login that's expired, or connect a new one, plus an optional access review that flags what needs attention. |
 | **Marketing Engine** | [`marketing-engine/`](marketing-engine/) | 0.4.1 | ready | Takes a built oshal product to traffic, users, and revenue: campaign board with stage-gated intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic metrics scorecard, experiment registry, budget proposals a human approves, and weekly review tickets worked by inline concierge bots only after human approval. |
 | **Payments** | [`payments/`](payments/) | 1.1.0 | ready | Take payments through your own Square or PayPal account — Square runs a card charge, PayPal sends an invoice. |
-| **AI Office** | [`presentations/`](presentations/) | 2.9.0 | ready | One outline, three artifacts — a themed PowerPoint deck, Word document, or live Excel workbook. |
+| **AI Office** | [`presentations/`](presentations/) | 2.11.1 | ready | One outline, three artifacts — a themed PowerPoint deck, Word document, or live Excel workbook. |
 | **Shopping** | [`purchasing/`](purchasing/) | 1.2.0 | ready | AI shopping concierge — search Walmart, build lists, learn your preferences, find deals, and hand off a ready-to-checkout cart you complete on the retailer's site. |
 | **Social** | [`social/`](social/) | 1.3.0 | ready | Draft, review, and publish across your networks from one surface - the comms bot drafts a post in your voice, you approve, and it publishes on your per-user LinkedIn / X / Facebook token (nothing posts until you click Publish). |
 | **Storage** | [`storage/`](storage/) | 1.2.0 | ready | Your storage hub — choose where OSHAL saves generated code vs files (GitHub / Dropbox / OSHAL-local), manage targets by chat with the Storage Assistant, and browse your files. |
@@ -68,6 +68,7 @@ All **53 packages**, shelved by ADR-097 suite. Versions and status come from
 |---|---|---|---|---|
 | **Brand Graphics** | [`brand-graphics/`](brand-graphics/) | 1.1.0 | ready | On-brand OSHAL motion graphics — a short brief becomes the validated electric-"oshal" intro look via Google Vids on the operator's signed-in Chrome. |
 | **Camera Ops** | [`camera/`](camera/) | 1.1.0 | ready | Remote camera control - connect a GoPro (Open GoPro HTTP) or other cameras as device nodes and drive them: record, photo, modes, settings, low-latency preview. |
+| **Create** | [`create/`](create/) | 1.2.0 | ready | One studio for everything you make: decks, documents and workbooks from AI Office, portraits, short videos, story episodes and your own LoRA characters - a single home page that shows what you were working on and one tap to pick up where you left off, in every studio you already have. |
 | **Creative Studio** | [`creative-studio/`](creative-studio/) | 1.2.0 | ready | A creative bot that just keeps making short kid-safe videos - it rotates a public-domain library (fables, fairytales, famous sayings), animates each ~100-word story across ~10 continuous Google Vids Extend scenes on the remote worker (ADR-080), downloads the finished MP4, and saves it to your content folder + Google Drive. |
 | **Dungeon Master** | [`dnd/`](dnd/) | 0.21.1 | ready | Play D&D with an AI Dungeon Master on a cinematic shared board: claimed heroes and visible AI companions follow an explicit move, action, target, dice, result, and advance loop with natural narration, saved characters, multiplayer join codes, playback, and rewind. |
 | **Game Show** | [`game-show/`](game-show/) | 0.11.0 | ready | TV-style AI game night: Family Feud, Jeopardy, Wheel of Fortune and Whammy, each with its own television set — podium characters, sound cues and opening titles. |
