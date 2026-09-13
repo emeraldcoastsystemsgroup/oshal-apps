@@ -1,0 +1,4 @@
+# CAD Studio engine -- the parametric CAD kernel. CadQuery is a Python front to Open CASCADE
+# Technology (OCCT, the B-rep kernel FreeCAD uses); its wheels bundle the kernel (cadquery-ocp).
+# Exact transitive pins live in requirements-lock.txt (pip freeze of a clean build).
+cadquery==2.5.2

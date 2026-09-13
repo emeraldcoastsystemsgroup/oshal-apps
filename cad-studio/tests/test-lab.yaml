@@ -1,0 +1,107 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped package test with explicit runner and fixture boundaries; retain the readiness smoke identity. The framework-coupled route suite is registered with its real prerequisite (a framework checkout), and the real-kernel Python suite with its (the engine image) — neither is hidden.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the existing metadata-only readiness probe without provider or user-data access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed cad-studio package identity satisfies its manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: contract-features
+    name: Feature contract and engine build hash
+    purpose: Prove the model contract the routes, tools and engine share — every base and feature type normalises, ranges and selectors are enforced with the field named, unknown parameters are refused, ids are kept on update, the list refuses duplicates and the cap, the published contract lists the engine's names — and that the Node and Python engine build hashes agree.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/contract-features.test.js
+    expected:
+      - Thirteen feature types and five base kinds validate; a typo'd parameter is refused naming the field.
+      - engine-build-hash.js and cad_engine_bridge.py --build-hash produce the same digest.
+    prerequisites:
+      - runner:node-test
+      - python3
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-client
+    name: Engine transport against a fake bridge
+    purpose: Prove the api's engine client over the real wire protocol on loopback — hello verification (protocol, build hash, busy), serialised requests answered by id, typed refusals, timeout kills and reconnects, a dropped bridge fails the queue, the bounded queue and the address parser.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-client.test.js
+    expected:
+      - A stale build hash is capability_unavailable naming the install command; a timeout is engine_timeout and the next request reconnects.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: routes-http
+    name: Packaged routes over loopback HTTP
+    purpose: Drive the compiled routes with express and multer from a framework checkout and the real engine client against a fake bridge — caller gate, create/build, the feature operations as revisions, owner scoping, artifacts by revision, mesh base upload, Home summary, deletion, and the 503 with the install command when the bridge is gone.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/routes.core.test.js
+    expected:
+      - 401 without a caller, 404 across owners, 400 with the field for bad input, 422 for a refused base, 503 naming install-engine.sh when the bridge is gone.
+    prerequisites:
+      - runner:node-test
+      - framework-checkout:OSHAL_CORE_DIR
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: engine-kernel
+    name: Real-kernel worker suite (engine image)
+    purpose: Prove the worker on the real OCCT kernel — every base and feature builds to analytic volumes, a refused feature is reported and skipped, STEP is byte-stable across rebuilds, a mesh round-trips through sewing, and the protocol answers every line. Runs inside the engine container, not under node.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - engine/tests/test_cad_worker.py
+    expected:
+      - 14 unittest cases pass under `python -m unittest discover -s tests` in oshal-cad-studio-engine.
+    prerequisites:
+      - engine-container:oshal-cad-studio-engine
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 3072
+    installation: never

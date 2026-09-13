@@ -504,3 +504,40 @@ jobs:
       - name: Run sports-edge suites
         working-directory: sports-edge
         run: node --test "tests/*.test.js"
+
+  scan-to-print:
+    name: scan-to-print package suites
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # The deterministic engine (silhouette → visual hull → surface nets → STL/OBJ/SVG, the depth
+      # carver and the .ply point-cloud lane, the printer adapters against a fake network) and the
+      # surface's phone-camera module are pure JS with no framework import, so they run under plain
+      # node with no install — every hyphenated suite (engine-*, surface-*). The framework-coupled
+      # route suite (routes.core, express/multer/sharp) is registered in tests/test-lab.yaml with its
+      # checkout prerequisite and runs locally, not here.
+      - name: Run scan-to-print engine and surface suites
+        working-directory: scan-to-print
+        run: node --test "tests/*-*.test.js"
+
+  cad-studio:
+    name: cad-studio package suites
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # The feature contract, the engine build hash (checked against the bridge's Python
+      # implementation with the runner's python3) and the engine transport against a fake bridge
+      # are plain node with no framework import — every hyphenated suite (contract-*, engine-*).
+      # The framework-coupled route suite (routes.core) and the real-kernel Python suite are
+      # registered in tests/test-lab.yaml with their prerequisites and run locally, not here.
+      - name: Run cad-studio contract and transport suites
+        working-directory: cad-studio
+        run: node --test "tests/*-*.test.js"

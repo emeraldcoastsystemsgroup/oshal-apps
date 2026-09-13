@@ -1,0 +1,243 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — scan-to-print ("Scan to Print")
+#
+# Photos (or a short video, or a LiDAR point cloud) of an object → an
+# engineering drawing (third-angle, six views, overall dimensions) → a
+# watertight 3D model (STL/OBJ) → a job on the person's own 3D printer.
+#
+# THE ENGINE IS BUNDLED AND DETERMINISTIC — src-routes/engine/ compiled to
+# routes/engine/. There is no model in the geometry path: a silhouette is a
+# threshold the photo's own histogram chooses (Otsu), the solid is the visual
+# hull carved from the outlines on a voxel grid, the mesh is surface nets over
+# that grid, the drawing is the grid re-projected. Same photos, same ruler
+# number, same bytes. The ONE inline concierge briefs and guides; it never
+# computes geometry and never sends a print.
+#
+# WHY THIS IS A BUILDING BLOCK (docs/ARCHITECTURE.md): every input lane ends in
+# the same OCCUPANCY GRID. Silhouettes carry "nothing along this ray"; a depth
+# map / LiDAR return carries "nothing along this ray UNTIL this range"; a point
+# cloud carries the surface itself. The grid accepts all three, in any order,
+# and the mesh / drawing / print tail never learns which sensor spoke. The
+# depth carver and the point-cloud lane ship here, exercised end to end with a
+# simulated sensor and a real .ply parser — a LiDAR export is a file on the
+# same path, not a future rewrite.
+#
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md,
+# docs/adr/036-bot-owned-application-architecture.md, docs/adr/140-local-device-access.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: scan-to-print
+suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
+displayName: Scan to Print
+description: >-
+  Photograph an object from its six sides (or film it, or import a LiDAR point
+  cloud), enter one ruler measurement, and get a third-angle engineering drawing
+  with overall dimensions, a watertight STL/OBJ you can rotate in the browser,
+  and a one-click job on your own OctoPrint, Klipper/Moonraker or PrusaLink
+  printer. The geometry is deterministic — silhouettes carve a voxel grid, the
+  grid becomes the mesh and the drawing — and the same occupancy grid accepts
+  depth and LiDAR input, so it is the building block a scanner plugs into.
+version: 0.3.0
+status: active
+scope: person
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: scan-to-print
+  ref: main
+
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/scan-to-print/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
+# ADR-139 — "Send to…" destination: an image from anywhere in the swarm opens this app with the
+# photo ready to add to a job.
+artifacts:
+  accepts:
+    - id: photo
+      label: Scan in Scan to Print
+      icon: 🧊
+      types: [image/*]
+      mode: open
+
+# No connector allow-list: the inputs are the person's own photos / files and their own printer
+# host (a URL + API key they enter here, held as owner-key ciphertext), not per-user OAuth.
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+# Kernel skills this app CALLS (ADR-090 uses: contract, fail-closed at load), derived from the
+# actual imports: @/features/personal-data (owner-key field encryption for printer API keys).
+uses:
+  - memory
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — one INLINE concierge (no container: reasoning rides the caller's hosted/BYO brain
+# through the framework's accounted path). It briefs jobs and drafts capture guidance; the
+# geometry is the engine's and printing is a confirmed human click. selectorDescriptor and
+# routingKeywords are declared HERE, not in the persona: the loader reads persona routing
+# fields from a server-cwd path a store package never lives at (ADR-083).
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: b4039c9b-a918-48b1-a98f-c66ecc70c4b4
+    name: scan-to-print-operator
+    persona: personas/scan-to-print-operator.yaml
+    role: reconstruction/scan-to-print
+    capabilities:
+      - scan-job-briefing
+      - capture-guidance
+      - reconstruction-explainer
+      - print-readiness
+    selectorDescriptor: >-
+      Select for the Scan to Print app ONLY: briefing an object-scan job (which views are
+      assigned, the ruler measurement, the reconstruction report), explaining why a visual
+      hull filled a cavity or why a mesh is not printable, drafting photo-capture guidance
+      (background, framing, the six views, scale), or explaining how a job reaches the
+      person's own 3D printer. Do NOT select for room-scale scanning (spaces-operator),
+      camera devices, drones, or anything that is not this app.
+    routingKeywords:
+      - 3d print
+      - scan to print
+      - engineering drawing
+      - stl
+      - visual hull
+      - silhouette
+      - point cloud
+      - octoprint
+      - prusalink
+      - moonraker
+      - six views
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TOOLS — route-backed and read-only. A bot that calls these gets the engine's numbers and
+# the caller's own rows, never an opinion. Print submission is deliberately NOT a tool: it
+# is a human click behind the explicit-confirm gate.
+# ─────────────────────────────────────────────────────────────────────────────
+tools:
+  - name: scan-to-print-capabilities
+    displayName: Scan to Print Capabilities
+    type: api
+    category: engineering
+    description: Report the six canonical views, the reconstruction bounds (resolution, smoothing), upload ceilings, supported printer hosts, and whether a slicer and frame extraction are configured.
+    executor: { executorType: api, apiEndpoint: "GET /api/scan-to-print/capabilities" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Read-only. The bounds returned are the SAME numbers the reconstruct route enforces, so
+      quote them rather than guessing.
+    routingTags: [scan, print, capabilities]
+    tags: [scan-to-print, route-backed]
+
+  - name: scan-to-print-jobs
+    displayName: List Scan Jobs
+    type: api
+    category: engineering
+    description: The caller's scan jobs with state, known dimensions and the last reconstruction report (extents with sources, volume, facets, printable verdict, warnings, limitations).
+    executor: { executorType: api, apiEndpoint: "GET /api/scan-to-print/jobs" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Owner-scoped. Quote the report's warnings and limitations verbatim; never invent an
+      extent, a volume or a facet count that is not in the report.
+    routingTags: [scan, jobs, report]
+    tags: [scan-to-print, route-backed]
+
+  - name: scan-to-print-printers
+    displayName: List Printers
+    type: api
+    category: engineering
+    description: The caller's registered printer hosts (label, kind, base URL — never the key) and whether the swarm has a slicer configured.
+    executor: { executorType: api, apiEndpoint: "GET /api/scan-to-print/printers" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Read-only. Sending a job is not available to bots; tell the person to use the Print
+      step in the app, which asks for an explicit confirmation.
+    routingTags: [printer, octoprint, moonraker, prusalink]
+    tags: [scan-to-print, route-backed]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon tile opens the app, self-served by this package's route from
+# tools/scan-to-print.html (ctx.appPackageDir). iframeUrl matches the serve route (GET /app).
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: scan-to-print
+      label: Scan to Print
+      icon: codicon codicon-package
+      iframeUrl: /api/scan-to-print/app
+      section: top
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — compiled JS bundled in this package, mounted in-process. OIDC only: every input is
+# the person's own, and the print step leaves the controller for a host they registered.
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/scan-to-print/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/scan-to-print/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/scan-to-print-routes.js
+    factory: createScanToPrintRoutes
+    mountPath: /api/scan-to-print
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+# The app's own schema (jobs, images, printers, submissions) with owner RLS, applied on install.
+migrations:
+  - migrations/001-scan-to-print.sql
+
+# The right-rail chat agent when this app is focused.
+chatBot: scan-to-print-operator
+
+# RIBBON VISIBILITY — focus mode for /cockpit?app=scan-to-print (chat panel stays: the
+# concierge is the app's guide).
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  defaultView: scan-to-print
+
+summary:
+  path: /api/scan-to-print/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a build sheet
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

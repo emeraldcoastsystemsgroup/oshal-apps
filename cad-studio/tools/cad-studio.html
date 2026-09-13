@@ -1,0 +1,162 @@
+<!doctype html>
+<!--
+  CAD Studio — a parametric part as a base + an ordered feature list, rebuilt by the OCCT kernel
+  in the package's engine container on every change; STEP / STL / hidden-line views / report per
+  revision; the right-rail concierge edits the SAME list through the package's tools. A
+  self-contained cockpit surface: the two scripts are served by this package's route
+  (/api/cad-studio/assets/…), the theme is inherited from the surrounding cockpit through the
+  shared surface-theme bootstrap with local fallbacks. (.html is exempt from the CHANGE LOG header.)
+-->
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CAD Studio</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  :root { --cs-bg: var(--bg, var(--bg-primary, #12151c)); --cs-panel: var(--panel, var(--bg-card, #1b1f29)); --cs-panel2: var(--panel2, var(--bg-tertiary, #232836));
+          --cs-text: var(--text, var(--text-primary, #e6e9ef)); --cs-muted: var(--muted, var(--text-muted, #9aa3b2)); --cs-line: var(--line, var(--border-color, #2f3646));
+          --cs-accent: var(--accent, #4f8cff); --cs-danger: var(--danger, #e5534b); --cs-ok: var(--ok, #3fb950); --cs-warn: var(--warn, #d29922); }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--cs-text); background: var(--cs-bg); }
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--cs-line); background: var(--cs-panel); }
+  header h1 { font-size: 16px; margin: 0; }
+  header .spacer { flex: 1; }
+  .layout { display: grid; grid-template-columns: 240px 1fr 340px; min-height: calc(100vh - 49px); }
+  aside { border-right: 1px solid var(--cs-line); padding: 12px; background: var(--cs-panel); overflow: auto; }
+  aside.right { border-right: 0; border-left: 1px solid var(--cs-line); }
+  main { padding: 14px 18px 40px; overflow: auto; }
+  .model-item { display: flex; justify-content: space-between; align-items: center; width: 100%; text-align: left; padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--cs-line); border-radius: 8px; background: var(--cs-panel2); color: var(--cs-text); cursor: pointer; }
+  .model-item.active { border-color: var(--cs-accent); }
+  .model-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--cs-line); color: var(--cs-muted); white-space: nowrap; }
+  .badge.built { border-color: var(--cs-ok); color: var(--cs-ok); }
+  .badge.failed { border-color: var(--cs-danger); color: var(--cs-danger); }
+  .banner { border: 1px solid var(--cs-danger); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; background: var(--cs-panel2); }
+  .banner code { user-select: all; word-break: break-all; }
+  section.step { border: 1px solid var(--cs-line); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; background: var(--cs-panel); }
+  section.step h2 { font-size: 14px; margin: 0 0 8px; }
+  section.step h2 small { color: var(--cs-muted); font-weight: normal; margin-left: 8px; }
+  button, input, select, textarea { font: inherit; color: var(--cs-text); }
+  button.primary { background: var(--cs-accent); color: #fff; border: 0; border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+  button.primary:disabled { opacity: .5; cursor: default; }
+  button.ghost { background: transparent; border: 1px solid var(--cs-line); border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+  button.link { background: none; border: 0; color: var(--cs-accent); cursor: pointer; padding: 0 4px; }
+  button.link.danger { color: var(--cs-danger); }
+  input[type=number], input[type=text], select, textarea { background: var(--cs-panel2); border: 1px solid var(--cs-line); border-radius: 6px; padding: 5px 8px; }
+  input[type=number] { width: 84px; }
+  label.file { display: inline-block; border: 1px dashed var(--cs-line); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+  label.file input { display: none; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; }
+  .muted { color: var(--cs-muted); }
+  .small { font-size: 12px; }
+  canvas#viewer { width: 100%; height: 420px; border-radius: 8px; border: 1px solid var(--cs-line); color: var(--cs-accent); background: var(--cs-panel2); touch-action: none; }
+  .views { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
+  .views figure { margin: 0; border: 1px solid var(--cs-line); border-radius: 8px; background: #fff; padding: 4px; }
+  .views img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; display: block; }
+  .views figcaption { text-align: center; color: #333; font-size: 11px; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 0; }
+  dt { color: var(--cs-muted); }
+  dd { margin: 0; }
+  .downloads a { margin-right: 12px; color: var(--cs-accent); }
+  ol.features { list-style: none; padding: 0; margin: 0; }
+  ol.features li { border: 1px solid var(--cs-line); border-radius: 8px; padding: 6px 8px; margin-bottom: 6px; background: var(--cs-panel2); }
+  ol.features li.failed { border-color: var(--cs-danger); }
+  ol.features li.disabled { opacity: .55; }
+  ol.features li.selected { border-color: var(--cs-accent); }
+  .feature-head { display: flex; align-items: center; gap: 6px; }
+  .feature-head .type { font-weight: 600; }
+  .feature-head .spacer { flex: 1; }
+  .feature-params { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--cs-muted); word-break: break-all; }
+  .feature-error { color: var(--cs-danger); font-size: 12px; }
+  .params-form { display: grid; grid-template-columns: max-content 1fr; gap: 6px 8px; align-items: center; margin: 8px 0; }
+  .params-form .doc { grid-column: 1 / -1; color: var(--cs-muted); font-size: 11px; margin-top: -4px; }
+  ul.revisions { list-style: none; padding: 0; margin: 0; max-height: 180px; overflow: auto; }
+  ul.revisions li { display: flex; gap: 6px; align-items: center; padding: 3px 0; border-bottom: 1px solid var(--cs-line); }
+  .toast { position: fixed; right: 16px; bottom: 16px; padding: 10px 14px; border-radius: 8px; background: var(--cs-panel2); border: 1px solid var(--cs-line); max-width: 460px; z-index: 5; }
+  .toast.error { border-color: var(--cs-danger); }
+  .toast.ok { border-color: var(--cs-ok); }
+  @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } aside, aside.right { border: 0; border-bottom: 1px solid var(--cs-line); } .views { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>CAD Studio</h1>
+  <span class="muted small">base + feature list → OCCT kernel → STEP · STL · drawings — every edit rebuilds</span>
+  <span class="spacer"></span>
+  <span id="engine-pill" class="badge">engine…</span>
+  <button id="new-model" class="primary">New part</button>
+</header>
+<div class="layout">
+  <aside>
+    <div id="model-list"></div>
+  </aside>
+  <main>
+    <div id="engine-banner" class="banner" hidden>
+      <strong>The CAD engine container is not answering.</strong>
+      <div id="engine-reason" class="small"></div>
+      <div class="small muted">Install or rebuild it from the host: <code id="engine-hint"></code></div>
+    </div>
+    <div id="empty-panel">
+      <p class="muted">Create a part, open one, or start from a Scan to Print job (Open in CAD Studio).</p>
+    </div>
+    <div id="model-panel" hidden>
+      <div class="row">
+        <h2 id="model-heading" style="margin:0"></h2>
+        <span id="model-state" class="badge"></span>
+        <span id="model-source" class="small muted"></span>
+        <span class="spacer" style="flex:1"></span>
+        <button id="rename-model" class="ghost">Rename</button>
+        <button id="rebuild-model" class="ghost">Rebuild</button>
+        <button id="delete-model" class="ghost">Delete</button>
+      </div>
+      <section class="step">
+        <h2>Model <small>drag to orbit · wheel to zoom · shift-drag to pan</small></h2>
+        <canvas id="viewer"></canvas>
+        <p id="viewer-info" class="small muted"></p>
+        <div id="views" class="views"></div>
+      </section>
+      <section class="step">
+        <h2>Report <small>from the kernel, not an estimate</small></h2>
+        <div id="report"></div>
+        <p id="downloads" class="downloads"></p>
+      </section>
+      <section class="step">
+        <h2>Base <small>what the feature list starts from</small></h2>
+        <div id="base-summary" class="small"></div>
+        <div class="row">
+          <label class="file">Replace base with an STL <input id="mesh-upload" type="file" accept=".stl,model/stl" /></label>
+          <label>density <input id="density" type="number" min="0.1" step="0.01" /> g/cm³</label>
+          <button id="save-settings" class="ghost">Save</button>
+        </div>
+      </section>
+    </div>
+  </main>
+  <aside class="right">
+    <div id="features-panel" hidden>
+      <h2 style="font-size:14px;margin:0 0 8px">Features <small class="muted" style="font-weight:normal">apply in order</small></h2>
+      <ol id="feature-list" class="features"></ol>
+      <div id="feature-editor" class="step" style="margin-top:8px">
+        <div class="row">
+          <select id="feature-type"></select>
+          <span id="feature-doc" class="small muted"></span>
+        </div>
+        <div id="params-form" class="params-form"></div>
+        <div class="row">
+          <input id="feature-label" type="text" placeholder="label (optional)" style="width:150px" />
+          <button id="feature-submit" class="primary">Add feature</button>
+          <button id="feature-cancel" class="ghost" hidden>Cancel</button>
+        </div>
+      </div>
+      <h2 style="font-size:14px;margin:12px 0 6px">Revisions <small class="muted" style="font-weight:normal">restore = undo</small></h2>
+      <ul id="revisions" class="revisions small"></ul>
+    </div>
+  </aside>
+</div>
+<div id="toast" class="toast" hidden></div>
+<script src="/api/cad-studio/assets/cad-studio-gl.js"></script>
+<script src="/api/cad-studio/assets/cad-studio.js"></script>
+</body>
+</html>

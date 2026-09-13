@@ -1,0 +1,216 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped package test with explicit runner and fixture boundaries; retain the readiness smoke identity. The framework-coupled route suite is registered with its real prerequisite (a framework checkout) rather than hidden.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register the surface camera module suite (phone capture: view order and guidance, frame bounding, the countdown sequence on a fake clock, the stream wrapper on a fake mediaDevices).
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register the contour-export suite (the CAD Studio bridge: outlines in world millimetres, simplification within half a voxel, the point budget).
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the existing metadata-only readiness probe without provider or user-data access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed scan-to-print package identity satisfies its manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: engine-geometry
+    name: Geometry primitives and exporters
+    purpose: Prove the vendored mesh primitives — exact binary STL length, ASCII STL / OBJ shapes, the four-way validator — and that the compiled engine imports no framework module.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-geometry.test.js
+    expected:
+      - Binary STL is 84 + 50·n bytes and never begins with "solid"; OBJ indices are 1-based.
+      - A closed tetrahedron validates; an open or inverted one does not.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-silhouette
+    name: Deterministic silhouette extraction
+    purpose: Prove background estimation, Otsu thresholding, morphology, largest-component and hole filling on synthetic photos, and byte-identical repeatability.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-silhouette.test.js
+    expected:
+      - A disc on a tinted background is recovered to within a pixel with no warnings.
+      - Speckle is dropped, logos do not tunnel, edge-touching and uniform photos warn.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-reconstruction
+    name: Visual-hull reconstruction
+    purpose: Prove the six view frames are right-handed cameras and that silhouettes register, carve and mesh to the analytic extents and volumes, byte-identically across runs.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-reconstruction.test.js
+    expected:
+      - A three-view box registers to 60×40×30 mm exactly and meshes watertight within 1% of 72000 mm³.
+      - One view assumes and flags the unseen depth; disagreeing views warn; refusals are RangeErrors.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: engine-depth-lidar
+    name: Depth and point-cloud lanes (the LiDAR building block)
+    purpose: Prove a simulated range image carves a cavity the visual hull filled, no-return never carves, PLY parses in all three encodings, and a lattice box fills to its exact volume while a missing face is reported as a leak.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-depth-lidar.test.js
+    expected:
+      - Depth carving reproduces the hollow grid to the voxel.
+      - The point-cloud lane closes, fills to 72000 mm³, re-orients a Y-up export, and reports a leak.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: engine-drawing
+    name: Engineering drawing sheet
+    purpose: Prove exact contour tracing and that the SVG sheet carries six views, three overall dimensions, the title block and the provenance notes at a standard scale.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-drawing.test.js
+    expected:
+      - A square traces to one four-point loop; a ring to two loops.
+      - The sheet lists FRONT..BOTTOM, 60.0/40.0/30.0, THIRD ANGLE, the method and extent provenance.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-print
+    name: Printer adapters and slicer command
+    purpose: Prove the OctoPrint / Moonraker / PrusaLink upload and status shapes against a fake network, URL refusals, host acceptance, and shell-free slicer argv.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-print.test.js
+    expected:
+      - The API key rides X-Api-Key and never a URL; STL is never auto-started.
+      - Loopback, credentialed, non-http and query-bearing URLs are refused.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-contours
+    name: Contour export (the CAD Studio bridge)
+    purpose: Prove the front / top / right outlines of a reconstruction come back in world millimetres in the engine's frame (footprint centred, Z from 0), that the voxel staircase is simplified within half a voxel, and that the vertex budget is honoured.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-contours.test.js
+    expected:
+      - A 60×40×30 box yields three four-point rectangles at exactly ±30 / ±20 / 0..30 mm.
+      - A ⌀40 cylinder's top outline is a circle whose area is within 3 % of π·20² with every vertex within one voxel of r = 20.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: surface-camera
+    name: Phone camera capture module
+    purpose: Prove the surface's camera module under plain node — the six-view order with front-edge guidance that matches the engine's view frames, frame bounding, upload names, the countdown capture sequence on a fake clock (tick, capture, skip, stop, a failing capture halts), and the stream wrapper on a fake mediaDevices (rear camera first, flip, stop releases tracks, bounded JPEG, no frame rejects).
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/surface-camera.test.js
+    expected:
+      - The sequence is front, top, right, left, back, bottom with the first three required; each view's guidance names where the FRONT edge sits.
+      - A 4032×3024 frame bounds to 1280×960; the sequence captures each view after its countdown and reports completion in order; a rejected capture stops it.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: routes-http
+    name: Packaged routes over loopback HTTP
+    purpose: Drive the compiled routes with express, multer and sharp from a framework checkout — caller gate, owner scoping, photo→reconstruct→artifacts, confirm-gated printing, point-cloud lane, deletion.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/routes.core.test.js
+    expected:
+      - 401 without a caller, 404 across owners, 409/428 refusals, byte-identical re-runs.
+      - Printer keys are stored only as ciphertext; STL never auto-starts; G-code needs a slicer.
+    prerequisites:
+      - runner:node-test
+      - framework-checkout:OSHAL_CORE_DIR
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never

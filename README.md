@@ -21,7 +21,7 @@ See [APP-HOME-EXTRACTION-PLAN.md](APP-HOME-EXTRACTION-PLAN.md) for the per-packa
 
 <!-- apps-table:begin (generated - run `node scripts/gen-readme-apps-table.mjs`; do not edit by hand) -->
 
-All **54 packages**, shelved by ADR-097 suite. Versions and status come from
+All **56 packages**, shelved by ADR-097 suite. Versions and status come from
 [`marketplace.json`](marketplace.json), which mirrors each package's `oshal-app.yaml`.
 
 ### AI Productivity
@@ -102,11 +102,13 @@ All **54 packages**, shelved by ADR-097 suite. Versions and status come from
 |---|---|---|---|---|
 | **Aero Lab** | [`aero-lab/`](aero-lab/) | 1.2.0 | ready | Persistent-flight design lab - shape a solar-endurance aircraft (span, area, aspect ratio, battery, cells, buoyancy fraction, site, season), run it through the validated aerosim engine (wing polar, 24 h energy limit cycle, admissibility screen), read the verdict with real plots (SOC trace, polar, drag buildup, margins), and download the build package (STL / DXF / BOM). |
 | **AI Bake-Off** | [`bake-off/`](bake-off/) | 1.1.0 | ready | Race one job across every AI lane you already have, grade every output on the shared quality judge, and get the cheapest lane that still clears your quality bar. |
+| **CAD Studio** | [`cad-studio/`](cad-studio/) | 0.1.0 | ready | A real CAD kernel (Open CASCADE via CadQuery) the swarm can drive iteratively. |
 | **Capability Ideator** | [`capability-ideator/`](capability-ideator/) | 1.1.0 | ready | Discover sourced tools and integration opportunities for business processes, grounded in installed applications and explicit connection requirements. |
 | **Cloud** | [`cloud/`](cloud/) | 1.1.0 | ready | Inspect and operate your Google Cloud by chat. |
 | **Hello OSHAL** | [`hello-oshal/`](hello-oshal/) | 1.1.0 | ready | The minimal working example — one route, one ribbon tile. |
 | **Ocean Lab** | [`ocean-lab/`](ocean-lab/) | 1.1.0 | ready | Ambient-energy design lab — model a machine that moves on tidal and current flow or on the soil thermal gradient, size its rotor with real blade-element momentum theory, and export printable geometry. |
 | **Sat Ops** | [`sat-ops/`](sat-ops/) | 1.2.0 | ready | Satellite fleet plane - a 3D orbit console with fleet attitude telemetry (MEKF health, wheel momentum, ADCS mode), SGP4 ground tracks and pass windows, pairwise conjunction screening, and an approval-gated command console (point / detumble / desat / safe). |
+| **Scan to Print** | [`scan-to-print/`](scan-to-print/) | 0.3.0 | ready | Photograph an object from its six sides (or film it, or import a LiDAR point cloud), enter one ruler measurement, and get a third-angle engineering drawing with overall dimensions, a watertight STL/OBJ you can rotate in the browser, and a one-click job on your own OctoPrint, Klipper/Moonraker or PrusaLink printer. |
 
 <!-- apps-table:end -->
 

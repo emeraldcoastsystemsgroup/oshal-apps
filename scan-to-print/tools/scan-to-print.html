@@ -1,0 +1,210 @@
+<!doctype html>
+<!--
+  Scan to Print — photos of an object → engineering drawing → printable model → the person's own
+  printer. A self-contained cockpit surface: the two scripts are served by this package's route
+  (/api/scan-to-print/assets/…), the theme is inherited from the surrounding cockpit through the
+  shared surface-theme bootstrap, and every framework token is consumed READ-ONLY with a local
+  fallback so the page renders in any skin. (.html is exempt from the CHANGE LOG header.)
+-->
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Scan to Print</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  :root { --stp-bg: var(--bg, var(--bg-primary, #12151c)); --stp-panel: var(--panel, var(--bg-card, #1b1f29)); --stp-panel2: var(--panel2, var(--bg-tertiary, #232836));
+          --stp-text: var(--text, var(--text-primary, #e6e9ef)); --stp-muted: var(--muted, var(--text-muted, #9aa3b2)); --stp-line: var(--line, var(--border-color, #2f3646));
+          --stp-accent: var(--accent, #4f8cff); --stp-danger: var(--danger, #e5534b); --stp-ok: var(--ok, #3fb950); }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--stp-text); background: var(--stp-bg); }
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--stp-line); background: var(--stp-panel); }
+  header h1 { font-size: 16px; margin: 0; }
+  header .spacer { flex: 1; }
+  .layout { display: grid; grid-template-columns: 260px 1fr; min-height: calc(100vh - 49px); }
+  aside { border-right: 1px solid var(--stp-line); padding: 12px; background: var(--stp-panel); overflow: auto; }
+  main { padding: 16px 20px 40px; overflow: auto; }
+  .job-item { display: flex; justify-content: space-between; align-items: center; width: 100%; text-align: left; padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--stp-line); border-radius: 8px; background: var(--stp-panel2); color: var(--stp-text); cursor: pointer; }
+  .job-item.active { border-color: var(--stp-accent); }
+  .job-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--stp-line); color: var(--stp-muted); white-space: nowrap; }
+  .badge.reconstructed { border-color: var(--stp-ok); color: var(--stp-ok); }
+  .badge.failed { border-color: var(--stp-danger); color: var(--stp-danger); }
+  section.step { border: 1px solid var(--stp-line); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; background: var(--stp-panel); }
+  section.step h2 { font-size: 14px; margin: 0 0 8px; }
+  section.step h2 small { color: var(--stp-muted); font-weight: normal; margin-left: 8px; }
+  button, input, select { font: inherit; color: var(--stp-text); }
+  button.primary { background: var(--stp-accent); color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+  button.primary:disabled { opacity: .5; cursor: default; }
+  button.ghost { background: transparent; border: 1px solid var(--stp-line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  button.link { background: none; border: 0; color: var(--stp-accent); cursor: pointer; padding: 0 4px; }
+  button.link.danger { color: var(--stp-danger); }
+  input[type=number], input[type=text], input[type=url], input[type=password], select { background: var(--stp-panel2); border: 1px solid var(--stp-line); border-radius: 6px; padding: 6px 8px; }
+  label.file { display: inline-block; border: 1px dashed var(--stp-line); border-radius: 8px; padding: 8px 12px; cursor: pointer; margin-right: 8px; }
+  label.file input { display: none; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 6px 0; }
+  .muted { color: var(--stp-muted); }
+  .small { font-size: 12px; }
+  .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 8px; }
+  .image-card { border: 1px solid var(--stp-line); border-radius: 8px; padding: 6px; background: var(--stp-panel2); }
+  .image-card.assigned { border-color: var(--stp-accent); }
+  .image-card img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #000; border-radius: 6px; }
+  .image-meta { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+  ul.warnings, ul.limits { margin: 6px 0 0; padding-left: 18px; }
+  ul.warnings li { color: var(--stp-danger); }
+  ul.limits li { color: var(--stp-muted); }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; }
+  dt { color: var(--stp-muted); }
+  dd { margin: 0; }
+  .downloads a { margin-right: 12px; color: var(--stp-accent); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .drawing { width: 100%; background: #fff; border-radius: 8px; border: 1px solid var(--stp-line); }
+  canvas#viewer { width: 100%; height: 360px; border-radius: 8px; border: 1px solid var(--stp-line); color: var(--stp-accent); border-color: var(--stp-line); background: var(--stp-panel2); touch-action: none; }
+  #printer-form input { min-width: 140px; }
+  #submissions li.failed { color: var(--stp-danger); }
+  #submissions li.printing { color: var(--stp-ok); }
+  .toast { position: fixed; right: 16px; bottom: 16px; padding: 10px 14px; border-radius: 8px; background: var(--stp-panel2); border: 1px solid var(--stp-line); max-width: 420px; z-index: 5; }
+  .toast.error { border-color: var(--stp-danger); }
+  .toast.ok { border-color: var(--stp-ok); }
+  .camera { border: 1px solid var(--stp-accent); border-radius: 10px; padding: 10px; margin: 8px 0; background: var(--stp-panel2); }
+  .cam-stage { position: relative; background: #000; border-radius: 8px; overflow: hidden; }
+  #cam-video { display: block; width: 100%; max-height: 62vh; object-fit: contain; background: #000; }
+  .cam-frame { position: absolute; inset: 8%; border: 2px dashed rgba(255,255,255,.4); border-radius: 6px; pointer-events: none; }
+  .cam-count { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 72px; font-weight: 700; color: #fff; text-shadow: 0 2px 10px #000; pointer-events: none; }
+  .cam-views { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+  .chip { border: 1px solid var(--stp-line); border-radius: 999px; padding: 4px 10px; background: var(--stp-panel); cursor: pointer; font-size: 12px; }
+  .chip.active { border-color: var(--stp-accent); color: var(--stp-accent); }
+  .chip.done { border-color: var(--stp-ok); }
+  .cam-shots { display: flex; gap: 6px; overflow-x: auto; padding-top: 6px; }
+  .cam-shots figure { margin: 0; text-align: center; }
+  .cam-shots canvas { height: 64px; width: auto; border-radius: 4px; border: 1px solid var(--stp-line); background: #000; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--stp-line); } .two { grid-template-columns: 1fr; } #cam-shutter { padding: 14px 22px; font-size: 16px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Scan to Print</h1>
+  <span class="muted small">photos → drawing → STL → your printer · deterministic geometry</span>
+  <span class="spacer"></span>
+  <button id="new-job" class="primary">New object</button>
+</header>
+<div class="layout">
+  <aside>
+    <div id="job-list"></div>
+  </aside>
+  <main>
+    <div id="empty-panel">
+      <p class="muted">Create an object, add photos from its six sides (front, back, left, right, top, bottom) on a plain background, enter one ruler measurement, and reconstruct. Or import a LiDAR point cloud (.ply).</p>
+    </div>
+    <div id="job-panel" hidden>
+      <div class="row">
+        <h2 id="job-heading" style="margin:0"></h2>
+        <span id="job-state" class="badge"></span>
+        <span class="spacer" style="flex:1"></span>
+        <button id="delete-job" class="ghost">Delete</button>
+      </div>
+
+      <section class="step">
+        <h2>1 · Capture <small>plain background · camera square to the face · same orientation for every photo</small></h2>
+        <div class="row">
+          <button id="open-camera" class="primary">Use camera</button>
+          <label class="file">Take a photo <input id="photo-capture" type="file" accept="image/*" capture="environment" /></label>
+          <label class="file">Add photos <input id="photos" type="file" accept="image/*" multiple /></label>
+          <label class="file">Add a video <input id="video" type="file" accept="video/*" /></label>
+          <button id="toggle-mask" class="ghost">show silhouettes</button>
+          <span id="video-note" class="muted small"></span>
+          <span id="camera-note" class="muted small"></span>
+        </div>
+        <div id="camera-panel" class="camera" hidden>
+          <div class="cam-stage">
+            <video id="cam-video" autoplay playsinline muted></video>
+            <div class="cam-frame"></div>
+            <span id="cam-count" class="cam-count" hidden></span>
+          </div>
+          <div id="cam-views" class="cam-views"></div>
+          <p id="cam-guide" class="small" style="margin:4px 0"></p>
+          <div class="row">
+            <button id="cam-shutter" class="primary">Capture FRONT</button>
+            <button id="cam-auto" class="ghost">Record six views</button>
+            <button id="cam-skip" class="ghost" hidden>Skip this view</button>
+            <button id="cam-flip" class="ghost">Flip camera</button>
+            <button id="cam-close" class="ghost">Done</button>
+            <span id="cam-info" class="muted small"></span>
+          </div>
+          <div id="cam-shots" class="cam-shots"></div>
+        </div>
+        <div class="row small muted">
+          <span>Point cloud (.ply) instead:</span>
+          <label class="file">Import .ply <input id="pointcloud" type="file" accept=".ply" /></label>
+          <label>voxel <input id="pc-voxel" type="number" value="1" min="0.1" step="0.1" style="width:70px" /> mm</label>
+          <label>units × <input id="pc-units" type="number" value="1000" min="0.001" step="any" style="width:80px" /></label>
+          <label>up <select id="pc-up"><option value="y">Y (phone export)</option><option value="z">Z</option></select></label>
+        </div>
+        <p id="assigned-summary" class="small muted"></p>
+        <div id="image-grid" class="image-grid"></div>
+      </section>
+
+      <section class="step">
+        <h2>2 · Scale <small>measure at least one extent with a ruler</small></h2>
+        <div class="row">
+          <label>Width X <input id="dim-x" type="number" min="0" step="0.1" style="width:90px" /> mm</label>
+          <label>Depth Y <input id="dim-y" type="number" min="0" step="0.1" style="width:90px" /> mm</label>
+          <label>Height Z <input id="dim-z" type="number" min="0" step="0.1" style="width:90px" /> mm</label>
+          <button id="save-dims" class="ghost">Save scale</button>
+        </div>
+      </section>
+
+      <section class="step">
+        <h2>3 · Reconstruct <small>visual hull → watertight mesh → drawing</small></h2>
+        <div class="row">
+          <label>Resolution <input id="res" type="range" /> <span id="res-label"></span> voxels</label>
+          <label>Smoothing <input id="smooth" type="range" /> <span id="smooth-label"></span> passes</label>
+          <button id="reconstruct" class="primary">Reconstruct</button>
+        </div>
+        <div id="report"></div>
+        <div class="two" style="margin-top:12px">
+          <div id="drawing-wrap" hidden>
+            <h3 class="small muted" style="margin:0 0 6px">Engineering drawing (third angle, A3, mm)</h3>
+            <img id="drawing" class="drawing" alt="Engineering drawing" />
+          </div>
+          <div id="viewer-wrap" hidden>
+            <h3 class="small muted" style="margin:0 0 6px">3D model</h3>
+            <canvas id="viewer"></canvas>
+            <p id="viewer-info" class="small muted"></p>
+          </div>
+        </div>
+      </section>
+
+      <section id="print-step" class="step" hidden>
+        <h2>4 · Print <small>your own OctoPrint, Klipper/Moonraker or PrusaLink host</small></h2>
+        <p id="slicer-note" class="small muted"></p>
+        <div class="row">
+          <select id="printer"></select>
+          <select id="file-kind"><option value="gcode">G-code (sliced)</option><option value="stl">STL (host slices)</option></select>
+          <label><input id="start-print" type="checkbox" /> start printing after upload</label>
+          <button id="send" class="primary">Send to printer…</button>
+        </div>
+        <ul id="submissions" class="small"></ul>
+        <details>
+          <summary class="small muted">Register a printer</summary>
+          <form id="printer-form" class="row">
+            <input id="p-label" type="text" placeholder="label" required />
+            <select id="p-kind"><option value="octoprint">OctoPrint</option><option value="moonraker">Moonraker (Klipper)</option><option value="prusalink">PrusaLink</option></select>
+            <input id="p-url" type="url" placeholder="http://printer.local" required />
+            <input id="p-key" type="password" placeholder="API key" required autocomplete="off" />
+            <button class="ghost" type="submit">Save printer</button>
+          </form>
+          <ul id="printer-list" class="small"></ul>
+        </details>
+      </section>
+    </div>
+  </main>
+</div>
+<div id="toast" class="toast" hidden></div>
+<script src="/api/scan-to-print/assets/scan-to-print-gl.js"></script>
+<script src="/api/scan-to-print/assets/scan-to-print-camera.js"></script>
+<script src="/api/scan-to-print/assets/scan-to-print.js"></script>
+</body>
+</html>

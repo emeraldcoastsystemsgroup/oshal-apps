@@ -1,0 +1,359 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — cad-studio ("CAD Studio")
+#
+# A real CAD kernel (Open CASCADE Technology through CadQuery) that the swarm can
+# DRIVE: a part is a base (a box, a cylinder, a sketch, the outlines of a Scan to
+# Print job, or an uploaded mesh) plus an ordered feature list (holes, bosses,
+# pockets, sketch extrusions, fillets, chamfers, shells, cut planes, scale /
+# mirror / rotate / translate). Every change replays the list on the kernel and
+# re-exports STEP, STL, four hidden-line drawing views and a report, so the
+# person, the concierge and any MCP client iterate on the SAME model — the
+# feature list is the parametric history, a revision is one successful rebuild,
+# and restoring a revision is undo.
+#
+# THE KERNEL RUNS IN THE PACKAGE'S OWN CONTAINER (engine/, installed by
+# engine/install-engine.sh — the aero-lab shape): the api's client verifies the
+# container's engine build hash before the first request, so a stale container
+# answers "install me" instead of a wrong model. The concierge never computes
+# geometry: it calls the route-backed tools below, which validate every
+# parameter against the published contract and then run the kernel. Printing
+# stays in Scan to Print behind its explicit confirm; this package exports files.
+#
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md,
+# docs/adr/036-bot-owned-application-architecture.md, docs/adr/150-…scan-to-print.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: cad-studio
+suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
+displayName: CAD Studio
+description: >-
+  A real CAD kernel (Open CASCADE via CadQuery) the swarm can drive iteratively.
+  Start from a box, a cylinder, a sketch, the outlines of a Scan to Print job or an
+  uploaded STL; add holes, bosses, pockets, sketch extrusions, fillets, chamfers,
+  shells and cut planes as an ordered feature list; every edit rebuilds the part
+  and re-exports STEP, STL, hidden-line drawing views and a report. Ask the
+  concierge for a change in plain words and it edits the same list through the
+  package's tools, so the person, the bot and any MCP client iterate on one model.
+version: 0.1.0
+status: active
+scope: person
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: cad-studio
+  ref: main
+
+# CORE-05 install readiness is service-authenticated and reads package metadata only.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/cad-studio/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
+# No connector allow-list: the inputs are the person's own numbers, outlines and files; the
+# engine is a container on the stack network that nothing outside the box can reach.
+dependencies:
+  apps: []
+  tools: []
+  connectors: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — one INLINE concierge (no container: reasoning rides the caller's hosted/BYO brain
+# through the framework's accounted path). It turns "make the hole 8 mm and round the top
+# edges" into tool calls against the feature list; the kernel does the geometry.
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: 7d0c2f4e-5b1a-4c8e-9f3d-2a6b8e1c4d70
+    name: cad-studio-designer
+    persona: personas/cad-studio-designer.yaml
+    role: engineering/cad-designer
+    capabilities:
+      - parametric-cad-editing
+      - feature-list-authoring
+      - design-review
+      - export-guidance
+    selectorDescriptor: >-
+      Select for the CAD Studio app ONLY: editing a parametric part by adding, changing,
+      reordering or removing features (holes, bosses, pockets, sketch extrusions, fillets,
+      chamfers, shells, cut planes, scale/mirror/rotate/translate), creating a part from
+      numbers or from a Scan to Print job's outlines, explaining why the kernel refused a
+      feature, reading a part's extents / volume / mass, or explaining STEP vs STL exports.
+      Do NOT select for photographing or printing objects (scan-to-print-operator) or for
+      anything that is not this app.
+    routingKeywords:
+      - cad
+      - parametric
+      - step file
+      - fillet
+      - chamfer
+      - boss
+      - pocket
+      - hole
+      - feature list
+      - cad studio
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TOOLS — route-backed. Reads are free; writes edit ONLY the caller's own feature list
+# and every write is reversible (a revision is one rebuild; restore is undo), so the
+# concierge iterates without a click per edit. Nothing here leaves the box.
+# ─────────────────────────────────────────────────────────────────────────────
+tools:
+  - name: cad-capabilities
+    displayName: CAD Studio Capabilities
+    type: api
+    category: engineering
+    description: The exact feature contract the server enforces — base kinds, every feature type with its parameter names, units (mm) and ranges, edge/face selectors, the world frame — plus the engine's status and the install command when it is down.
+    executor: { executorType: api, apiEndpoint: "GET /api/cad-studio/capabilities" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Read this FIRST before adding or changing a feature: parameter names and units come from
+      here, never from memory. If engine.connected is false, tell the person the engine container
+      is down and quote engine.installHint verbatim; do not retry edits until it is up.
+    routingTags: [cad, capabilities, contract]
+    tags: [cad-studio, route-backed]
+
+  - name: cad-list-models
+    displayName: List Parts
+    type: api
+    category: engineering
+    description: The caller's parts with state, revision, base kind, feature count, extents, volume and mass.
+    executor: { executorType: api, apiEndpoint: "GET /api/cad-studio/models" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Owner-scoped. Use it to find the modelId the person is talking about; ask when two parts could match.
+    routingTags: [cad, parts, list]
+    tags: [cad-studio, route-backed]
+
+  - name: cad-get-model
+    displayName: Read a Part
+    type: api
+    category: engineering
+    description: One part in full — base, the ordered feature list with ids, per-feature status (ok or the kernel's refusal reason), the report (extents, volume, mass, validity) and revision history.
+    executor: { executorType: api, apiEndpoint: "GET /api/cad-studio/models/{input.modelId}" }
+    inputSchema:
+      type: object
+      properties: { modelId: { type: string, description: "the part's model_id (UUID)" } }
+      required: [modelId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Quote feature ids and statuses from this reply; never invent an id. A feature with ok=false is skipped by the kernel — say so and propose the fix.
+    routingTags: [cad, part, read]
+    tags: [cad-studio, route-backed]
+
+  - name: cad-create-model
+    displayName: Create a Part
+    type: api
+    category: engineering
+    description: Create a part from a base (box {sizeX,sizeY,sizeZ}; cylinder {diameter,height}; sketch {plane,points,height}; contours {views,size} from a scan) with an optional initial feature list; the part is built immediately.
+    executor: { executorType: api, apiEndpoint: "POST /api/cad-studio/models" }
+    inputSchema:
+      type: object
+      properties:
+        title: { type: string, description: "part name" }
+        base: { type: object, description: "base object per cad-capabilities (kind + its parameters, mm)" }
+        features: { type: array, description: "optional initial features [{type, params, label}]" }
+      required: [title, base]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Read cad-capabilities for the base shapes. The reply carries the new modelId; keep using it.
+    routingTags: [cad, create, part]
+    tags: [cad-studio, route-backed]
+
+  - name: cad-add-feature
+    displayName: Add a Feature
+    type: api
+    category: engineering
+    description: Append one feature to a part's list and rebuild. The reply is the rebuilt part plus the build outcome; a refused feature comes back with the kernel's reason.
+    executor: { executorType: api, apiEndpoint: "POST /api/cad-studio/models/{input.modelId}/features" }
+    inputSchema:
+      type: object
+      properties:
+        modelId: { type: string, description: "the part's model_id" }
+        type: { type: string, description: "feature type from cad-capabilities" }
+        params: { type: object, description: "parameters for the type, mm" }
+        label: { type: string, description: "optional short label" }
+      required: [modelId, type, params]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      One feature per call. Coordinates are in the part's frame (footprint centred on X = Y = 0,
+      part resting on Z = 0, front faces −Y). If build.ok is false or the feature's status is
+      ok=false, read the reason, correct the parameters and call cad-update-feature — do not
+      add the same feature again.
+    routingTags: [cad, feature, add, hole, fillet]
+    tags: [cad-studio, route-backed]
+
+  - name: cad-update-feature
+    displayName: Change a Feature
+    type: api
+    category: engineering
+    description: Change a feature's parameters (merged into the existing ones), label or enabled flag, then rebuild.
+    executor: { executorType: api, apiEndpoint: "PATCH /api/cad-studio/models/{input.modelId}/features/{input.featureId}" }
+    inputSchema:
+      type: object
+      properties:
+        modelId: { type: string }
+        featureId: { type: string, description: "feature id from cad-get-model" }
+        params: { type: object, description: "parameters to change (merged)" }
+        enabled: { type: boolean, description: "false suppresses the feature without deleting it" }
+        label: { type: string }
+      required: [modelId, featureId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Send only the parameters that change. Disable a feature to test the design without it.
+    routingTags: [cad, feature, update]
+    tags: [cad-studio, route-backed]
+
+  - name: cad-remove-feature
+    displayName: Remove a Feature
+    type: api
+    category: engineering
+    description: Delete one feature from the list and rebuild.
+    executor: { executorType: api, apiEndpoint: "DELETE /api/cad-studio/models/{input.modelId}/features/{input.featureId}" }
+    inputSchema:
+      type: object
+      properties: { modelId: { type: string }, featureId: { type: string } }
+      required: [modelId, featureId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Prefer cad-update-feature with enabled=false when the person may want it back.
+    routingTags: [cad, feature, remove]
+    tags: [cad-studio, route-backed]
+
+  - name: cad-move-feature
+    displayName: Reorder a Feature
+    type: api
+    category: engineering
+    description: Move a feature to another position in the list (features apply in order — a fillet before a hole rounds different edges than after it) and rebuild.
+    executor: { executorType: api, apiEndpoint: "POST /api/cad-studio/models/{input.modelId}/features/{input.featureId}/move" }
+    inputSchema:
+      type: object
+      properties: { modelId: { type: string }, featureId: { type: string }, to: { type: integer, description: "target index, 0-based" } }
+      required: [modelId, featureId, to]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Explain what changes when order changes; the report tells you whether the kernel accepted the new order.
+    routingTags: [cad, feature, reorder]
+    tags: [cad-studio, route-backed]
+
+  - name: cad-restore-revision
+    displayName: Restore a Revision (undo)
+    type: api
+    category: engineering
+    description: Put back the feature list of an earlier built revision and rebuild — undo to any point in the history.
+    executor: { executorType: api, apiEndpoint: "POST /api/cad-studio/models/{input.modelId}/restore" }
+    inputSchema:
+      type: object
+      properties: { modelId: { type: string }, revision: { type: integer, description: "a revision number from cad-get-model" } }
+      required: [modelId, revision]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Use when the person says "undo" or "go back to before the …". Restoring creates a NEW revision; nothing is lost.
+    routingTags: [cad, undo, revision]
+    tags: [cad-studio, route-backed]
+
+  - name: cad-rebuild
+    displayName: Rebuild a Part
+    type: api
+    category: engineering
+    description: Replay the feature list on the kernel and re-export every artifact (use after the engine was down).
+    executor: { executorType: api, apiEndpoint: "POST /api/cad-studio/models/{input.modelId}/rebuild" }
+    inputSchema:
+      type: object
+      properties: { modelId: { type: string } }
+      required: [modelId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Idempotent. Same list, same bytes.
+    routingTags: [cad, rebuild]
+    tags: [cad-studio, route-backed]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon tile opens the studio, self-served by this package's route.
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: cad-studio
+      label: CAD Studio
+      icon: codicon codicon-symbol-structure
+      iframeUrl: /api/cad-studio/app
+      section: top
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — compiled JS bundled in this package, mounted in-process. OIDC only.
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/cad-studio/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/cad-studio/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/cad-studio-routes.js
+    factory: createCadStudioRoutes
+    mountPath: /api/cad-studio
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+# The app's own schema (models, revisions) with owner RLS, applied on install.
+migrations:
+  - migrations/001-cad-studio.sql
+
+# The right-rail chat agent when this app is focused.
+chatBot: cad-studio-designer
+
+# RIBBON VISIBILITY — focus mode for /cockpit?app=cad-studio (chat panel stays: the concierge
+# is how the person edits by talking).
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  defaultView: cad-studio
+
+summary:
+  path: /api/cad-studio/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+# ADR-139 — "Send to…" destination: an STL from anywhere in the swarm opens CAD Studio as a
+# new part with that mesh as its base.
+artifacts:
+  accepts:
+    - id: mesh
+      label: Open in CAD Studio
+      icon: 🧱
+      types: [model/stl, application/sla, application/vnd.ms-pki.stl, application/octet-stream]
+      mode: open
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a build sheet
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

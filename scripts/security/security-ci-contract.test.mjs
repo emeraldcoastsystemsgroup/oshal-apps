@@ -16,6 +16,8 @@
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Lock all non-Pumpkin packages to the service-only, read-only CORE-05 readiness source/compiled pair and non-placeholder response assertion.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Ledger to the real 53-package store (was 48). ADR-141 `kind: group` manifests own no routes, so they cannot mount a readiness smoke: they are excluded only after the real route parser proves they declare none and ship no smoke source/compiled pair, so the exclusion can never hide a routed package.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | Ledger to the real 54-package store: the Create launcher ships the canonical service-only readiness smoke pair like every routed package.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | Ledger to the real 55-package store: Scan to Print ships the canonical service-only readiness smoke pair like every routed package.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com | Ledger to the real 56-package store: CAD Studio ships the canonical service-only readiness smoke pair like every routed package.
  */
 
 import test from 'node:test';
@@ -230,7 +232,7 @@ test('every non-Pumpkin routed package owns the reviewed service-only readiness 
     .filter((entry) => entry.isDirectory() && existsSync(join(entry.name, 'oshal-app.yaml')))
     .map((entry) => entry.name)
     .sort();
-  assert.equal(packageDirs.length, 54, 'the smoke audit must cover the complete store manifest set');
+  assert.equal(packageDirs.length, 56, 'the smoke audit must cover the complete store manifest set');
 
   const canonical = {
     source: normalizedModule('brand-graphics/src-routes/package-smoke.ts'),
@@ -239,12 +241,12 @@ test('every non-Pumpkin routed package owns the reviewed service-only readiness 
   const kinds = packageDirs.map((packageDir) => [packageDir, classifySmokePackage(packageDir, canonical)]);
   assert.deepEqual(kinds.filter(([, kind]) => kind === 'group').map(([packageDir]) => packageDir), ['intelligent-career'],
     'the only route-less group is the career application group');
-  assert.equal(kinds.filter(([, kind]) => kind === 'covered').length, 52,
-    'only Pumpkin and the route-less group are outside the 54-package rollout');
+  assert.equal(kinds.filter(([, kind]) => kind === 'covered').length, 54,
+    'only Pumpkin and the route-less group are outside the 56-package rollout');
 
   const inventory = JSON.parse(readFileSync('scripts/security/store-route-inventory.json', 'utf8')).routes;
   const smokeRoutes = inventory.filter((entry) => entry.includes('|routes/package-smoke.js|'));
-  assert.equal(smokeRoutes.length, 52);
+  assert.equal(smokeRoutes.length, 54);
   assert.ok(smokeRoutes.every((entry) => entry.endsWith('|service|no-sql-write')));
 });
 

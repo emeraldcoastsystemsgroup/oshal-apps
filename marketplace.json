@@ -1382,6 +1382,52 @@
         "sourceSha": "0000000000000000000000000000000000000000"
       },
       "status": "ready"
+    },
+    {
+      "name": "scan-to-print",
+      "suite": "ai-engineering",
+      "displayName": "Scan to Print",
+      "description": "Photograph an object from its six sides (or film it, or import a LiDAR point cloud), enter one ruler measurement, and get a third-angle engineering drawing with overall dimensions, a watertight STL/OBJ you can rotate in the browser, and a one-click job on your own OctoPrint, Klipper/Moonraker or PrusaLink printer. The geometry is deterministic — silhouettes carve a voxel grid, the grid becomes the mesh and the drawing — and the same occupancy grid accepts depth and LiDAR input, so it is the building block a scanner plugs into.",
+      "version": "0.3.0",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "scan-to-print",
+        "ref": "main"
+      },
+      "audit": {
+        "record": "audits/scan-to-print.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
+      "status": "ready"
+    },
+    {
+      "name": "cad-studio",
+      "suite": "ai-engineering",
+      "displayName": "CAD Studio",
+      "description": "A real CAD kernel (Open CASCADE via CadQuery) the swarm can drive iteratively. Start from a box, a cylinder, a sketch, the outlines of a Scan to Print job or an uploaded STL; add holes, bosses, pockets, sketch extrusions, fillets, chamfers, shells and cut planes as an ordered feature list; every edit rebuilds the part and re-exports STEP, STL, hidden-line drawing views and a report. Ask the concierge for a change in plain words and it edits the same list through the package's tools, so the person, the bot and any MCP client iterate on one model.",
+      "version": "0.1.0",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": []
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "cad-studio",
+        "ref": "main"
+      },
+      "audit": {
+        "record": "audits/cad-studio.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
+      "status": "ready"
     }
   ]
 }
