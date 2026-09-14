@@ -89,3 +89,26 @@ These gate anyone actually building the craft the exporter emits.
 - **`node scripts/check-store-separation.mjs .` fails repo-wide** on a top-level `_walkthrough-shots/`
   directory (gitignored screenshot debris). Pre-existing and unrelated to this package; aero-lab
   itself passes.
+
+---
+
+## E. The engine container is installed and updated by hand
+
+Since 1.2.0 the engine runs in the package's own container (`engine/container/`, built by
+`engine/install-engine.sh`). Nothing installs or refreshes it automatically: after installing the
+package, and after any update that changes the engine tree, someone has to run
+
+```sh
+docker exec <api-container> sh /app/workspace-shared/deployed-apps/aero-lab/engine/install-engine.sh
+```
+
+The app fails honestly in the meantime — a missing or stale container is refused with that exact
+command in `capability_unavailable`, and the surface prints it — so no result is ever fabricated.
+But a person who installs aero-lab from the store and opens it gets a dead lab until they read the
+banner and have shell access to the box.
+
+**Done when:** installing or updating aero-lab on a box with a docker socket leaves a working engine
+container with no operator step — either the package declares a post-install command the installer
+runs, or the first engine call builds and starts it — and the refusal path is unchanged when that
+cannot happen (capabilities false, the exact command, no fabricated numbers). The store-wide half of
+this is core BACKLOG "Package-owned engine containers need a documented pattern" (2026-09-14).

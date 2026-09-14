@@ -148,3 +148,10 @@ node scripts/oshal-app.js install scan-to-print
 
 Then open `/cockpit/?app=scan-to-print`. The migration creates four owner-RLS tables on first
 load.
+
+## Continuing this work
+
+[docs/CONTINUATION.md](docs/CONTINUATION.md) is the handover: status as of 0.3.0, the release
+lineage, what is proven and by which test, the module map, the build / test / gate / deploy
+recipe, the contracts that must not change, the known limits, and the backlog in a suggested
+order. [BACKLOG.md](BACKLOG.md) holds every open item (B1–B16) with done-when criteria.
