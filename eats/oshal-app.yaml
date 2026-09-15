@@ -47,9 +47,21 @@ smoke:
 # uber (Uber Eats) is the one connector this app uses (operator affiliate/marketing blob
 # via broker; ordering is a deep-link handoff).
 dependencies:
-  apps: []
-  tools: []
-  connectors: [uber]
+  required:
+    apps: []
+    tools: []
+    connectors: [uber]
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+
+# Kernel skills this app declares (ADR-090 uses: contract, fail-closed at load).
+# `app-dependencies` is the compatibility floor for the tiered dependencies block above: a core
+# that predates required/optional refuses this package instead of installing it without its
+# required dependencies and without its connector allow-list.
+uses:
+  - app-dependencies
 
 # Guests never build orders (this app hands off to Uber Eats checkout). Request only —
 # grants come from the operator endpoint (D4).

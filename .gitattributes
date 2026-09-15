@@ -1,0 +1,57 @@
+# Line-ending policy — mirrors the core repo's .gitattributes, which already solved this.
+#
+# Without this file, core.autocrlf=true on a Windows checkout makes every file a tool writes as LF
+# show as "modified" (48 such phantom changes had accumulated on 2026-09-14, all byte-identical
+# once line endings were normalised) and hides the one real change among them. It also breaks what
+# ships: packages are deployed into a Linux container, a CRLF .sh dies there with
+# `$'': command not found`, and the LF-exact install recipe's sha256 check against the blob
+# fails on a CRLF working copy. Every text blob in this repo is already LF, so this changes no
+# stored content — it makes the working copy agree with it.
+* text=auto eol=lf
+
+# Force LF on everything a Linux shell or container executes or parses.
+*.sh    text eol=lf
+*.bash  text eol=lf
+*.py    text eol=lf
+Dockerfile* text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.json  text eol=lf
+*.js    text eol=lf
+*.cjs   text eol=lf
+*.mjs   text eol=lf
+*.ts    text eol=lf
+*.sql   text eol=lf
+.githooks/** text eol=lf
+
+# Binary assets: never normalise. text=auto would already skip most of these, but an ASCII STL can
+# be classified as text, and silently rewriting a geometry file's bytes is not acceptable.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.pdf   binary
+*.stl   binary
+*.glb   binary
+*.gltf  binary
+*.bin   binary
+*.wav   binary
+*.mp3   binary
+*.mp4   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.zip   binary
+*.gz    binary
+*.onnx  binary
+*.npz   binary
+*.db    binary
+*.sqlite binary
+
+# COLLABORATE.md is the shared multi-bot coordination thread (append-only). A union merge lets
+# concurrent appends from different sessions auto-merge instead of conflicting — each session
+# appends self-contained entries at the end. Same rule as the core repo.
+COLLABORATE.md merge=union

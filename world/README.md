@@ -56,3 +56,15 @@ registry entry + ai-lab personas, the `WORLD_INGEST_TOKEN` compose env, the
 Needs `ENABLE_WORLD_INTELLIGENCE=true` + `ARANGO_URL` (graph) + `TSDB_URL` (series)
 on the framework, and `WORLD_INGEST_TOKEN` for machine writes. The refresh/pulse
 schedules execute only when `ENABLE_AGENT_SCHEDULER=true`.
+
+## Test Lab catalog (1.2.1)
+
+[tests/test-lab.yaml](tests/test-lab.yaml) registers every shipped test and preserves the existing `package-readiness` smoke ID. Registration does not execute tests. An authorized operator can run the supported Node suites from the AI Test Lab against a sealed package snapshot; versioned results record the source revision and sandbox cleanup.
+
+| Test entry | Level | Execution boundary |
+| --- | --- | --- |
+| `tests/surface-parse.test.js` | unit | Isolated Node runner; synthetic data only |
+| `tests/auth-header.test.js` | unit | Isolated Node runner; synthetic data only |
+| `tests/home-summary.test.cjs` | unit | Isolated Node runner; synthetic data only |
+
+These tests do not contact accounts, providers or live business records. Surface syntax and stubbed-handler assertions do not claim browser or connector acceptance. Package readiness remains a separate metadata-only probe.

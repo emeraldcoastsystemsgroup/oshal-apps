@@ -1,0 +1,260 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped package test with explicit runner and fixture boundaries; retain the readiness smoke identity. The framework-coupled route suite is registered with its real prerequisite (a framework checkout), and the real-solver Python suite with its (the engine image) — neither is hidden.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register the actual-page editing suite (palette drag-and-drop, pin wiring, delete, inspector) with its isolated browser prerequisite.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register the gear-to-CAD-Studio suite (cross-package, read-only); the contract case now covers twenty-four part types and the text property; the solver suite 26 cases; the browser suite adds undo / redo, values on the canvas and restore.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register the shaft-driver catalog suite (every row validates against the contract; embodied's motors agree, read-only); the contract case covers twenty-seven types and a wire's route; the solver suite 32 cases (servo, stepper, a lifted weight); the browser suite adds the marquee, wire re-routing and click-a-wire-to-plot (8 cases).
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register the breadboard model suite (board and schematic imply the same nets on every example, both ways); the route suite gains the board routes (10 cases); the browser suite gains the Breadboard view (9 cases).
+# 6 | maintainer@emeraldcoastsystemsgroup.com | The contract case covers thirty types and the belt pin kind; the solver suite 36 cases (a spring and a load ringing at sqrt(k/J)/2pi, a belt at the radius ratio then slipping at its grip, a crank-slider on the exact kinematics, the refused shapes).
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 0.5.1: every expected line at most 500 characters — the framework's loader refused the whole 0.5.0 manifest (engine-solver expected[0] was 568); the route suite now loads this catalog through that loader.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Thirty-one types (the Arduino Uno) and the firmware runner files in the build hash; the solver suite 39 cases (a blink sketch's LED at the sketch period, analogWrite's RC average, Serial captured, a sketch that does not compile refused naming it).
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Register the assistant-rail suite: the manifest's surface.ops and jarvisMode, the page's context op and circuit_action vocabulary under the contract's caps, the digest cap on a 200-part circuit; the browser suite drives the rail through the real core client (11 cases).
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 0.8.0 (BACKLOG B2, B7, B9): register the canvas-geometry suite (bends, group turns); the contract case covers a wire's bend points and the solver knobs; the board model covers turned footprints, shorts and jumper lengths; the solver suite 52 cases (the knobs written into the deck, a hard-switched inductor refused at the defaults and solved with gear); the browser suite 15 cases.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Rename the drifted framework-checkout prerequisites to the Test Lab's own vocabulary so these cases can run: node-test cases declare fixture:core-checkout (the sealed Node profile runs on the oshal image, where /app is the checkout); browser cases declare harness:oshal-core-root and core:dependencies, as create does. A case that imports core's tests/fixtures, which the image does not ship, also declares harness:core-test-fixtures and stays pending with that exact reason instead of an unknown name.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the existing metadata-only readiness probe without provider or user-data access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed circuit-lab package identity satisfies its manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: contract-parts
+    name: Part contract, wiring rules and engine build hash
+    purpose: Prove the circuit contract the routes, tools and engine share — every part type normalises with defaults, ranges and enum values are enforced with the field named, unknown properties are refused, wires must join pins of one kind, duplicates and the caps are refused, the transient settings are bounded — that the Node library equals the Python library the worker prints, and that the Node and Python engine build hashes agree.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/contract-parts.test.js
+    expected:
+      - Thirty-one part types validate; a typo'd property is refused naming the field; a sequenced pin's pattern is bounded by the shared regex; a wire from an electrical pin to a shaft pin is refused.
+      - A wire route of 1 to 16 bend points is kept and a malformed one is refused naming wire.route.points[i]; sim.reltol, sim.gmin and sim.method are kept when set, absent when null and refused out of range naming the field.
+      - circuit-contract.js and circuit_worker.py --contract publish the same library; engine-build-hash.js and circuit_engine_bridge.py --build-hash produce the same digest.
+    prerequisites:
+      - runner:node-test
+      - python3
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-client
+    name: Engine transport against a fake bridge
+    purpose: Prove the api's engine client over the real wire protocol on loopback — hello verification (protocol, build hash, busy), serialised requests answered by id, typed refusals, timeout kills and reconnects, a dropped bridge fails the queue, the bounded queue and the address parser.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-client.test.js
+    expected:
+      - A stale build hash is capability_unavailable naming the install command; a timeout is engine_timeout and the next request reconnects.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: routes-http
+    name: Packaged routes over loopback HTTP
+    purpose: Drive the compiled routes with express from a framework checkout and the real engine client against a fake bridge — caller gate, create from an example and solve, part / wire edits as runs, refusals with the field, the breadboard routes (laid out, edited with fewer jumpers, an overlap refused, kept in step by a schematic wire, dropped), owner scoping, artifacts by run, Home summary, deletion, and the 503 with the install command when the bridge is gone.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/routes.core.test.js
+    expected:
+      - 401 without a caller, 404 across owners, 400 with the field for bad input, 422 for a refused circuit, 503 naming install-engine.sh when the bridge is gone.
+      - A board laid out for the switched-LED example places its five electrical parts with five jumpers and implies the schematic's nets; PUT with one jumper fewer derives four wires and still agrees; a wire added on the schematic regenerates five jumpers over the kept placements.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Close the loopback HTTP server and fake engine bridge and remove the temporary run directory; module hooks remain confined to the disposable Node process, with no real database or solver.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: engine-solver
+    name: Real-solver worker suite (engine image)
+    purpose: Prove the worker on the real ngspice — the contract refuses bad input naming the field, nets resolve with an honest auto-ground, the mechanism solver reflects gear trains and refuses the shapes it cannot model, and an LED circuit, an RC charge, a switch that closes mid-run, a geared motor, a stalled motor and a PWM-driven motor solve to textbook numbers, and a sketch reads the circuit back through the libngspice co-simulation. Runs inside the engine container, not under node.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - engine/tests/test_circuit_worker.py
+    expected:
+      - 52 unittest cases pass under `python -m unittest discover -s tests` in oshal-circuit-lab-engine.
+      - A deck without solver knobs keeps the default option line exactly; chosen reltol, gmin and method are written into it and a refusal under them is not retried over; an inductor whose switch opens with no flyback path is refused at the default tolerances and solves with method gear, reltol 0.01 and gmin 1e-9.
+      - The eight 0.2.0 parts solve to textbook numbers; a 555 astable runs at the formula frequency; the relaxed retry is taken once and reported.
+      - A servo reaches the angle its pulse names at its rated speed; a stepper turns one step per pulse, holds a weight at the textbook load angle and slips above pull-out; a motor lifts a weight.
+      - A spring and a load ring at sqrt(k/J)/2pi; a belt turns the second pulley at the radius ratio then slips at its grip; a crank-slider follows the exact kinematics with a stroke of 2r.
+      - A blink sketch's LED toggles at the sketch's period with its serial text captured; analogWrite averages to its duty through an RC; a sketch that does not compile is refused naming parts[i].props.sketch.
+      - The closed loop — a button the sketch polls and a potentiometer it reads change what it drives, through a libngspice co-simulation; a pin nothing drives stays open-loop, a sync step out of bounds and a second board are refused naming the field, and a loop the step itself drives is named as cosim_chatter.
+    prerequisites:
+      - engine-container:oshal-circuit-lab-engine
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1024
+    installation: never
+  - id: surface-editing
+    name: Editing on the actual page
+    purpose: Drive the actual packaged page and its editor in Chromium over the compiled routes on loopback with a fake engine bridge — an example opens with parts, wires and readings; a part dragged from the palette lands where it is dropped, snapped to the grid, and the design is saved and solved; clicking one pin then another wires them; Delete removes the selected wire; Ctrl+Z / Ctrl+Y walk the edits; values on the canvas follow the run; restore puts an earlier run back; the inspector edits a property and the run count advances; a marquee on empty canvas selects the parts inside and they move together; a wire re-routes by dragging its middle segment and the route is saved; the Breadboard view lays the circuit out, a dragged part keeps the nets and a jumper clicked between two holes adds a schematic wire with board and schematic implying the same nets; clicking a wire plots its net; the page raises no errors.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/surface-editing.core.spec.mjs
+    expected:
+      - Through the real core bridge client the page publishes the open design as a context envelope on the bridge channel (surface schematic, its record id, a digest naming the parts with a sketch as its line count, the circuit_action op) and a circuit_action delivered as the client's DOM event edits a part through the routes, solves once and toasts.
+      - A resistor dropped at 75 % across and 80 % down the canvas is saved at (720, 380) with the contract's defaults and solved as run 2.
+      - Pin-to-pin wiring, wire deletion, undo, redo, restore, a property edit, a group move and a wire re-route each produce a new run; a net voltage is written on a wire when values are on; a clicked wire's net joins the plots; no page errors.
+      - A double-click puts a bend on a wire without moving it, a bend drags on the grid and a double-click removes it (saved as route.points); R turns a marquee selection about its centre, four turns are the identity, and a turn off the canvas is refused with nothing moved.
+      - On the breadboard R stands a clicked part upright (rot 90) and the board names the short it makes; the hidden schematic ignores the key; a jumper is one straight line at its span and reads it in mm. The solver knobs are saved and sent with the run; an out-of-range gmin is refused naming sim.gmin.
+    prerequisites:
+      - runner:playwright
+      - harness:oshal-core-root
+      - browser:chromium
+      - core:dependencies
+      - core:surface-bridge
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/surface-editing.core.fixture.mjs
+      cleanup: Close the owned Chromium process, the loopback HTTP server and the fake engine bridge and remove the temporary run directory; synthetic designs stay in the disposable in-memory pool, with no live database or solver.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: gear-profile
+    name: Gear to CAD Studio
+    purpose: Prove the involute outline (one tip arc per tooth, every point between the root and tip radii, the pitch-circle tooth thickness within a few percent of half the circular pitch, at most 2000 points) and that the body handed to CAD Studio validates against CAD Studio's own feature contract (read-only cross-package import); too many teeth, a bore into the rim and a non-gear are refused with the reason.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/gear-profile.test.js
+    expected:
+      - A 30-tooth module-1.5 gear becomes a sketch base of 45 mm pitch diameter extruded 10 mm with a 5 mm bore hole that CAD Studio's validateBase and validateFeatureList accept.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: board-model
+    name: Breadboard model
+    purpose: Prove the breadboard model shared by the browser and the routes (tools/circuit-lab-board-model.js) — every electrical pin lands in a real hole (a DIP-8 across the gap on its pinout), a board is refused for an unknown part, two legs in one hole, a bad hole or a self-jumper, the automatic layout of every starter example implies exactly the schematic's net partition and the wires rebuilt from that board imply it again (the same deck both ways), a moved part keeps the nets, a removed jumper splits one and an added jumper joins two, reconciliation drops a gone part, places a new one and regenerates the jumpers, and a board that cannot fit says so.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/board-model.test.js
+    expected:
+      - For led-switch, rc-charge, motor-gearbox and pwm-motor the board nets equal the wire nets and the rebuilt wires keep their ids; 40 resistors do not fit and are reported.
+      - An upright resistor from row c lands in c and f; a DIP or a 45-degree turn is refused naming .rot; two legs on one strip are named as shorted; e10 to f10 is 7.62 mm and T-1 to a1 5.08 mm; a turned LED keeps board and schematic nets equal both ways.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: driver-catalog
+    name: Shaft-driver catalog
+    purpose: Prove the catalog of motors, servos and steppers (catalog/drivers.json) — every row's nameplate validates against the part contract with the field named when it drifts, rows filter by type, every row says where its numbers came from, and the motors embodied's parts model names are present with the same name, mass and price (read-only cross-package import of embodied/routes/engine/design/parts-model.js).
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/driver-catalog.test.js
+    expected:
+      - Five rows load; a stall current of 0 or an unknown nameplate key fails the load naming drivers[i].props.<key>; the two embodied fit motors match embodied's own name, mass and price.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: assistant-rail
+    name: The assistant rail (surface-bridge)
+    purpose: Prove the page is wired to Jarvis the way the framework's surface-bridge expects — the manifest declares surface.ops [context, custom, notify] (the cockpit relay is fail-closed without them) and jarvisMode delegate on the concierge; the page loads the shared bridge client, publishes a context op named schematic or breadboard carrying the circuit_action vocabulary within the 600-character customOps cap, handles request_context and every action it advertises; and the digest builder stays under the 4000-character cap on a 200-part circuit (over it the whole context op is dropped).
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/surface-bridge.test.js
+    expected:
+      - surface.ops is exactly a subset of the framework's op names and includes context, custom and notify; circuit-lab-engineer carries jarvisMode delegate.
+      - The page imports /shared/ui/js/surface-bridge-client.js and binds app circuit-lab; the script publishes can [custom, notify] and one customOp named circuit_action whose description is at most 600 characters and names all ten actions the handler applies.
+      - A 200-part, 199-wire solved circuit digests to at most 4000 characters ending in a truncation mark; a two-part draft digests its parts and wires and no readings.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: canvas-geometry
+    name: Wire bends and group turns (canvas geometry)
+    purpose: Prove the schematic geometry the canvas shares with node (tools/circuit-lab-geometry.js) — a wire's corners for an automatic, middle-segment and bend-point route; a double-click puts a bend on the nearest segment without moving the wire and is ignored off it or on a pin; the seventeenth bend is refused; a bend is found and removed, the last one leaving no route; a group turns a quarter clockwise about its snapped centre with every pin turning rigidly, four turns are the identity, routed wires inside the group keep their shape, and a turn off the canvas is refused naming the part.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/canvas-geometry.test.js
+    expected:
+      - A click at (131, 172) on the Switched LED's first wire becomes the bend (140, 170) with the drawn path unchanged; S1 and R1 turned about (340, 100) land at (340, 20) and (340, 180) rotated 90; turning B1 with R1 is refused as moving B1 off the canvas; every route produced validates against the contract.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never

@@ -1,5 +1,13 @@
 <!doctype html>
 <!--
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  SEQ | AUTHOR | DESCRIPTION
+  -----------------------------------------------------------------------------
+  1 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
+-->
+
+<!--
   Career Hunter — native Strengthen surface (Phase 4): the "talk and it strengthens
   your resume" flow. Reads gap themes via /api/career-hunter/strengthen; each theme carries the
   engine's own interviewer question (gaps.THEMES[].prompt). An answer saves the example AND
@@ -9,7 +17,7 @@
   Dictation comes from /api/career-hunter/static/mic.js (Web Speech API, no key, no cost).
   Author: roger.murphy@emeraldcoastsystemsgroup.com
 -->
-<html lang="en" data-theme="midnight"><head>
+<html lang="en" data-theme="midnight" data-career-surface="strengthen-ui"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Strengthen</title>
 <!-- Framework theme tokens + the bootstrap that picks the operator's theme and follows it live.
@@ -64,6 +72,7 @@
   }
 </style>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
 </head>
 <body>
 <div class="wrap">

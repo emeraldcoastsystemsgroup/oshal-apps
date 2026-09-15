@@ -16,6 +16,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | Surface expansion (ADR-136): GET /exposure - the account page's Allocation and Exits cards in ONE read. Allocation buckets the book by asset kind (Alpaca asset directory, `etp` attribute - the only SOURCED kind we have; 'unknown' when it is unconfigured, never guessed) and by SECTOR using the kernel's own sectorOf()/SECTOR map, i.e. the exact buckets the per-sector sizing cap enforces - no taxonomy is invented here, and a name outside the map lands in 'other' AND in `unclassified` rather than being assigned a sector. Headroom is computed the way sizeEntry does: maxSectorPct/100 x the CAPPED equity (capAccount, the real kernel function - not a mirror) minus the sector's pinned-lot-SUBTRACTED market value. Exits answers what is actually WORKING AT THE VENUE (reader.listOrders over a window, filtered by the kernel's IN_FLIGHT_STATUSES) and, separately and explicitly labelled, the autopilot's exit RULES computed by calling exitsToRun/trailingExits/rebalanceTrims themselves so the panel can never disagree with the engine; core holds (coreConfig) are marked exempt, and the whole rule set is marked inactive outside the regular session (computeExits runs ONLY the close-anchored dip rule off-hours) and under TRADING_HALT. Read-only: no order is placed and no peak is persisted. Every side read is a logged section that degrades to 'unavailable' rather than fabricating. Env: TRADING_EXPOSURE_ORDERS_DAYS (default 90), TRADING_EXPOSURE_WORKING_MAX (default 200).
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | Exposure review round. (a) The trailing peak is the ENGINE's rolled-forward peak - nextPeaks(visible, storedPeaks), exactly what computeExits computes before it evaluates trailingExits - so a winner at a new high is priced off that high here too rather than off a stale stored peak; the roll is in memory only, savePeaks is still never called from a read route. (b) The per-sector cap denominator follows sizeEntry's own fallback (capped equity, or capped CASH when equity is zero), so a cash-only book stops reading as zero headroom where the engine would still size. (c) The asset-directory map is built from the HELD symbols instead of materialising all ~11k reference rows on every account-page paint, and availability is decided by the directory itself rather than by the map being empty (a flat book is not a failed read). (d) The card, not just the payload, now repeats every degraded section - see view-account.js SEQ 5.
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | Exposure review round 2. (a) The cap-TRIM base handed to exitRuleRows is the capped EQUITY, which is what the engine passes to rebalanceTrims - the equity-or-cash fallback is sizeEntry's rule for the per-sector denominator only, and applying it to trims too would have been a (zero-equity-only) divergence from the engine. (b) `exits.rules` is now null - not a computed list - whenever the protected-lot read failed, so the PAYLOAD enforces what the card already did: a consumer that reads `rules` without checking `sections` can no longer be handed stops computed over shares the autopilot may not touch. (c) The /exposure registration moves into registerExposureRoute so the already-oversized registerTradingBookReadRoutes block stops growing.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com   | Two reads now agree with the engine's own cost. (1) GET /realized tallies closes priced by the engine (core engineRealizedForBook) instead of the stored venue-basis realized_pnl, which counts each wash-sale disallowed loss twice; the response says basis:'engine' and carries the venue's net alongside. (2) The exposure card's wouldFireNow runs the stop/take-profit check on the engine-costed position, exactly as computeExits does, so a stop the wash-sale veto suppresses is no longer shown as about to fire; trailing and trims still read the raw position, as the dispatch does.
  *
  * @module trading-routes-book-read-builders
  */
@@ -39,6 +40,10 @@ import { coreConfig } from '@/app/trading-dispatch-core';
 import { loadPeaks } from '@/app/trading-peaks-store';
 import { getActiveOverride, policyOverrideOf } from '@/app/trading-config-overrides';
 import { pinnedQtyBySymbol, subtractPinnedLots, listPinnedLots, isLotOrderClientId } from '@/app/trading-pinned-lots';
+// The engine's own cost: the stop veto the dispatch applies, and realized P&L priced without the
+// venue's wash-sale adjustment. The card and the tally read the same functions the engine does.
+import { withEngineCostBasis, engineRealizedForBook } from '@/app/trading-engine-cost-basis';
+import { tallyRealized } from './trading-realized';
 // ADR-134 PR3: every read resolves the BOOK (query.book, falling back to legacy ?mode= aliases via
 // resolveBook) — with two live books both mode='live', an unconverted read would merge BOTH books'
 // rows and the account switcher would switch nothing.
@@ -265,11 +270,13 @@ function sectorRow(
  *   and reusing it here would make a zero-equity book trim on a base the engine never trims on.
  * @param coreSymbols - Core holds, exempt from every autopilot exit.
  * @param rulesRunNow - True only when the full regular-session exit set is the one in force.
+ * @param engineCost - The engine's own cost per symbol (withEngineCostBasis); the stop decision reads it,
+ *   exactly as computeExits does, so a stop the wash-sale veto suppresses is not shown as about to fire.
  * @returns One row per held name.
  */
 export function exitRuleRows(
   visible: Position[], policy: RiskPolicy, peaks: Map<string, number>, capEquity: number,
-  coreSymbols: Set<string>, rulesRunNow: boolean,
+  coreSymbols: Set<string>, rulesRunNow: boolean, engineCost: ReadonlyMap<string, number> = new Map(),
 ): ExitRuleRow[] {
   return visible.filter((p) => p.qty > 0).map((p) => {
     const symbol = p.symbol.toUpperCase();
@@ -287,7 +294,7 @@ export function exitRuleRows(
       peak: r2c(peak), trailArmed,
       trailStopPx: trailArmed ? r2c(peak * (1 - policy.trailGivebackPct / 100)) : null,
       trimQty: trims.length ? trims[0].qty : 0,
-      wouldFireNow: ruleActive ? firstExitReason(p, policy, peaks, capEquity) : null,
+      wouldFireNow: ruleActive ? firstExitReason(p, policy, peaks, capEquity, engineCost.get(symbol)) : null,
       coreHold, ruleActive,
     };
   });
@@ -300,10 +307,13 @@ export function exitRuleRows(
  * @param policy - Active risk policy.
  * @param peaks - Stored trailing peaks.
  * @param capEquity - Cap-trim base.
+ * @param engineAvgCost - The engine's own cost, when its ledger covers the position: only the stop/take-profit
+ *   check reads it (the dispatch passes costed positions to exitsToRun and raw ones to trailing and trims).
  * @returns The exit reason, or null when nothing fires.
  */
-function firstExitReason(p: Position, policy: RiskPolicy, peaks: Map<string, number>, capEquity: number): string | null {
-  const fired = [...exitsToRun([p], policy), ...trailingExits([p], peaks, policy), ...rebalanceTrims([p], capEquity, policy)];
+function firstExitReason(p: Position, policy: RiskPolicy, peaks: Map<string, number>, capEquity: number, engineAvgCost?: number): string | null {
+  const costed = engineAvgCost === undefined ? p : { ...p, engineAvgCost };
+  const fired = [...exitsToRun([costed], policy), ...trailingExits([p], peaks, policy), ...rebalanceTrims([p], capEquity, policy)];
   return fired.length ? fired[0].reason : null;
 }
 
@@ -341,6 +351,8 @@ interface ExposureInputs {
   pinned: Map<string, number>; lots: Array<Record<string, unknown>>;
   peaks: Map<string, number>; override: unknown; orders: OrderResult[] | null;
   kinds: Map<string, string>;
+  /** The engine's own average cost per symbol, where its ledger covers the whole position. */
+  engineCost: Map<string, number>;
   sections: Record<string, 'ok' | 'unavailable'>;
 }
 
@@ -395,7 +407,12 @@ async function readExposureInputs(ctx: AppContext, sub: string, book: TradingBoo
   for (const a of directory) { const sym = a.symbol.toUpperCase(); if (held.has(sym)) kinds.set(sym, a.kind as string); }
   // Availability is the DIRECTORY's, not the map's: an empty map on a flat book is not a failed read.
   if (!directory.length) sections.assetKinds = 'unavailable';
-  return { account, positions, pinned, lots: lots as unknown as Array<Record<string, unknown>>, peaks, override, orders, kinds, sections };
+  // Costed exactly where computeExits costs them: after the pinned-lot subtraction. withEngineCostBasis
+  // never throws - a failed ledger read leaves every position uncosted, which is the engine's fallback too.
+  const costed = await withEngineCostBasis(ctx, sub, book, subtractPinnedLots(positions, pinned));
+  const engineCost = new Map<string, number>();
+  for (const p of costed) if (p.engineAvgCost !== undefined) engineCost.set(p.symbol.toUpperCase(), p.engineAvgCost);
+  return { account, positions, pinned, lots: lots as unknown as Array<Record<string, unknown>>, peaks, override, orders, kinds, engineCost, sections };
 }
 
 /**
@@ -457,7 +474,7 @@ async function shapeExposure(book: TradingBook, inp: ExposureInputs): Promise<Re
       // non-browser consumer reading `rules` without checking `sections` cannot be misled either.
       // The trim base is the CAPPED EQUITY - what dispatch hands rebalanceTrims - not the sector base.
       rules: inp.sections.pinnedLots === 'ok'
-        ? exitRuleRows(visible, policy, peaks, capped.equity, new Set(core.symbols), rulesRunNow)
+        ? exitRuleRows(visible, policy, peaks, capped.equity, new Set(core.symbols), rulesRunNow, inp.engineCost)
         : null,
     },
     sections: inp.sections,
@@ -707,22 +724,30 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
       await ensureTradingSchema(ctx.pool);
       const book = await routeBook(ctx, sub, req);
       const mode = book.kind;
-      const win = async (clause: string) => (await ctx.pool.query(
-        `SELECT count(*)::int trades,
-                count(*) FILTER (WHERE realized_pnl > 0)::int wins,
-                count(*) FILTER (WHERE realized_pnl < 0)::int losses,
-                COALESCE(round(sum(realized_pnl)::numeric,2),0) net,
-                COALESCE(round(avg(realized_pnl) FILTER (WHERE realized_pnl>0)::numeric,2),0) avg_win,
-                COALESCE(round(avg(realized_pnl) FILTER (WHERE realized_pnl<0)::numeric,2),0) avg_loss,
-                COALESCE(round(max(realized_pnl)::numeric,2),0) biggest_win,
-                COALESCE(round(min(realized_pnl)::numeric,2),0) biggest_loss
+      // Closes are priced on the ENGINE's own cost: the stored realized_pnl uses the venue's wash-sale-
+      // adjusted average and counts each disallowed loss twice. The venue's net rides along, labelled.
+      const closes = (await ctx.pool.query(
+        `SELECT order_id::text AS order_id, upper(symbol) AS symbol, realized_pnl,
+                (created_at::date = CURRENT_DATE) AS today
            FROM oshal_trading_orders
-          WHERE user_sub=$1 AND book_id=$2 AND side='sell' AND realized_pnl IS NOT NULL AND ${clause}`,
-        [sub, book.bookId])).rows[0];
-      const today = await win(`created_at::date = CURRENT_DATE`);
-      const d30 = await win(`created_at >= now() - interval '30 days'`);
+          WHERE user_sub=$1 AND book_id=$2 AND side='sell' AND status='filled'
+            AND created_at >= now() - interval '30 days'`,
+        [sub, book.bookId])).rows as Array<{ order_id: string; symbol: string; realized_pnl: string | null; today: boolean }>;
+      const sales = closes.length
+        ? await engineRealizedForBook(ctx, sub, book.bookId, [...new Set(closes.map((c) => c.symbol))])
+        : new Map();
+      const engine = (c: { order_id: string }) => sales.get(c.order_id)?.realizedPnl ?? null;
+      const venueNet = (list: typeof closes) => Math.round(list.reduce((s, c) => s + Number(c.realized_pnl ?? 0), 0) * 100) / 100;
+      const todays = closes.filter((c) => c.today);
+      const today = tallyRealized(todays.map(engine));
+      const d30 = tallyRealized(closes.map(engine));
       const winRate = (r: { trades: number; wins: number }) => r.trades ? Math.round((r.wins / r.trades) * 100) : null;
-      res.json({ mode, today: { ...today, winRatePct: winRate(today) }, last30d: { ...d30, winRatePct: winRate(d30) } });
+      res.json({
+        mode, basis: 'engine',
+        today: { ...today, winRatePct: winRate(today) },
+        last30d: { ...d30, winRatePct: winRate(d30) },
+        venueNet: { today: venueNet(todays), last30d: venueNet(closes) },
+      });
     } catch (err) {
       logger.error({ err }, 'trading realized failed');
       res.status(500).json({ error: (err as Error).message });

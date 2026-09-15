@@ -14,6 +14,8 @@
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- ADR-139 send-to: every ready scan is tagged as an embodied-scene source; the shared component draws the 📤 chip. -->
+<script src="/api/artifacts/send-to.js" defer></script>
 <style>
   :root {
     --bg: var(--bg-primary); --panel: var(--bg-card); --panel2: var(--bg-tertiary);
@@ -198,8 +200,13 @@
       const eng = s.provider ? '<span>· ' + (s.provider === "sim" ? "sim" : "GPU") + "</span>" : "";
       const err = s.status === "failed" && s.error ? '<div class="err">' + esc(s.error) + "</div>" : "";
       const dimDiv = s.status === "ready" ? '<div class="dims" data-dims="' + s.id + '" style="margin:4px 0 2px;font-size:.9em">' + (dimsCache[s.id] ? fmtDims(dimsCache[s.id]) : "") + "</div>" : "";
-      const view = s.status === "ready" ? dimDiv + '<div class="actions"><button class="ghost" data-view="' + s.id + '">' + (activeId === s.id ? "Viewing" : "Open 3D scene") + '</button><a class="ghost" href="' + API + '/scans/' + encodeURIComponent(s.id) + '/geometry" download style="text-decoration:none;text-align:center">⬇ Download model</a><button class="ghost" data-rf="' + s.id + '">Wi-Fi coverage</button></div>' : "";
-      return '<div class="scan ' + (activeId === s.id ? "active" : "") + '"><div class="title">' + esc(s.title) + "</div>" +
+      const sceneUrl = API + "/scans/" + encodeURIComponent(s.id) + "/scene";
+      const view = s.status === "ready" ? dimDiv + '<div class="actions"><button class="ghost" data-view="' + s.id + '">' + (activeId === s.id ? "Viewing" : "Open 3D scene") + '</button><a class="ghost" href="' + API + '/scans/' + encodeURIComponent(s.id) + '/geometry" download style="text-decoration:none;text-align:center">⬇ Download model</a><button class="ghost" data-rf="' + s.id + '">Wi-Fi coverage</button><a class="ghost" href="' + sceneUrl + '?download=1" download title="The room as an embodied hidden scene: obstacle boxes carved from the splat, metres, z-up. Send it to the embodied tile with the 📤 chip." style="text-decoration:none;text-align:center">🛸 Scene for drones</a></div>' : "";
+      // ADR-139 source tag: a ready scan offers itself as an embodied scene (the send-to component wires the 📤 chip + right-click).
+      const artifactTag = s.status === "ready"
+        ? ' data-artifact-source="' + esc(sceneUrl) + '" data-artifact-type="application/vnd.oshal.embodied-scene+json" data-artifact-name="' + esc(s.title) + '.scene.json"'
+        : "";
+      return '<div class="scan ' + (activeId === s.id ? "active" : "") + '"' + artifactTag + '><div class="title">' + esc(s.title) + "</div>" +
         '<div class="meta">' + badge + gauss + eng + "</div>" + err + view + "</div>";
     }).join("");
     listEl.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => openScene(b.getAttribute("data-view"))));

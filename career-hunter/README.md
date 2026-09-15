@@ -10,13 +10,81 @@ approval queue → apply-pipeline handoff. It also provides the morning digest, 
 recruiters, strengthen, insights, approvals, settings, Resume Studio, Profile Studio, mobile swipe,
 submissions, and the jobs knowledge graph.
 
-Those surfaces reach the operator through a **sectioned ribbon**: Mobile leads ungrouped as the
-pinned front door, then **Job Search** (Job Board, Submissions, Recruiters, Insights), **Resume**
+Those surfaces reach the operator through a **sectioned ribbon**: Career Review and Mobile lead
+ungrouped, then **Job Search** (Search Jobs, Job Board, Submissions, Recruiters, Insights), **Resume**
 (Strengthen, Resume Studio), and **Presence** (Profile Studio plus a cross-app tile into the
 separate `portrait-studio` package). Approvals, Companies, and Career Settings stay in the
 ungrouped bottom tray. The `group:` key that drives this, and the rules a cross-app tile has to
 follow, are written up in
 [docs/ribbon-groups-adr-085-addendum.md](docs/ribbon-groups-adr-085-addendum.md).
+
+## Job Board and open jobs search (1.21.0)
+
+The Job Board now has a direct **Open jobs search** entry, with matching navigation back
+to the board. In Cockpit, these links use the existing admitted Career tools. Standalone
+pages use the package's existing authenticated routes. Search covers tracked openings
+without requiring a resume; the board retains scored matches and application progress.
+
+Both pages have a compact heading, readable job cards and mobile filter disclosures.
+Computer readiness stays visible on the board; desktop submission setup and bulk tools
+expand when needed. Existing resume, application provenance, filter, autofill, submission
+and confirmation handlers remain available. Initial board loading is visible, reads time
+out after 30 seconds, and failures offer **Retry** rather than reporting an empty result
+or automatically starting another request. A retry uses the current filters.
+
+The new browser recipe is registered in [AI Test Lab](tests/test-lab.yaml). Run it locally
+with `node --test career-hunter/tests/browser/career-job-workspace-proof.mjs` and the same
+`OSHAL_CORE_ROOT` setup below. It uses actual HTML/CSS and synthetic local HTTP, without
+providers or business writes. Native installation acceptance is tracked separately in
+[the package backlog](BACKLOG.md).
+
+## Shared appearance (1.20.0)
+
+All thirteen Career-owned screens use the portal palette, including Workspace. Change the
+palette in Cockpit Settings and the open Career screen follows without reloading its iframe,
+discarding a draft, or changing filters. Shared typography, heading accents and controls give
+the board, search, studios, review, approvals and settings a consistent Career identity.
+The existing layouts, actions and permissions remain in place. Resume paper and PDF previews
+keep their white document background.
+
+The portal's optional **Application colors** setting can use Career's declared Daylight default.
+An explicit portal palette choice turns that option off and follows the user into other apps.
+Career stores no separate color preference and does not force Daylight. This requires the core
+shared appearance contract; the package stylesheet consumes canonical tokens through the
+existing authenticated static route.
+
+## AI Test Lab and focused verification
+
+[tests/test-lab.yaml](tests/test-lab.yaml) registers nine scenarios: the unchanged readiness
+smoke, two real-screen Chromium proofs, the existing board/Search/Resume script contracts,
+and five groups covering the remaining legacy harnesses. Every one of the 50 existing test
+entries is registered, alongside both browser entries. Registration does not mean execution.
+The legacy Python, filesystem and TypeScript/core-import harnesses remain explicitly pending
+when those prerequisites are unavailable; no provider or production-business tests were run
+for this appearance change.
+
+From the package repository, with a core checkout and its browser dependencies installed:
+
+```powershell
+$env:OSHAL_CORE_ROOT = 'C:/path/to/oshal'
+node --test career-hunter/tests/browser/career-theme-proof.mjs
+node --test career-hunter/tests/board-surface.test.mjs career-hunter/tests/career-search-screen.test.mjs career-hunter/tests/career-resume-studio-bridge.test.mjs
+```
+
+The browser fixture serves actual package HTML and shared core CSS/JavaScript over isolated
+loopback HTTP with synthetic records. It refuses mutations and off-origin traffic. It checks
+13 saved/live palette transitions, draft and filter retention, optional application colors,
+mobile bounds, all 12 primary-label contrasts and white resume paper. The 53 existing script
+checks preserve filter, provenance, consent and bridge behavior. The 1.20.0 source checkpoint
+passed all 18 Chromium cases and all 53 script checks; the same 53 also passed through the
+actual installed catalog and sealed container runner with verified cleanup and zero missing
+registrations. Historical installed/native acceptance for 1.20.0 is recorded in the
+[workspace facelift release](https://github.com/emeraldcoastsystemsgroup/oshal/blob/e2c6d9575aaf47835838775bd7828de889881496/docs/releases/workspace-facelift-2026-09-12.md).
+The subsequent [1.21.0 release](https://github.com/emeraldcoastsystemsgroup/oshal/blob/e2c6d9575aaf47835838775bd7828de889881496/docs/releases/career-navigation-2026-09-12.md)
+records installed source `3395b937`, the native Board/search round trip, retained filters and
+53 passing installed Node checks with verified cleanup. Browser recipes remain registered
+with unavailable prerequisites in the installed Lab; their Chromium results are local.
+[Release boundaries](BACKLOG.md).
 
 **Operating it:** the nightly scrape, the AI scoring passes, the morning digest, the boot catch-up,
 how to see whether each ran and for whom, how to trigger them by hand, and which AI credential the

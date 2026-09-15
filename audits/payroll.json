@@ -1,7 +1,7 @@
 {
   "profileVersion": 1,
   "app": "payroll",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "sourceSha": "0000000000000000000000000000000000000000",
   "status": "pending",
   "auditedAt": null,

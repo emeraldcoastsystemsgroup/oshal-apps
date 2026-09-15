@@ -11,6 +11,10 @@
  *                     |                             | the result is the same. The grid always carries a one-voxel
  *                     |                             | empty shell so the mesher meets a closed surface — that shell
  *                     |                             | is the watertightness argument, not a convenience.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | `mirrorUnion` (BACKLOG B11): union the solid with its mirror
+ *                     |                             | image about the grid's X or Y mid-plane. The grid is symmetric
+ *                     |                             | about world X = Y = 0 by construction, so the mirror is an exact
+ *                     |                             | index flip — no resampling, nothing to round.
  */
 
 import type { Vec3 } from '../geometry/geometry-types';
@@ -217,4 +221,28 @@ export function projectGrid(grid: OccupancyGrid, frame: ViewFrame): Mask {
  */
 export function cloneGrid(grid: OccupancyGrid): OccupancyGrid {
   return { ...grid, originMm: { ...grid.originMm }, data: new Uint8Array(grid.data) };
+}
+
+/**
+ * @description Union the solid with its mirror image about the grid's mid-plane on one horizontal
+ * axis. That plane is world X = 0 (or Y = 0): the grid is allocated symmetric about it and every
+ * lane centres the object's footprint there, so voxel `i` mirrors exactly onto `n - 1 - i`. A voxel
+ * becomes solid only when its mirror partner is solid; nothing is ever removed.
+ * @param grid - The grid, mutated in place.
+ * @param axis - `x` mirrors X to -X, `y` mirrors Y to -Y.
+ * @returns Voxels the mirror added (0 when the solid was already symmetric).
+ */
+export function mirrorUnion(grid: OccupancyGrid, axis: 'x' | 'y'): number {
+  let added = 0;
+  for (let k = 0; k < grid.nz; k += 1) {
+    for (let j = 0; j < grid.ny; j += 1) {
+      for (let i = 0; i < grid.nx; i += 1) {
+        const at = gridIndex(grid, i, j, k);
+        if (grid.data[at] === 1) continue;
+        const partner = axis === 'x' ? gridIndex(grid, grid.nx - 1 - i, j, k) : gridIndex(grid, i, grid.ny - 1 - j, k);
+        if (grid.data[partner] === 1) { grid.data[at] = 1; added += 1; }
+      }
+    }
+  }
+  return added;
 }

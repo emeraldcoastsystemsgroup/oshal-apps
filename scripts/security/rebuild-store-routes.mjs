@@ -10,6 +10,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Honor package-local source-map formatting while retaining one shared type-check/emit program.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Avoid rewriting byte-different but Git-equivalent CRLF outputs on Windows while still replacing meaningful generated drift.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Add compile-only compatibility mode; preserve legacy JavaScript routes and never synchronize outputs in this mode.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Expose the unchanged package compiler-output policy so readiness contracts compare exact expected bytes without duplicating formatting rules.
  */
 
 import {
@@ -181,7 +182,7 @@ function verifyManifestFactories(pkg, outputs) {
 }
 
 /** @description Apply the package-local source-map comment policy to shared-program output bytes. */
-function normalizeCompilerOutput(pkg, contents) {
+export function normalizeCompilerOutput(pkg, contents) {
   const packageConfig = join(pkg.sourceRoot, 'tsconfig.json');
   if (!existsSync(packageConfig)) return contents;
   let config;

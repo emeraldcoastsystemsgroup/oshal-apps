@@ -58,4 +58,3 @@ function createPackageSmokeRoutes(ctx) {
     });
     return router;
 }
-//# sourceMappingURL=package-smoke.js.map

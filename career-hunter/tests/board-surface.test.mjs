@@ -13,6 +13,7 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Prove mobile startup is read-only, draft top-up requires an explicit action, and status uses the owner-scoped durable apply queue.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Require every full-bleed mobile overlay to be grounded on the document's own opaque token so a stacked swipe card cannot show the role behind it.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Guard the one-click node installer: offered only when no computer is connected, announced before it downloads, and never a swarm-wide join code.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Keep the parallel feed-before-status invariant when status uses the bounded board read helper.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -104,7 +105,7 @@ test('the feed request is issued in parallel with the onboarding gate', () => {
   // /resume/state used to resolve BEFORE the feed started — two serialized round-trips in front
   // of first paint, to answer a question that is "yes" for every returning user.
   assert.match(body, /const feed = prefetch \? fetchJobs\(\)/);
-  const gate = body.indexOf("fetch('/api/career-hunter/resume/state')");
+  const gate = body.indexOf("readBoardJson('/api/career-hunter/resume/state')");
   const kick = body.indexOf('const feed = prefetch ? fetchJobs()');
   assert.ok(kick > -1 && gate > kick, 'the feed must be kicked off before awaiting resume/state');
 });

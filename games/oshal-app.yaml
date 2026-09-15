@@ -42,13 +42,26 @@ smoke:
       rejectValues: [noop, stub, empty]
     requiresAi: false
 
-# Installing this launcher also resolves both playable packages.
+# Neither game is required: the launcher owns no runtime or data, so both are OFFERED at install
+# as unchecked choices and never installed unasked.
 dependencies:
-  apps:
-    - dnd
-    - game-show
-  tools: []
-  connectors: []
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps:
+      - dnd
+      - game-show
+    tools: []
+    connectors: []
+
+# Kernel skills this app declares (ADR-090 uses: contract, fail-closed at load).
+# `app-dependencies` is the compatibility floor for the tiered dependencies block above: a core
+# that predates required/optional refuses this package instead of installing it without its
+# required dependencies and without its connector allow-list.
+uses:
+  - app-dependencies
 
 # The launcher owns no runtime or data. Its surfaces route to the installed games.
 ui:

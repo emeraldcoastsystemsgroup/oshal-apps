@@ -48,9 +48,21 @@ smoke:
 
 # Runtime connector allow-list — the hubs this app drives via the per-user broker.
 dependencies:
-  apps: []
-  tools: []
-  connectors: [smartthings, google-home]
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: [smartthings, google-home]
+
+# Kernel skills this app declares (ADR-090 uses: contract, fail-closed at load).
+# `app-dependencies` is the compatibility floor for the tiered dependencies block above: a core
+# that predates required/optional refuses this package instead of installing it without its
+# required dependencies and without its connector allow-list.
+uses:
+  - app-dependencies
 
 # Per-app skin. Moved off forest (finance claimed it as the money bundle's color)
 # now that this is the iot.oshal.ai bundle front door (operator decision 2026-07-31).

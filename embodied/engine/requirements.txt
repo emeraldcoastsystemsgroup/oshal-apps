@@ -1,0 +1,10 @@
+# Embodied physics engine -- the plant (MuJoCo, Apache-2.0), the task wrapper (Gymnasium) and the
+# training lane (Stable-Baselines3 on CPU-only PyTorch; the Dockerfile adds the PyTorch CPU index).
+# Exact transitive pins live in requirements-lock.txt (pip freeze of a clean build).
+mujoco==3.3.5
+numpy==2.3.3
+gymnasium==1.2.1
+stable-baselines3==2.7.0
+torch==2.8.0
+# The PX4 node (B6): MAVLink to the flight stack.
+pymavlink==2.4.49

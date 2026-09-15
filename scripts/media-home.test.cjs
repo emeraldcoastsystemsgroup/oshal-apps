@@ -1,8 +1,41 @@
 ﻿/** Compiled creative summaries: authenticated saved evidence and bounded draft actions. */
 const fs=require('fs'),path=require('path'),test=require('node:test'),assert=require('node:assert/strict');
 const apps=['brand-graphics','creative-studio','daily-trade-recap','lora','portrait-studio','print-ingest','storage'];
-function route(app,query){let handler;const module={exports:{}};new Function('require','module','exports',fs.readFileSync(path.join(__dirname,'..',app,'routes/home-summary.js'),'utf8'))(name=>{assert.equal(name,'express');return {Router:()=>({get:(_,fn)=>handler=fn})};},module,module.exports);module.exports.createHomeSummaryRoutes({pool:{query}});return async(oidc={user:{sub:'alice'},isAuthenticated:()=>true})=>{const res={statusCode:200,headers:{},setHeader(k,v){this.headers[k]=v;},status(s){this.statusCode=s;return this;},json(body){this.body=body;}};await handler({oidc,query:{user_sub:'bob'}},res);return res;};}
+// Two identity rails reach these routes and the harness has to model both, because the framework
+// hands a package BOTH: manifest-route-mounter.ts builds each package context with
+// `authorization: applicationAuthorization.forPackage(appName)` alongside the request's own oidc.
+// Six apps here read `req.oidc`; portrait-studio reads `ctx.authorization.currentActor()` (ADR-149).
+// Supplying only the first made portrait-studio 401 every authenticated case - a harness gap, not a
+// product defect. Both rails are driven from ONE fixture below so an app cannot pass on one rail
+// while failing the other, and every existing 401 case stays 401.
+function route(app,query){
+ let handler,actor=null,permitted=true;const module={exports:{}};
+ const source=fs.readFileSync(path.join(__dirname,'..',app,'routes/home-summary.js'),'utf8');
+ new Function('require','module','exports',source)(name=>{assert.equal(name,'express');return {Router:()=>({get:(_,fn)=>handler=fn})};},module,module.exports);
+ module.exports.createHomeSummaryRoutes({pool:{query},authorization:{currentActor:()=>actor,authorize:async()=>({allowed:permitted})}});
+ const call=async(oidc={user:{sub:'alice'},isAuthenticated:()=>true},opts={})=>{
+  // The actor is DERIVED from the same oidc fixture rather than fixed, so a refusal stays a refusal
+  // on both rails. opts covers the two states an oidc fixture cannot express: authenticated at the
+  // door but inactive in the authorization catalog, and active but lacking a named permission.
+  const sub=oidc&&oidc.user&&(oidc.user.sub||oidc.user.oid);
+  actor='actor' in opts?opts.actor:(sub&&oidc.isAuthenticated&&oidc.isAuthenticated()===true?{sub,isActive:true}:null);
+  permitted='allowed' in opts?opts.allowed:true;
+  const res={statusCode:200,headers:{},setHeader(k,v){this.headers[k]=v;},status(s){this.statusCode=s;return this;},json(body){this.body=body;}};
+  await handler({oidc,query:{user_sub:'bob'}},res);return res;};
+ call.usesAuthorizationRail=/currentActor/.test(source);
+ return call;}
 for(const app of apps){
+ // Registered per app rather than skipped inside a shared case: a test that returns early for six
+ // of seven apps reports green while asserting nothing, which is how the gap below survived.
+ const onAuthorizationRail=/currentActor/.test(fs.readFileSync(path.join(__dirname,'..',app,'routes/home-summary.js'),'utf8'));
+ if(onAuthorizationRail){
+  test(app+' fails closed when the authorization catalog says the actor is inactive',async()=>{
+   const r=await route(app,()=>assert.fail('read'))(undefined,{actor:{sub:'alice',isActive:false}});
+   assert.equal(r.statusCode,401);});
+  test(app+' refuses a caller missing a named permission instead of answering',async()=>{
+   const r=await route(app,async()=>({rows:[]}))(undefined,{allowed:false});
+   assert.equal(r.statusCode,403);});
+ }
  test(app+' authenticates before reading',async()=>{const call=route(app,()=>assert.fail('read'));for(const oidc of [null,{user:{sub:'alice'}},{user:{sub:'alice'},isAuthenticated:()=>false}])assert.equal((await call(oidc)).statusCode,401);});
  test(app+' uses repeated bounded owner SELECTs only',async()=>{const call=route(app,async q=>{assert.match(q.text,/^SELECT /);assert.match(q.text,/(user_sub|owner_sub) = \$1/);assert.equal(q.values[0],'alice');assert.ok(q.values[1] instanceof Date);assert.equal(q.query_timeout,1800);return {rows:[]};});for(let i=0;i<2;i++){const r=await call();assert.equal(r.statusCode,200);assert.equal(r.body.partial,false);assert.equal(r.headers['Cache-Control'],'no-store');assert.ok(r.body.metrics.every(m=>m.value===(app==='storage'?'Automatic':'0')));}});
  test(app+' reports unavailable sources without inventing zero',async()=>{const r=await route(app,async()=>{throw Error('PRIVATE');})();assert.equal(r.statusCode,503);assert.ok(r.body.metrics.every(m=>m.value==='Unavailable'));assert.ok(!JSON.stringify(r.body).includes('PRIVATE'));});

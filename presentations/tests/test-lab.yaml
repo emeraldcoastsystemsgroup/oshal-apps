@@ -1,0 +1,111 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register all shipped package tests with explicit runner and fixture boundaries; retain readiness smoke identity.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register the Create brand kit rules: nearest look, byline and brand voice.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the existing metadata-only readiness probe without provider or user-data access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed presentations package identity satisfies its manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: surface-parse
+    name: Office surface syntax and navigation
+    purpose: Parse the packaged classic and module scripts and verify the walkthrough, explorer and bridge contract.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/presentations-surface-parse.test.js
+    expected:
+      - Classic and module scripts parse using Node without running a browser.
+      - Walkthrough, file explorer, purpose controls and surface-bridge targets remain present.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: starters
+    name: Office starter catalog
+    purpose: Exercise the compiled starter catalog and verify the surface uses the owning catalog and deep links.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/presentations-starters.test.js
+    expected:
+      - Document, workbook and deck starters have complete purpose-specific outlines.
+      - Starter groups, surface vocabulary and deep links stay consistent.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: destination
+    name: Storage destination handler
+    purpose: Call the compiled destination handler with synthetic router, preferences and storage seams.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/presentations-destination.test.mjs
+    expected:
+      - Anonymous requests stop before lookup and overrides do not read preferences or write data.
+      - Allowed providers resolve a findable destination; preference failures return an honest error.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: brand-look
+    name: Your brand in AI Office
+    purpose: Run the surface's own brand code against a stubbed session to prove the look, byline and voice rules.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/presentations-brand.test.js
+    expected:
+      - The Create brand kit is read once in the viewer's session with a bounded wait; a refusal changes nothing.
+      - The nearest built-in look follows hue, canvas darkness and fonts, and never replaces a look already chosen.
+      - The brand name fills only an empty byline and the brand voice rides AI drafts only while switched on.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: In-memory script context only; no browser, network or provider use.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never

@@ -32,7 +32,11 @@ description: >-
 scope: public
 ticketType: creative-story
 theme: amber
-version: 1.2.0
+version: 1.2.1
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+uses: [test-catalog, app-dependencies]
 
 source:
   type: git-subdir
@@ -81,9 +85,20 @@ smoke:
 # vids_jobs ledger (resolves from core swarm-apps until the vids carve lands,
 # then from this store — npm-style, fail-closed).
 dependencies:
-  apps: [vids, video, portrait-studio, lora]
-  tools: []
-  connectors: []
+  required:
+    # vids is the runtime: routes/home-summary.js:19-20 reads the vids_jobs ledger the vids package
+    # creates (vids/migrations/059-vids-platform.sql:10), and the primary tile below IS the vids
+    # job-queue surface.
+    apps: [vids]
+    tools: []
+    connectors: []
+  optional:
+    # video, portrait-studio and lora appear only as sibling ui.static tiles pointing at their own
+    # surfaces (/api/video/ui, /api/portrait-studio/app, /api/lora/ui) - no route, tool or query here
+    # touches them.
+    apps: [video, portrait-studio, lora]
+    tools: []
+    connectors: []
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BOTS — reuses the already-registered SHARED vids-operator worker (registered in

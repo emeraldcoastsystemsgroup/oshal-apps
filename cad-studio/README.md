@@ -13,16 +13,29 @@ install command instead of a wrong model.
 
 ## Use it
 
+Version 0.1.1 uses the core's shared STL preview. Upgrade core first so
+`/shared/ui/js/stl-viewer.js` exposes `OSHALStlViewer.apiVersion === 1`, then
+install this package. A missing or incompatible shared viewer produces an
+explicit update error. The small package adapter preserves the existing studio
+interface; the kernel and model history remain package-owned. This preview-only
+update does not change the engine build hash or require an engine rebuild.
+
+From the core checkout, `npm run test:shared-stl-viewer` tests both CAD and Scan
+pages with real Chromium/WebGL and synthetic HTTP responses. It proves shader
+compilation, drawing and viewer lifecycle, separately from the kernel tests below.
+
 Open `/cockpit/?app=cad-studio`.
 
 1. **New part** — a box to start (or open a Scan to Print job's outlines, or send an STL here from
    anywhere in the swarm — ADR-139 "Open in CAD Studio").
 2. **Add features** in the right rail — the form is generated from the contract the server
-   enforces: hole, boss, box-add, box-cut (pocket / slot), sketch-extrude (add or cut), fillet,
-   chamfer, shell, cut-plane, scale, mirror, rotate, translate. Every add / edit / disable / move /
+   enforces: hole, boss, box-add, box-cut (pocket / slot), sketch-extrude, revolve, sweep and loft
+   (each add or cut), fillet, chamfer, shell, cut-plane, scale, mirror, rotate, translate. Every add / edit / disable / move /
    remove **rebuilds the part** and produces a new **revision**. A feature the kernel refuses (a
    fillet radius larger than the edge allows) is shown **skipped with the kernel's reason** — the
-   part stays buildable; fix the number.
+   part stays buildable; fix the number. A feature that takes longer than the per-feature budget
+   (60 s unless the part's settings say otherwise) is refused the same way; **Stop rebuild**
+   halts a rebuild that is running and the part stays at its last good revision.
 3. **Or talk** — "put a 6 mm hole 10 mm from the left edge and round the vertical edges 2 mm".
    The designer calls the same tools; the studio refreshes as it works.
 4. **Read the report** — extents, volume, mass at the density you set, faces / edges / validity,
@@ -103,10 +116,22 @@ tests/                    contract-features, engine-client (dependency-free), ro
 
 ## Test
 
+The manifest activates six Test Lab cases, including metadata readiness. The
+contract suite requires Python 3 for its cross-language build-hash comparison;
+the engine-client suite needs only Node. The HTTP suite requires a framework
+checkout and uses temporary files and a fake engine bridge. The real-kernel
+Python suite declares an external runner and its engine-container prerequisite;
+registration does not make that runner available or claim the suite has run.
+The browser lifecycle suite also needs the framework checkout and Chromium. It
+loads the actual editor and shared STL renderer with synthetic HTTP responses;
+it proves current part/revision selection and retention of newer feature input,
+separately from kernel or manufacturing acceptance.
+
 ```bash
 cd c:/Projects/oshal-apps/cad-studio
-node --test "tests/*-*.test.js"                                         # contract + engine client: dependency-free, runs in store-ci
+node --test "tests/*-*.test.js"                                         # Node + Python 3; no npm/framework install, runs in store-ci
 OSHAL_CORE_DIR=C:/Projects/oshal node --test tests/routes.core.test.js  # framework-coupled (express/multer) + fake bridge
+OSHAL_CORE_DIR=C:/Projects/oshal node --test tests/surface-lifecycle.core.spec.mjs  # actual page/WebGL + synthetic HTTP
 docker run --rm -v "$PWD/engine:/engine:ro" oshal-cad-studio-engine:local sh -c 'cd /engine && python -m unittest discover -s tests'  # real kernel
 ```
 
@@ -120,5 +145,8 @@ Load-bearing specs:
 - `routes.core.test.js` — the HTTP surface end to end with the real engine client and a fake
   bridge: revisions per edit, refusals with reasons, owner scoping, artifacts by revision, 503
   naming the install command when the bridge is gone.
+- `surface-lifecycle.core.spec.mjs` — held detail, STL headers/body, rebuild,
+  polling, revision-list and deletion responses cannot replace another part or
+  retired revision; late feature submission retains newer manual form input.
 - `engine/tests/test_cad_worker.py` — the real kernel: every base and feature to analytic
   volumes, refused features skipped with reasons, STEP byte-stable, mesh sewing round-trip.

@@ -4,7 +4,19 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped package test with explicit runner and fixture boundaries; retain the readiness smoke identity. The framework-coupled route suite is registered with its real prerequisite (a framework checkout) rather than hidden.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Register the surface camera module suite (phone capture: view order and guidance, frame bounding, the countdown sequence on a fake clock, the stream wrapper on a fake mediaDevices).
-# 3 | maintainer@emeraldcoastsystemsgroup.com | Register the contour-export suite (the CAD Studio bridge: outlines in world millimetres, simplification within half a voxel, the point budget).
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Activate installation registration, fingerprint shared HTTP fixtures, and declare freshness and real-browser regressions with their actual prerequisites.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register the contour-export suite (the CAD Studio bridge: outlines in world millimetres, simplification within half a voxel, the point budget) alongside output freshness and upload identity.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register the real surface handoff closures with explicit Node VM ports and no CAD engine or browser prerequisite.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Declare the base-sealing cases (BACKLOG B7) on the lanes that own them — the engine seal with its two non-seal controls, and the route flag with its refusal — so a seal that silently stopped capping, or started capping more than the base, fails a named case rather than passing quietly.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Register the printability pre-check suite (BACKLOG B13) — thinnest wall from an exact distance transform, steepest overhang against the limit a nozzle and a layer height imply, the reading band re-asserted on voxelised ramps.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Register the symmetry-completion suite (BACKLOG B11) — a half-visible part completes to its analytic volume only when symmetry is asserted, and says the material was copied.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Register the perspective re-projection suite (BACKLOG B2) — a synthetic pinhole render of the cup, re-projected into the top view, carves within one voxel of the orthographic map.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Register the joint-registration suite (BACKLOG B10) — one least-squares fit in log space with a residual per view; consistent views register exactly as before.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Register the square-on frame suggestion suite (BACKLOG B12) — a synthetic rotating box yields its axis-aligned frames, and a view the video never shows gets no proposal.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Register the range-image upload suite (BACKLOG B1/B8) — float32 and 16-bit decoding, and the photo hull refined by a top range image recovering the cup cavity exactly.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | Register the depth-lane and frame-suggestion HTTP suites (BACKLOG B1/B8/B12) with their real prerequisite, a framework checkout, and the suggestion panel's VM suite.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | Register the orientation-cube suites (BACKLOG B9) — the deterministic face-marker detector, and photo uploads assigning their own views over HTTP.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | Rename the drifted framework-checkout prerequisites to the Test Lab's own vocabulary so these cases can run: node-test cases declare fixture:core-checkout (the sealed Node profile runs on the oshal image, where /app is the checkout); browser cases declare harness:oshal-core-root and core:dependencies, as create does. A case that imports core's tests/fixtures, which the image does not ship, also declares harness:core-test-fixtures and stays pending with that exact reason instead of an unknown name.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -87,6 +99,28 @@ cases:
       timeoutMs: 60000
       maxMemoryMb: 512
     installation: never
+  - id: engine-registration
+    name: Joint registration with per-view residuals
+    purpose: Prove the silhouettes register through one least-squares fit in log space with the known dimensions held exact, that consistent views register exactly as the greedy propagation did, and that every view reports its misfit.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-registration.test.js
+    expected:
+      - The box registers to exactly 60 x 40 x 30 mm from any single anchor with zero residual; the cylinder to 40 x 40 x 50 mm.
+      - The skewed three-view loop puts a third of its 40 percent misfit on each view; a fourth view makes the skewed one carry the largest residual, warned worst first.
+      - Three known dimensions stay exact and each view reports its misfit against them; the fit is deterministic.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
   - id: engine-depth-lidar
     name: Depth and point-cloud lanes (the LiDAR building block)
     purpose: Prove a simulated range image carves a cavity the visual hull filled, no-return never carves, PLY parses in all three encodings, and a lattice box fills to its exact volume while a missing face is reported as a leak.
@@ -99,6 +133,95 @@ cases:
     expected:
       - Depth carving reproduces the hollow grid to the voxel.
       - The point-cloud lane closes, fills to 72000 mm³, re-orients a Y-up export, and reports a leak.
+      - A capture with no underside seals to the bed plane and fills to 72000 mm³; a side through-hole and a missing lid still leak, and an empty grid is refused.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: engine-depth-reproject
+    name: Perspective range images into the orthographic contract
+    purpose: Prove a pinhole range image (intrinsics plus a world pose) re-projects into the nearest canonical view as a depth map the carver accepts, that it carves the cup cavity within one voxel of the orthographic map, and that every dropped sample is counted rather than hidden.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-depth-reproject.test.js
+    expected:
+      - An off-centre tilted camera above the cup re-projects into the top view and carves within one voxel of the orthographic result, for z-depth and ray-range images alike.
+      - On flat map regions the re-projected depth agrees to half a voxel, and a mislabelled depth kind fails that agreement.
+      - Samples behind the plane, off the map or leaning past the limit are dropped and counted; malformed images, poses and targets are RangeErrors.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: engine-depth-upload
+    name: Range-image upload decoding and hull plus depth
+    purpose: Prove a device range image (float32 little-endian or 16-bit samples plus its placement header) decodes into the depth map the carver reads, and that the photo hull refined by it recovers a cavity on the job's own hull grid.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-depth-upload.test.js
+    expected:
+      - A float32 image decodes bit for bit with NaN and Infinity as no return; 16-bit samples decode with 0 as no return and depthScale to millimetres.
+      - Front, right and top photos of a cylinder plus a top range image of the cup recover the cavity voxel for voxel, and the report lists the silhouette and the depth views.
+      - A sensor plane inside the part and every malformed header field are RangeErrors naming the problem.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: engine-frame-suggest
+    name: Square-on frame suggestion for the video lane
+    purpose: Prove each frame is ranked per candidate view by the skew between that view's two axis scale estimates and by whether the silhouette is at a turning point, and that only a qualifying frame is ever proposed.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-frame-suggest.test.js
+    expected:
+      - A synthetic turntable spin of a box yields its three axis-aligned frames, and a mid-turn frame with exactly the front proportions is not proposed.
+      - A sweep from the side over the front to the top yields right, front and top; a pause counts as square-on; a clip edge never does.
+      - A view the video never shows gets no proposal; one frame is never proposed twice; malformed input is a RangeError.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: engine-face-marker
+    name: Orientation-cube face markers
+    purpose: Prove a deterministic, model-free detector reads the orientation cube's face marker in a photo and names the canonical view only when exactly one known marker is visible.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-face-marker.test.js
+    expected:
+      - Each of the six markers names its view beside an object, in any quarter-turn; one wrong cell is tolerated and two are not.
+      - No marker, an unknown pattern or two markers leave the view unassigned with a reason; a solid dark square part is never a candidate.
+      - Six synthetic photos with markers reconstruct a 60 x 40 x 30 box to 72000 mm³ with no manual assignment; any two faces differ in at least 6 cells.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -171,6 +294,94 @@ cases:
       timeoutMs: 60000
       maxMemoryMb: 512
     installation: never
+  - id: engine-print-checks
+    name: Printability pre-check beyond topology
+    purpose: Prove the thinnest wall (twice the smallest inscribed sphere on the medial ridge of an exact distance transform) and the steepest overhang (a spherical normal average) are measured on the grid and judged against limits derived from the nozzle diameter and the layer height, both inputs.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-print-checks.test.js
+    expected:
+      - A solid cube flags nothing; a 0.6 mm wall at a 0.4 mm nozzle is flagged thin and passes at a 0.25 mm nozzle; a thin fin on a thick block is located.
+      - A flat ceiling reads 90 degrees; one 55 degree ramp passes on 0.2 mm layers and fails on 0.4 mm layers; ramps from 20 to 75 degrees read inside the published band.
+      - A failing check is written onto the drawing notes; every out-of-bound machine number is a RangeError naming it.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: engine-symmetry
+    name: Symmetry completion (opt-in, flagged)
+    purpose: Prove an asserted X or Y symmetry unions the carved solid with its mirror about the footprint centre, restoring material one view failed to show and never removing any, and that the report and drawing say it was copied.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-symmetry.test.js
+    expected:
+      - A U with half a prong hidden in the top photo measures 28000 mm³, and 36000 mm³ under X symmetry, voxel for voxel equal to the fully visible part.
+      - A C with half an arm hidden completes across Y to 28000 mm³; an already symmetric part gains nothing and says so.
+      - Any symmetry axis other than x or y is a RangeError.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: surface-cad-handoff
+    name: Current-object CAD handoff
+    purpose: Execute the packaged surface handoff and output-retirement closures in a Node VM with controlled DOM, HTTP and navigation ports; no real CAD engine, browser or data is used.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/surface-cad-handoff.test.js
+    expected:
+      - Only unchanged current contours create a CAD part with the captured source object identity.
+      - Changed, deleted or retired objects never send a delayed CAD write; late responses cannot navigate away from a newer edit.
+      - Refused contour reads and unavailable or denied CAD responses never navigate or retry a write.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: surface-suggest
+    name: Video view suggestions in the surface
+    purpose: Execute the packaged suggestion closures in a Node VM with controlled DOM and HTTP ports and prove the surface only proposes; a view is assigned only by the person's click.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/surface-suggest.test.js
+    expected:
+      - Asking for suggestions sends only the read and lists one proposal per view with an assign control.
+      - Views the clip never showed are named; missing proportions are said; assign-all stays hidden with nothing to assign.
+      - Assign-all writes exactly the proposed frame to the proposed view, in order, after retiring the old outputs.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
   - id: surface-camera
     name: Phone camera capture module
     purpose: Prove the surface's camera module under plain node — the six-view order with front-edge guidance that matches the engine's view frames, frame bounding, upload names, the countdown capture sequence on a fake clock (tick, capture, skip, stop, a failing capture halts), and the stream wrapper on a fake mediaDevices (rear camera first, flip, stop releases tracks, bounded JPEG, no frame rejects).
@@ -204,12 +415,171 @@ cases:
     expected:
       - 401 without a caller, 404 across owners, 409/428 refusals, byte-identical re-runs.
       - Printer keys are stored only as ciphertext; STL never auto-starts; G-code needs a slicer.
+      - The point-cloud lane seals the base only when asked, records the seal in the report and the response, and refuses an unreadable flag with 422.
     prerequisites:
       - runner:node-test
-      - framework-checkout:OSHAL_CORE_DIR
-    sideEffects: none
+      - fixture:core-checkout
+    sideEffects: fixture-write
     isolation:
       mode: disposable
+      fixtures:
+        - tests/routes-core.fixture.js
+      cleanup: Close the loopback server, restore module hooks and remove the temporary job directory; database and printer adapters are isolated doubles.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: depth-http
+    name: Depth lane over loopback HTTP
+    purpose: Drive the compiled depth route with express, multer and sharp from a framework checkout and prove a range image refines the job's current photo hull and recovers a cavity.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/depth.core.test.js
+    expected:
+      - Three photos of a cylinder plus a top range image of a cup recover the cavity within 5 percent, as float32 and as a real 16-bit PNG carving the identical volume; the lane reads depth and lists both kinds of view.
+      - No views, no file, a missing header field, an 8-bit PNG and a sensor plane inside the part are refused with reasons; another owner gets 404.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/routes-core.fixture.js
+      cleanup: Close the loopback server, restore module hooks and remove the temporary job directory; the database is an isolated double.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: frames-http
+    name: Video frame suggestions over loopback HTTP
+    purpose: Drive the compiled video and frame-suggestion routes from a framework checkout with a fake frame extractor and prove the square-on frames of a turntable clip are proposed per unassigned view.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/frames.core.test.js
+    expected:
+      - A turntable clip of a box proposes frames 3, 9 and 15 for front, right and back, and nothing for top, left and bottom.
+      - An assigned view and its frame drop out of the proposals; a job without a video answers 409 and another owner 404.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/routes-core.fixture.js
+      cleanup: Close the loopback server, restore module hooks and remove the temporary job directory; the database and the frame extractor are isolated doubles.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: markers-http
+    name: Photo uploads that assign their own views
+    purpose: Drive the compiled photo route from a framework checkout and prove an upload assigns the view its orientation-cube marker names, and leaves every other case to the person with the reason on the row.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/markers.core.test.js
+    expected:
+      - Six photos with markers arrive assigned and reconstruct to 72000 mm³ with no PATCH.
+      - A view already held, a photo without a marker and an unknown pattern stay unassigned with their reasons; video frames are never auto-assigned.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/routes-core.fixture.js
+      cleanup: Close the loopback server, restore module hooks and remove the temporary job directory; the database and the frame extractor are isolated doubles.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: output-freshness
+    name: Current reconstruction and print boundaries
+    purpose: Prove changed inputs and failed or overlapping work cannot expose old geometry or submit stale output, using real HTTP and reconstruction with isolated printer and process doubles.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/freshness.core.test.js
+    expected:
+      - Changing width from 60 to 80 mm retires all old artifacts; the next reconstructed STL has the updated extent.
+      - Changed photos, views, settings and failed reconstruction retire old results; refused requests do not corrupt a current result.
+      - Busy jobs reject conflicting work; stale or nonprintable models make no slicer or printer calls.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/routes-core.fixture.js
+      cleanup: Close the loopback server, restore module hooks and remove each temporary job directory; no real database or device is used.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: upload-identity
+    name: Verified request identity across multipart uploads
+    purpose: Exercise real multipart parsing and the framework request identity context so an upload retains its verified owner through the fresh job lookup and subsequent queries.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/identity.core.test.js
+    expected:
+      - Photo uploads retain the exact authenticated issuer, subject and nonoperator identity after asynchronous multipart parsing.
+      - Disk upload callbacks preserve identity and cleanup; unauthenticated and foreign-owner requests remain refused.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/routes-core.fixture.js
+      cleanup: Close the loopback server, restore module hooks and remove temporary files; use isolated database and process doubles.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: surface-freshness
+    name: Changed-input feedback in the real scan page
+    purpose: Drive the actual packaged page and HTTP reconstruction in Chromium to verify old previews and export controls disappear after an input change and return only for fresh output.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/surface-freshness.core.spec.mjs
+    expected:
+      - A reconstructed object shows its current preview and downloads; changing dimensions hides old output and requests reconstruction.
+      - A successful rebuild displays the updated dimensions and restores current output controls.
+      - Real WebGL renders mesh pixels; late preview or rebuild responses cannot restore retired output or overwrite newer unsaved dimensions.
+    prerequisites:
+      - runner:playwright
+      - harness:oshal-core-root
+      - browser:chromium
+      - core:dependencies
+      - harness:core-test-fixtures
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/routes-core.fixture.js
+      cleanup: Close Chromium and the local HTTP fixture, restore module hooks and remove temporary job files.
     limits:
       timeoutMs: 120000
       maxMemoryMb: 1024

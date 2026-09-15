@@ -37,9 +37,14 @@ description: >-
   printer. The geometry is deterministic — silhouettes carve a voxel grid, the
   grid becomes the mesh and the drawing — and the same occupancy grid accepts
   depth and LiDAR input, so it is the building block a scanner plugs into.
-version: 0.3.0
+version: 0.5.0
 status: active
 scope: person
+
+# The installer fingerprints and registers these recipes; execution retains each prerequisite.
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 
 source:
   type: git-subdir
@@ -73,14 +78,21 @@ artifacts:
 # No connector allow-list: the inputs are the person's own photos / files and their own printer
 # host (a URL + API key they enter here, held as owner-key ciphertext), not per-user OAuth.
 dependencies:
-  apps: []
-  tools: []
-  connectors: []
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
 
 # Kernel skills this app CALLS (ADR-090 uses: contract, fail-closed at load), derived from the
 # actual imports: @/features/personal-data (owner-key field encryption for printer API keys).
 uses:
   - memory
+  - test-catalog
+  - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BOTS — one INLINE concierge (no container: reasoning rides the caller's hosted/BYO brain

@@ -14,7 +14,7 @@ this app never had a route of its own):
 
 - **In this package:** the app manifest (ticketType `creative-story` + the graph
   workflow), the three `creative_*` CLI tools, the Creative Studio ribbon tile
-  (a view over the Vids job queue at `/api/vids/app`), and a package copy of the
+  (the review and editable brief at `/api/creative-studio/review`), and a package copy of the
   vids-operator persona for the registrar.
 - **Stays in the OSHAL kernel:** the SHARED **vids-operator remote-client desktop
   worker** (`packages/oshal-vids-operator` → `npx oshal-vids worker`) with its
@@ -29,7 +29,7 @@ this app never had a route of its own):
 
 | Tile | URL | What |
 |---|---|---|
-| Creative Studio | `/api/vids/app` | The Vids job queue (story jobs land in `vids_jobs` too) — served by the `vids` app |
+| Creative Studio / Create Stories | `/api/creative-studio/review` | Recorded work and an editable next brief, with connected draft actions and a link to Vids Studio |
 
 ## Install
 
@@ -37,8 +37,9 @@ this app never had a route of its own):
 node scripts/oshal-app.js install creative-studio
 ```
 
-No routes and no migrations of its own. Requires the `vids` app (resolved
-npm-style at install) and a running Vids worker on a machine with a screen:
+The package owns its review, Home summary and readiness routes; it adds no migrations.
+Production requires the `vids` app (resolved npm-style at install) and a running
+Vids worker on a machine with a screen:
 
 ```bash
 npx @oshal/vids-operator chrome   # debug Chrome on a dedicated profile
@@ -50,3 +51,27 @@ npx oshal-vids worker             # register with the swarm + poll for jobs
 Create a Redis-backed schedule whose `taskType` is `workflow:creative-story`
 (e.g. cron `0 */6 * * *`) — every fire creates an auto-started `creative-story`
 ticket that produces the next unproduced story in the rotation.
+
+## Stories appearance and verification
+
+Version **1.2.1** makes the existing Stories review page follow the shared portal
+palette, including live changes, standalone tabs and Create's optional Application
+colors. Its recorded-work controls and unsent brief stay in the same document.
+The page's business script, routes and production workflow are unchanged.
+
+Run from the public application checkout with a core checkout containing installed
+Express, Playwright and Chromium dependencies. `OSHAL_CORE_ROOT` can name that core
+checkout; otherwise the fixture looks for sibling `oshal`. The optional Create
+skin check also needs sibling `create/ui/create.css` from this store.
+
+```bash
+node --test creative-studio/tests/browser/creative-theme-proof.mjs
+```
+
+Seven actual-page Chromium tests cover all twelve palettes, text contrast, retained
+drafts, real shared handoff code, cross-tab changes and mobile/laptop layouts.
+Only synthetic records and ephemeral local HTTP are used; all external requests
+and business mutations are rejected. This is source/browser proof, not installed
+provider or production acceptance. The [Lab catalog](tests/test-lab.yaml) registers
+the browser suite with its explicit prerequisites and retains the existing safe
+readiness smoke. Unavailable browser prerequisites remain pending.

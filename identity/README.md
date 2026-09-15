@@ -54,3 +54,16 @@ node scripts/oshal-app.js install identity
 No migrations — the hub reads the existing connector store; it owns no tables.
 The access review runs on the identity-advisor (inline, cost lands in
 `chat_tasks` under its agent_id) and never sees a token.
+
+## Test Lab catalog (1.1.1)
+
+[tests/test-lab.yaml](tests/test-lab.yaml) registers every shipped test and preserves the existing `package-readiness` smoke ID. Registration does not execute tests. An authorized operator can run the supported Node suites from the AI Test Lab against a sealed package snapshot; versioned results record the source revision and sandbox cleanup.
+
+| Test entry | Level | Execution boundary |
+| --- | --- | --- |
+| `tests/identity-list-contract.test.js` | unit | Isolated Node runner; synthetic data only |
+| `tests/home-summary.integration.cjs` | browser | Pending: standalone Node harness, matching core checkout, disposable PostgreSQL and Chromium |
+
+The browser harness is deliberately not eligible for the isolated Node runner. Set `HOME_TEST_CORE` to the matching core checkout and `HOME_TEST_DATABASE_URL` to a dedicated localhost database named `home_summary_test`, then run `node identity/tests/home-summary.integration.cjs` from the store checkout. It creates and removes a random schema and role; screenshots remain in the core `output/home-summary-acceptance` directory. This registration does not report that fixture as executed.
+
+These tests do not contact accounts, providers or live business records. Surface syntax and stubbed-handler assertions do not claim browser or connector acceptance. Package readiness remains a separate metadata-only probe.

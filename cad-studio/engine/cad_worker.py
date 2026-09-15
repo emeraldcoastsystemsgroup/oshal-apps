@@ -19,6 +19,24 @@
 #   |                                           | and skipped, so an iterating agent always gets a
 #   |                                           | buildable model back. No network, no filesystem beyond
 #   |                                           | a scratch dir, nothing the model list did not say.
+# 2 | maintainer@emeraldcoastsystemsgroup.com   | Sketch-driven features (BACKLOG B1): revolve (a
+#   |                                           | closed profile about one of its own plane's axes
+#   |                                           | through the origin, by an angle), sweep (a closed
+#   |                                           | profile along an open path polyline, right-corner
+#   |                                           | mitres) and loft (two or more closed sketches at
+#   |                                           | offsets along one plane's normal, ruled by default),
+#   |                                           | each add or cut. The plane->axis table is published
+#   |                                           | in hello so the contract can be checked against it.
+# 3 | maintainer@emeraldcoastsystemsgroup.com   | Per-feature time budget (BACKLOG B5): `rebuild`
+#   |                                           | takes featureBudgetMs; a feature that returns after
+#   |                                           | it is refused with code budget_exceeded and its
+#   |                                           | result discarded (the previous solid stays). One
+#   |                                           | OCCT call holds the interpreter, so the budget is
+#   |                                           | read when the call returns; stopping a call early is
+#   |                                           | the api's wall clock or its cancel (the bridge kills
+#   |                                           | the worker when the connection closes). loft now
+#   |                                           | validates every section before it builds any
+#   |                                           | geometry, so a bad section never reaches the kernel.
 """cad_worker -- CAD Studio's deterministic rebuild worker (CadQuery / OCCT).
 
 Protocol (one JSON object per line on stdin, one per line on stdout):
@@ -27,7 +45,8 @@ Protocol (one JSON object per line on stdin, one per line on stdout):
            {"id": <same>, "ok": false, "error": {"code": "...", "message": "..."}}
 
 `rebuild` args: {"base": {...}, "features": [...], "exports": ["step","stl","svg"],
-                 "views": ["front","top","right","iso"], "densityGcm3": 1.24, "stlToleranceMm": 0.05}
+                 "views": ["front","top","right","iso"], "densityGcm3": 1.24, "stlToleranceMm": 0.05,
+                 "featureBudgetMs": 60000}
 `check` is `rebuild` without exports (fast validation of a list).
 
 World frame == Scan to Print's: right-handed, Z up, millimetres, footprint centred on X=Y=0,
@@ -57,6 +76,11 @@ EDGE_SELECTORS = {
 FACE_SELECTORS = {"top": ">Z", "bottom": "<Z", "front": "<Y", "back": ">Y", "left": "<X", "right": ">X"}
 PLANES = {"XY": "XY", "XZ": "XZ", "YZ": "YZ"}
 AXES = ("x", "y", "z")
+# The two world axes each sketch plane spans, in CadQuery's local (u, v) order: a profile drawn
+# on XZ has u = X and v = Z (the plane normal is -Y). A revolve axis must be one of these two.
+PLANE_AXES = {"XY": ("x", "y"), "XZ": ("x", "z"), "YZ": ("y", "z")}
+MAX_SECTIONS = 32
+FEATURE_BUDGET_MS = {"min": 1, "max": 600000}
 LIMITS = {"maxFeatures": 200, "maxPoints": 2000, "maxDimensionMm": 2000.0, "minDimensionMm": 0.01}
 
 
@@ -79,9 +103,9 @@ def _dim(value, name):
     return _num(value, name, LIMITS["minDimensionMm"], LIMITS["maxDimensionMm"])
 
 
-def _points(value, name):
-    if not isinstance(value, list) or len(value) < 3 or len(value) > LIMITS["maxPoints"]:
-        raise FeatureError(f"{name} must be a list of 3..{LIMITS['maxPoints']} [u, v] points")
+def _points(value, name, minimum=3):
+    if not isinstance(value, list) or len(value) < minimum or len(value) > LIMITS["maxPoints"]:
+        raise FeatureError(f"{name} must be a list of {minimum}..{LIMITS['maxPoints']} [u, v] points")
     pts = []
     for p in value:
         if not isinstance(p, list) or len(p) != 2:
@@ -296,6 +320,71 @@ def feat_sketch_extrude(shape, p):
     return shape.union(tool) if mode == "add" else shape.cut(tool)
 
 
+def _combine(shape, tool, mode):
+    return shape.union(tool) if mode == "add" else shape.cut(tool)
+
+
+def feat_revolve(shape, p):
+    """A closed profile on a plane, revolved about one of that plane's own two axes through the
+    world origin. CadQuery takes the axis in the workplane's LOCAL coordinates: local (1, 0) is
+    the plane's first axis and (0, 1) its second (PLANE_AXES)."""
+    plane = _choice(p.get("plane", "XZ"), "plane", PLANES)
+    pts = _points(p.get("points"), "points")
+    allowed = PLANE_AXES[plane]
+    axis = _choice(p.get("axis", allowed[1]), "axis", allowed)
+    deg = _num(p.get("degrees", 360.0), "degrees", 1.0, 360.0)
+    mode = _choice(p.get("mode", "add"), "mode", ("add", "cut"))
+    end = (1.0, 0.0) if axis == allowed[0] else (0.0, 1.0)
+    tool = cq.Workplane(plane).polyline(pts).close().revolve(deg, (0.0, 0.0), end)
+    return _combine(shape, tool, mode)
+
+
+def feat_sweep(shape, p):
+    """A closed profile swept along an open path polyline. The profile is used where it is drawn
+    (the path starts at the world origin, which is the profile plane's origin); corners of the
+    path are right-corner mitres, so the swept volume is the section area times the centreline
+    length for a section symmetric about the path."""
+    plane = _choice(p.get("plane", "XY"), "plane", PLANES)
+    pts = _points(p.get("points"), "points")
+    path_plane = _choice(p.get("pathPlane", "XZ"), "pathPlane", PLANES)
+    path_pts = _points(p.get("path"), "path", minimum=2)
+    mode = _choice(p.get("mode", "add"), "mode", ("add", "cut"))
+    # Workplane.sweep() consolidates the path's pending edges into one wire itself.
+    path = cq.Workplane(path_plane).polyline(path_pts)
+    tool = cq.Workplane(plane).polyline(pts).close().sweep(path, transition="right")
+    return _combine(shape, tool, mode)
+
+
+def feat_loft(shape, p):
+    """A solid through two or more closed sketches on parallel planes (offsets along one named
+    plane's normal). Ruled by default: straight sides between consecutive sections, so a loft
+    between two squares is exactly a frustum."""
+    plane = _choice(p.get("plane", "XY"), "plane", PLANES)
+    sections = p.get("sections")
+    if not isinstance(sections, list) or len(sections) < 2 or len(sections) > MAX_SECTIONS:
+        raise FeatureError(f"sections must be a list of 2..{MAX_SECTIONS} sketches")
+    ruled = p.get("ruled", True)
+    if not isinstance(ruled, bool):
+        raise FeatureError("ruled must be true or false")
+    mode = _choice(p.get("mode", "add"), "mode", ("add", "cut"))
+    checked, seen = [], set()
+    for i, section in enumerate(sections):  # every section is checked before any geometry
+        if not isinstance(section, dict):
+            raise FeatureError(f"sections[{i}] must be an object with points and offset")
+        pts = _points(section.get("points"), f"sections[{i}].points")
+        offset = _num(section.get("offset", 0.0), f"sections[{i}].offset", -LIMITS["maxDimensionMm"], LIMITS["maxDimensionMm"])
+        if offset in seen:
+            raise FeatureError(f"sections[{i}].offset {offset} repeats an earlier section")
+        seen.add(offset)
+        checked.append((pts, offset))
+    wp, placed = cq.Workplane(plane), 0.0
+    for pts, offset in checked:
+        # workplane(offset=) is relative to the current plane; the contract's offsets are absolute.
+        wp = wp.workplane(offset=offset - placed).polyline(pts).close()
+        placed = offset
+    return _combine(shape, wp.loft(ruled=ruled), mode)
+
+
 def _edges(shape, selection):
     sel = EDGE_SELECTORS[_choice(selection, "edges", EDGE_SELECTORS)]
     return shape.edges() if sel is None else shape.edges(sel)
@@ -364,14 +453,39 @@ def feat_translate(shape, p):
 
 FEATURES = {
     "hole": feat_hole, "boss": feat_boss, "box-add": feat_box_add, "box-cut": feat_box_cut,
-    "sketch-extrude": feat_sketch_extrude, "fillet": feat_fillet, "chamfer": feat_chamfer, "shell": feat_shell,
+    "sketch-extrude": feat_sketch_extrude, "revolve": feat_revolve, "sweep": feat_sweep, "loft": feat_loft,
+    "fillet": feat_fillet, "chamfer": feat_chamfer, "shell": feat_shell,
     "cut-plane": feat_cut_plane, "scale": feat_scale, "mirror": feat_mirror, "rotate": feat_rotate,
     "translate": feat_translate,
 }
 
 
 # ── rebuild ────────────────────────────────────────────────────────────────────
-def build(base, features):
+def _apply_feature(shape, feature, budget_ms):
+    """Run one enabled feature. Returns (shape, status fields). A contract or kernel refusal keeps
+    the previous shape, and so does a feature that returned after the per-feature budget: its
+    result is discarded and it is reported with code budget_exceeded."""
+    started = time.monotonic()
+    try:
+        ftype = _choice(feature.get("type"), "feature.type", FEATURES)
+        params = feature.get("params") or {}
+        if not isinstance(params, dict):
+            raise FeatureError("feature.params must be an object")
+        candidate = FEATURES[ftype](shape, params)
+        if candidate.val().Volume() <= 0 or not _validity(candidate):
+            raise FeatureError("the kernel returned an empty or invalid solid")
+    except FeatureError as err:
+        return shape, {"error": str(err)}
+    except Exception as err:  # noqa: BLE001 -- OCCT/CadQuery raise plain exceptions
+        return shape, {"error": f"kernel refused: {type(err).__name__}: {str(err)[:300]}"}
+    ms = int((time.monotonic() - started) * 1000)
+    if budget_ms is not None and ms > budget_ms:
+        return shape, {"ms": ms, "code": "budget_exceeded",
+                       "error": f"took {ms} ms, over the {budget_ms} ms per-feature budget; its result was discarded"}
+    return candidate, {"ok": True, "ms": ms}
+
+
+def build(base, features, budget_ms=None):
     """Apply the base then every enabled feature in order. A refused feature is recorded and
     skipped; the returned shape is always the last valid one."""
     if not isinstance(base, dict):
@@ -391,21 +505,8 @@ def build(base, features):
         elif feature.get("enabled", True) is False:
             status.update(ok=True, skipped=True)
         else:
-            started = time.time()
-            try:
-                ftype = _choice(feature.get("type"), "feature.type", FEATURES)
-                params = feature.get("params") or {}
-                if not isinstance(params, dict):
-                    raise FeatureError("feature.params must be an object")
-                candidate = FEATURES[ftype](shape, params)
-                if candidate.val().Volume() <= 0 or not _validity(candidate):
-                    raise FeatureError("the kernel returned an empty or invalid solid")
-                shape = candidate
-                status.update(ok=True, ms=int((time.time() - started) * 1000))
-            except FeatureError as err:
-                status["error"] = str(err)
-            except Exception as err:  # noqa: BLE001 -- OCCT/CadQuery raise plain exceptions
-                status["error"] = f"kernel refused: {type(err).__name__}: {str(err)[:300]}"
+            shape, fields = _apply_feature(shape, feature, budget_ms)
+            status.update(fields)
         statuses.append(status)
     return shape, statuses
 
@@ -458,10 +559,20 @@ def export_svg(shape, view):
         return fh.read()
 
 
+def feature_budget(value):
+    """The per-feature budget in whole ms, or None (no budget) when the request gives none."""
+    if value is None:
+        return None
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise FeatureError("featureBudgetMs must be a whole number of milliseconds")
+    return int(_num(value, "featureBudgetMs", FEATURE_BUDGET_MS["min"], FEATURE_BUDGET_MS["max"]))
+
+
 def rebuild(args, with_exports):
     started = time.time()
     density = _num(args.get("densityGcm3", 1.24), "densityGcm3", 0.01, 30.0)
-    shape, statuses = build(args.get("base"), args.get("features") or [])
+    budget = feature_budget(args.get("featureBudgetMs"))
+    shape, statuses = build(args.get("base"), args.get("features") or [], budget)
     result = {"report": report_for(shape, density), "features": statuses, "exports": {}}
     if with_exports:
         wanted = set(args.get("exports") or ["step", "stl", "svg"])
@@ -481,7 +592,9 @@ def hello():
     import OCP
     return {"protocol": PROTOCOL, "kernel": "OCCT", "cadquery": cq.__version__,
             "ocp": getattr(OCP, "__version__", "unknown"), "bases": sorted(BASES), "features": sorted(FEATURES),
-            "edgeSelectors": sorted(EDGE_SELECTORS), "faceSelectors": ["none"] + sorted(FACE_SELECTORS), "limits": LIMITS}
+            "edgeSelectors": sorted(EDGE_SELECTORS), "faceSelectors": ["none"] + sorted(FACE_SELECTORS), "limits": LIMITS,
+            "planeAxes": {k: list(v) for k, v in PLANE_AXES.items()}, "maxSections": MAX_SECTIONS,
+            "featureBudgetMs": FEATURE_BUDGET_MS}
 
 
 def handle(request):

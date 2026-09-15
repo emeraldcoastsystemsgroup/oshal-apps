@@ -1,0 +1,77 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register all shipped package tests with explicit runner and fixture boundaries; retain readiness smoke identity.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the existing metadata-only readiness probe without provider or user-data access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed identity package identity satisfies its manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: connection-contract
+    name: Connection expiry surface contract
+    purpose: >-
+      Verify packaged source and compiled inventory agree with the connection-list keys and shared expiry
+      rule.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/identity-list-contract.test.js
+    expected:
+      - The surface reads only promised connection fields and consumes the expired flag.
+      - Source and compiled inventory use the shared expiry rule and expose refreshability.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: home-browser-postgres
+    name: Identity Home persistence and browser acceptance
+    purpose: >-
+      Run the standalone synthetic PostgreSQL and Chromium acceptance harness against a dedicated local test
+      database.
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/home-summary.integration.cjs
+    expected:
+      - Real owner RLS, revision conflicts and read-only connection grants hold for synthetic users.
+      - Desktop and mobile Home settings persist, restore correctly and expose honest save failures.
+    prerequisites:
+      - runner:node
+      - fixture:core-checkout
+      - fixture:home-summary-postgres
+      - browser:chromium
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Requires HOME_TEST_DATABASE_URL for the dedicated localhost home_summary_test database. The harness
+        drops its random schema and role and closes its browser and server in finally; screenshots remain
+        under the core output/home-summary-acceptance directory.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1024
+    installation: never

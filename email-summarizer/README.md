@@ -76,3 +76,13 @@ GET /api/email-summarizer/home-summary reads only the caller's saved oshal_email
 No cached row is "Not saved", not an empty inbox. A missing table, missing encryption key, or corrupt ciphertext returns 503. No summary GET calls Gmail/Calendar, generates AI text, dispatches work, or creates schema. Connect a mailbox and generate a digest from email-myday; the Home link opens that same surface. Hiding cached-digest also hides its excerpt and associated highlight.
 
 This manifest requires the matching core metricsPointer support (core PR #411). The matching core and this package were deployed and authenticated Home rendering was verified on 2026-09-10 UTC; see APP-HOME-EXTRACTION-PLAN.md for the rollout record. Validation: 12 compiled-route tests in scripts/home-summary.test.cjs; scripts/home-summary.integration.cjs exercises actual PostgreSQL schemas, owner RLS and SELECT-only source grants, plus Chromium desktop/mobile and saved metric hiding. Run the integration harness from the matching core checkout with HOME_TEST_DATABASE_URL pointing to a disposable localhost database named home_summary_test. It uses mock sign-in and seeded records, not live accounts.
+
+## Test Lab catalog (1.2.1)
+
+[tests/test-lab.yaml](tests/test-lab.yaml) registers every shipped test and preserves the existing `package-readiness` smoke ID. Registration does not execute tests. An authorized operator can run the supported Node suites from the AI Test Lab against a sealed package snapshot; versioned results record the source revision and sandbox cleanup.
+
+| Test entry | Level | Execution boundary |
+| --- | --- | --- |
+| `tests/session-crypto.test.mjs` | unit | Isolated Node runner; synthetic data only |
+
+These tests do not contact accounts, providers or live business records. Surface syntax and stubbed-handler assertions do not claim browser or connector acceptance. Package readiness remains a separate metadata-only probe.

@@ -1,0 +1,52 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register actual Stories palette and draft browser proof while retaining the metadata-only readiness smoke.
+version: 1
+cases:
+  - id: creative-theme-browser
+    name: Stories follows the portal palette
+    purpose: Render the actual review page with real shared theme and handoff modules using only synthetic saved evidence.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/browser/creative-theme-proof.mjs
+    expected:
+      - All twelve live portal palettes retain the original document and unsent title, brief and source link.
+      - Standalone and optional Create colors follow the shared contract without persisting inherited preferences.
+      - Recorded evidence and edited connected drafts retain their existing handoff behavior without business writes.
+      - Controls remain readable across palettes and usable at mobile and laptop widths.
+    prerequisites:
+      - runner:playwright
+      - browser:chromium
+      - core:shared-theme-assets
+      - fixture:create-theme-css
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/browser/creative-theme-fixture.mjs
+      cleanup: Close every browser context and ephemeral HTTP server; reject external requests and every business mutation.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Check the existing metadata-only smoke without providers or user-data reads.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed creative-studio identity satisfies the manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke

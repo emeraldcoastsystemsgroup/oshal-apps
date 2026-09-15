@@ -13,6 +13,10 @@
  *                     |                             | Video frames come out of ffmpeg (in the image's apk layer) via
  *                     |                             | execFile with argv — no shell — at a configured rate and cap.
  *                     |                             | The binary name and the rate are configuration, not literals.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | `decodePng16` (BACKLOG B1): a depth PNG's 16-bit samples, read
+ *                     |                             | untouched — no EXIF rotation, no resize, no colour conversion,
+ *                     |                             | since every one of those would change a range. An 8-bit or
+ *                     |                             | multi-channel PNG is refused: it cannot hold a range image.
  */
 
 import fs from 'node:fs';
@@ -117,4 +121,29 @@ export async function extractFrames(videoPath: string, outDir: string, config: F
     throw new Error(`Frame extraction failed running "${config.bin}" (set ${FFMPEG_BIN_ENV} if it lives elsewhere): ${message}`);
   }
   return fs.readdirSync(outDir).filter((f) => /^frame-\d{3}\.png$/.test(f)).sort().map((f) => path.join(outDir, f));
+}
+
+/**
+ * @description Read a 16-bit single-channel PNG's samples exactly as stored: no rotation, no resize,
+ * no colour management, because each of those would change a measured range. Samples come back in
+ * the host's byte order, which is how sharp writes raw 16-bit output.
+ * @param bytes - The uploaded PNG.
+ * @returns The image size and its `width x height` samples, row-major.
+ * @throws RangeError when the bytes are not a PNG, or not 16-bit single-channel.
+ */
+export async function decodePng16(bytes: Buffer): Promise<{ width: number; height: number; values: Uint16Array }> {
+  let meta: sharp.Metadata;
+  try { meta = await sharp(bytes, { failOn: 'error' }).metadata(); } catch (error) {
+    throw new RangeError(`The range image could not be read as a PNG: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (meta.format !== 'png') throw new RangeError(`A png16 range image must be a PNG, not ${meta.format ?? 'an unknown format'}`);
+  if (meta.depth !== 'ushort') throw new RangeError('A png16 range image must have 16-bit samples; an 8-bit PNG cannot hold a range');
+  if (meta.channels !== 1) throw new RangeError(`A png16 range image must be single-channel greyscale, not ${meta.channels} channels`);
+  // Without an explicit grey16 pipeline sharp converts to 8-bit-scaled sRGB on the way out (measured:
+  // a sample of 4001 came back as 15, in three channels); grey16 end to end returns every sample exact.
+  const { data, info } = await sharp(bytes, { failOn: 'error' }).pipelineColourspace('grey16').toColourspace('grey16').raw({ depth: 'ushort' }).toBuffer({ resolveWithObject: true });
+  if (info.channels !== 1 || data.byteLength !== info.width * info.height * 2) throw new Error(`16-bit decode produced ${info.channels} channels and ${data.byteLength} bytes`);
+  const aligned = new Uint8Array(data.byteLength);
+  aligned.set(data);
+  return { width: info.width, height: info.height, values: new Uint16Array(aligned.buffer, 0, info.width * info.height) };
 }

@@ -139,6 +139,16 @@ function bootBoard(resumeState) {
       requests.push(url);
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(respond(url)), text: () => Promise.resolve('') });
     },
+    // The board bounds every read with an AbortController and a 30 s deadline. Without a real
+    // AbortController it rendered 'Could not load jobs: AbortController is not defined' and every
+    // browse-mode assertion failed on a defect the surface does not have, so the real one goes in.
+    // The timers deliberately do NOT fire: the script schedules eight of them (toasts and the
+    // deadline), and real ones hold the event loop open so the suite never exits. Not firing is
+    // also the honest stub here - this file asserts what the board RENDERS, and a fired deadline
+    // would assert the abort path instead. That path needs its own case.
+    AbortController,
+    setTimeout: () => 0,
+    clearTimeout: () => {},
     window: { confirm: () => true, addEventListener() {}, setTimeout: () => 0 },
   };
   context.window.localStorage = context.localStorage;
@@ -154,8 +164,16 @@ function bootBoard(resumeState) {
   return { context, requests, el, elements };
 }
 
-/** Let the board's boot promises settle. */
-const settle = async () => { for (let i = 0; i < 12; i += 1) await Promise.resolve(); };
+/**
+ * Let the board's boot promises settle. Draining with setImmediate rather than counting
+ * microtask flushes: a fixed count is a guess about how many awaits the surface happens to have,
+ * and it went stale the moment readBoardJson wrapped every fetch in its own async frame - the
+ * board was still showing 'Loading...' when the assertions ran. Each setImmediate turn empties
+ * the whole microtask queue, so this keeps working when the surface adds another await.
+ */
+const settle = async () => {
+  for (let i = 0; i < 12; i += 1) await new Promise((resolve) => setImmediate(resolve));
+};
 
 const NO_RESUME = { hasResume: false, scored: 0, indexing: false };
 const SCORED = { hasResume: true, scored: 7, indexing: false };

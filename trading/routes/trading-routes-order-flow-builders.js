@@ -14,6 +14,7 @@
  * 2026-07-15 19:05:00 | roger.murphy@emeraldcoastsystemsgroup.com   | POST /reconcile — reconcile the ledger to the broker's transaction history (books closes done outside the engine). DRY-RUN by default; ?apply=true commits and is OPERATOR-ONLY (isOperator). Delegates to reconcileLedger; never places an order, only writes historical ledger rows.
  * 2026-07-19 16:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Trading engine extraction (ADR-085 pre-carve): import repoints only — analyzeAndRecordDecision/recordOrder/rebindOrder from app/trading-engine.ts (was ./trading-routes-core, moved), ensureTradingSchema from app/trading-schema.ts (was ./trading-routes-schema, moved). placeDecisionOrder stays injected (now defined at the engine). Zero behavior change.
  * 2026-07-19 23:30:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Carved out of OSHAL core into the trading app package (ADR-085 Wave 3). Relative kernel imports flip to @/ aliases (helpers/schema/engine/daily-equity-store/reconcile-ledger ALL stay kernel — the dispatch loops and their specs import them). Handler bodies byte-identical, placeDecisionOrder still injected by the entry — zero behavior change.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | GET /orders and the /journal trades price each close on the engine's own cost (priceOrdersOnEngineCost over core engineRealizedForBook): realized_pnl is the engine figure, venue_realized_pnl the stored venue-basis one, which counts each wash-sale disallowed loss twice. A close the ledger cannot price shows no gain/loss rather than a guessed one.
  *
  * @module trading-routes-order-flow-builders
  */
@@ -61,6 +62,7 @@ const trading_schema_1 = require("@/app/trading-schema");
 const trading_engine_1 = require("@/app/trading-engine");
 const trading_daily_equity_store_1 = require("@/app/trading-daily-equity-store");
 const trading_reconcile_ledger_1 = require("@/app/trading-reconcile-ledger");
+const trading_realized_1 = require("./trading-realized");
 const authz_1 = require("@/shared/middleware/authz");
 // Same module tag as the entry file so structured log output is unchanged by the split.
 const logger = (0, logger_1.createChildLogger)({ module: 'trading-routes' });
@@ -241,7 +243,8 @@ function registerTradingOrderFlowRoutes(router, ctx, placeDecisionOrder) {
             const rows = (await ctx.pool.query(`SELECT order_id, decision_id, broker, broker_order_id, symbol, side, qty, order_type, limit_price,
                 status, filled_qty, filled_avg_price, realized_pnl, reject_reason, created_at, updated_at
            FROM oshal_trading_orders WHERE user_sub=$1 AND book_id=$2 ORDER BY created_at DESC LIMIT 100`, [sub, book.bookId])).rows;
-            res.json({ mode, book: book.ref, orders: rows });
+            // Each close's gain/loss on the engine's own cost; the venue's figure rides along as venue_realized_pnl.
+            res.json({ mode, book: book.ref, orders: await (0, trading_realized_1.priceOrdersOnEngineCost)(ctx, sub, book.bookId, rows) });
         }
         catch (err) {
             logger.error({ err }, 'trading orders list failed');
@@ -410,7 +413,8 @@ function registerTradingOrderFlowRoutes(router, ctx, placeDecisionOrder) {
                 for (const s of sigs)
                     sigById.set(String(s.signal_id), s);
             }
-            const trades = orders.map((o) => ({
+            const priced = await (0, trading_realized_1.priceOrdersOnEngineCost)(ctx, sub, book.bookId, orders);
+            const trades = priced.map((o) => ({
                 ...o,
                 signals: (o.signal_ids || []).map((id) => sigById.get(id)).filter(Boolean),
             }));

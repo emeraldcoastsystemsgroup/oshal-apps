@@ -801,6 +801,22 @@ test('package metadata keeps the Presentations tab local without an app dependen
   const entry = catalog.apps.find(app => app.name === 'little-monsters');
   assert.match(manifest, /toolName:\s*lm-presentations[^\n]*iframeUrl:\s*\/api\/education\/presentation/);
   assert.doesNotMatch(manifest, /iframeUrl:\s*\/api\/presentations\/sections\/ui/);
-  assert.match(manifest, /dependencies:\s*\n\s*apps:\s*\[\]/);
+  // The claim is that little-monsters declares NO app dependency - the Presentations tab is local.
+  // The tier addendum split `dependencies.apps` into required/optional, so pinning the one flat key
+  // asserted a SHAPE that no longer exists rather than the claim. Assert the claim: every apps key
+  // under dependencies, in whichever tiers exist, is empty.
+  const manifestLines = manifest.split(/\r?\n/);
+  const depStart = manifestLines.findIndex((line) => /^dependencies:\s*$/.test(line));
+  assert.ok(depStart >= 0, 'manifest declares a dependencies block');
+  const depLines = [];
+  for (let i = depStart + 1; i < manifestLines.length; i += 1) {
+    const line = manifestLines[i];
+    if (line.trim() === '') continue;
+    if (!/^\s/.test(line)) break; // a line in column zero ends the block
+    depLines.push(line);
+  }
+  const appKeys = depLines.filter((line) => /^\s+apps:/.test(line));
+  assert.ok(appKeys.length, 'dependencies declares an apps key in at least one tier');
+  for (const line of appKeys) assert.match(line, /apps:\s*\[\]\s*$/, `app dependency declared: ${line.trim()}`);
   assert.deepEqual(entry?.dependencies?.apps, []);
 });

@@ -27,6 +27,8 @@ Read in this order: [README.md](../README.md) (what it does, how to use it) →
 |---|---|---|
 | 0.1.0 | store #191 (2026-09-12) | The package: deterministic engine (silhouettes → visual hull → surface nets → STL/OBJ → third-angle SVG), depth-map carver + `.ply` point-cloud lane, printer adapters behind `confirm: true`, inline concierge, migration 001, surface + WebGL viewer, docs, 40 engine cases + 7 route cases. Core ADR-150 (#437) |
 | 0.2.0 | store #192 (2026-09-12) | Phone camera capture in the surface: viewfinder, per-view guidance line, record-six-views countdown, `tools/scan-to-print-camera.js` (UMD, testable under plain node), `tests/surface-camera.test.js` |
+| 0.4.0 | `feat/package-test-catalog-pilots` (2026-09-14) | BACKLOG B7, base sealing: `fillSolidFromSurface` takes `sealBase`, the point-cloud route exposes the flag, the report records `sealedBase` and says the base face is an assumption. Three engine cases and one route case |
+| 0.5.0 | `feat/package-backlog-sweep` (2026-09-14) | BACKLOG B1 + B8 (`POST /jobs/:id/depth`: a 16-bit PNG or float32 range image refines the job's current photo hull), B2 (perspective → canonical re-projection, engine), B10 (joint least-squares registration with per-view residuals), B11 (opt-in symmetry completion, engine), B12 (`GET /jobs/:id/frame-suggestions` + "Suggest views from the video"), B13 (`printChecks` on every report), B9 (orientation-cube face markers: a photo upload assigns its own view). Evidence per item in BACKLOG |
 | 0.3.0 | store #194 (2026-09-13) | The CAD bridge: `contours` artifact (front/top/right outlines in world mm, simplified within half a voxel, ≤ 1500 points) written on every reconstruction, "Open in CAD Studio" in the report card, `tests/engine-contours.test.js`. CAD Studio (`cad-studio` package, ADR-153) turns the outlines into a B-rep part |
 
 ## 3. What is complete, with evidence
@@ -185,23 +187,26 @@ See [PRINTERS.md](PRINTERS.md).
 Every item below is in [BACKLOG.md](../BACKLOG.md) with done-when criteria. Suggested order and the
 reason:
 
-1. **B7 base sealing** — the cheapest change that makes a real phone LiDAR scan close. Pure
-   engine function beside `fillSolidFromSurface`; one flag on the point-cloud route; one fixture
-   (the lattice box without its bottom face, which already exists in `engine-depth-lidar`).
+1. ~~**B7 base sealing**~~ — **done in 0.4.0** on `feat/package-test-catalog-pilots`. It was the
+   cheapest change that makes a real phone LiDAR scan close, and it is now the precondition B15
+   was waiting on.
 2. **B15 real-device evidence** — one Scaniverse `.ply` of a small object through the lane after
    B7, outcome recorded in the README. This turns "theoretically works with LiDAR" into a row.
-3. **B1 depth-image upload** then **B2 perspective re-projection** — the LiDAR lane proper. B1 is a
+3. ~~**B1 depth-image upload** then **B2 perspective re-projection**~~ — **done in 0.5.0** (B2 engine
+   only; the depth route does not take intrinsics or a pose yet). Originally: the LiDAR lane proper. B1 is a
    route plus a decoder for 16-bit PNG / float32 raw; B2 is a pure function with intrinsics and a
    pose. Fixtures come from `renderDepth` (B1) and a synthetic pinhole render of the cup (B2).
-4. **B8 hull + depth in one job** — `refineWithDepth` already exists; expose it on the job so a
+4. ~~**B8 hull + depth in one job**~~ — **done in 0.5.0**. Originally: `refineWithDepth` already exists; expose it on the job so a
    photo hull can be refined by an uploaded depth map. Depends on B1.
-5. **B3 fiducial scale** and **B9 orientation cube** — remove the two remaining manual steps
+5. **B3 fiducial scale** and ~~**B9 orientation cube**~~ (B9 done in 0.5.0) — remove the two remaining manual steps
    (typing a measurement, assigning views). Both are deterministic detectors; both change
    `dimensionSources` / the view assignment, nothing downstream.
-6. **B10 consistency solve** — replaces the greedy extent propagation with a least-squares fit
+6. ~~**B10 consistency solve**~~ — **done in 0.5.0**. Originally: replaces the greedy extent propagation with a least-squares fit
    over all views and reports per-view residuals; addresses the reconciliation item.
-7. **B13 printability pre-check** — a distance transform on the grid gives wall thickness for free.
-8. **B4, B5, B6, B11, B12, B14, B16** — independent; take by demand.
+7. ~~**B13 printability pre-check**~~ — **done in 0.5.0** (engine + report; the job routes do not take a
+   nozzle or layer height yet).
+8. **B4, B5, B6, B14, B16** — independent; take by demand. (B9, B11 and B12 are done in 0.5.0; B3,
+   the fiducial scale, remains.)
 
 For each item: write the pure engine function first with its spec in `tests/engine-*.test.js`,
 then the route with its case in `routes.core.test.js`, then register the case in

@@ -1,0 +1,89 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Import explicit workspace/project roles; every stored record remains scoped to verified issuer and subject.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Add the personal brand kit: its own own-scoped resource, read for every project reader, change for editors and admins, and bindings for the page, the kit and the logo upload.
+version: 1
+resources:
+  projects:
+    scopes: [own]
+  brand:
+    scopes: [own]
+permissions:
+  project.view: { resource: projects, effect: read, minimumTier: viewer }
+  project.read: { resource: projects, effect: read, minimumTier: viewer }
+  project.create: { resource: projects, effect: write, minimumTier: editor }
+  project.change: { resource: projects, effect: write, minimumTier: editor }
+  project.delete: { resource: projects, effect: write, minimumTier: editor }
+  project.export: { resource: projects, effect: export, minimumTier: editor }
+  brand.read: { resource: brand, effect: read, minimumTier: viewer }
+  brand.change: { resource: brand, effect: write, minimumTier: editor }
+roles:
+  viewer:
+    tier: viewer
+    grants:
+      - { permission: project.view, scope: own }
+  reader:
+    tier: viewer
+    grants:
+      - { permission: project.view, scope: own }
+      - { permission: project.read, scope: own }
+      - { permission: brand.read, scope: own }
+  creator:
+    tier: editor
+    grants:
+      - { permission: project.view, scope: own }
+      - { permission: project.read, scope: own }
+      - { permission: project.create, scope: own }
+      - { permission: brand.read, scope: own }
+  editor:
+    tier: editor
+    grants:
+      - { permission: project.view, scope: own }
+      - { permission: project.read, scope: own }
+      - { permission: project.change, scope: own }
+      - { permission: brand.read, scope: own }
+      - { permission: brand.change, scope: own }
+  exporter:
+    tier: editor
+    grants:
+      - { permission: project.view, scope: own }
+      - { permission: project.read, scope: own }
+      - { permission: project.export, scope: own }
+      - { permission: brand.read, scope: own }
+  admin:
+    tier: admin
+    grants:
+      - { permission: project.view, scope: own }
+      - { permission: project.read, scope: own }
+      - { permission: project.create, scope: own }
+      - { permission: project.change, scope: own }
+      - { permission: project.delete, scope: own }
+      - { permission: project.export, scope: own }
+      - { permission: brand.read, scope: own }
+      - { permission: brand.change, scope: own }
+bindings:
+  http:
+    - { id: home, method: GET, path: /home, allOf: [project.view] }
+    - { id: new, method: GET, path: /new, allOf: [project.view] }
+    - { id: theme, method: GET, path: /theme/:asset, allOf: [project.view] }
+    - { id: editor, method: GET, path: /editor, allOf: [project.view] }
+    - { id: editor-assets, method: GET, path: '/editor/:asset', allOf: [project.view] }
+    - { id: brand, method: GET, path: /brand, allOf: [project.view] }
+    - { id: permissions, method: GET, path: /permissions, allOf: [project.view] }
+    - { id: home-summary, method: GET, path: /home-summary, allOf: [project.view, project.read] }
+    - { id: projects, method: GET, path: /projects, allOf: [project.view, project.read] }
+    - { id: project, method: GET, path: '/projects/:id', allOf: [project.view, project.read] }
+    - { id: create-project, method: POST, path: /projects, allOf: [project.view, project.create] }
+    - { id: save-revision, method: POST, path: '/projects/:id/revisions', allOf: [project.view, project.change] }
+    - { id: revisions, method: GET, path: '/projects/:id/revisions', allOf: [project.view, project.read] }
+    - { id: revision, method: GET, path: '/projects/:id/revisions/:revision', allOf: [project.view, project.read] }
+    - { id: delete-project, method: DELETE, path: '/projects/:id', allOf: [project.view, project.delete] }
+    - { id: export-project, method: GET, path: '/projects/:id/export', allOf: [project.view, project.read, project.export] }
+    - { id: read-image, method: GET, path: '/project-assets/:id', allOf: [project.view, project.read] }
+    # The route also enforces create OR change before decoding and immediately before committing.
+    - { id: upload-image, method: POST, path: /project-assets, allOf: [project.view] }
+    - { id: cleanup-images, method: POST, path: /project-assets/cleanup, allOf: [project.view, project.delete] }
+    - { id: brand-kit, method: GET, path: /brand-kit, allOf: [project.view, brand.read] }
+    - { id: save-brand-kit, method: PUT, path: /brand-kit, allOf: [project.view, brand.change] }
+    - { id: delete-brand-kit, method: DELETE, path: /brand-kit, allOf: [project.view, brand.change] }
+    - { id: upload-brand-logo, method: POST, path: /brand-kit/logo, allOf: [project.view, brand.change] }
+    - { id: package-readiness, method: GET, path: /, allOf: [project.view] }

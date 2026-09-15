@@ -14,6 +14,8 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Enforce the existing LoRA/Vids fresh-install and legacy-upgrade two-owner FORCE-RLS proof in the required disposable-PostgreSQL job.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Require canonical APP-02 package audit records and catalog SHA bindings in compatible rollout mode; mutation tests prove enforce mode fails closed.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Return to manual dispatch before this ever ran. Entry 1 shipped pull_request + push:main + a weekly cron across CodeQL, inventories, source-parity, dependency-audit, secret-scan and several disposable-PostgreSQL suites. This repository is PRIVATE, so every one of those minutes is billed — scripts/publish-store.sh says so in its own header, which is why the nightly publish runs on the operator's box instead of an Actions cron. The same revert landed in the core repo the same day (oshal #142). The gates are KEPT and unchanged; workflow_dispatch stays for a deliberate cloud run. Operator decision 2026-08-06.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | The framework-coupled step now also runs every package's node:test core suite (<package>/tests/*.core.test.js), discovered by glob. They were excluded from the bare-checkout store CI and run by no gate at all. This workflow stays workflow_dispatch: the operator's standing decision (2026-09-14) is no paid CI — this is the manual gate.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | The framework-coupled step also runs every package's .core.spec.mjs browser spec; the Chromium it needs is already installed above for the Vids proof.
 # =============================================================================
 
 name: Security
@@ -219,7 +221,7 @@ jobs:
           --database-url "postgres://postgres:lm-security-ci@127.0.0.1:${{ job.services.lm_postgres.ports[5432] }}/postgres"
           --framework framework --store store
 
-      - name: Run framework-coupled LoRA and Vids security suites
+      - name: Run framework-coupled suites (LoRA and Vids security, plus every package's core suites and browser specs)
         run: >-
           node store/scripts/security/run-framework-coupled-tests.mjs
           --store store --framework framework

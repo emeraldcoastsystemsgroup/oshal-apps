@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Pin minimized education projections, atomic roster audit writes, migration immutability, manifest parity, and the live mounted PostgreSQL gate.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | Stop pinning the manifest to version 1.0.9. The equality asserted the release migration 037 shipped in rather than an invariant, so it went red the day little-monsters shipped 1.1.0 and stayed red through 1.3.1, blocking the store security gate on every run. Every audit guard is unchanged: the manifest must still declare migrations/037-authorization-audit.sql, the columns must exist in both migration and schema, occurred_at must still be server-stamped, the append-only trigger and its RAISE must remain, and the audit must still not cascade.
  */
 
 'use strict';
@@ -24,7 +25,9 @@ const liveRunner = fs.readFileSync(path.join(store, 'scripts', 'security', 'run-
 const workflow = fs.readFileSync(path.join(store, '.github', 'workflows', 'security.yml'), 'utf8');
 
 test('migration 037 records the complete server-timestamped audit fact and rejects every mutation form', () => {
-  assert.match(manifest, /version:\s*1\.0\.9/);
+  // Not pinned to 1.0.9: that asserted the release migration 037 shipped in, not that it is still
+  // installed. It went red at 1.1.0 and stayed red through 1.3.1. The manifest reference below is
+  // what actually proves installation.
   assert.match(manifest, /migrations\/037-authorization-audit\.sql/);
   for (const column of ['actor_student_id', 'student_id', 'class_id', 'action', 'occurred_at']) {
     assert.match(migration, new RegExp(`\\b${column}\\b`));

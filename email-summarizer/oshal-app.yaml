@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1: register every shipped test and preserve the existing readiness smoke for versioned Test Lab discovery.
+# -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — email-summarizer (Intelligent Communication, ADR-037)
 #
@@ -36,7 +42,11 @@ description: >-
   digest, and drafts replies with the communications bot — sending is a single
   explicit-confirm gated action ("email me a copy"). The bot does the reasoning
   on its own harness/model with cost captured per user.
-version: 1.2.0
+version: 1.2.1
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+uses: [test-catalog, app-dependencies]
 status: active
 
 source:
@@ -61,9 +71,14 @@ smoke:
 # Runtime connector allow-list — the mailbox/calendar provider, the M365 + phone
 # legs the bot's broker hands tokens for, and the Social tab's identity read.
 dependencies:
-  apps: []
-  tools: []
-  connectors: [google, outlook, twilio, facebook]
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: [google, outlook, twilio, facebook]
 
 # Per-app skin (approved palette) — gray so the comms workspace reads distinct.
 theme: gray

@@ -111,13 +111,19 @@ uses:
   - tool-registry
   - voice
   - media-generation   # AI cutaway illustrations at story milestones (fail-soft when unconfigured)
+  - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
 
 # ── ADR-085: dependencies ───────────────────────────────────────────────────
 # Self-contained: the open SRD rules pack and the starter adventure are bundled.
 dependencies:
-  apps: []
-  tools: []
-  connectors: []
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BOTS — one accountable Dungeon Master. agentId is this app's OWN (dd0000…) and

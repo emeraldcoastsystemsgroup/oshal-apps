@@ -1,0 +1,373 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — embodied ("Embodied Swarm")
+#
+# Eyes and hands, no body (ADR-151): a mini drone perceives, a detached
+# six-degree-of-freedom arm on a rolling base acts, the swarm plans, and a
+# human holds command. THIS PACKAGE IS THE SIMULATION ENVIRONMENT for that
+# machine — the kitchen, the arm's kinematics, the base's stability budget, the
+# drone's camera, the planner, the rehearsal, the executor and the command
+# authority — so the controls and integrations are built and proven before a
+# motor turns. Nothing here drives hardware; every surface says "simulated".
+#
+# THE ENGINE IS BUNDLED AND DETERMINISTIC — src-routes/engine/ compiled to
+# routes/engine/. No model, no seed: forward/inverse kinematics are arithmetic,
+# the path is A* on an occupancy grid, the detections are a pinhole projection,
+# the plan is a typed step list, the rehearsal is the same executor on a clone.
+# Same world, same plan, same bytes. The ONE inline concierge briefs and
+# explains; it never moves a node.
+#
+# THE RAILS (ADR-151 D4/D5): a plan is DRAFTED and REHEARSED; a human EXECUTES
+# it behind `confirm: true`; every kinetic step is re-validated live (path,
+# keep-out, reach, tip budget, fence); a human can TAKE COMMAND (plan pauses),
+# jog under the same guards, RELEASE, ABORT, or E-STOP (latched until a human
+# resets). Every command by every actor lands in the owner's command log.
+#
+# Framework: OSHAL (see docs/adr/151-eyes-and-hands-embodied-swarm.md,
+# docs/architecture/embodied-mobile-manipulator-hardware.md,
+# docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: embodied
+suite: ai-home   # ADR-097: primary catalog shelf — exactly one
+displayName: Embodied Swarm
+description: >-
+  Drones are the eyes, a detached rolling six-axis arm is the hands, the swarm
+  plans and you hold command — and the machine knows only what its sensors have
+  seen. This is the simulation environment for that machine: the room starts
+  entirely unknown; a base LiDAR and a mini drone's LiDAR map it into a 3-D
+  occupancy grid (the drone exploring frontier to frontier), surfaces and objects
+  are discovered from the map alone, plans are drafted against those discovered
+  ids and rehearsed on a clone, you execute behind a confirm, every kinetic step
+  is re-validated live against the map (unknown space blocks everything), the
+  wrist camera looks before and after each grasp, the drone re-scans to verify,
+  and a 3-D view shows the mapped voxels, the arm model and the simulated
+  pictures. The drone can go first and blind: its upward ranger clears the
+  climb, its pose is an estimate that drifts by a deterministic odometry model,
+  and every sweep is registered scan-to-map (point-to-plane against the exact
+  hit points the map kept) before it is integrated — a 10 cm error comes back
+  under a millimetre, a registration that will not converge grounds the drone,
+  the pad re-anchors it, and a true strike on something unmapped puts it down.
+  The drone carries a chosen SENSOR SET: the 3-D LiDAR we would buy, or the
+  2-D ring plus downward depth camera of the drone we print — which flies in
+  its own scan plane, holds altitude on a nadir ranger, registers in the plane
+  against walls at any height, and explores by where its camera will learn
+  the most. The drone we print is also a PARTS MODEL: sizing by momentum
+  theory at the summed mass budget, every printed part a CAD Studio program
+  (open it there for STEP, STL and drawings), the bought parts with approximate
+  prices — the hardware design's tables are generated from it. A taught fridge
+  door the arm pulls open against a 60 N seal is kept. The drone's TRUE pose
+  can run on a physics plant: a package-owned MuJoCo engine container flies the
+  printed drone's parts model (MJCF generated from it) under gusts with real
+  contacts, and every guard, the map and the registration are unchanged; the
+  first training task (hover and one leg) ships with its PID baseline, and a
+  trained policy may fly the plant only after its recorded flight has passed
+  this world's guards — the certification gate. The engine container is also a
+  node on the swarm rail: it heartbeats in the way a drone node does and a world
+  can run on it, so a real drone node slots in behind the same primitives. Named
+  hidden scenes (the kitchen, a studio) are plain data the discovery never reads;
+  a drone that reports itself lost recovers by a global search and its registered
+  trail back to the pad. Deterministic, no hardware — every view says simulated.
+version: 0.16.0
+
+# ADR-139 — "Send to…" destination: a Spaces scan built into this engine's scene shape becomes a
+# scenario this owner can reset a world onto (BACKLOG B23). The endpoint redeems the handle as the
+# caller, refuses anything but the scene MIME, and holds the payload to the engine's own bounds.
+artifacts:
+  accepts:
+    - id: scene
+      label: Fly it in Embodied
+      icon: 🚁
+      types: [application/vnd.oshal.embodied-scene+json]
+      mode: post
+      endpoint: /api/embodied/world/scenes/import-artifact
+status: active
+scope: person
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: embodied
+  ref: main
+
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/embodied/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
+# No connector allow-list: the only inputs are the person's own simulated world and their clicks.
+dependencies:
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+
+# Kernel skills this app CALLS (ADR-090 uses: contract, fail-closed at load). The package imports
+# no data skill — its state is two owner-RLS tables of its own — and registers its tests with the
+# AI Test Lab through the test-catalog capability.
+uses:
+  - test-catalog
+  - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
+
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — one INLINE concierge (no container: reasoning rides the caller's hosted/BYO brain
+# through the framework's accounted path). It briefs the world, explains plans, rehearsals and
+# refusals; drafting is the engine's and executing is a confirmed human click. selectorDescriptor
+# and routingKeywords are declared HERE, not in the persona (ADR-083).
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: 6206a063-907d-4507-b8e4-9332150051f4
+    name: embodied-operator
+    persona: personas/embodied-operator.yaml
+    role: robotics/embodied-operator
+    capabilities:
+      - world-briefing
+      - plan-explainer
+      - refusal-explainer
+      - command-log-reading
+    selectorDescriptor: >-
+      Select for the Embodied Swarm app ONLY: briefing the simulated kitchen world (where the
+      dishes are, what the drone saw, what the rolling arm is doing), explaining a drafted skill
+      plan or why its rehearsal refused, reading a command refusal (keep-out, reach, tip budget,
+      fence, e-stop) and the one change that would satisfy it, or explaining take-command / abort /
+      e-stop. Do NOT select for outdoor drone missions (drone-operator), room scanning
+      (spaces-operator), or anything that is not this app.
+    routingKeywords:
+      - embodied
+      - robot arm
+      - manipulator
+      - rolling arm
+      - clear the sink
+      - tip budget
+      - take command
+      - e-stop
+      - skill plan
+      - rehearsal
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TOOLS — route-backed and read-only. A bot that calls these gets the engine's state and the
+# caller's own rows, never an opinion. Executing, taking command and e-stop are deliberately NOT
+# tools: they are human clicks behind the explicit-confirm gate.
+# ─────────────────────────────────────────────────────────────────────────────
+tools:
+  - name: embodied-capabilities
+    displayName: Embodied Capabilities
+    type: api
+    category: robotics
+    description: The two simulated nodes' capability manifests (kind, safety class, senses, acts, envelope), the available tasks and zones, and the motion limits the engine enforces.
+    executor: { executorType: api, apiEndpoint: "GET /api/embodied/capabilities" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Read-only. The envelope numbers returned are the SAME limits the primitives enforce, so
+      quote them rather than guessing.
+    routingTags: [embodied, capabilities, nodes]
+    tags: [embodied, route-backed]
+
+  - name: embodied-state
+    displayName: Embodied World State
+    type: api
+    category: robotics
+    description: The caller's simulated world right now — base pose, lift, tool, gripper, live tip budget, drone pose and battery, every object's location — plus the control state (mode, holder, executor step, failure).
+    executor: { executorType: api, apiEndpoint: "GET /api/embodied/state" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Owner-scoped. Use the snapshot as the only source of positions and modes; never infer a
+      location the snapshot does not show.
+    routingTags: [embodied, state, world]
+    tags: [embodied, route-backed]
+
+  - name: embodied-physics-status
+    displayName: Embodied Physics Engine Status
+    type: api
+    category: robotics
+    description: Whether the package's MuJoCo physics engine container is reachable (engine, version, build hash versus the package's engine tree), the truth models a world can run on (kinematic | physics | node), the nodes that have heartbeat in over the swarm rail (id, kind, engine, online, whether its build is stale), and the exact install command when the container is down.
+    executor: { executorType: api, apiEndpoint: "GET /api/embodied/physics/status" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Read-only. If engine.connected is false, say the physics engine container is down and quote
+      engine.installHint verbatim; the kinematic truth model always works without it.
+    routingTags: [embodied, physics, engine, mujoco]
+    tags: [embodied, route-backed]
+
+  - name: embodied-physics-reports
+    displayName: Embodied Training Reports
+    type: api
+    category: robotics
+    description: The training reports the physics engine container wrote (task, mode, steps, the plant's own controller versus the trained policy on the same seeded episodes, the three-facet verdict), the policy files beside them, and — per report — whether the caller has certified its recorded flight against their own world's guards.
+    executor: { executorType: api, apiEndpoint: "GET /api/embodied/physics/reports" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Read-only. Quote the verdict facets as they are; a policy "beats" the controller only when all
+      three are true. Certification is the person's action on the tile (Certify), never assume it.
+    routingTags: [embodied, physics, policy, training]
+    tags: [embodied, route-backed]
+
+  - name: embodied-build-drone
+    displayName: Embodied Drone Designer
+    type: api
+    category: robotics
+    description: The recon drone as a parts model for a fit (recon-mini, the printed 2-D-ring drone; recon-3d, the same frame with the 3-D LiDAR) — layout, propulsion sizing by momentum theory at the summed mass budget, every printed part with its CAD Studio program, the bought parts with approximate prices, print rules.
+    executor: { executorType: api, apiEndpoint: "GET /api/embodied/build/drone" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Read-only and generated. Pass ?fit=recon-mini or ?fit=recon-3d. Quote the sizing and mass
+      numbers as computed, and say they are momentum-theory placeholders until aero-lab's propeller
+      curves replace the figure of merit. Parts become real geometry only in CAD Studio.
+    routingTags: [embodied, drone, build, design, print]
+    tags: [embodied, route-backed]
+
+  - name: embodied-world
+    displayName: Embodied Discovered World
+    type: api
+    category: robotics
+    description: What the machine has DISCOVERED from its own LiDAR sweeps and depth pictures — map statistics (known fraction, scans), support surfaces (id, height, area, label) and objects (id, guessed class, centroid, size, which surface) — nothing from a scene file.
+    executor: { executorType: api, apiEndpoint: "GET /api/embodied/world" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Owner-scoped. These ids (surf-N, obj-N) are what a clear-surface task takes. An empty world
+      means the room has not been explored yet: the person runs the explore task first.
+    routingTags: [embodied, world, discovered, map]
+    tags: [embodied, route-backed]
+
+  - name: embodied-label
+    displayName: Label a Discovered Thing
+    type: api
+    category: robotics
+    description: Attach a name (e.g. "sink", "the counter", "mug") to a discovered surface or object so people and plans can refer to it. Metadata only — nothing moves.
+    executor: { executorType: api, apiEndpoint: "POST /api/embodied/world/label" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string }
+        label: { type: string }
+      required: [id, label]
+    usageInstructions: >-
+      Call with {id, label}. Label what the pictures and the geometry make obvious (a recessed
+      surface below counter height is a sink); say so when unsure.
+    routingTags: [embodied, label, name]
+    tags: [embodied, route-backed]
+
+  - name: embodied-tasks
+    displayName: List Embodied Tasks
+    type: api
+    category: robotics
+    description: The caller's drafted physical tasks with their plan summaries, rehearsal verdicts, status, current step and failure reason.
+    executor: { executorType: api, apiEndpoint: "GET /api/embodied/tasks" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Owner-scoped. Quote a rehearsal's issues verbatim; executing a task is not available to
+      bots — tell the person to click Execute, which asks for an explicit confirmation.
+    routingTags: [embodied, tasks, plan]
+    tags: [embodied, route-backed]
+
+  - name: embodied-command-log
+    displayName: Embodied Command Log
+    type: api
+    category: robotics
+    description: The caller's latest commands to the simulated nodes — actor, node, command, outcome (accepted / refused / completed / failed) and the refusal reason.
+    executor: { executorType: api, apiEndpoint: "GET /api/embodied/log" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Owner-scoped. The log is the evidence of what the swarm did; read refusal reasons verbatim.
+    routingTags: [embodied, log, refusal]
+    tags: [embodied, route-backed]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon tile opens the app, self-served by this package's route from
+# tools/embodied.html (ctx.appPackageDir). iframeUrl matches the serve route (GET /app).
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: embodied
+      label: Embodied Swarm
+      icon: codicon codicon-robot
+      iframeUrl: /api/embodied/app
+      section: top
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — compiled JS bundled in this package, mounted in-process. OIDC only: the world, the
+# tasks and the log are the person's own.
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/embodied/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/embodied/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
+  # The node rail (ADR-099, B20): a NODE identity, never a browser — the mounter admits only the
+  # swarm service secret here (the drone and camera packages' posture for their nodes' heartbeats).
+  - module: routes/embodied-node-routes.js
+    factory: createEmbodiedNodeRoutes
+    mountPath: /api/embodied/nodes
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/embodied-routes.js
+    factory: createEmbodiedRoutes
+    mountPath: /api/embodied
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+# The app's own schema (tasks, command log) with owner RLS, applied on install.
+migrations:
+  - migrations/001-embodied.sql
+
+# The right-rail chat agent when this app is focused.
+chatBot: embodied-operator
+
+# RIBBON VISIBILITY — focus mode for /cockpit?app=embodied (chat panel stays: the concierge is
+# the app's guide).
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  defaultView: embodied
+
+summary:
+  path: /api/embodied/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items

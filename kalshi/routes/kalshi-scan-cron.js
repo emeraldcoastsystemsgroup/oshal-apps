@@ -65,9 +65,10 @@ exports.startKalshiScanCron = startKalshiScanCron;
  *
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                                      | DESCRIPTION
+ * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-30 03:50:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial — the snapshot-clocked poller (single-flighted scanNow, boot catch-up, cadence from the manifest/settings config), the per-user alert fan-out (first-seen dedup, strength/edge floor, rolling daily budget), the Jarvis feed notification, and the opt-in outward channel via the preference center.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Respect the core briefing enqueue decision before finishing or recording Jarvis delivery.
  *
  * @module kalshi-scan-cron
  */
@@ -254,7 +255,8 @@ async function alertUser(ctx, userSub, payload) {
 async function notifyJarvis(ctx, userSub, title, body) {
     const id = `kalshi-scan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     try {
-        await (0, jarvis_task_store_1.saveTaskPending)(ctx.pool, id, userSub, 'kalshi-alerts', title, 'simple');
+        if (!await (0, jarvis_task_store_1.saveTaskPending)(ctx.pool, id, userSub, 'kalshi-alerts', title, 'simple'))
+            return false;
         await (0, jarvis_task_store_1.finishTask)(ctx.pool, id, true, body);
         return true;
     }

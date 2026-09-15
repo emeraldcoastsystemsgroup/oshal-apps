@@ -5,9 +5,20 @@ One front door for the job search. Intelligent Career is an **application group*
 a manifest with no code that binds four installed applications into one toolbar and
 gives them a shared setup page.
 
+The group follows the portal's selected palette by default. Career Hunter 1.20.0 gives its
+thirteen existing screens a common token-based presentation, while member applications keep
+their own layouts and workflows. Cockpit Settings can optionally enable **Application colors**
+to use the group's declared Daylight default; choosing a portal palette explicitly returns to
+shared colors. This group adds no separate theme preference, CSS renderer or screen replacement.
+Version **1.0.1** also borrows Recruiters, Approvals and Insights so the Career
+group retains the six existing Career destinations when top workspace navigation
+replaces their repeated global sidebar entries. Member routes, permissions and
+the seven setup steps remain unchanged. See the member's
+[appearance and fixture boundaries](../career-hunter/README.md#shared-appearance-1200).
+
 | Member | What it brings |
 |---|---|
-| `career-hunter` | the job board, Search Jobs, Submissions, Resume Studio, Strengthen, Profile Studio, Settings |
+| `career-hunter` | the job board, Search Jobs, Submissions, Recruiters, Approvals, Insights, Resume Studio, Strengthen, Profile Studio, Settings |
 | `portrait-studio` | the profile picture |
 | `social` | LinkedIn Assistant, the Workspace, Signals, and the Accounts hub (LinkedIn / Facebook / X) |
 | `print-ingest` | the Print Inbox — documents printed into the swarm |
@@ -56,3 +67,22 @@ design (ADR-135), so activate it first, then the group. After installation, open
 
 A deployment that maps a hostname to it (`HOST_APP_MAP=career.oshal.ai=intelligent-career`)
 lands the subdomain on the group instead of on one member app.
+
+## Navigation contract checks
+
+From the public store checkout, run `node --test intelligent-career/tests/toolbar.test.cjs`.
+The suite reads the actual group and four member manifests, checks the six delegated
+Career destinations, and verifies that every reference resolves exactly once without
+copying a URL or adding application code. It needs `js-yaml` from the core checkout
+at `OSHAL_CORE_ROOT` (default: sibling `oshal`).
+
+The core regression `tests/unit/career-group-navigation.spec.ts` uses the real group
+resolver and `SwarmAppService` with an in-memory repository. Run it from core with
+`npx vitest run tests/unit/career-group-navigation.spec.ts`; `OSHAL_PUBLIC_STORE_ROOT`
+may select this public store checkout. It tests current member URLs, missing and
+inactive members, preserved setup and absence of storage writes. These explicit
+member/source fixtures are prerequisites; they are not installed business acceptance.
+A standalone core checkout explicitly skips this suite when the default sibling
+fixtures are absent; an invalid explicit `OSHAL_PUBLIC_STORE_ROOT` fails. The core
+Lab scenario `cockpit-workspace-navigation` links this suite and the group guards. The group retains its
+no-code manifest contract and declares no package runner or capability exception.

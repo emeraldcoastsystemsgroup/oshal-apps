@@ -4,6 +4,18 @@
 CHANGE LOG
 1 | maintainer@emeraldcoastsystemsgroup.com | Clarified that this installed package is the sole
   | Spaces surface source after removal of the unrouted kernel HTML copies and Compose binds.
+2 | maintainer@emeraldcoastsystemsgroup.com | 0.7.1: both multipart lanes re-enter the caller RLS request identity
+  | after multer (uploads over one socket chunk were refused by the strict GUC pool); guard
+  | tests/upload-identity.core.test.js; the surfaces suite stripper no longer trips on video/*.
+3 | maintainer@emeraldcoastsystemsgroup.com | 0.8.0: Spaces -> embodied. GET /scans/:id/scene builds a ready
+  | scan into an embodied hidden scene (obstacle boxes from the splat, metres, z-up); /scenes lists
+  | them as ADR-139 provides artifacts; the surface tags each ready scan as a scene source.
+4 | maintainer@emeraldcoastsystemsgroup.com | 0.9.0: POST /scans/import gates a .ply by size while it
+  | streams (import-upload-gate.ts): over OSHAL_SPACES_PLY_MAX_BYTES the part stops being written at
+  | the first chunk past the gate and the lane answers 413 naming the limit, so an oversized capture
+  | never reaches the kernel converter. A 117 MB .ply had collapsed the Docker VM. .splat keeps the
+  | 300 MB ceiling; guard tests/ply-import-off-loop.core.test.js. Needs a core carrying the
+  | spatial-mapping limits export.
 -->
 
 Turn a real space into an explorable 3D scene, then reason over it (`?app=spaces`,
@@ -51,6 +63,55 @@ built image for as long as any installed app declares it.
 | Spaces | `/api/spaces/app` | The Spaces home: capture/import/drone-scan, scan list, brief |
 | (embedded) | `/api/spaces/viewer` | Self-contained WebGL splat viewer |
 | (phone) | `/api/spaces/capture` | Live guided-capture HUD (walk vs pan arrows) |
+
+## Importing a pre-built capture (`POST /api/spaces/scans/import`)
+
+`.ply` and `.splat` both arrive on the multipart `model` field. They are **not** gated alike: a
+`.splat` is a packed artifact the viewer streams, so it keeps the lane's 300 MB ceiling, while a
+`.ply` has to be parsed into gaussians before anything can be shown — the expensive step that once
+ran on the api's event loop and, at 117 MB, took the whole box out.
+
+So the lane carries a second, per-format gate. A `.ply` over
+`OSHAL_SPACES_PLY_MAX_BYTES` (framework configuration, default 50 MiB) stops being written at the
+first chunk past the limit and the request answers `413` naming it:
+
+```json
+{ "error": "model_too_large", "format": ".ply", "maxBytes": 52428800, "maxLabel": "50 MB",
+  "receivedBytes": 52494336, "message": "a .ply import may be at most 50 MB (52428800 bytes); reduce the capture or export a .splat" }
+```
+
+The oversized part is never fully received, written, or parsed, and no scan row is created. Under
+the gate, the kernel converts the `.ply` in a worker thread (`OSHAL_SPACES_PLY_WORKER_HEAP_MB`), so
+the api keeps serving while the import runs and a conversion that overruns its heap fails that one
+scan instead of the process. `tests/ply-import-off-loop.core.test.js` drives both sides of the gate
+over real loopback HTTP and samples `/health` throughout the conversion.
+
+## Spaces → embodied (a scan the drone simulation can fly)
+
+A ready scan is also offered as an **embodied hidden scene** (ADR-151 D3/Q3: the world model is
+the Spaces scan). `GET /api/spaces/scans/:id/scene` reads the caller's own `.splat`, maps the
+capture into embodied's frame (metres, z-up, floor at 0), voxelises the gaussian positions and
+merges the occupied voxels into axis-aligned obstacle boxes, and places the drone home / base park
+on the clearest open floor. The reply is `{ scene, stats, scanId, title }` where `scene` is plain
+data in the embodied `Scene` shape (room, obstacles, empty surfaces/objects/zones/appliances) and
+`stats` records every decision (`up`, `scale`, `unit`, `resolutionM`, `boxes`, `floorClearanceM`).
+
+| Query | Meaning |
+|---|---|
+| `up=auto\|y\|-y\|z` | Which source axis points up. Spaces' own frame is +Y; 3DGS exports are often −Y. `auto` puts the dense floor at the bottom. |
+| `scaleM=<n>` | Explicit scale multiplier (overrides the rest). |
+| `ceilingM=<n>` | For a non-metric capture, the vertical extent is fitted to this height (default 2.4). |
+| `maxBoxes=<n>` | Box cap (default 1500); the covering coarsens 5 → 10 → 15 → 20 → 30 cm until it fits. |
+| `minPoints=<n>` | Gaussians per voxel below which a voxel is noise (default 2). |
+| `download=1` | Serve as an attachment (`scan-<id>.scene.json`). |
+
+`GET /api/spaces/scenes` lists the caller's ready scans as artifacts of type
+`application/vnd.oshal.embodied-scene+json` (the manifest `artifacts.provides` entry), and the
+Spaces surface tags every ready scan with the ADR-139 source attributes, so the shared 📤 chip
+offers the scene to any destination that accepts that type. The embodied side of the contract is
+an `artifacts.accepts` entry (`mode: post`) whose endpoint redeems the handle, runs its own
+`validateScene`, and registers the scene per owner as a scenario the world can reset from.
+`tests/spaces-embodied-scene.test.js` proves the converter against the compiled module.
 
 The surfaces are self-contained except for the framework-served shared UI
 (`/shared/ui/...`, root-relative same-origin) — consumed read-only, same as every

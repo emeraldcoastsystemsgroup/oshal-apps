@@ -33,6 +33,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — teams, rosters, per-team schedules deduped into a season tape, scoreboard with inline book prices, game summary (injuries/predictor/ATS/form/news), and athlete + team season statistics for production-weighted availability.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Retry transient reads (5xx/429/network, never a 4xx) and fire onError once every attempt is exhausted. Measured live: eight consecutive reads from a fresh process in the same container all succeeded under 1.6s while the long-running api intermittently failed the identical read, and the failure reached the user as "your team has no games this week". A single attempt from a busy event loop is not a reliable read, and a failed read must never render as an answer.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Read a followed team's current head coach from the public roster envelope, refusing mismatched teams, ambiguous staff and unusable names.
  *
  * @module sports-espn
  */
@@ -40,6 +41,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.NCAAF_REGULAR_WEEKS = exports.WEEK_TAPE_LEAGUES = exports.LEAGUE_PATHS = void 0;
 exports.getJson = getJson;
 exports.listTeams = listTeams;
+exports.parseHeadCoach = parseHeadCoach;
+exports.teamHeadCoach = teamHeadCoach;
 exports.teamSchedule = teamSchedule;
 exports.leagueResultsByWeek = leagueResultsByWeek;
 exports.leagueResults = leagueResults;
@@ -145,6 +148,43 @@ async function listTeams(league, opts = {}) {
         location: t.location,
         logo: t.logos?.[0]?.href,
     }));
+}
+/** @description Normalize the roster envelope's singular coach array without choosing an assistant by array order.
+ * @param roster ESPN roster envelope whose team has already matched the requested ID.
+ * @returns One named head coach, or null when the response is absent or ambiguous.
+ */
+function parseHeadCoach(roster) {
+    const staff = Array.isArray(roster?.coach) ? roster.coach.filter((coach) => coach && typeof coach === 'object') : [];
+    const title = (coach) => String(coach.title ?? coach.position?.name ?? coach.type?.text ?? '').trim().toLowerCase();
+    const namedHeads = staff.filter((coach) => /^(?:(?:interim|acting) )?head[ -]coach$/.test(title(coach)));
+    // ESPN also returns a single unlabelled head-coach entry. Several unlabelled entries are ambiguous.
+    const candidates = namedHeads.length ? namedHeads : staff.length === 1 && !title(staff[0]) ? staff : [];
+    if (candidates.length !== 1)
+        return null;
+    const coach = candidates[0];
+    const name = typeof coach.fullName === 'string' ? coach.fullName : typeof coach.displayName === 'string' ? coach.displayName
+        : typeof coach.firstName === 'string' && typeof coach.lastName === 'string' ? `${coach.firstName} ${coach.lastName}` : '';
+    const clean = name.trim().replace(/\s+/g, ' ');
+    return clean.length > 1 && clean.length <= 160 && /\p{L}/u.test(clean)
+        && /^[\p{L}\p{M} .’'\-]+$/u.test(clean) && !/\b(undefined|null|unknown|tbd)\b/i.test(clean) ? clean : null;
+}
+/** @description Read a head coach using only a stored ESPN team ID and the existing bounded public GET client.
+ * @param league Valid supported league. @param teamId Stored ESPN ID, never a URL or caller-selected endpoint.
+ * @param team Stored abbreviation, matched independently because follow inputs are user-editable.
+ * @param opts Existing public client options. @returns Current coach and provider team label, or null; no credentials are requested.
+ */
+async function teamHeadCoach(league, teamId, team, opts = {}) {
+    const p = exports.LEAGUE_PATHS[league];
+    if (!p || !/^[0-9]{1,12}$/.test(teamId) || !/^[a-z0-9.-]{1,20}$/i.test(team))
+        return null;
+    const body = await getJson(`${SITE_API}/${p.sport}/${p.league}/teams/${teamId}/roster`, opts);
+    if (!body?.team || String(body.team.id) !== teamId || typeof body.team.abbreviation !== 'string'
+        || body.team.abbreviation.toUpperCase() !== team.toUpperCase())
+        return null;
+    const name = parseHeadCoach(body);
+    const teamName = typeof body.team.displayName === 'string' && body.team.displayName.trim().length <= 160
+        ? body.team.displayName.trim() : team.toUpperCase();
+    return name ? { name, teamName: teamName || team.toUpperCase() } : null;
 }
 /**
  * @description Read one team's season schedule and split it into finished results and upcoming

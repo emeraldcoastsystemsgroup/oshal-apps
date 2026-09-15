@@ -12,18 +12,31 @@
  *                     |                             | an iterating agent gets a precise correction instead of a
  *                     |                             | kernel stack. `describeContract()` is what /capabilities
  *                     |                             | publishes, so a bot reads the exact rules the server enforces.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Sketch-driven features (BACKLOG B1): revolve, sweep and loft,
+ *                     |                             | mirrored from the worker. Two new parameter kinds — an open
+ *                     |                             | `path` (2+ points) and loft `sections` (2..32 closed sketches
+ *                     |                             | at distinct offsets, each refused by its own index) — and the
+ *                     |                             | cross-field rule that a revolve axis must be one of its
+ *                     |                             | plane's own two axes. The plane->axis table is published.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Per-feature time budget (BACKLOG B5): FEATURE_BUDGET_MS is the
+ *                     |                             | range the worker accepts, published in the contract, and
+ *                     |                             | validateFeatureBudget refuses a setting outside it by field.
  */
 
 import { randomUUID } from 'node:crypto';
 
 export const BASE_KINDS = ['box', 'cylinder', 'sketch', 'contours', 'mesh'] as const;
-export const FEATURE_TYPES = ['hole', 'boss', 'box-add', 'box-cut', 'sketch-extrude', 'fillet', 'chamfer', 'shell', 'cut-plane', 'scale', 'mirror', 'rotate', 'translate'] as const;
+export const FEATURE_TYPES = ['hole', 'boss', 'box-add', 'box-cut', 'sketch-extrude', 'revolve', 'sweep', 'loft', 'fillet', 'chamfer', 'shell', 'cut-plane', 'scale', 'mirror', 'rotate', 'translate'] as const;
 export const EDGE_SELECTORS = ['all', 'vertical', 'horizontal', 'top', 'bottom', 'parallel-x', 'parallel-y', 'parallel-z'] as const;
 export const FACE_SELECTORS = ['none', 'top', 'bottom', 'front', 'back', 'left', 'right'] as const;
 export const PLANES = ['XY', 'XZ', 'YZ'] as const;
 export const AXES = ['x', 'y', 'z'] as const;
 export const VIEWS = ['front', 'back', 'left', 'right', 'top', 'bottom', 'iso'] as const;
-export const LIMITS = Object.freeze({ maxFeatures: 200, maxPoints: 2000, maxDimensionMm: 2000, minDimensionMm: 0.01, maxMeshBase64Chars: 90 * 1024 * 1024 });
+export const LIMITS = Object.freeze({ maxFeatures: 200, maxPoints: 2000, maxDimensionMm: 2000, minDimensionMm: 0.01, maxMeshBase64Chars: 90 * 1024 * 1024, maxSections: 32 });
+/** The per-feature wall-clock budget range, ms (FEATURE_BUDGET_MS in cad_worker.py). */
+export const FEATURE_BUDGET_MS = Object.freeze({ min: 1, max: 600_000 });
+/** The two world axes each sketch plane spans, in the engine's local (u, v) order (PLANE_AXES in cad_worker.py). */
+export const PLANE_AXES: Readonly<Record<typeof PLANES[number], readonly [string, string]>> = Object.freeze({ XY: ['x', 'y'] as const, XZ: ['x', 'z'] as const, YZ: ['y', 'z'] as const });
 
 export type BaseKind = typeof BASE_KINDS[number];
 export type FeatureType = typeof FEATURE_TYPES[number];
@@ -39,6 +52,8 @@ type ParamSpec =
   | { kind: 'number'; min: number; max: number; doc: string }
   | { kind: 'enum'; values: readonly string[]; doc: string }
   | { kind: 'points'; doc: string }
+  | { kind: 'path'; doc: string }
+  | { kind: 'sections'; doc: string }
   | { kind: 'vec3'; dimension: boolean; doc: string }
   | { kind: 'boolean'; doc: string };
 interface TypeSpec { doc: string; required: Record<string, ParamSpec>; optional: Record<string, ParamSpec> }
@@ -46,6 +61,9 @@ interface TypeSpec { doc: string; required: Record<string, ParamSpec>; optional:
 const dim = (doc: string): ParamSpec => ({ kind: 'dimension', doc });
 const coord = (doc: string): ParamSpec => ({ kind: 'coordinate', doc });
 const axis = (doc: string): ParamSpec => ({ kind: 'enum', values: AXES, doc });
+const profileSpec = (doc: string): ParamSpec => ({ kind: 'points', doc });
+const planeSpec = (doc: string): ParamSpec => ({ kind: 'enum', values: PLANES, doc });
+const modeSpec = (): ParamSpec => ({ kind: 'enum', values: ['add', 'cut'], doc: "'add' (default) or 'cut'" });
 
 /** The feature parameter table. Ranges are the engine's LIMITS; docs are what the bot reads. */
 export const FEATURE_SPECS: Readonly<Record<FeatureType, TypeSpec>> = Object.freeze({
@@ -60,6 +78,15 @@ export const FEATURE_SPECS: Readonly<Record<FeatureType, TypeSpec>> = Object.fre
   'sketch-extrude': { doc: 'Extrude a closed polyline drawn on a plane (offset along its normal); add or cut.',
     required: { points: { kind: 'points', doc: '[[u, v], …] at least 3, mm, in the plane' }, height: dim('extrusion height, mm') },
     optional: { plane: { kind: 'enum', values: PLANES, doc: "sketch plane (default 'XY')" }, offset: coord('plane offset along its normal, mm'), mode: { kind: 'enum', values: ['add', 'cut'], doc: "'add' (default) or 'cut'" } } },
+  'revolve': { doc: "Revolve a closed profile about one of its own plane's two axes through the origin (XY: x|y, XZ: x|z, YZ: y|z); add or cut.",
+    required: { points: profileSpec('[[u, v], …] at least 3, mm, the profile in the plane; it may touch the axis but not cross it') },
+    optional: { plane: planeSpec("profile plane (default 'XZ': u = X, v = Z)"), axis: axis("revolution axis — one of the plane's two axes (default its second: XY→y, XZ→z, YZ→z)"), degrees: { kind: 'number', min: 1, max: 360, doc: 'angle swept, degrees (default 360)' }, mode: modeSpec() } },
+  'sweep': { doc: 'Sweep a closed profile along an open path polyline that starts at the origin; corners are mitred; add or cut.',
+    required: { points: profileSpec('[[u, v], …] at least 3, mm, the profile in its plane, drawn around the origin'), path: { kind: 'path', doc: '[[u, v], …] at least 2, mm, the path in its own plane, starting at [0, 0]' } },
+    optional: { plane: planeSpec("profile plane (default 'XY')"), pathPlane: planeSpec("path plane (default 'XZ': u = X, v = Z)"), mode: modeSpec() } },
+  'loft': { doc: "Loft a solid through two or more closed sketches on parallel planes, offset along the plane's normal (XY: +Z, XZ: −Y, YZ: +X); add or cut.",
+    required: { sections: { kind: 'sections', doc: '[{points: [[u, v], …], offset: mm}, …] 2..32 closed sketches at distinct offsets, in order' } },
+    optional: { plane: planeSpec("sketch plane of every section (default 'XY')"), ruled: { kind: 'boolean', doc: 'true (default) = straight sides between sections; false = one smooth surface through them' }, mode: modeSpec() } },
   'fillet': { doc: 'Round the selected edges.', required: { radius: dim('fillet radius, mm') }, optional: { edges: { kind: 'enum', values: EDGE_SELECTORS, doc: "which edges (default 'all')" } } },
   'chamfer': { doc: 'Bevel the selected edges.', required: { length: dim('chamfer length, mm') }, optional: { edges: { kind: 'enum', values: EDGE_SELECTORS, doc: "which edges (default 'all')" } } },
   'shell': { doc: 'Hollow the solid to a wall thickness, optionally opening one face.', required: { thickness: dim('wall thickness, mm') }, optional: { openFace: { kind: 'enum', values: FACE_SELECTORS, doc: "face to leave open (default 'none')" } } },
@@ -89,6 +116,24 @@ function points(value: unknown, field: string): number[][] {
     return [coordinate(p[0], `${field}[${i}][0]`), coordinate(p[1], `${field}[${i}][1]`)];
   });
 }
+function pathPoints(value: unknown, field: string): number[][] {
+  if (!Array.isArray(value) || value.length < 2 || value.length > LIMITS.maxPoints) throw new ContractError(`${field} must list 2..${LIMITS.maxPoints} [u, v] points`, field);
+  return value.map((p, i) => {
+    if (!Array.isArray(p) || p.length !== 2) throw new ContractError(`${field}[${i}] must be [u, v]`, field);
+    return [coordinate(p[0], `${field}[${i}][0]`), coordinate(p[1], `${field}[${i}][1]`)];
+  });
+}
+/** Loft sections: each refusal names its own index, so an agent fixes the one sketch that is wrong. */
+function sections(value: unknown, field: string): Array<{ points: number[][]; offset: number }> {
+  if (!Array.isArray(value) || value.length < 2 || value.length > LIMITS.maxSections) throw new ContractError(`${field} must list 2..${LIMITS.maxSections} sections`, field);
+  return value.map((s, i) => {
+    const at = `${field}[${i}]`;
+    if (!s || typeof s !== 'object' || Array.isArray(s)) throw new ContractError(`${at} must be {points, offset}`, at);
+    const raw = s as Record<string, unknown>;
+    for (const name of Object.keys(raw)) if (name !== 'points' && name !== 'offset') throw new ContractError(`${at}.${name} is not a section parameter (known: points, offset)`, `${at}.${name}`);
+    return { points: points(raw.points, `${at}.points`), offset: raw.offset === undefined ? 0 : coordinate(raw.offset, `${at}.offset`) };
+  });
+}
 function vec3(value: unknown, field: string, asDimension: boolean): number[] {
   if (!Array.isArray(value) || value.length !== 3) throw new ContractError(`${field} must be [x, y, z]`, field);
   return value.map((v, i) => (asDimension ? dimension(v, `${field}[${i}]`) : coordinate(v, `${field}[${i}]`)));
@@ -100,6 +145,8 @@ function param(spec: ParamSpec, value: unknown, field: string): unknown {
     case 'number': return num(value, field, spec.min, spec.max);
     case 'enum': if (typeof value !== 'string' || !spec.values.includes(value)) throw new ContractError(`${field} must be one of ${spec.values.join(', ')}`, field); return value;
     case 'points': return points(value, field);
+    case 'path': return pathPoints(value, field);
+    case 'sections': return sections(value, field);
     case 'vec3': return vec3(value, field, spec.dimension);
     case 'boolean': if (typeof value !== 'boolean') throw new ContractError(`${field} must be true or false`, field); return value;
     default: throw new ContractError(`${field} has an unknown spec`, field);
@@ -132,11 +179,25 @@ export function validateFeature(input: unknown, existingId?: string): CadFeature
   for (const name of Object.keys(source)) if (!known.has(name)) throw new ContractError(`${type}.params.${name} is not a parameter of ${type} (known: ${[...known].join(', ')})`, `params.${name}`);
   if (type === 'scale' && out.factor === undefined && out.target === undefined) throw new ContractError('scale needs factor or target', 'params');
   if (type === 'hole' && out.depth !== undefined && out.through === true) throw new ContractError('hole cannot be both through and blind', 'params.through');
+  crossCheck(type as FeatureType, out);
   const enabled = raw.enabled === undefined ? true : raw.enabled;
   if (typeof enabled !== 'boolean') throw new ContractError('feature.enabled must be true or false', 'enabled');
   const label = raw.label === undefined ? undefined : String(raw.label).slice(0, 120);
   const id = existingId ?? (typeof raw.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(raw.id) ? raw.id : randomUUID());
   return { id, type: type as FeatureType, params: out, enabled, ...(label ? { label } : {}) };
+}
+
+/** Rules that span two parameters, so no single ParamSpec can state them. */
+function crossCheck(type: FeatureType, out: Record<string, unknown>): void {
+  if (type === 'revolve' && out.axis !== undefined) {
+    const allowed = PLANE_AXES[(out.plane ?? 'XZ') as typeof PLANES[number]];
+    if (!allowed.includes(out.axis as string)) throw new ContractError(`revolve.params.axis must be one of ${allowed.join(', ')} for plane ${String(out.plane ?? 'XZ')} (the axis must lie in the profile's plane)`, 'params.axis');
+  }
+  if (type === 'loft') {
+    const offsets = (out.sections as Array<{ offset: number }>).map((s) => s.offset);
+    const repeat = offsets.findIndex((o, i) => offsets.indexOf(o) !== i);
+    if (repeat >= 0) throw new ContractError(`loft.params.sections[${repeat}].offset ${offsets[repeat]} repeats an earlier section; each section needs its own plane`, `params.sections[${repeat}].offset`);
+  }
 }
 
 /**
@@ -196,6 +257,18 @@ export function validateFeatureList(input: unknown): CadFeature[] {
   });
 }
 
+/**
+ * @description Validate the per-feature budget setting (a feature that runs longer is refused
+ * with `budget_exceeded` and its result discarded).
+ * @param value - Raw `settings.featureBudgetMs`.
+ * @returns The budget in whole ms.
+ */
+export function validateFeatureBudget(value: unknown): number {
+  const field = 'settings.featureBudgetMs';
+  if (typeof value !== 'number' || !Number.isInteger(value)) throw new ContractError(`${field} must be a whole number of milliseconds`, field);
+  return num(value, field, FEATURE_BUDGET_MS.min, FEATURE_BUDGET_MS.max);
+}
+
 /** @description The contract as data — published by /capabilities so a bot reads the real rules. */
 export function describeContract(): Record<string, unknown> {
   const features = Object.fromEntries(Object.entries(FEATURE_SPECS).map(([type, spec]) => [type, {
@@ -206,8 +279,8 @@ export function describeContract(): Record<string, unknown> {
   return {
     worldFrame: 'right-handed, Z up, millimetres; the footprint is centred on X = Y = 0, the part rests on Z = 0, the front faces −Y',
     bases: { box: 'sizeX, sizeY, sizeZ', cylinder: 'diameter, height', sketch: 'plane, points [[u,v]…], height', contours: 'views {front|top|right: [[u,v]…]} in mm, size {x,y,z} — the scan bridge (intersection of extruded outlines)', mesh: 'stl (base64) sewn into a solid' },
-    features, edgeSelectors: EDGE_SELECTORS, faceSelectors: FACE_SELECTORS, planes: PLANES, axes: AXES, views: VIEWS, limits: LIMITS,
-    rules: ['features apply in list order; a refused feature is reported with its reason and skipped, the model stays buildable', 'every parameter is checked before the kernel runs; unknown parameters are refused', 'same base + same list = same STEP/STL bytes'],
+    features, edgeSelectors: EDGE_SELECTORS, faceSelectors: FACE_SELECTORS, planes: PLANES, planeAxes: PLANE_AXES, axes: AXES, views: VIEWS, limits: LIMITS, featureBudgetMs: FEATURE_BUDGET_MS,
+    rules: ['features apply in list order; a refused feature is reported with its reason and skipped, the model stays buildable', 'every parameter is checked before the kernel runs; unknown parameters are refused', 'same base + same list = same STEP/STL bytes', 'a feature that runs past settings.featureBudgetMs is refused with code budget_exceeded and its result discarded; POST /models/{id}/cancel stops a running rebuild and the part stays at its last good revision'],
   };
 }
 

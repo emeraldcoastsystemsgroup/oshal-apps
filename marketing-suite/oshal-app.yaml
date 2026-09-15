@@ -1,0 +1,100 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL application GROUP — Marketing (ADR-141)
+#
+# A group carries NO code. It binds the installed applications a launch actually
+# uses into one front door with one toolbar and a setup dashboard:
+#   marketing-engine  campaigns, consent, the scorecard, budget decisions
+#   switchboard       the compose desk and the scheduled calendar
+#   social            LinkedIn/Facebook presence, signals, connected accounts
+#   brand-graphics    campaign graphics
+#   presentations     decks and documents
+#   video             video clips
+#
+# Every toolbar tile is BORROWED from a member by app + surface name — the loader
+# copies the member's label, icon and URL at activation and again at every
+# profile synthesis, so a member that moves a surface is followed and a member
+# that drops one fails this group instead of leaving a dead tile.
+#
+# The setup dashboard is rendered by the kernel from `setup:` below. Each step
+# points at a `readiness:` probe the member declares over its OWN store, asked in
+# the signed-in user's session — a step is done only when the member says so.
+#
+# Finance is deliberately NOT a member yet: holding a campaign budget as a
+# finance project is phase P2 of docs/apps/marketing-suite-spec.md in the core
+# repo, and until that link exists this group would force a personal-finance app
+# on anyone installing it.
+#
+# Framework: OSHAL (docs/adr/141-application-groups.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: marketing-suite
+kind: group
+suite: ai-productivity   # ADR-097: primary catalog shelf
+displayName: Marketing
+description: >-
+  One front door for taking a product to market: the campaign board with its
+  consent gates and weekly scorecard, the compose desk and scheduled calendar,
+  your social presence and the signals you follow, and the graphics, decks and
+  clips a launch needs — with a setup page that shows what is armed and what
+  still needs you.
+version: 1.0.0
+status: active
+scope: public
+theme: midnight
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: marketing-suite
+  ref: main
+
+# Installing this group resolves every member (npm-style, fail-closed); the
+# reverse-dependency guard blocks a member's uninstall while the group is active.
+dependencies:
+  required:
+    apps:
+      - marketing-engine
+      - switchboard
+      - social
+      - brand-graphics
+      - presentations
+      - video
+  optional:
+    apps: []
+
+# ── Toolbar — borrowed by reference ──────────────────────────────────────────
+# `group:` bands render in first-appearance order; `section: bottom` is the
+# pinned base tray. The kernel prepends its Setup tile.
+toolbar:
+  - { app: marketing-engine, surface: marketing-engine }
+  - { app: marketing-engine, surface: marketing-content-studio, group: Create }
+  - { app: brand-graphics,   surface: brand-graphics,           group: Create }
+  - { app: presentations,    surface: presentations-studio,     group: Create }
+  - { app: video,            surface: video-studio,             group: Create }
+  - { app: switchboard,      surface: switchboard-compose,      group: Publish }
+  - { app: switchboard,      surface: switchboard-calendar,     group: Publish }
+  - { app: social,           surface: social-workspace,         group: Publish }
+  - { app: social,           surface: linkedin-assistant,       group: Publish }
+  - { app: social,           surface: social-signals,           group: Listen }
+  - { app: switchboard,      surface: switchboard-feeds,        group: Listen }
+  - { app: social,           surface: social-accounts,          section: bottom }
+
+# ── Setup — every step reads a member probe ──────────────────────────────────
+# Order is the order a new user should take them. Nothing here arms a channel or
+# publishes anything; each step opens the surface where the person decides.
+setup:
+  - { label: Create your first campaign,              app: marketing-engine, readiness: campaign, fix: marketing-engine }
+  - { label: Turn on a channel and set its daily cap, app: marketing-engine, readiness: channels, fix: marketing-engine }
+  - { label: Set up email sending,                    app: marketing-engine, readiness: sender,   fix: marketing-engine }
+  - { label: Connect Facebook,                        app: social,           readiness: facebook, fix: social-accounts }
+  - { label: Pick the signals you follow,             app: social,           readiness: signals,  fix: social-signals }
+
+# ── Ribbon chrome ─────────────────────────────────────────────────────────────
+# Tickets stay visible on purpose: the Monday review arrives as a backlog ticket
+# a human approves, and hiding it would hide the approval step.
+ribbon:
+  hideFrameworkItems:
+    - addressbook
+    - echo
+    - logs
+    - operations

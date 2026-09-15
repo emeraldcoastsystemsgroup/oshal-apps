@@ -1,7 +1,8 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — daily-trade-recap ("Daily Trade Recap")
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
-# ONLY the surface carves; this app never had a route or a tile of its own).
+# Initial carve retained the media workflow; the package now owns Recap Review,
+# a saved-work summary and registered recorded-report briefings.
 # This package is the app: the manifest (ticketType 'daily-trade-recap' + the
 # approval-gated graph workflow) + the three trade_recap_* CLI tools + a package
 # COPY of the vids-operator persona for the registrar.
@@ -27,16 +28,36 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: daily-trade-recap
+# CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Register bounded recorded-report briefing collection and isolated contract evidence.
 suite: ai-finance   # ADR-097: primary catalog shelf (tools keep their own category:)
 displayName: Daily Trade Recap
 status: active
 description: >-
-  After the closing bell: render the day's charted trade-recap video (real Alpaca data
-  -> PowerPoint deck -> narrated MP4) on the swarm render node, then email it to the
-  operator with the day's numbers and the video attached as a preview.
+  Review saved trade-recap work and receive owner-qualified recorded-report updates in Jarvis.
+  The existing approval-gated media workflow renders and emails the after-close recap;
+  briefing collection reads its report journal and does not generate reports or trade.
 scope: public
 ticketType: daily-trade-recap
-version: 1.1.0
+version: 1.2.0
+
+uses: [jarvis-briefings, test-catalog, app-dependencies]
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+briefings:
+  - id: recorded-reports
+    title: Recorded trading reports
+    description: Existing owner-qualified report journal entries; not confirmation of email or site delivery.
+    sessionId: daily-trade-recap-recorded-reports
+    defaults: { enabled: true, frequency: as-available, channel: voice }
+schedules:
+  - id: daily-trade-recap-recorded-reports
+    cron: "*/15 * * * *"
+    scope: framework
+    description: Reconcile at most 50 report journal entries from the last 72 hours into registered owner briefings.
+    target: service-route
+    route: /api/daily-trade-recap/briefings/collect
+    handler: collectCompletedReports
 
 source:
   type: git-subdir
@@ -47,6 +68,13 @@ source:
 # CORE-05 install readiness is service-authenticated and reads package metadata only. It never
 # touches user data, calls a provider, mutates state, or spends tokens.
 routes:
+  - module: routes/completed-report-briefings.js
+    factory: createCompletedReportBriefingRoutes
+    mountPath: /api/daily-trade-recap/briefings
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/review.js
     factory: createReviewRoutes
     mountPath: /api/daily-trade-recap
@@ -82,9 +110,14 @@ smoke:
     requiresAi: false
 
 dependencies:
-  apps: []
-  tools: []
-  connectors: []
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
 
 # Stage bot reuses the already-registered SHARED vids-operator worker (registered in
 # BOTH swarm-bot-registry blocks, kernel-resident) — deliberately NO bots: block here

@@ -15,6 +15,9 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Serve the surface's camera module (scan-to-print-camera.js)
  *                     |                             | from the same fixed asset list — phone capture ships in the
  *                     |                             | surface, the routes and the engine are unchanged.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | `/capabilities` lists the depth lane and its upload bounds
+ *                     |                             | (BACKLOG B1): the accepted encodings, the pixel ceiling and the
+ *                     |                             | depthScale range the route enforces.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.callerSub = callerSub;
@@ -27,6 +30,7 @@ const job_routes_1 = require("./job-routes");
 const print_routes_1 = require("./print-routes");
 const views_1 = require("./engine/grid/views");
 const pipeline_1 = require("./engine/pipeline");
+const depth_decode_1 = require("./engine/grid/depth-decode");
 const printer_adapters_1 = require("./engine/print/printer-adapters");
 const slicer_1 = require("./engine/print/slicer");
 const image_ingest_1 = require("./image-ingest");
@@ -78,8 +82,8 @@ function createScanToPrintRoutes(ctx, opts = {}) {
             slicerConfigured = false;
         }
         res.json({
-            app: 'scan-to-print', views: views_1.VIEW_NAMES, lanes: ['silhouettes', 'pointcloud'], limits: pipeline_1.RECONSTRUCTION_LIMITS, upload: job_routes_1.UPLOAD_LIMITS,
-            printers: { kinds: printer_adapters_1.PRINTER_KINDS, slicerConfigured }, video: ffmpeg,
+            app: 'scan-to-print', views: views_1.VIEW_NAMES, lanes: ['silhouettes', 'pointcloud', 'depth'], limits: pipeline_1.RECONSTRUCTION_LIMITS, upload: job_routes_1.UPLOAD_LIMITS,
+            depth: depth_decode_1.DEPTH_UPLOAD_LIMITS, printers: { kinds: printer_adapters_1.PRINTER_KINDS, slicerConfigured }, video: ffmpeg,
         });
     });
     const deps = { pool: ctx.pool, dataRoot, env, callerSub, execFile: opts.execFile, fetchImpl: opts.fetchImpl };

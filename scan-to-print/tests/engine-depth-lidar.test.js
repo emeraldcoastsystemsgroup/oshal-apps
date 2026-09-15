@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The LiDAR building block: a simulated depth sensor looking into a cup carves the cavity the visual hull had filled — to the voxel — a no-return pixel never carves, and the point-cloud lane parses ASCII / binary-LE / binary-BE PLY (skipping colour and face elements), voxelises a lattice-sampled box to its exact volume, re-orients a Y-up export, reports a leak instead of hiding it, and refuses oversize clouds.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | Base sealing (BACKLOG B7): a capture whose underside was never scanned closes to its exact volume once the bed plane is asserted, and the two controls that prove the seal is not a general hole-filler — a genuine side through-hole and a missing lid both still leak with the flag on. Also the refusals: an empty grid has nothing to seal against, and a negative closing radius is still rejected.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -125,4 +126,52 @@ test('voxelize refuses a degenerate cloud and a voxel too fine for the ceiling',
   assert.throws(() => e.voxelizePointCloud(flat, { voxelMm: 1 }), /zero extent/);
   const cloud = { count: 2, xyz: Float32Array.from([0, 0, 0, 500, 500, 500]) };
   assert.throws(() => e.voxelizePointCloud(cloud, { voxelMm: 1 }), /too fine/);
+});
+
+/** The lattice box with everything at the table plane removed — a phone scan of a standing object. */
+function boxWithoutUnderside() {
+  return boxPoints().filter(([, , z]) => z !== 0);
+}
+
+test('B7: an unscanned underside seals to the bed plane and fills to the exact volume', () => {
+  const cloud = { count: boxWithoutUnderside().length, xyz: Float32Array.from(boxWithoutUnderside().flat()) };
+  const leaked = e.fillSolidFromSurface(e.voxelizePointCloud(cloud, { voxelMm: 2 }).grid, 1);
+  assert.equal(leaked.closed, false, 'without the seal the fill must still leak from below');
+  assert.equal(leaked.sealedBase, false);
+  const vox = e.voxelizePointCloud(cloud, { voxelMm: 2 });
+  const fill = e.fillSolidFromSurface(vox.grid, 1, { sealBase: true });
+  assert.equal(fill.closed, true);
+  assert.equal(fill.sealedBase, true);
+  assert.ok(fill.interiorFilled > 0);
+  const result = e.finishFromGrid(vox.grid, vox.sizeMm, { ...META, lane: 'pointcloud', viewsUsed: [], sealedBase: true }, { smoothIterations: 0 });
+  assert.equal(result.report.gridVolumeMm3, 72000);
+  assert.equal(result.report.sealedBase, true);
+  assert.equal(result.report.validation.valid, true);
+  assert.ok(result.report.warnings.some((w) => /underside was not scanned/.test(w)), JSON.stringify(result.report.warnings));
+});
+
+test('B7: the seal caps the base only — a side through-hole and a missing lid still leak', () => {
+  const holed = boxPoints().filter(([x, y, z]) => !(x === -30 && y >= -6 && y <= 6 && z >= 10 && z <= 20));
+  const side = e.voxelizePointCloud({ count: holed.length, xyz: Float32Array.from(holed.flat()) }, { voxelMm: 2 });
+  const sideFill = e.fillSolidFromSurface(side.grid, 1, { sealBase: true });
+  assert.equal(sideFill.sealedBase, true);
+  assert.equal(sideFill.closed, false, 'a genuine 12x10 mm side window must not be filled by a base seal');
+  assert.equal(sideFill.interiorFilled, 0);
+  const lidless = boxPoints().filter(([, , z]) => z !== 30);
+  const top = e.voxelizePointCloud({ count: lidless.length, xyz: Float32Array.from(lidless.flat()) }, { voxelMm: 2 });
+  const topFill = e.fillSolidFromSurface(top.grid, 1, { sealBase: true });
+  assert.equal(topFill.closed, false, 'the seal touches the lowest layer only, never the top');
+  assert.equal(topFill.interiorFilled, 0);
+});
+
+test('B7: sealing is off by default, leaves an already-closed scan alone, and refuses an empty grid', () => {
+  const closed = e.voxelizePointCloud({ count: boxPoints().length, xyz: Float32Array.from(boxPoints().flat()) }, { voxelMm: 2 });
+  const fill = e.fillSolidFromSurface(closed.grid, 1, { sealBase: true });
+  assert.equal(fill.closed, true);
+  const result = e.finishFromGrid(closed.grid, closed.sizeMm, { ...META, lane: 'pointcloud', viewsUsed: [] }, { smoothIterations: 0 });
+  assert.equal(result.report.gridVolumeMm3, 72000, 'a scan that was already closed must measure the same sealed or not');
+  assert.equal(result.report.sealedBase, undefined, 'the report stays silent when the lane did not seal');
+  const empty = e.createOccupancyGrid({ x: 20, y: 20, z: 20 }, 2, 2, 0);
+  assert.throws(() => e.fillSolidFromSurface(empty, 1, { sealBase: true }), /at least one solid voxel/);
+  assert.throws(() => e.fillSolidFromSurface(empty, -1, { sealBase: true }), /non-negative integer/);
 });

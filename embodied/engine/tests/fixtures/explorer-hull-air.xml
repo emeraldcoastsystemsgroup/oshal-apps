@@ -1,0 +1,25 @@
+<mujoco model="explorer-hull-air">
+  <!-- ADR-160 S1. The autonomous explorer's hull as ONE SOLID: the published 300 mm envelope and the
+       published 24.7 kg all-up mass, uniform box inertia. Simulation only; nothing was built or wetted.
+       MEDIUM: air — Air (ISA sea level). rho = 1.225 kg/m^3, mu = 0.0000178938 Pa*s, nu = 0.000014607183673469388 m^2/s.
+       The plant takes ONLY the gravity vector from the medium. No density and no viscosity are emitted here, so
+       MuJoCo's own fluid model does not run: this scene makes no fluid claim of any kind (ADR-160 D7). -->
+  <compiler angle="radian" autolimits="true"/>
+  <option timestep="0.002" gravity="0 0 -9.81" integrator="implicitfast"/>
+  <default>
+    <default class="scene"><geom contype="1" conaffinity="1" friction="0.8 0.005 0.0001" rgba="0.6 0.6 0.65 1"/></default>
+    <default class="hull"><geom contype="1" conaffinity="1" friction="0.6 0.005 0.0001" rgba="0.35 0.6 0.9 1"/></default>
+  </default>
+  <worldbody>
+    <geom name="floor" class="scene" type="plane" pos="0 0 0" size="5 5 0.1"/>
+    <body name="explorer-hull" pos="0 0 2.15" quat="1 0 0 0">
+      <freejoint name="explorer-hull-free"/>
+      <inertial pos="0 0 0" mass="24.7" diaginertia="0.3705 0.3705 0.3705"/>
+      <geom name="explorer-hull-solid" class="hull" type="box" pos="0 0 0" size="0.15 0.15 0.15"/>
+    </body>
+  </worldbody>
+  <sensor>
+    <framepos name="hull-pos" objtype="body" objname="explorer-hull"/>
+    <framelinvel name="hull-vel" objtype="body" objname="explorer-hull"/>
+  </sensor>
+</mujoco>

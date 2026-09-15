@@ -13,6 +13,12 @@
  *                     |                             | next request reconnects; a dropped bridge fails every
  *                     |                             | queued request; the address parser. The framework
  *                     |                             | logger is stubbed through the module loader.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Cancel (BACKLOG B5): cancelling the in-flight request closes
+ *                     |                             | the connection the bridge would kill its worker on, rejects
+ *                     |                             | it `cancelled`, and another caller's queued request is sent
+ *                     |                             | again on a fresh connection and answered; cancelling a
+ *                     |                             | queued request leaves the in-flight one and its connection
+ *                     |                             | alone; an unknown tag touches nothing.
  */
 'use strict';
 const test = require('node:test');
@@ -125,6 +131,57 @@ test('a bridge that drops mid-request fails the in-flight and every queued reque
   assert.deepEqual(results.map((r) => r.status), ['rejected', 'rejected']);
   assert.match(results[0].reason.message, /closed the connection/);
   c.close(); bridge.close();
+});
+
+/** Resolve once the fake bridge has received `count` request lines in total. */
+function receivedLines(seen, count) {
+  return new Promise((resolve) => { const tick = () => (seen.length >= count ? resolve() : setTimeout(tick, 5)); tick(); });
+}
+
+test('cancelling the in-flight request closes its connection; another caller\'s queued request is answered on a fresh one', async (t) => {
+  const seen = [];
+  let connections = 0;
+  const bridge = await fakeBridge({ answer: (req, socket) => {
+    seen.push(req.args.n);
+    if (!socket.counted) { socket.counted = true; connections += 1; }
+    return req.args.n === 1 ? 'hang' : { id: req.id, ok: true, result: `answered ${req.args.n}` };
+  } });
+  const c = client(bridge.port, { requestTimeoutMs: 5000 });
+  // Cleanup runs even when an assertion fails, so a regression reports instead of hanging.
+  t.after(() => { c.close(); bridge.close(); });
+  const slow = c.request('rebuild', { n: 1 }, undefined, 'alice-model');
+  const other = c.request('rebuild', { n: 2 }, undefined, 'bob-model');
+  slow.catch(() => {}); other.catch(() => {});
+  await receivedLines(seen, 1);
+  const firstSocket = [...bridge.sockets][0];
+  const closed = new Promise((resolve) => firstSocket.once('close', resolve));
+  assert.equal(c.cancel('alice-model', 'owner pressed stop'), 'inflight');
+  await assert.rejects(slow, (err) => err instanceof EngineFailure && err.code === 'cancelled' && /owner pressed stop/.test(err.message) && /worker was stopped/.test(err.message));
+  await closed;
+  assert.equal(await other, 'answered 2', 'the other caller was not cancelled');
+  assert.deepEqual(seen, [1, 2]);
+  assert.equal(connections, 2, 'the queued request went out on a fresh connection');
+  assert.equal(c.cancel('alice-model'), null, 'nothing left to cancel');
+});
+
+test('cancelling a queued request drops only it; the in-flight request keeps its connection', async (t) => {
+  const seen = [];
+  const bridge = await fakeBridge({ answer: (req) => { seen.push(req.args.n); return req.args.n === 1 ? { id: req.id, ok: true, result: 'first' } : { id: req.id, ok: true, result: 'third' }; }, replyDelayMs: 60 });
+  const c = client(bridge.port, { requestTimeoutMs: 5000 });
+  t.after(() => { c.close(); bridge.close(); });
+  const first = c.request('rebuild', { n: 1 }, undefined, 'm1');
+  const queued = c.request('rebuild', { n: 2 }, undefined, 'm2');
+  const third = c.request('rebuild', { n: 3 }, undefined, 'm3');
+  queued.catch(() => {});
+  await receivedLines(seen, 1);
+  assert.equal(c.cancel('m2'), 'queued');
+  await assert.rejects(queued, (err) => err.code === 'cancelled' && /before it reached the engine/.test(err.message));
+  assert.equal(await first, 'first');
+  assert.equal(await third, 'third');
+  assert.deepEqual(seen, [1, 3], 'the cancelled request never reached the bridge');
+  assert.equal(bridge.sockets.size, 1, 'one connection throughout');
+  assert.equal(c.cancel('no-such-model'), null);
+  assert.equal(c.status().connected, true);
 });
 
 test('the queue is bounded and the address parser is strict', async () => {

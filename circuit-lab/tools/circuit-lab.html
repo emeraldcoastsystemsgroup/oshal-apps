@@ -1,0 +1,250 @@
+<!doctype html>
+<!--
+  Circuit Lab — a circuit as parts + wires on a schematic canvas, solved by ngspice in the
+  package's engine container; DC motors and gear trains solve in the same run and the gears turn
+  on the canvas from the solved shaft speeds. A cockpit surface: its behaviour, editor and plots
+  are served by this package's route (/api/circuit-lab/assets/…), the theme is inherited from the
+  surrounding cockpit through the shared surface-theme bootstrap with local fallbacks. (.html is
+  exempt from the CHANGE LOG header.)
+-->
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Circuit Lab</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  :root { --cl-bg: var(--bg, var(--bg-primary, #12151c)); --cl-panel: var(--panel, var(--bg-card, #1b1f29)); --cl-panel2: var(--panel2, var(--bg-tertiary, #232836));
+          --cl-text: var(--text, var(--text-primary, #e6e9ef)); --cl-muted: var(--muted, var(--text-muted, #9aa3b2)); --cl-line: var(--line, var(--border-color, #2f3646));
+          --cl-accent: var(--accent, #4f8cff); --cl-danger: var(--danger, #e5534b); --cl-ok: var(--ok, #3fb950); --cl-warn: var(--warn, #d29922); --cl-wire: #8fb7ff; --cl-mech: #d7a35c; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--cl-text); background: var(--cl-bg); }
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--cl-line); background: var(--cl-panel); }
+  header h1 { font-size: 16px; margin: 0; }
+  header .spacer { flex: 1; }
+  .layout { display: grid; grid-template-columns: 220px 1fr 320px; min-height: calc(100vh - 49px); }
+  aside { border-right: 1px solid var(--cl-line); padding: 12px; background: var(--cl-panel); overflow: auto; }
+  aside.right { border-right: 0; border-left: 1px solid var(--cl-line); }
+  main { padding: 12px 16px 40px; overflow: auto; min-width: 0; }
+  .design-item { display: flex; justify-content: space-between; align-items: center; width: 100%; text-align: left; padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--cl-line); border-radius: 8px; background: var(--cl-panel2); color: var(--cl-text); cursor: pointer; }
+  .design-item.active { border-color: var(--cl-accent); }
+  .design-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--cl-line); color: var(--cl-muted); white-space: nowrap; }
+  .badge.ran, .badge.built { border-color: var(--cl-ok); color: var(--cl-ok); }
+  .badge.failed { border-color: var(--cl-danger); color: var(--cl-danger); }
+  .banner { border: 1px solid var(--cl-danger); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; background: var(--cl-panel2); }
+  .banner code { user-select: all; word-break: break-all; }
+  section.step { border: 1px solid var(--cl-line); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; background: var(--cl-panel); }
+  section.step h2 { font-size: 14px; margin: 0 0 8px; }
+  section.step h2 small { color: var(--cl-muted); font-weight: normal; margin-left: 8px; }
+  button, input, select { font: inherit; color: var(--cl-text); }
+  button.primary { background: var(--cl-accent); color: #fff; border: 0; border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  button.primary:disabled { opacity: .5; cursor: default; }
+  button.ghost { background: transparent; border: 1px solid var(--cl-line); border-radius: 8px; padding: 4px 9px; cursor: pointer; }
+  button.ghost.active { border-color: var(--cl-accent); color: var(--cl-accent); }
+  button.link { background: none; border: 0; color: var(--cl-accent); cursor: pointer; padding: 0 4px; }
+  button.link.danger { color: var(--cl-danger); }
+  input[type=number], input[type=text], select { background: var(--cl-panel2); border: 1px solid var(--cl-line); border-radius: 6px; padding: 4px 8px; }
+  input[type=number] { width: 96px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; }
+  .muted { color: var(--cl-muted); }
+  .small { font-size: 12px; }
+  .palette { display: flex; flex-wrap: wrap; gap: 4px; }
+  .palette button { font-size: 12px; }
+  .palette button.mech { border-color: var(--cl-mech); }
+  svg#canvas { width: 100%; height: 480px; border-radius: 8px; border: 1px solid var(--cl-line); background: var(--cl-panel2); display: block; touch-action: none; user-select: none; }
+  svg#canvas .part { cursor: grab; }
+  svg#canvas .part.selected .body { stroke: var(--cl-accent); }
+  svg#canvas .body { fill: none; stroke: var(--cl-text); stroke-width: 1.6; }
+  svg#canvas .fillbody { fill: var(--cl-panel); stroke: var(--cl-text); stroke-width: 1.6; }
+  svg#canvas text { fill: var(--cl-text); font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; pointer-events: none; }
+  svg#canvas text.value { fill: var(--cl-muted); }
+  svg#canvas .pin { fill: var(--cl-panel2); stroke: var(--cl-wire); stroke-width: 1.5; cursor: crosshair; }
+  svg#canvas .pin.shaft, svg#canvas .pin.teeth { stroke: var(--cl-mech); }
+  svg#canvas .pin:hover, svg#canvas .pin.pending { fill: var(--cl-accent); }
+  svg#canvas .wire { fill: none; stroke: var(--cl-wire); stroke-width: 2; cursor: pointer; }
+  svg#canvas .wire.shaft { stroke: var(--cl-mech); stroke-dasharray: 6 3; }
+  svg#canvas .wire.teeth { stroke: var(--cl-mech); stroke-dasharray: 2 3; }
+  svg#canvas .wire.belt { stroke: var(--cl-mech); stroke-dasharray: 10 4; stroke-width: 3; }
+  svg#canvas .pin.belt { stroke: var(--cl-mech); stroke-dasharray: 2 1; }
+  svg#canvas .body.mech { stroke: var(--cl-mech); }
+  svg#canvas .wire.selected { stroke: var(--cl-accent); stroke-width: 3; }
+  svg#canvas .wire-hit { fill: none; stroke: transparent; stroke-width: 12; cursor: pointer; }
+  svg#canvas .wire-mid { fill: none; stroke: transparent; stroke-width: 12; }
+  svg#canvas .wire-mid.ew { cursor: ew-resize; }
+  svg#canvas .wire-mid.ns { cursor: ns-resize; }
+  svg#canvas .wire-mid:hover { stroke: var(--cl-accent); opacity: .25; }
+  svg#canvas .wire-bend { fill: var(--cl-panel2); stroke: var(--cl-accent); stroke-width: 1.5; cursor: move; }
+  svg#canvas .marquee { fill: var(--cl-accent); fill-opacity: .12; stroke: var(--cl-accent); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }
+  svg#canvas .rubber { fill: none; stroke: var(--cl-accent); stroke-width: 2; stroke-dasharray: 4 3; pointer-events: none; }
+  svg#canvas text.wireval { fill: var(--cl-accent); font-size: 10px; }
+  svg#canvas text.partval { fill: var(--cl-ok); font-size: 10px; }
+  svg#canvas text.pinlabel { fill: var(--cl-muted); font-size: 8px; }
+  svg#canvas text.title { font-size: 10px; font-weight: 600; }
+  svg#canvas .glow { fill: #ff4040; opacity: 0; }
+  svg#canvas .grid { stroke: var(--cl-line); stroke-width: .5; opacity: .5; }
+  svg[hidden], p[hidden] { display: none !important; }
+  .views { display: flex; gap: 4px; margin: 0 0 6px; }
+  svg#board { width: 100%; height: 288px; border-radius: 8px; border: 1px solid var(--cl-line); background: var(--cl-panel2); display: block; touch-action: none; user-select: none; }
+  svg#board .bboard { fill: #e9e3d3; stroke: #b9b19b; }
+  svg#board .bblock { fill: #f4efe2; stroke: none; }
+  svg#board .bgap { stroke: #c9c1aa; stroke-width: 2; }
+  svg#board .hole { fill: #6d675a; stroke: none; cursor: crosshair; }
+  svg#board .hole:hover, svg#board .hole.pending { fill: var(--cl-accent); }
+  svg#board .hole.lit { fill: #b98a2e; }
+  svg#board text { font-size: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; fill: #6d675a; pointer-events: none; }
+  svg#board text.blabel { font-size: 9px; fill: #1e1e1e; font-weight: 600; }
+  svg#board text.bwarn { fill: var(--cl-danger); font-size: 10px; }
+  svg#board .jumper { fill: none; stroke-width: 2.5; cursor: pointer; }
+  svg#board .jumper.selected { stroke-width: 4; filter: drop-shadow(0 0 2px #000); }
+  svg#board text.jlen { font-size: 10px; fill: #1e1e1e; font-weight: 600; }
+  svg#board text.bsum { font-size: 10px; fill: var(--cl-muted); }
+  svg#board .bpart.selected .bbody { stroke: var(--cl-accent); stroke-width: 2; }
+  svg#board .bpart { cursor: grab; }
+  svg#board .bbody { fill: #cfd6e0; stroke: #4a4a4a; stroke-width: 1; }
+  svg#board .bbody.resistor { fill: #d9b88a; }
+  svg#board .bbody.dip { fill: #2b2b2b; stroke: #111; }
+  svg#board .bnotch { fill: #999; }
+  svg#board .bbody.gnd { fill: #222; }
+  svg#board .bbody.led.red { fill: #ff4040; } svg#board .bbody.led.green { fill: #39e05a; } svg#board .bbody.led.blue { fill: #4f8cff; } svg#board .bbody.led.yellow { fill: #ffd23f; } svg#board .bbody.led.white { fill: #fff; }
+  svg#board .leg { fill: #b9b9b9; stroke: #333; stroke-width: .8; }
+  .timeline { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center; margin-top: 8px; }
+  .timeline input[type=range] { width: 100%; }
+  canvas.plot { width: 100%; height: 150px; display: block; border: 1px solid var(--cl-line); border-radius: 8px; background: var(--cl-panel2); margin-bottom: 6px; }
+  .signals { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; margin-bottom: 8px; }
+  .signals label { cursor: pointer; white-space: nowrap; }
+  table.readings { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.readings th, table.readings td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--cl-line); vertical-align: top; }
+  table.readings th { color: var(--cl-muted); font-weight: normal; }
+  table.readings tr.warn td { color: var(--cl-warn); }
+  ul.warnings { margin: 0; padding-left: 18px; }
+  ul.warnings li { color: var(--cl-warn); }
+  .props-form { display: grid; grid-template-columns: max-content 1fr; gap: 6px 8px; align-items: center; margin: 8px 0; }
+  .props-form .doc { grid-column: 1 / -1; color: var(--cl-muted); font-size: 11px; margin-top: -4px; }
+  ul.runs { list-style: none; padding: 0; margin: 0; max-height: 180px; overflow: auto; }
+  ul.runs li { display: flex; gap: 6px; align-items: center; padding: 3px 0; border-bottom: 1px solid var(--cl-line); }
+  ul.pinlist { list-style: none; padding: 0; margin: 0; font-size: 12px; }
+  .toast { position: fixed; right: 16px; bottom: 16px; padding: 10px 14px; border-radius: 8px; background: var(--cl-panel2); border: 1px solid var(--cl-line); max-width: 460px; z-index: 5; }
+  .toast.error { border-color: var(--cl-danger); }
+  .toast.ok { border-color: var(--cl-ok); }
+  #bridge-notices { position: fixed; right: 16px; top: 60px; z-index: 6; display: flex; flex-direction: column; gap: 6px; max-width: 420px; }
+  .bridge-notice { padding: 8px 12px; border-radius: 8px; background: var(--cl-panel2); border: 1px solid var(--cl-accent); font-size: 13px; }
+  .bridge-notice-warn { border-color: var(--cl-warn); } .bridge-notice-error { border-color: var(--cl-danger); } .bridge-notice-success { border-color: var(--cl-ok); }
+  @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } aside, aside.right { border: 0; border-bottom: 1px solid var(--cl-line); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Circuit Lab</h1>
+  <span class="muted small">parts + wires → ngspice → waveforms · motors and gears solve in the same run</span>
+  <span class="spacer"></span>
+  <span id="engine-pill" class="badge">engine…</span>
+  <select id="example-select"><option value="">Start from an example…</option></select>
+  <button id="new-design" class="primary">New circuit</button>
+</header>
+<div class="layout">
+  <aside>
+    <div id="design-list"></div>
+  </aside>
+  <main>
+    <div id="engine-banner" class="banner" hidden>
+      <strong>The circuit engine container is not answering.</strong>
+      <div id="engine-reason" class="small"></div>
+      <div class="small muted">Install or rebuild it from the host: <code id="engine-hint"></code></div>
+    </div>
+    <div id="empty-panel">
+      <p class="muted">Create a circuit, open one, or start from an example. Click a part in the palette to add it, drag it into place, click one pin then another to wire them, then Run.</p>
+    </div>
+    <div id="design-panel" hidden>
+      <div class="row">
+        <h2 id="design-heading" style="margin:0"></h2>
+        <span id="design-state" class="badge"></span>
+        <span class="spacer" style="flex:1"></span>
+        <button id="rename-design" class="ghost">Rename</button>
+        <button id="delete-design" class="ghost">Delete</button>
+      </div>
+      <section class="step">
+        <div class="row">
+          <div id="palette" class="palette"></div>
+        </div>
+        <div class="views"><button id="view-schematic" class="ghost active" type="button">Schematic</button><button id="view-board" class="ghost" type="button" title="the same circuit on a breadboard: move parts, add or remove jumpers; the schematic's wires follow">Breadboard</button></div>
+        <svg id="canvas" viewBox="0 0 960 480" xmlns="http://www.w3.org/2000/svg"></svg>
+        <svg id="board" viewBox="0 0 960 288" xmlns="http://www.w3.org/2000/svg" hidden></svg>
+        <p id="canvas-hint" class="small muted">Drag a part from the palette onto the canvas (or click it) · drag to move · drag on empty canvas to select several, then move or Delete them together · click pin → pin to wire · drag a wire's middle segment to re-route it · double-click a wire to add a bend, drag a bend to move it, double-click it to remove it · click a wire to plot its net · Delete removes · R rotates (a selection turns about its centre) · Esc cancels · Ctrl+Z / Ctrl+Y undo / redo · Ctrl+C / Ctrl+V copy / paste · wheel zooms · shift-drag pans</p>
+        <p id="board-hint" class="small muted" hidden>Drag a part to another hole · click a part and press R to turn it (upright, its legs down the rows; two legs on one strip short it, and the board says so) · click one hole then another to add a jumper — drawn straight at its real length, click it to read the mm · click a jumper and press Delete to remove it · the five holes of a column are one strip, a rail is one strip · the schematic's wires are rebuilt from the board after every edit (gears and loads stay on the schematic)</p>
+        <div class="row">
+          <button id="run" class="primary">Run</button>
+          <label class="small"><input id="auto-run" type="checkbox" checked /> run after every edit</label>
+          <label class="small">stop <input id="sim-stop" type="number" min="0.000001" step="0.01" /> s</label>
+          <label class="small">step <input id="sim-step" type="number" min="0.000000001" step="0.0001" placeholder="auto" /> s</label>
+          <label class="small"><input id="sim-rest" type="checkbox" checked /> start from rest</label>
+          <span id="run-status" class="small muted"></span>
+          <label class="small"><input id="show-values" type="checkbox" /> values on canvas</label>
+          <button id="reset-view" class="ghost small">reset view</button>
+        </div>
+        <div class="row small" id="solver-row">
+          <span class="muted">solver</span>
+          <label>reltol <input id="sim-reltol" type="number" step="any" min="0.000001" max="0.05" placeholder="0.003" /></label>
+          <label>gmin <input id="sim-gmin" type="number" step="any" min="1e-15" max="1e-6" placeholder="1e-12" /> S</label>
+          <label>method <select id="sim-method"><option value="">default (trap)</option><option value="trap">trap</option><option value="gear">gear (stiff, hard switching)</option></select></label>
+          <span class="muted">empty = the lab's defaults with one automatic relaxed retry; set any and the run uses exactly these</span>
+        </div>
+        <div class="timeline">
+          <button id="play" class="ghost">▶ Play</button>
+          <input id="time-slider" type="range" min="0" max="0" value="0" />
+          <span id="time-label" class="small muted">t = —</span>
+          <select id="play-speed" class="small"><option value="4">whole run in 4 s</option><option value="12">whole run in 12 s</option><option value="1">whole run in 1 s</option></select>
+        </div>
+      </section>
+      <section class="step">
+        <h2>Waveforms <small>tick signals to plot; the cursor follows the timeline</small></h2>
+        <div id="signals" class="signals"></div>
+        <div id="plots"></div>
+      </section>
+      <section class="step">
+        <h2>Readings <small>from the solver, not an estimate</small></h2>
+        <div id="readings"></div>
+        <ul id="warnings" class="warnings"></ul>
+        <p id="downloads" class="small"></p>
+      </section>
+    </div>
+  </main>
+  <aside class="right">
+    <div id="inspector" hidden>
+      <h2 style="font-size:14px;margin:0 0 8px">Selected <small id="selected-name" class="muted" style="font-weight:normal"></small></h2>
+      <div id="catalog-row" class="row" hidden><label class="small">nameplate from the catalog <select id="from-catalog"><option value="">choose…</option></select></label></div>
+      <div id="props-form" class="props-form"></div>
+      <div class="row"><button id="apply-props" class="primary">Apply</button><button id="rotate-part" class="ghost">Rotate</button><button id="remove-selected" class="ghost">Remove</button><button id="gear-to-cad" class="ghost" hidden title="an involute gear body posted to CAD Studio">Open in CAD Studio</button></div>
+      <ul id="pin-list" class="pinlist"></ul>
+    </div>
+    <div id="runs-panel" hidden>
+      <h2 style="font-size:14px;margin:12px 0 6px">Runs <small class="muted" style="font-weight:normal">every solve is kept</small></h2>
+      <ul id="runs" class="runs small"></ul>
+    </div>
+  </aside>
+</div>
+<div id="toast" class="toast" hidden></div>
+<div id="bridge-notices" data-bridge-host="notices"></div>
+<!-- The assistant rail: the shared surface-bridge client publishes what this page is showing (the
+     `context` op) and re-dispatches Jarvis's `custom` ops as DOM events the main script handles.
+     ES module; hands the client to the main script through window. Degrades silently: without the
+     module (an old cockpit, a fixture) the lab behaves exactly as it did before. -->
+<script type="module">
+  try {
+    const { createSurfaceBridgeClient } = await import('/shared/ui/js/surface-bridge-client.js');
+    const bridge = createSurfaceBridgeClient({ app: 'circuit-lab' });
+    bridge.attach();
+    window.__bridge = bridge;
+    window.dispatchEvent(new Event('bridge-ready'));
+  } catch (_) { /* no assistant rail here */ }
+</script>
+<script src="/api/circuit-lab/assets/circuit-lab-plot.js"></script>
+<script src="/api/circuit-lab/assets/circuit-lab-geometry.js"></script>
+<script src="/api/circuit-lab/assets/circuit-lab-canvas.js"></script>
+<script src="/api/circuit-lab/assets/circuit-lab-board-model.js"></script>
+<script src="/api/circuit-lab/assets/circuit-lab-board.js"></script>
+<script src="/api/circuit-lab/assets/circuit-lab.js"></script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the existing metadata-only package smoke without user data or provider calls.
+    level: integration
+    runner: { kind: smoke, smoke: package-readiness }
+    expected: [The installed hello-oshal readiness marker satisfies the manifest assertions.]
+    prerequisites: []
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: safe-smoke
+  - id: hello-http
+    name: Hello route and surface behavior
+    purpose: Exercise the shipped route over an ephemeral loopback HTTP server using Node built-ins.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/hello.test.js]
+    expected:
+      - Ping returns the correct package identity and reflects real context availability.
+      - The app serves its readiness surface and unknown paths fall through.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: The test closes all fixture HTTP connections and its ephemeral server in finally.
+    limits: { timeoutMs: 30000, maxMemoryMb: 256 }
+    installation: never

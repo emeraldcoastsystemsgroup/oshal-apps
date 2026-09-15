@@ -1,0 +1,455 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — circuit-lab ("Circuit Lab")
+#
+# A localized electromechanical lab: a circuit is PARTS and WIRES on a schematic canvas,
+# solved by a real SPICE engine (ngspice) every time it changes. DC motors and gear trains
+# solve in the SAME run — a motor's shaft is a rotational node, gears reflect their loads
+# onto it — and the gears turn on the canvas from the solved shaft speeds. Every run keeps
+# its waveforms, its deck and a report of readings per part (currents, powers, LED
+# brightness, battery runtime, motor rpm / torque / efficiency / stall, every shaft's rpm).
+#
+# THE SOLVER RUNS IN THE PACKAGE'S OWN CONTAINER (engine/, installed by
+# engine/install-engine.sh — the cad-studio / aero-lab shape): the api's client verifies the
+# container's engine build hash before the first request, so a stale container answers
+# "install me" instead of a wrong number. The concierge never computes a current: it calls
+# the route-backed tools below, which validate every part and wire against the published
+# contract and then run the solver. Nothing here leaves the box.
+#
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md,
+# docs/adr/036-bot-owned-application-architecture.md, docs/adr/153-iterative-cad-kernel-cad-studio.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Initial package: engine container, contract, routes, surface, concierge, Test Lab catalog.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 0.1.1: drag a part from the palette onto the canvas; the actual-page editing suite registered.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 0.2.0: eight more parts (zener, lamp, regulator, op-amp, relay, sequenced pin, H-bridge, 555), relaxed-tolerance retry, restore a run, gear-to-CAD-Studio hand-off, undo/redo, copy/paste, zoom/pan and live values on the canvas.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0: a hobby servo, a bipolar stepper and a step/dir driver as real elements; a load's constant torque; the shaft-driver catalog (route + tool); marquee multi-select, wire re-routing and click-a-wire-to-plot on the canvas; the external-tool evaluations under docs/evaluations.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: the Breadboard view (migration 002 adds the board column): laid out from the schematic, edited on the board, the schematic's wires derived from it, kept in step by every schematic edit; the board model shared by the browser and the routes.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: non-rigid mechanics in the same solve — a torsion spring, pulleys with a belt that slips (the belt pin kind), a crank-slider with position-dependent inertia; the mechanism as clusters of rigid groups joined by compliant links; the crank-slider starter example.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 0.5.1: the Test Lab catalog's engine-solver expected line split under the loader's 500-character limit (the box refused 0.5.0 on load); the route suite loads the catalog through the framework's own loader.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 0.6.0: firmware in the loop (outputs) — an Arduino Uno part whose sketch is compiled with avr-gcc and run in avr8js inside the engine container; its output pins are PWL sources in the same transient (the engine image gains the AVR toolchain, the Arduino core and node).
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 0.6.0: the assistant rail — surface.ops [context, custom, notify] so the cockpit relay forwards the surface-bridge (the page publishes what it shows, takes circuit_action edits from Jarvis, renders notices), and jarvisMode: delegate so Jarvis hands circuit questions to the concierge and answers in the chat.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 0.8.0 (BACKLOG B2, B7, B9): a wire takes several bends (route.points; double-click to add or remove, drag to move) and R turns a multi-selection about its centre; breadboard parts turn (vertical footprints) and the board is drawn to the BB830 geometry with jumpers as straight wires at their length in mm and shorted parts named; the solver's reltol, gmin and method in the run settings and on circuit-run (a choice is never retried over); the canvas ignores keys while the Breadboard view shows.
+name: circuit-lab
+suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
+displayName: Circuit Lab
+description: >-
+  A local circuit and mechanism lab the swarm can drive. Place batteries, resistors, LEDs,
+  capacitors, switches, transistors, op-amps, relays, regulators, a 555, a sequenced pin, an
+  H-bridge, signal sources, an Arduino Uno running your sketch, DC motors, hobby servos, steppers with a step/dir driver, gears, loads, torsion springs, belted pulleys and a crank-slider on a schematic, wire them, and a real SPICE solver (ngspice, in the package's engine container) runs the
+  transient: waveforms, per-part readings, warnings, and gears that turn on the canvas at their
+  solved speed. Ask the concierge for a change in plain words and it edits the same circuit
+  through the package's tools, so the person, the bot and any MCP client iterate on one design.
+version: 0.8.1
+status: active
+scope: person
+
+uses: [test-catalog, app-dependencies]
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: circuit-lab
+  ref: main
+
+# CORE-05 install readiness is service-authenticated and reads package metadata only.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/circuit-lab/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
+# No connector allow-list: the inputs are the person's own numbers; the engine is a container
+# on the stack network that nothing outside the box can reach.
+dependencies:
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — one INLINE concierge (no container: reasoning rides the caller's hosted/BYO brain
+# through the framework's accounted path). It turns "put a 470 ohm resistor in front of the
+# LED" into tool calls against the circuit; the solver does the physics.
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: ad93b29f-5533-45f6-bda3-4a881391d0cd
+    name: circuit-lab-engineer
+    persona: personas/circuit-lab-engineer.yaml
+    role: engineering/circuit-engineer
+    capabilities:
+      - circuit-editing
+      - mechanism-editing
+      - simulation-reading
+      - component-sizing
+    # Jarvis CALLS this concierge and answers inline ("what is the LED current in my circuit"
+    # gets a number, not a link); the concierge finds the caller's circuits through its tools.
+    jarvisMode: delegate
+    selectorDescriptor: >-
+      Select for the Circuit Lab app ONLY: building or changing a circuit on the schematic
+      (batteries, resistors, LEDs, capacitors, inductors, switches, transistors, MOSFETs, signal
+      sources), adding DC motors, hobby servos, steppers, gears and loads to a gear train, wiring pins, running the
+      simulation and reading currents, voltages, power, LED brightness, battery runtime, motor
+      rpm / torque / stall, a servo's angle, a stepper's lost steps or a shaft's speed, sizing a resistor or a gear ratio, or explaining
+      why the solver refused a circuit. Do NOT select for CAD parts (cad-studio-designer), for
+      printing, or for anything that is not this app.
+    routingKeywords:
+      - circuit
+      - resistor
+      - led
+      - capacitor
+      - breadboard
+      - spice
+      - motor
+      - gear
+      - gearbox
+      - gear ratio
+      - pwm
+      - mosfet
+      - transistor
+      - relay
+      - 555
+      - op-amp
+      - h-bridge
+      - servo
+      - stepper
+      - arduino
+      - sketch
+      - circuit lab
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TOOLS — route-backed. Reads are free; writes edit ONLY the caller's own circuit and every
+# solve is kept as a run, so the concierge iterates without a click per edit. Nothing here
+# leaves the box.
+# ─────────────────────────────────────────────────────────────────────────────
+tools:
+  - name: circuit-capabilities
+    displayName: Circuit Lab Capabilities
+    type: api
+    category: engineering
+    description: The exact contract the server enforces — every part type with its pins (and their kinds), every property with unit, default and range, the wiring rules, the transient settings, the starter examples — plus the engine's status and the install command when it is down.
+    executor: { executorType: api, apiEndpoint: "GET /api/circuit-lab/capabilities" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Read this FIRST before adding or changing anything: pin names, property names and units
+      come from here, never from memory. If engine.connected is false, tell the person the engine
+      container is down and quote engine.installHint verbatim; do not retry edits until it is up.
+    routingTags: [circuit, capabilities, contract]
+    tags: [circuit-lab, route-backed]
+
+  - name: circuit-list-designs
+    displayName: List Circuits
+    type: api
+    category: engineering
+    description: The caller's circuits with state, run count, part count and last report summary.
+    executor: { executorType: api, apiEndpoint: "GET /api/circuit-lab/designs" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Owner-scoped. Use it to find the designId the person is talking about; ask when two could match.
+    routingTags: [circuit, designs, list]
+    tags: [circuit-lab, route-backed]
+
+  - name: circuit-get-design
+    displayName: Read a Circuit
+    type: api
+    category: engineering
+    description: One circuit in full — parts with ids and properties, wires by part.pin, transient settings, the last run's report (readings, mechanism, warnings) and the run history.
+    executor: { executorType: api, apiEndpoint: "GET /api/circuit-lab/designs/{input.designId}" }
+    inputSchema:
+      type: object
+      properties: { designId: { type: string, description: "the circuit's design_id (UUID)" } }
+      required: [designId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Quote part ids and readings from this reply; never invent an id or a number.
+    routingTags: [circuit, design, read]
+    tags: [circuit-lab, route-backed]
+
+  - name: circuit-create-design
+    displayName: Create a Circuit
+    type: api
+    category: engineering
+    description: Create a circuit — empty, from a starter example (led-switch, rc-charge, motor-gearbox, pwm-motor, crank-slider, arduino-blink) or from full part and wire lists; a non-empty circuit is solved immediately.
+    executor: { executorType: api, apiEndpoint: "POST /api/circuit-lab/designs" }
+    inputSchema:
+      type: object
+      properties:
+        title: { type: string, description: "circuit name" }
+        example: { type: string, description: "optional example id from circuit-capabilities" }
+        parts: { type: array, description: "optional parts [{id, type, x, y, rotation, props}]" }
+        wires: { type: array, description: "optional wires [{id, from:{part,pin}, to:{part,pin}}]" }
+        sim: { type: object, description: "optional {stopSeconds, stepSeconds, startFromRest}" }
+      required: []
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: The reply carries the new designId; keep using it. Prefer an example when the person's request matches one, then edit it.
+    routingTags: [circuit, create]
+    tags: [circuit-lab, route-backed]
+
+  - name: circuit-add-part
+    displayName: Add a Part
+    type: api
+    category: engineering
+    description: Add one part to a circuit (type from circuit-capabilities, properties in the units it names, an optional id and canvas position) and solve.
+    executor: { executorType: api, apiEndpoint: "POST /api/circuit-lab/designs/{input.designId}/parts" }
+    inputSchema:
+      type: object
+      properties:
+        designId: { type: string }
+        id: { type: string, description: "optional part id such as R1, D1, M1, G2 (minted when omitted)" }
+        type: { type: string, description: "part type from circuit-capabilities" }
+        props: { type: object, description: "properties for the type (defaults fill the rest)" }
+        x: { type: number, description: "canvas x (grid of 20)" }
+        y: { type: number, description: "canvas y (grid of 20)" }
+        rotation: { type: integer, description: "0, 90, 180 or 270" }
+        label: { type: string }
+        run: { type: boolean, description: "solve after the edit (default true)" }
+      required: [designId, type]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: One part per call. If build.ok is false, read build.reason and build.field, correct that field with circuit-update-part — do not add the same part again.
+    routingTags: [circuit, part, add]
+    tags: [circuit-lab, route-backed]
+
+  - name: circuit-update-part
+    displayName: Change a Part
+    type: api
+    category: engineering
+    description: Change a part's properties (merged into the existing ones), position, rotation or label, then solve.
+    executor: { executorType: api, apiEndpoint: "PATCH /api/circuit-lab/designs/{input.designId}/parts/{input.partId}" }
+    inputSchema:
+      type: object
+      properties:
+        designId: { type: string }
+        partId: { type: string, description: "part id from circuit-get-design" }
+        props: { type: object, description: "properties to change (merged)" }
+        x: { type: number }
+        y: { type: number }
+        rotation: { type: integer }
+        label: { type: string }
+        run: { type: boolean }
+      required: [designId, partId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Send only the properties that change. A property set to null clears an optional one (a switch's toggleAtSeconds).
+    routingTags: [circuit, part, update]
+    tags: [circuit-lab, route-backed]
+
+  - name: circuit-remove-part
+    displayName: Remove a Part
+    type: api
+    category: engineering
+    description: Delete one part and every wire touching it, then solve.
+    executor: { executorType: api, apiEndpoint: "DELETE /api/circuit-lab/designs/{input.designId}/parts/{input.partId}" }
+    inputSchema:
+      type: object
+      properties: { designId: { type: string }, partId: { type: string } }
+      required: [designId, partId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Removing a part removes its wires; say which wires went (removedWires in the reply).
+    routingTags: [circuit, part, remove]
+    tags: [circuit-lab, route-backed]
+
+  - name: circuit-connect
+    displayName: Wire Two Pins
+    type: api
+    category: engineering
+    description: Add a wire between two pins (electrical ↔ electrical, shaft ↔ shaft to couple, teeth ↔ teeth to mesh gears) and solve.
+    executor: { executorType: api, apiEndpoint: "POST /api/circuit-lab/designs/{input.designId}/wires" }
+    inputSchema:
+      type: object
+      properties:
+        designId: { type: string }
+        from: { type: object, description: "{part, pin}" }
+        to: { type: object, description: "{part, pin}" }
+        id: { type: string, description: "optional wire id (minted when omitted)" }
+        run: { type: boolean }
+      required: [designId, from, to]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Pin names come from circuit-capabilities (battery + −, LED a k, transistor c b e, MOSFET d g s, motor + − shaft, gear shaft teeth, load shaft). A wire between pins of two kinds is refused naming the wire.
+    routingTags: [circuit, wire, connect, mesh]
+    tags: [circuit-lab, route-backed]
+
+  - name: circuit-disconnect
+    displayName: Remove a Wire
+    type: api
+    category: engineering
+    description: Delete one wire by id and solve.
+    executor: { executorType: api, apiEndpoint: "DELETE /api/circuit-lab/designs/{input.designId}/wires/{input.wireId}" }
+    inputSchema:
+      type: object
+      properties: { designId: { type: string }, wireId: { type: string } }
+      required: [designId, wireId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Wire ids come from circuit-get-design.
+    routingTags: [circuit, wire, disconnect]
+    tags: [circuit-lab, route-backed]
+
+  - name: circuit-run
+    displayName: Run the Simulation
+    type: api
+    category: engineering
+    description: Solve the circuit with the stored transient settings, or new ones (stopSeconds, stepSeconds, startFromRest, and the solver's reltol, gmin and method); the reply carries the readings, the mechanism and the warnings.
+    executor: { executorType: api, apiEndpoint: "POST /api/circuit-lab/designs/{input.designId}/run" }
+    inputSchema:
+      type: object
+      properties:
+        designId: { type: string }
+        stopSeconds: { type: number, description: "how long to simulate" }
+        stepSeconds: { type: number, description: "sample step (null = automatic, 2000 points)" }
+        startFromRest: { type: boolean, description: "true = power applied at t = 0 to a circuit at rest; false = DC steady state" }
+        reltol: { type: number, description: "solver relative tolerance, 1e-6 to 0.05 (null = the lab's 0.003)" }
+        gmin: { type: number, description: "minimum conductance in siemens, 1e-15 to 1e-6 (null = ngspice's 1e-12)" }
+        method: { type: string, enum: [trap, gear], description: "integration method (null = trap); gear for stiff, hard-switched circuits" }
+      required: [designId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Use a stopSeconds a few times the slowest time constant (a motor spins up in tens of ms; an RC with 100 kohm and 100 uF needs seconds). Keep stopSeconds / stepSeconds under 20000 points. Leave reltol / gmin / method unset unless the person asks or a circuit is refused even after the automatic relaxed retry (then try method gear, reltol 0.01, gmin 1e-9) — once any is set the run uses exactly those and no retry overrides them; send null to go back to the defaults.
+    routingTags: [circuit, run, simulate]
+    tags: [circuit-lab, route-backed]
+
+  - name: circuit-restore-run
+    displayName: Restore a Run (undo)
+    type: api
+    category: engineering
+    description: Put back the circuit and settings of an earlier kept run and solve it again — undo to any point in the history; nothing is lost, the restore is itself a new run.
+    executor: { executorType: api, apiEndpoint: "POST /api/circuit-lab/designs/{input.designId}/restore" }
+    inputSchema:
+      type: object
+      properties: { designId: { type: string }, run: { type: integer, description: "a run number from circuit-get-design" } }
+      required: [designId, run]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Use when the person says "undo" or "go back to before the …". Quote the restored run number from the reply (restoredFrom).
+    routingTags: [circuit, undo, restore]
+    tags: [circuit-lab, route-backed]
+
+  - name: circuit-gear-to-cad
+    displayName: Gear to CAD Studio
+    type: api
+    category: engineering
+    description: The exact CAD Studio request for one gear on the canvas — an involute spur-gear outline (teeth, module, pressure angle) extruded by the face width with a bore hole — ready to POST to /api/cad-studio/models so the gear can be printed.
+    executor: { executorType: api, apiEndpoint: "GET /api/circuit-lab/designs/{input.designId}/parts/{input.partId}/gear-profile" }
+    inputSchema:
+      type: object
+      properties: { designId: { type: string }, partId: { type: string, description: "a gear's part id" } }
+      required: [designId, partId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Read faceWidthMm and boreMm from the gear's properties first (circuit-update-part changes them). The reply's cadStudio.body is what CAD Studio's cad-create-model takes; gears above 120 teeth are refused with the reason.
+    routingTags: [gear, cad, print, involute]
+    tags: [circuit-lab, route-backed]
+
+  - name: circuit-driver-catalog
+    displayName: Shaft-driver Catalog
+    type: api
+    category: engineering
+    description: Motors, hobby servos and steppers with a ready nameplate (the exact properties circuit-add-part / circuit-update-part take), their mass and price, and a source line saying where every number came from; filter by type.
+    executor: { executorType: api, apiEndpoint: "GET /api/circuit-lab/catalog/drivers?type={input.type}" }
+    inputSchema:
+      type: object
+      properties: { type: { type: string, description: "motor, servo or stepper (omit for all)" } }
+      required: []
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Copy a row's `nameplate` object into the part's props when the person names a real motor, servo or stepper; quote the row's `source` so they know which numbers are typical rather than measured.
+    routingTags: [motor, servo, stepper, catalog, nameplate]
+    tags: [circuit-lab, route-backed]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon tile opens the lab, self-served by this package's route.
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: circuit-lab
+      label: Circuit Lab
+      icon: codicon codicon-circuit-board
+      iframeUrl: /api/circuit-lab/app
+      section: top
+
+# THE ASSISTANT RAIL (surface-bridge). Without this block the cockpit relay forwards NOTHING for
+# this app (fail-closed). context = the page publishes what it is showing (the open circuit, its
+# parts and wires, the last readings, the selection) so the floating assistant answers about the
+# screen the person is on; custom = Jarvis's `circuit_action` edits land through the same routes
+# the canvas uses; notify = it can confirm in the surface.
+surface:
+  ops: [context, custom, notify]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — compiled JS bundled in this package, mounted in-process. OIDC only.
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/circuit-lab/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/circuit-lab/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/circuit-lab-routes.js
+    factory: createCircuitLabRoutes
+    mountPath: /api/circuit-lab
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+# The app's own schema (designs, runs) with owner RLS, applied on install.
+migrations:
+  - migrations/001-circuit-lab.sql
+  - migrations/002-circuit-lab-board.sql
+
+# The right-rail chat agent when this app is focused.
+chatBot: circuit-lab-engineer
+
+# RIBBON VISIBILITY — focus mode for /cockpit?app=circuit-lab (chat panel stays: the concierge
+# is how the person edits by talking).
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  defaultView: circuit-lab
+
+summary:
+  path: /api/circuit-lab/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a lab note
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

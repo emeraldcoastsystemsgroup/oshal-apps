@@ -1,5 +1,6 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — sports-edge ("Sports Edge")
+# 0.7.1 | maintainer@emeraldcoastsystemsgroup.com | Add provider-derived coach subjects through the existing World cooldown and register every offline package suite.
 #
 # An odds maker you point at ONE TEAM. Operator, 2026-09-06, after seeing the broad-sweep design:
 # "this isn't a broad market sweep ... pick a team and fan out from there. first follow the players
@@ -81,8 +82,12 @@ description: >-
   allowed to stake anything. The Fantasy tab reads your ESPN league, scores ESPN'''s raw projections
   with YOUR league'''s own rules, and sets the lineup with the best chance of beating the team you
   actually play that week — which is not always the highest-projected one.
-version: 0.7.0
+version: 0.7.1
 status: active
+uses: [test-catalog, app-dependencies]
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 
 source:
   type: git-subdir
@@ -106,11 +111,16 @@ smoke:
 # ONE connector, and only for a private fantasy league. Every other read this package makes is an
 # unauthenticated public GET, so there is nothing to broker and nothing for a model to be handed.
 dependencies:
-  apps: []
-  tools: []
-  # The ESPN Fantasy cookies (SWID + espn_s2) for reading a PRIVATE league. Everything else this
-  # package does — every team model, and the whole fantasy projection feed — needs no credential.
-  connectors: [espn-fantasy]
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    # The ESPN Fantasy cookies (SWID + espn_s2) for reading a PRIVATE league. Everything else this
+    # package does — every team model, and the whole fantasy projection feed — needs no credential.
+    connectors: [espn-fantasy]
 
 theme: midnight
 

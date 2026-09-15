@@ -1,1 +1,1 @@
-Compiled-JS Express routes (see BUILD.md). Named + wired by oshal-app.yaml → routes[].
+Compiled package routes. Build against actual core exports using the canonical compiler in BUILDING-EXTENSIONS.md section 5. See ../AUTHORIZATION.md for permissions and ownership; standalone ambient declarations are not the publishing gate.

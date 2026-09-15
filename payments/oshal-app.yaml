@@ -60,11 +60,17 @@ smoke:
 # MOUNT time, not at compile time. See docs/apps/kernel-skills.md.
 uses:
   - payments         # payments-routes.js calls the kernel payments engine (ADR-093: only the surface carved)
+  - app-dependencies # compatibility floor for the tiered dependencies block (ADR-085 addendum)
 
 dependencies:
-  apps: []
-  tools: []
-  connectors: [square, paypal]
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: [square, paypal]
 
 # Guests never reach the charge surface (was hardcoded core Tier-C pre-carve).
 # Declaring it here is a REQUEST (ADR-085 D4) — the unapproved default already

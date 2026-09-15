@@ -3,7 +3,7 @@
 Open work on the packaged odds maker. Every entry has a done-when so scope does not have to be
 guessed later.
 
-**Posture (v0.6.0).** The package ships and runs. It follows a team, builds a line from Elo +
+**Posture (v0.7.1).** The package ships and runs. It follows a team, builds a line from Elo +
 schedule-adjusted power ratings + an offence-versus-defence unit matchup, adjusts for injuries by
 each player's real share of production, compares that line to DraftKings' moneyline and spread, and
 registers every call before kickoff. Line capture is live and change-only. The fantasy half now sets
@@ -39,17 +39,34 @@ Brier and MAE is written into the README beside the existing walk-forward table;
 ensemble only if it improves the control. A negative result closes this entry just as well as a
 positive one — record it and remove the ingest cost.
 
-## B. Coach subjects are defined but never pulled
+## B. Coach subjects from the followed team's ESPN response — implemented in 0.7.1
 
-`coachSubject` / `coachEntityId` exist and are guarded, and `refreshWorld` never calls them. The
-reason is plain: the package has no coach source wired. ESPN's team endpoint carries a coaching
-staff, but it is not read anywhere today, and inventing a name from a hardcoded table is exactly the
-kind of thing that goes stale silently and then poisons an archive under a wrong id.
+The old premise that the bare ESPN team endpoint contains `coaches` was stale. `refreshWorld` now
+reads the existing public roster endpoint, `/teams/{id}/roster`, using the followed row's stored
+team ID when that team's persistent six-hour cooldown is due. The response's top-level `coach`
+array supplies staff; its `team.id` and `team.abbreviation` must both match, and ESPN's team label
+supplies coach-query context. Conflicting stored IDs for one shared team omit coach discovery
+deterministically. It accepts an explicitly identified
+head coach or ESPN's single unlabelled coach entry, and refuses ambiguous staff, mismatched team
+IDs and unusable names. No name table or fallback coach is shipped.
 
-**Done when:** the head coach for a followed team is read from ESPN's team endpoint (not typed into
-this repo), a `world:person:<slug>` subject is pulled on the same cool-down as the team, and a guard
-proves that a team with no coach in the response produces NO subject rather than one named
-`world:person:` or `world:person:undefined`.
+The resulting `world:person:<slug>` uses the same World service, news/social feeds, pull ledger and
+pass budget as the team. A changed coach is discovered on the next team cycle; the old person's
+archive remains historical. Missing coach data creates no person subject. World-disabled
+deployments make no coach request. Public archive sharing and each user's followed-team ownership
+are unchanged; private Fantasy credentials never enter this public read.
+
+**Provider contract:** normal public reads on 2026-09-11 confirmed the singular array and nested
+team identity in the [NFL roster](https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/12/roster)
+and [NBA roster](https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/2/roster).
+College-football public roster reads were unavailable during verification; it retains the same
+defensive reader through the existing league mapping, with no subject when staff is absent.
+
+**Evidence:** eleven new unit cases exercise the actual compiled refresh, ESPN client
+and store functions with synthetic HTTP, World and persistence ports. All eleven package suites
+are registered in `tests/test-lab.yaml`; these fixture results are separate from the public schema
+check and do not claim live World ingestion or deployed acceptance. The separate wire-to-model
+work in A remains open.
 
 ## C. "The day the lines come out" is approximated, not known
 

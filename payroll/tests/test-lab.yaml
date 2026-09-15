@@ -1,0 +1,346 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped Node test suite with exact files and honest fixture boundaries; retain readiness smoke identity.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Retain the existing metadata-only installation probe without running a business workflow.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed payroll metadata satisfies its existing manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: payroll-ach-returns
+    name: ACH returns and notifications
+    purpose: Parse synthetic return and notification records using the compiled ACH module.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/payroll-ach-returns.test.mjs
+    expected:
+      - Return and NOC codes retain their distinct meanings and field layouts.
+      - Malformed records are refused and generated trace numbers round-trip through return parsing.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: payroll-calendar
+    name: Versioned payroll calendars
+    purpose: Exercise the compiled banking and tax-deposit calendars against fixed-year vectors.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/payroll-calendar.test.mjs
+    expected:
+      - Federal Reserve and IRS holiday rules produce their separately expected dates.
+      - Deposit and pay-date calculations handle year boundaries and flag unverified years.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: payroll-checks
+    name: Check artifacts and numbering
+    purpose: Build synthetic check artifacts with in-memory numbering and vault stubs.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/payroll-checks.test.mjs
+    expected:
+      - Amounts in words agree with cents and invalid negative payments are refused.
+      - Number allocation uses its atomic contract; bank data stays masked and no MICR line is invented.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: payroll-efw2
+    name: EFW2 file invariants
+    purpose: Build electronic wage-report text in memory from synthetic employee records.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/payroll-efw2.test.mjs
+    expected:
+      - Fixed-width records, reserved fields and aggregate totals match the finished output.
+      - Unverified tax years, missing identities and invalid Social Security numbers prevent an export.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: payroll-engine
+    name: Payroll calculation known answers
+    purpose: Run hand-derived withholding, FICA, overtime and deduction vectors through the compiled engine.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/payroll-engine.test.mjs
+    expected:
+      - Tax bases, wage caps, supplemental pay and garnishment limits produce the expected cents.
+      - Negative or non-finite inputs are refused and gross, deductions and net reconcile.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: payroll-forms
+    name: Federal payroll worksheets
+    purpose: Exercise compiled 941, 940 and W-2 calculations with synthetic ledger and vault seams.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/payroll-forms.test.mjs
+    expected:
+      - Combined FICA, additional Medicare and per-employee FUTA bases reconcile to ledger amounts.
+      - W-2 readiness and code rules refuse missing identity and exclude prior-provider entries as designed.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: payroll-grossup
+    name: Gross-up round trips
+    purpose: Find gross pay through the actual compiled payroll calculation using deterministic target nets.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/payroll-grossup.test.mjs
+    expected:
+      - Computed gross reaches the requested net at the minimum cent boundary.
+      - Wage caps are respected and unsupported garnishment scenarios are refused.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: payroll-identity
+    name: Identity masking and confirmation
+    purpose: Call compiled identity handlers with synthetic router, pool and reversible test-only vault stubs.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/payroll-identity.test.mjs
+    expected:
+      - Sensitive identifiers validate, seal idempotently and remain masked in normal responses and audits.
+      - Full reveal requires explicit confirmation and its audit path before disclosure.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: payroll-nacha
+    name: NACHA file invariants
+    purpose: Build and independently read synthetic ACH text entirely in memory.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/payroll-nacha.test.mjs
+    expected:
+      - Record lengths, block padding, entry hashes and control totals agree with finished records.
+      - >-
+        Trace numbers, account-type codes and prenotes are correct; invalid routing or zero payments refuse
+        output.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: payroll-payrun
+    name: Pay-run assembly
+    purpose: Assemble synthetic earnings and deductions through compiled modules with framework ports stubbed.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/payroll-payrun.test.mjs
+    expected:
+      - >-
+        Overtime is per workweek, weighted regular rates include required pay and taxable-but-unpaid income
+        stays distinct.
+      - >-
+        Deduction priority, shared annual caps, arrears and the cash identity hold across constrained-net
+        cases.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: payroll-routes
+    name: Pay-run handler boundaries
+    purpose: Invoke compiled handlers through a fake router and recording pool without HTTP or a database.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/payroll-routes.test.mjs
+    expected:
+      - Anonymous access and missing irreversible-action confirmation stop before database calls.
+      - Owner predicates and paid-run immutability hold; shipped inline scripts parse.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: payroll-rt6
+    name: Florida RT-6 worksheet
+    purpose: Calculate a synthetic state worksheet with fixed-year values and a scripted query pool.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/payroll-rt6.test.mjs
+    expected:
+      - Per-employee year-to-date wage bases and accrued-tax reconciliation match known values.
+      - >-
+        Rate, identity, penalty and interest checks refuse unsupported output, including an invented OCR
+        scanline.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: payroll-settle-routes
+    name: Settlement handler boundaries
+    purpose: Invoke compiled settlement handlers using a synthetic router, pool and vault.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/payroll-settle-routes.test.mjs
+    expected:
+      - NOC changes, electronic reports and check allocation require literal confirmation.
+      - >-
+        Normal ACH generation records matching traces, prenotes preserve their distinct behavior and
+        unauthenticated calls refuse.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never

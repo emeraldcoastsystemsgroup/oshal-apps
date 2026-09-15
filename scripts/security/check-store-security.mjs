@@ -7,16 +7,18 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Enforce a complete app-route auth/machine-write inventory and source/compiled route parity for SEC-06.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Replace the formatting-dependent route scanner with a fail-closed parser for the runtime loader's flat routes schema.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Parse the runtime requiresAi route flag so CORE-05 service-only readiness mounts remain inside the reviewed machine-route ledger; preserve the three reviewed pre-source legacy route modules when those packages gain a smoke source.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Recognize the known completed-task writer call without claiming generic transitive write analysis.
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { basename, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const AUTH_MODES = new Set(['oidc', 'service', 'service-or-oidc', 'operator', 'public']);
 const ROUTE_FIELDS = new Set(['module', 'factory', 'mountPath', 'auth', 'requiresAuth', 'requiresContext', 'requiresAi']);
 const MACHINE_WRITE = /\b(?:INSERT\s+INTO|UPDATE\s+[a-z_"`]|DELETE\s+FROM|CREATE\s+(?:OR\s+REPLACE\s+)?(?:TABLE|VIEW)|ALTER\s+TABLE|DROP\s+(?:TABLE|VIEW)|TRUNCATE)\b/i;
+const COMPLETED_TASK_WRITE = /\bsaveCompletedBriefing\s*\(/;
 const REVIEWED_LEGACY_COMPILED_ONLY = new Set([
   'dnd/routes/dnd-routes.js',
   'game-show/routes/game-show-routes.js',
@@ -284,6 +286,40 @@ function sourceFor(packageDir, modulePath) {
   return REVIEWED_LEGACY_COMPILED_ONLY.has(legacyKey) ? null : source;
 }
 
+/**
+ * @description Every package-local module a route module pulls in, transitively. A route that
+ * delegates its SQL to a sibling module writes just as much as one that inlines it, so the write
+ * classification has to read what the route actually reaches. Bounded to the package's own
+ * routes/ and src-routes/ directories: a framework import is not a package file and is never read.
+ * @param packageDir - The package root.
+ * @param entry - Absolute path of the route module (compiled or source).
+ * @returns Absolute paths of the local modules it imports, transitively, excluding the entry.
+ */
+function localImportClosure(packageDir, entry) {
+  const roots = [join(packageDir, 'routes'), join(packageDir, 'src-routes')];
+  const seen = new Set([entry]);
+  const out = [];
+  const queue = [entry];
+  while (queue.length) {
+    const file = queue.shift();
+    let body;
+    try { body = readFileSync(file, 'utf8'); } catch { continue; }
+    const specifiers = [...body.matchAll(/(?:require\(|from\s*)['"](\.[^'"]+)['"]/g)].map((m) => m[1]);
+    for (const specifier of specifiers) {
+      const base = resolve(dirname(file), specifier);
+      const candidates = [base, `${base}.js`, `${base}.ts`];
+      const target = candidates.find((candidate) => existsSync(candidate) && statSync(candidate).isFile());
+      if (!target) continue;
+      const inPackage = roots.some((root) => !relative(root, target).startsWith('..'));
+      if (!inPackage || seen.has(target)) continue;
+      seen.add(target);
+      out.push(target);
+      queue.push(target);
+    }
+  }
+  return out;
+}
+
 /** @description Verify every source route has a compiled counterpart and valid JavaScript syntax. */
 function assertCompiledParity(packageDir) {
   const sourceRoot = join(packageDir, 'src-routes');
@@ -318,7 +354,13 @@ export function routeInventory(root = process.cwd()) {
           throw new Error(`${packageName}/${route.module} does not define ${route.factory}`);
         }
       }
-      const writeClass = bodies.some((body) => MACHINE_WRITE.test(body)) ? 'machine-write' : 'no-sql-write';
+      // The factory assertion above reads the ENTRY bodies only; the write class reads everything
+      // the route reaches inside its own package, so splitting a large route module into siblings
+      // cannot silently downgrade machine-write to no-sql-write.
+      const reached = [compiled, ...(source ? [source] : [])]
+        .flatMap((file) => localImportClosure(packageDir, file))
+        .map((file) => readFileSync(file, 'utf8'));
+      const writeClass = [...bodies, ...reached].some((body) => MACHINE_WRITE.test(body) || COMPLETED_TASK_WRITE.test(body)) ? 'machine-write' : 'no-sql-write';
       inventory.push([packageName, route.module, route.factory, route.mountPath, route.auth, writeClass].join('|'));
     }
   }

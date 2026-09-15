@@ -1,0 +1,63 @@
+# Embodied physics engine -- its OWN compose project (never the core stack's: a core deploy's
+# --remove-orphans would sweep it), joined to the stack network under the alias the api's
+# plant client dials. No host port: only containers on the stack network can reach the bridge.
+name: oshal-embodied-engine
+services:
+  embodied-engine:
+    image: oshal-embodied-engine:local
+    container_name: oshal-embodied-engine
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=2g,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: ${EMBODIED_ENGINE_MEM_LIMIT:-2g}
+    # The node rail (ADR-099, B20): with the swarm service secret the plant heartbeats into the api's package route
+    # (POST /api/embodied/nodes/heartbeat) and accepts command envelopes at 7414, the shape of the core drone node;
+    # without it only the JSON-lines bridge serves. install-engine.sh runs inside the api container and passes the
+    # secret from that environment -- it is never written to a file.
+    environment:
+      SWARM_SERVICE_SECRET: ${SWARM_SERVICE_SECRET:-}
+      OSHAL_API_URL: ${EMBODIED_API_URL:-http://oshal-api:5000}
+      EMBODIED_NODE_ID: ${EMBODIED_NODE_ID:-embodied-plant}
+      # The person the node belongs to (ADR-114): the sub its heartbeats carry as the trusted service user identity.
+      EMBODIED_NODE_OWNER_SUB: ${EMBODIED_NODE_OWNER_SUB:-}
+      EMBODIED_NODE_ENDPOINT: http://embodied-engine:7414
+      # The PX4 node (B6): set by install-engine.sh --with-px4; the vehicle is the px4 service below.
+      EMBODIED_PX4_ADDR: ${EMBODIED_PX4_ADDR:-}
+      EMBODIED_PX4_NODE_ENDPOINT: http://embodied-engine:7415
+    labels:
+      oshal.app: embodied
+    networks:
+      oshal:
+        aliases:
+          - embodied-engine
+  # The flight stack (B6): the official Dronecode PX4 SITL image with its SIH physics, started only with --profile px4.
+  # No host port; the engine's PX4 node reaches it as embodied-px4. The image's entrypoint aims every MAVLink link at
+  # host.docker.internal when that name resolves (Docker Desktop), which is the host, not the node: the px4 binary runs
+  # directly so the vehicle answers the first partner it hears -- the node. stdin stays open or the pxh shell spins on EOF.
+  embodied-px4:
+    image: px4io/px4-sitl:latest
+    container_name: oshal-embodied-px4
+    entrypoint: ["/opt/px4/bin/px4"]
+    stdin_open: true
+    restart: unless-stopped
+    init: true
+    profiles: [px4]
+    environment:
+      PX4_SIM_MODEL: sihsim_quadx
+    labels:
+      oshal.app: embodied
+    networks:
+      oshal:
+        aliases:
+          - embodied-px4
+networks:
+  oshal:
+    external: true
+    name: ${OSHAL_NETWORK:-oshal-local_oshal}

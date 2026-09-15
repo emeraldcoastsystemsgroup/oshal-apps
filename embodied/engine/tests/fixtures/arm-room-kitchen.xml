@@ -1,0 +1,89 @@
+<mujoco model="embodied-arm-room-desk-6">
+  <compiler angle="radian" autolimits="true"/>
+  <option timestep="0.002" integrator="implicitfast" gravity="0 0 -9.81"/>
+  <default><geom contype="1" conaffinity="1" friction="0.8 0.01 0.001"/><default class="scene"><geom contype="1" conaffinity="1" friction="0.8 0.005 0.0001" rgba="0.6 0.6 0.65 1"/></default></default>
+  <worldbody>
+    <light pos="0 0 2" dir="0 0 -1"/>
+    <geom name="counter-left" class="scene" type="box" pos="0.675 3.7 0.45" size="0.275 0.3 0.45"/>
+    <geom name="sink-basin" class="scene" type="box" pos="1.275 3.7 0.36" size="0.325 0.3 0.36"/>
+    <geom name="counter-right" class="scene" type="box" pos="2.6 3.7 0.45" size="1 0.3 0.45"/>
+    <geom name="fridge-base" class="scene" type="box" pos="4.1 3.6 0.2" size="0.4 0.4 0.2"/>
+    <geom name="fridge-left-wall" class="scene" type="box" pos="3.725 3.6 0.9" size="0.025 0.4 0.9"/>
+    <geom name="fridge-right-wall" class="scene" type="box" pos="4.475 3.6 0.9" size="0.025 0.4 0.9"/>
+    <geom name="fridge-back" class="scene" type="box" pos="4.1 3.975 0.9" size="0.4 0.025 0.9"/>
+    <geom name="fridge-top" class="scene" type="box" pos="4.1 3.6 1.775" size="0.4 0.4 0.025"/>
+    <geom name="fridge-shelf-slab" class="scene" type="box" pos="4.1 3.625 1.19" size="0.35 0.325 0.01"/>
+    <geom name="island" class="scene" type="box" pos="2.4 2 0.45" size="0.6 0.4 0.45"/>
+    <geom name="fridge-door" class="scene" type="box" pos="3.725 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.1" class="scene" type="box" pos="3.775 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.2" class="scene" type="box" pos="3.825 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.3" class="scene" type="box" pos="3.875 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.4" class="scene" type="box" pos="3.925 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.5" class="scene" type="box" pos="3.975 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.6" class="scene" type="box" pos="4.025 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.7" class="scene" type="box" pos="4.075 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.8" class="scene" type="box" pos="4.125 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.9" class="scene" type="box" pos="4.175 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.10" class="scene" type="box" pos="4.225 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.11" class="scene" type="box" pos="4.275 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.12" class="scene" type="box" pos="4.325 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.13" class="scene" type="box" pos="4.375 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.14" class="scene" type="box" pos="4.425 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="plate-1" class="scene" type="box" pos="1.1 3.56 0.73" size="0.13 0.13 0.01"/>
+    <geom name="plate-2" class="scene" type="box" pos="1.43 3.7 0.73" size="0.13 0.13 0.01"/>
+    <geom name="mug-1" class="scene" type="box" pos="1.1 3.8 0.77" size="0.045 0.045 0.05"/>
+    <geom name="milk-1" class="scene" type="box" pos="4.3 3.45 1.3" size="0.035 0.035 0.1"/>
+    <geom name="floor" class="scene" type="box" pos="2.5 2 -0.025" size="2.5 2 0.025"/>
+    <geom name="wall-south" class="scene" type="box" pos="2.5 -0.025 1.15" size="2.5 0.025 1.15"/>
+    <geom name="wall-north" class="scene" type="box" pos="2.5 4.025 1.15" size="2.5 0.025 1.15"/>
+    <geom name="wall-west" class="scene" type="box" pos="-0.025 2 1.15" size="0.025 2 1.15"/>
+    <geom name="wall-east" class="scene" type="box" pos="5.025 2 1.15" size="0.025 2 1.15"/>
+    <geom name="ceiling" class="scene" type="box" pos="2.5 2 2.325" size="2.5 2 0.025"/>
+    <body name="arm-base" pos="0.9 1.4 0.3" quat="0.707107 0 0 0.707107">
+      <geom name="base" type="cylinder" pos="0 0 0.026" size="0.06 0.026" contype="0" conaffinity="0" rgba="0.4 0.4 0.4 1"/>
+      <body name="link1" pos="0 0 0" quat="1 0 0 0">
+        <joint name="j1" type="hinge" axis="0 0 1" range="-2.617994 2.617994" armature="0.01" damping="0.623686"/>
+        <geom name="link1" type="capsule" fromto="0 0 0 0 0 0.11" size="0.017" mass="0.341" rgba="0.85 0.55 0.2 1"/>
+        <body name="link2" pos="0 0 0.11" quat="0.707107 0.707107 0 0">
+          <joint name="j2" type="hinge" axis="0 0 1" range="-1.745329 1.745329" armature="0.02" damping="1.247373"/>
+          <geom name="link2" type="capsule" fromto="0 0 0 0.16 0 0" size="0.017" mass="0.158" rgba="0.85 0.55 0.2 1"/>
+          <body name="link3" pos="0.16 0 0" quat="1 0 0 0">
+            <joint name="j3" type="hinge" axis="0 0 1" range="-4.18879 1.047198" armature="0.01" damping="0.623686"/>
+            <geom name="link3" type="sphere" size="0.021" mass="0.094" rgba="0.85 0.55 0.2 1"/>
+            <body name="link4" pos="0 0 0" quat="0.707107 -0.707107 0 0">
+              <joint name="j4" type="hinge" axis="0 0 1" range="-2.617994 2.617994" armature="0.01" damping="0.623686"/>
+              <geom name="link4" type="capsule" fromto="0 0 0 0 0 0.16" size="0.017" mass="0.076" rgba="0.85 0.55 0.2 1"/>
+              <body name="link5" pos="0 0 0.16" quat="0.707107 0.707107 0 0">
+                <joint name="j5" type="hinge" axis="0 0 1" range="-2.356194 2.356194" armature="0.01" damping="0.623686"/>
+                <geom name="link5" type="sphere" size="0.021" mass="0.149" rgba="0.85 0.55 0.2 1"/>
+                <body name="link6" pos="0 0 0" quat="0.707107 -0.707107 0 0">
+                  <joint name="j6" type="hinge" axis="0 0 1" range="-2.96706 2.96706" armature="0.01" damping="0.623686"/>
+                  <geom name="link6-mass" type="capsule" fromto="0 0 0 0 0 0.095" size="0.017" mass="0.143" contype="0" conaffinity="0" rgba="0.85 0.55 0.2 0.35"/>
+      <geom name="link6" type="capsule" fromto="0 0 0 0 0 0.045" size="0.017" mass="0.000001" rgba="0.85 0.55 0.2 1"/>
+                  <geom name="palm" type="box" pos="0 0 0.037" size="0.03 0.02 0.012" mass="0.001" rgba="0.3 0.3 0.3 1"/>
+                  <geom name="jaw-fixed" type="box" pos="-0.0265 0 0.07" size="0.004 0.008 0.025" mass="0.001" friction="1.2 0.02 0.001" condim="4" rgba="0.2 0.2 0.2 1"/>
+                  <body name="jaw" pos="0.0265 0 0.04">
+                    <joint name="grip" type="hinge" axis="0 1 0" range="-0.6 0.05" damping="0.05" armature="0.01"/>
+                    <geom name="jaw-moving" type="box" pos="0 0 0.0275" size="0.004 0.008 0.0275" mass="0.001" friction="1.2 0.02 0.001" condim="4" rgba="0.2 0.2 0.2 1"/>
+                  </body>
+                  <site name="tcp" pos="0 0 0.095" size="0.004" rgba="1 0 0 1"/>
+                  <body name="payload" pos="0 0 0.095"><geom name="payload" type="sphere" size="0.005" mass="0.000001" contype="0" conaffinity="0" rgba="0 0 1 0.3"/></body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <contact><exclude body1="world" body2="link1"/><exclude body1="link1" body2="link2"/><exclude body1="link1" body2="link3"/><exclude body1="link1" body2="link4"/><exclude body1="link1" body2="link5"/><exclude body1="link1" body2="link6"/><exclude body1="link1" body2="jaw"/><exclude body1="link2" body2="link3"/><exclude body1="link2" body2="link4"/><exclude body1="link2" body2="link5"/><exclude body1="link2" body2="link6"/><exclude body1="link2" body2="jaw"/><exclude body1="link3" body2="link4"/><exclude body1="link3" body2="link5"/><exclude body1="link3" body2="link6"/><exclude body1="link3" body2="jaw"/><exclude body1="link4" body2="link5"/><exclude body1="link4" body2="link6"/><exclude body1="link4" body2="jaw"/><exclude body1="link5" body2="link6"/><exclude body1="link5" body2="jaw"/><exclude body1="link6" body2="jaw"/><exclude body1="arm-base" body2="link1"/></contact>
+  <actuator>
+    <position name="j1" joint="j1" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-2.617994 2.617994"/>
+    <position name="j2" joint="j2" kp="117.6798" forcelimited="true" forcerange="-5.88399 5.88399" ctrlrange="-1.745329 1.745329"/>
+    <position name="j3" joint="j3" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-4.18879 1.047198"/>
+    <position name="j4" joint="j4" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-2.617994 2.617994"/>
+    <position name="j5" joint="j5" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-2.356194 2.356194"/>
+    <position name="j6" joint="j6" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-2.96706 2.96706"/>
+    <position name="grip" joint="grip" kp="1.5" forcelimited="true" forcerange="-0.15 0.15" ctrlrange="-0.6 0.05"/>
+  </actuator>
+</mujoco>

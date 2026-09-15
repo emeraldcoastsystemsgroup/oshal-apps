@@ -1,0 +1,183 @@
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Give existing Career screens a common identity using the current portal palette, keeping document previews and workflows intact.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Give Job Board and open search a shared responsive workspace with readable results and bounded optional controls.
+ */
+
+/* These are aliases, not another palette or a saved preference. The shared surface
+   bridge supplies the active portal or explicitly selected application colors. */
+:root[data-career-surface] {
+  --career-brand-accent: var(--accent-primary);
+  --bg: var(--bg-primary);
+  --bg2: var(--bg-secondary);
+  --page: var(--bg-primary);
+  --panel: var(--bg-secondary);
+  --panel2: var(--bg-tertiary);
+  --card: var(--bg-card);
+  --card2: var(--bg-card-hover);
+  --control: var(--bg-secondary);
+  --hover: var(--bg-card-hover);
+  --line: var(--border-color);
+  --border: var(--border-color);
+  --ink: var(--text-primary);
+  --text: var(--text-primary);
+  --muted: var(--text-secondary);
+  --sub: var(--text-secondary);
+  --accent: var(--career-brand-accent);
+  --navy: var(--career-brand-accent);
+  --navy2: var(--accent-primary-hover);
+  --teal: var(--career-brand-accent);
+  --accent2: var(--status-success);
+  --green: var(--status-success);
+  --good: var(--status-success);
+  --red: var(--status-error);
+  --bad: var(--status-error);
+  --danger: var(--status-error);
+  --warn: var(--status-warning);
+  --amber: var(--status-warning);
+  --on-accent: var(--text-on-accent, #fff);
+  --teal-ink: var(--text-on-accent, #fff);
+}
+
+html[data-career-surface], html[data-career-surface] body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+html[data-career-surface] body {
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Brand the screen's heading, never the resume paper or an embedded document. */
+html[data-career-surface] :is(.wrap > h1, main > header > h1, body > header > h1) {
+  letter-spacing: -.025em;
+  font-weight: 650;
+  border-inline-start: 3px solid var(--career-brand-accent);
+  padding-inline-start: 11px;
+}
+
+html[data-career-surface] :is(button.primary, .btn.primary, .tab.active) {
+  background: var(--career-brand-accent);
+  border-color: var(--career-brand-accent);
+  color: var(--text-on-accent, #fff);
+}
+
+html[data-career-surface] .tab.active .n { color: inherit; }
+html[data-career-surface] .btn.submit:hover { color: var(--text-on-accent, #fff); }
+html[data-career-surface] :is(input, select, textarea) { accent-color: var(--career-brand-accent); }
+html[data-career-surface] :is(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--career-brand-accent);
+  outline-offset: 3px;
+}
+
+html[data-career-surface] .application-proof.proof-manual { border-color: var(--accent-primary); }
+html[data-career-surface] .application-proof.proof-worker { border-color: var(--status-warning); }
+html[data-career-surface] .application-proof.proof-confirmation { border-color: var(--status-success); }
+html[data-career-surface] .application-proof.proof-unverified { border-color: var(--status-error); }
+
+/* The analytics bar has one fill so the palette's on-accent ink stays readable. */
+html[data-career-surface="insights-ui"] .frow .bar {
+  background: var(--career-brand-accent);
+  color: var(--text-on-accent, #fff);
+}
+
+/* Only these two job surfaces change layout; studios and document previews keep theirs. */
+html:is([data-career-surface="board-native"], [data-career-surface="search-ui"]) .wrap {
+  max-width: 1280px;
+  padding: 26px 28px 56px;
+}
+.career-intro { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-bottom: 24px; }
+.career-intro > div { min-width: 0; }
+.career-intro h1 { margin: 0; font-size: 28px; letter-spacing: -.035em; line-height: 1.2; font-weight: 650; }
+.career-intro .sub { margin: 8px 0 0; max-width: 620px; font-size: 13px; line-height: 1.5; }
+.career-eyebrow { margin: 0 0 9px; color: var(--accent-primary); font-size: 11px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; }
+.career-view-nav { display: flex; flex-shrink: 0; gap: 4px; padding: 4px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; }
+.career-view-nav > :is(a, span) { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.career-view-nav a { color: var(--accent-primary); text-decoration: none; }
+.career-view-nav a:hover { background: var(--bg-card-hover); }
+.career-view-nav [aria-current="page"] { color: var(--text-primary); background: var(--bg-primary); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+
+html[data-career-surface="board-native"] .tabs { gap: 6px; margin-bottom: 16px; }
+html[data-career-surface="board-native"] .tab { min-height: 36px; padding: 7px 13px; font-size: 12px; }
+html[data-career-surface="board-native"] .career-board-filters { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px; gap: 12px; align-items: end; margin-bottom: 16px; }
+html[data-career-surface="board-native"] .career-board-filters label { display: flex; flex-direction: column; align-items: stretch; gap: 6px; font-size: 12px; }
+html[data-career-surface="board-native"] .career-board-filters .career-query { flex: 1; min-width: 220px; }
+.career-board-more { flex-shrink: 0; }
+.career-board-more > summary { display: none; }
+.career-board-filter-fields { display: flex; gap: 12px; align-items: end; }
+html[data-career-surface="board-native"] .career-board-filters input[type="search"] { width: 100%; min-width: 0; }
+html[data-career-surface="board-native"] .career-board-filters :is(input[type="search"], select) { min-height: 39px; font-size: 13px; background: var(--bg-primary); }
+html[data-career-surface="board-native"] .career-board-filters label:has(input[type="checkbox"]) { flex-direction: row; align-items: center; align-self: center; margin-top: 16px; }
+html[data-career-surface="board-native"] .countrow { display: block; margin-bottom: 16px; }
+html[data-career-surface="board-native"] .count { font-size: 13px; margin: 0 0 10px; }
+html[data-career-surface="board-native"] .bulk { padding: 10px 0; gap: 10px; border-top: 1px solid var(--border-color); }
+html[data-career-surface="board-native"] .nodepick { gap: 7px; }
+html[data-career-surface="board-native"] #workerHint { margin-right: auto; }
+.career-submit-tools { min-width: 0; }
+.career-submit-tools > summary { padding: 8px 0; font-size: 12px; font-weight: 600; }
+.career-submit-tools[open] { flex-basis: 100%; }
+.career-submit-content { display: flex; gap: 8px; flex-wrap: wrap; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; }
+.career-submit-content .rules { flex-basis: 100%; margin: 0; }
+.career-submit-content .howto { width: 100%; min-width: 0; }
+html[data-career-surface="board-native"] .card { background: var(--bg-primary); padding: 20px; margin-bottom: 12px; border-radius: 14px; }
+html[data-career-surface="board-native"] .top > div:first-child { min-width: 0; }
+html[data-career-surface="board-native"] .title { font-size: 17px; line-height: 1.4; overflow-wrap: anywhere; }
+html[data-career-surface="board-native"] .co { font-size: 13px; margin-top: 4px; }
+html[data-career-surface="board-native"] .scores { padding-left: 16px; border-left: 1px solid var(--border-color); gap: 18px; }
+html[data-career-surface="board-native"] .scores .v { font-size: 21px; line-height: 1.25; }
+html[data-career-surface="board-native"] .scores .l { font-size: 10px; }
+html[data-career-surface="board-native"] .meta { margin-top: 12px; line-height: 1.5; }
+html[data-career-surface="board-native"] .acts { padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--border-color); }
+html[data-career-surface="board-native"] .btn { min-height: 34px; padding: 7px 11px; }
+
+html[data-career-surface="search-ui"] .cols { grid-template-columns: 272px minmax(0, 1fr); gap: 24px; }
+html[data-career-surface="search-ui"] .rail { padding: 0 16px 12px; top: 16px; }
+html[data-career-surface="search-ui"] .railhead { padding: 15px 0 12px; }
+html[data-career-surface="search-ui"] .grp { padding: 13px 0; }
+html[data-career-surface="search-ui"] .grp > label { font-size: 11px; font-weight: 600; }
+html[data-career-surface="search-ui"] .grp input[type="search"], html[data-career-surface="search-ui"] .grp select { min-height: 40px; }
+.career-search-filters > summary { display: none; }
+html[data-career-surface="search-ui"] .job { background: var(--bg-primary); border-radius: 14px; padding: 20px; margin-bottom: 12px; }
+html[data-career-surface="search-ui"] .job h2 { font-size: 18px; line-height: 1.4; overflow-wrap: anywhere; }
+html[data-career-surface="search-ui"] .co { margin-top: 5px; font-size: 13px; }
+html[data-career-surface="search-ui"] .meta { margin-top: 13px; line-height: 1.5; }
+html[data-career-surface="search-ui"] .acts { border-top: 1px solid var(--border-color); padding-top: 14px; margin-top: 14px; }
+html[data-career-surface="search-ui"] .btn { min-height: 36px; padding: 8px 12px; }
+html[data-career-surface="search-ui"] .chip { max-width: 100%; overflow-wrap: anywhere; }
+
+@media (max-width: 1000px) {
+  .career-intro { align-items: flex-start; gap: 18px; flex-wrap: wrap; }
+}
+@media (max-width: 820px) {
+  html:is([data-career-surface="board-native"], [data-career-surface="search-ui"]) .wrap { padding: 20px 16px 40px; }
+  .career-intro { margin-bottom: 20px; }
+  .career-intro h1 { font-size: 25px; }
+  .career-view-nav { max-width: 100%; }
+  html[data-career-surface="search-ui"] .cols { grid-template-columns: 1fr; gap: 18px; }
+  html[data-career-surface="search-ui"] .rail { position: static; }
+  .career-search-filters > summary { display: list-item; padding: 12px 0; font-size: 13px; font-weight: 600; }
+  .career-search-filters > summary span { color: var(--text-secondary); font-size: 11px; font-weight: 400; margin-left: 6px; }
+  html[data-career-surface="search-ui"] .grp input[type="search"], html[data-career-surface="search-ui"] .grp select { font-size: 16px; }
+  html[data-career-surface="board-native"] .career-board-filters .career-query { min-width: 100%; }
+  .career-board-more { width: 100%; }
+  .career-board-more > summary { display: list-item; padding: 8px 0; font-size: 13px; font-weight: 600; }
+  .career-board-filter-fields { flex-wrap: wrap; padding-top: 8px; }
+  html[data-career-surface="board-native"] .career-board-filters :is(input[type="search"], select) { font-size: 16px; }
+}
+@media (max-width: 500px) {
+  .career-view-nav { width: 100%; }
+  .career-view-nav > :is(a, span) { flex: 1; padding: 10px 8px; font-size: 12px; }
+  html[data-career-surface="board-native"] .career-board-filters { gap: 10px; }
+  html[data-career-surface="board-native"] .career-board-filters label { flex: 1 1 calc(50% - 10px); min-width: 0; }
+  html[data-career-surface="board-native"] .career-board-filters .career-query { flex-basis: 100%; }
+  html[data-career-surface="board-native"] .career-board-filters label:has(input[type="checkbox"]) { margin-top: 0; min-height: 35px; }
+  html[data-career-surface="board-native"] .card, html[data-career-surface="search-ui"] .job { padding: 16px; }
+  html[data-career-surface="board-native"] .scores { border: 0; padding: 0; }
+  .career-submit-tools { flex-basis: 100%; }
+  .career-submit-content > .btn { width: 100%; text-align: center; white-space: normal; }
+  .career-search-filters > summary span { display: block; margin: 5px 0 0; }
+}

@@ -76,11 +76,17 @@ smoke:
 uses:
   - media-generation # switchboard-compose-routes.js generates post imagery
   - memory           # reply outbox content is owner-key encrypted through personal-data
+  - app-dependencies # compatibility floor for the tiered dependencies block (ADR-085 addendum)
 
 dependencies:
-  apps: []
-  tools: []
-  connectors: [google, outlook, twilio, linkedin, twitter, meta-business, facebook, slack]
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: [google, outlook, twilio, linkedin, twitter, meta-business, facebook, slack]
 
 # Per-app skin (approved palette) — forest reads as the calm, steady "board".
 # Every colour in the surface is derived from the framework theme tokens, so this

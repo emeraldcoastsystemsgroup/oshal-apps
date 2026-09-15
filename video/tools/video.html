@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Video Studio — OSHAL</title>
+<!-- 1.5.0: Use my brand colors buttons add the Create brand kit's colors, in words, to the video and series style fields. -->
 <!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
      Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
      matters — without it the surface would have no colors at all. -->
@@ -25,6 +26,9 @@
     --accent2: var(--status-success, #00d3a7);
   }
   * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
+  .brand-chip { margin-top:6px; border:1px dashed var(--line); background:transparent; color:var(--text); border-radius:999px; padding:4px 11px; font:inherit; font-size:12px; cursor:pointer; }
+  .brand-chip:hover { border-color:var(--accent); }
   body { margin:0; font-family: system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
   .top { padding:16px 22px 12px; border-bottom:1px solid var(--line); }
   .top h1 { font-size:19px; margin:0 0 2px; } .top .sub { color:var(--muted); font-size:12.5px; }
@@ -88,7 +92,8 @@
     <div class="pane left">
       <div class="lbl">1 · Shape your video</div>
       <div class="grid2">
-        <div><label>Style</label><input id="style" value="clean explainer" placeholder="e.g. futuristic live-action, stick figures" /></div>
+        <div><label>Style</label><input id="style" value="clean explainer" placeholder="e.g. futuristic live-action, stick figures" />
+          <button type="button" class="brand-chip" data-brand-target="style" hidden>🎨 Use my brand colors</button></div>
         <div><label>Tone</label><input id="tone" value="energetic" placeholder="e.g. playful, calm tutorial" /></div>
       </div>
       <div class="grid3">
@@ -132,6 +137,7 @@
 
         <div class="lbl" style="margin-top:12px">Style lock <span class="hint">— the look every frame reuses</span></div>
         <input id="seriesStyle" placeholder="e.g. tactile claymation miniature, warm kitchen morning light" />
+        <button type="button" class="brand-chip" data-brand-target="seriesStyle" hidden>🎨 Use my brand colors</button>
 
         <div class="lbl" style="margin-top:12px">Cast <span class="hint">— one per line: Name — description. Put props after “with”.</span></div>
         <textarea id="seriesCast" rows="3" placeholder="Pippa Pancake — Golden fluffy pancake with a syrup swirl; eager and clumsy.&#10;Toasty Toast — Warm brown toast slice with a bow tie; proud, a little boastful."></textarea>
@@ -444,6 +450,35 @@ async function pumpRun() {
 $('pumpBox').addEventListener('toggle', () => { if ($('pumpBox').open) pumpLoad(); });
 </script>
 
+<script>
+/* Your brand: Create's brand kit, read in the viewer's own session. A "Use my brand colors" button
+   adds the brand's colors, in words, to its field (a generator reads words, not hex codes). Without
+   Create access or a saved kit every button stays hidden and nothing else changes. */
+(function () {
+  'use strict';
+  var buttons = Array.prototype.slice.call(document.querySelectorAll('.brand-chip[data-brand-target]'));
+  if (!buttons.length || typeof fetch !== 'function') return;
+  fetch('/api/create/brand-kit', { credentials: 'same-origin', cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (j) {
+      if (!j || !j.kit || !j.words || typeof j.words.phrase !== 'string' || !j.words.phrase) return;
+      var phrase = 'in brand colors: ' + j.words.phrase;
+      buttons.forEach(function (button) {
+        var field = document.getElementById(button.dataset.brandTarget);
+        if (!field) return;
+        button.hidden = false; button.title = 'Adds: ' + phrase;
+        button.addEventListener('click', function () {
+          if (field.value.indexOf(phrase) !== -1) { field.focus(); return; }
+          var base = field.value.trim().replace(/[\s.,;]+$/, ''), limit = field.maxLength > 0 ? field.maxLength : 300;
+          field.value = (base ? base + ', ' : '') + phrase;
+          if (field.value.length > limit) field.value = field.value.slice(0, limit);
+          field.dispatchEvent(new Event('input', { bubbles: true })); field.focus();
+        });
+      });
+    })
+    .catch(function () { /* No Create access or no kit: the buttons stay hidden. */ });
+})();
+</script>
 <script type="module">
 import {receiveHandoff} from '/cockpit/js/app-handoff.js';
 import {mountConnectedActions} from '/cockpit/js/app-workflows.js';

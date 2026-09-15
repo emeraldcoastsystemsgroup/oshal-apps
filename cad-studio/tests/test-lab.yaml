@@ -3,6 +3,11 @@
 # SEQ                 | AUTHOR                      | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped package test with explicit runner and fixture boundaries; retain the readiness smoke identity. The framework-coupled route suite is registered with its real prerequisite (a framework checkout), and the real-kernel Python suite with its (the engine image) — neither is hidden.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Use canonical prerequisites, declare temporary HTTP fixture writes and keep the Python engine suite on the explicitly unavailable external-runner boundary.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register actual-page selection and preview lifecycle regression with its isolated browser prerequisite.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | revolve, sweep and loft (BACKLOG B1): sixteen feature types, the worker-registry parity guard, 24 real-kernel cases, and the generated form authoring the new parameter shapes.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Per-feature budget and cancel (BACKLOG B5): the worker orchestration suite with the kernel stubbed out, the client and route cancel cases, 28 real-kernel cases, and Stop rebuild in the editor.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Rename the drifted framework-checkout prerequisites to the Test Lab's own vocabulary so these cases can run: node-test cases declare fixture:core-checkout (the sealed Node profile runs on the oshal image, where /app is the checkout); browser cases declare harness:oshal-core-root and core:dependencies, as create does. A case that imports core's tests/fixtures, which the image does not ship, also declares harness:core-test-fixtures and stays pending with that exact reason instead of an unknown name.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -32,7 +37,9 @@ cases:
       files:
         - tests/contract-features.test.js
     expected:
-      - Thirteen feature types and five base kinds validate; a typo'd parameter is refused naming the field.
+      - Sixteen feature types and five base kinds validate; a typo'd parameter is refused naming the field.
+      - The worker's FEATURES registry and PLANE_AXES, read from cad_worker.py's source, equal the contract's.
+      - settings.featureBudgetMs outside 1..600000 whole ms is refused naming the field, and the range equals the worker's.
       - engine-build-hash.js and cad_engine_bridge.py --build-hash produce the same digest.
     prerequisites:
       - runner:node-test
@@ -55,6 +62,7 @@ cases:
         - tests/engine-client.test.js
     expected:
       - A stale build hash is capability_unavailable naming the install command; a timeout is engine_timeout and the next request reconnects.
+      - Cancelling the in-flight request closes its connection while another caller's queued request is answered on a fresh one.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -75,27 +83,53 @@ cases:
         - tests/routes.core.test.js
     expected:
       - 401 without a caller, 404 across owners, 400 with the field for bad input, 422 for a refused base, 503 naming install-engine.sh when the bridge is gone.
+      - A cancel mid-rebuild answers the triggering request 409 and keeps the last good revision, and another subject's cancel is 404.
     prerequisites:
       - runner:node-test
-      - framework-checkout:OSHAL_CORE_DIR
-    sideEffects: none
+      - fixture:core-checkout
+    sideEffects: fixture-write
     isolation:
       mode: disposable
+      cleanup: Close the loopback HTTP server and fake engine bridge and remove the temporary model directory; module hooks remain confined to the disposable Node process, with no real database or CAD engine.
     limits:
       timeoutMs: 120000
       maxMemoryMb: 1024
+    installation: never
+  - id: worker-logic
+    name: Worker orchestration with the kernel stubbed out
+    purpose: Run cad_worker's own bookkeeping under python with a stub in place of CadQuery that raises if the kernel is reached — the per-feature budget refuses and discards a slow feature while the next still runs, the budget parse, and every revolve, sweep and loft refusal happening before any kernel call (a valid loft is the positive control). Branch logic only; geometry is the engine-kernel case.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/worker-logic.test.js
+    expected:
+      - A feature past its budget reports budget_exceeded with its ms and the previous solid stays.
+      - No revolve, sweep or loft refusal reaches the stubbed kernel.
+    prerequisites:
+      - runner:node-test
+      - python3
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/worker_logic_harness.py
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
     installation: never
   - id: engine-kernel
     name: Real-kernel worker suite (engine image)
     purpose: Prove the worker on the real OCCT kernel — every base and feature builds to analytic volumes, a refused feature is reported and skipped, STEP is byte-stable across rebuilds, a mesh round-trips through sewing, and the protocol answers every line. Runs inside the engine container, not under node.
     level: integration
     runner:
-      kind: node-test
+      kind: external
       scope: package
       files:
         - engine/tests/test_cad_worker.py
     expected:
-      - 14 unittest cases pass under `python -m unittest discover -s tests` in oshal-cad-studio-engine.
+      - 28 unittest cases pass under `python -m unittest discover -s tests` in oshal-cad-studio-engine, including revolve, sweep and loft to analytic volumes and the per-feature budget.
     prerequisites:
       - engine-container:oshal-cad-studio-engine
     sideEffects: none
@@ -104,4 +138,35 @@ cases:
     limits:
       timeoutMs: 300000
       maxMemoryMb: 3072
+    installation: never
+  - id: surface-lifecycle
+    name: Current part and revision in the CAD editor
+    purpose: Drive the actual packaged editor and shared STL viewer in Chromium while holding synthetic detail, preview, rebuild, revision-list and deletion responses across selection changes.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/surface-lifecycle.core.spec.mjs
+    expected:
+      - A late response for another part or retired revision cannot replace the selected part or its preview.
+      - Deletion clears the selected preview while late deletion replies cannot hide another part.
+      - Background refresh preserves newer unsaved feature input.
+      - The generated form sends revolve, sweep and loft with JSON path and sections, a plane select and a boolean ruled.
+      - Stop rebuild shows only while the selected part rebuilds and cancels that part.
+    prerequisites:
+      - runner:playwright
+      - harness:oshal-core-root
+      - browser:chromium
+      - core:dependencies
+      - harness:core-test-fixtures
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/surface-lifecycle.core.fixture.mjs
+      cleanup: Close the owned Chromium process and loopback fixture; synthetic models and API responses remain in the disposable fixture, with no live database or CAD engine.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
     installation: never

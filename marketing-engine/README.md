@@ -1,3 +1,8 @@
+<!-- CHANGE LOG
+SEQ | AUTHOR | DESCRIPTION
+1 | maintainer@emeraldcoastsystemsgroup.com | Document complete package test registration and honest isolated execution boundaries (0.4.2).
+2 | maintainer@emeraldcoastsystemsgroup.com | Point to the marketing suite spec, its market scan, and this package's BACKLOG.md (the end-to-end suite work with done-when criteria).
+-->
 # Marketing Engine (marketing-engine) — OSHAL app package
 
 Takes a built oshal product to traffic, users, and revenue — without ever acting on
@@ -16,6 +21,11 @@ Companion docs in the core repo (plain paths — open them in the oshal checkout
 - ADRs: `docs/adr/131-marketing-engine-package.md`,
   `docs/adr/132-public-site-analytics.md`,
   `docs/adr/133-outbound-marketing-connectors.md`
+- Marketing suite (end to end — audience, compliant email, a finance-project budget,
+  sequences, SMS, attribution, paid ads): `docs/apps/marketing-suite-spec.md`, with the
+  priced, sourced market scan at `docs/business/marketing-suite-market-research.md`
+
+Open work, with a done-when on every item: [BACKLOG.md](BACKLOG.md).
 
 ## In this package
 
@@ -132,3 +142,21 @@ Then work through "Morning checklist A/B" in the core repo's
 for Search Console, Bluesky app password, Resend domain + key, `MARKETING_EMAIL_FROM`,
 GitHub traffic token. Everything is independently skippable; unconfigured sources
 show NO DATA and unarmed channels refuse politely.
+
+## AI Test Lab registration
+
+Version 0.4.2 declares `test-catalog` and [tests/test-lab.yaml](tests/test-lab.yaml). Installation registers all 4 shipped Node test files as separate unit-suite cases, plus the existing `package-readiness` smoke case. Registration does not execute these suites.
+
+The local Lab can run 3 suites in its sealed Node sandbox. They exercise the committed compiled modules with synthetic inputs; route/store suites use explicit router, database, logger, vault or bot stubs. They do not establish real HTTP, database/RLS, browser, provider, payment or deployment acceptance.
+
+Open **AI Test Lab**, choose this application and select **Run**. Each declared suite has a 60-second limit and 256 MiB memory bound. The controller stages only eligible package code and starts a disposable, network-disabled container without host mounts or deployment credentials. Results bind the package version and staged source revision; an unavailable runner stays pending.
+
+- `marketing-manifest` waits for `fixture:package-personas`; its persona or public example/dataset directory is deliberately outside the sealed execution inventory.
+
+Existing test commands remain available for a source checkout:
+
+```bash
+node --test tests/*.test.mjs
+```
+
+Consent, cap and sanitized-import tests never publish content, contact providers or arm spending. Persona parity remains registered and pending until a confined persona fixture is supported.

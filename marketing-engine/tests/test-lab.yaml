@@ -1,0 +1,121 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped Node test suite with exact files and honest fixture boundaries; retain readiness smoke identity.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Retain the existing metadata-only installation probe without running a business workflow.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed marketing-engine metadata satisfies its existing manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: home-summary
+    name: Scoped home summary
+    purpose: Exercise the compiled summary handler with a synthetic router and scripted query responses.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/home-summary.test.mjs
+    expected:
+      - Anonymous requests stop before SQL and reads retain owner predicates and bounded results.
+      - Missing source data stays distinct from failure; returned summaries obey the core item limits.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: marketing-gates
+    name: Consent and spending gates
+    purpose: Exercise the compiled consent, cap and import rules without any publishing rail.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-gates.test.mjs
+    expected:
+      - Missing consent, malformed booleans, paused channels and exhausted daily caps refuse publishing.
+      - Campaign imports cannot enable consent, standing authorization or spending.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: marketing-manifest
+    name: Bot routing and persona parity
+    purpose: Compare shipped bot identifiers and routing metadata with the package persona definitions.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-manifest.test.mjs
+    expected:
+      - Inline bots, workflow selectors and persona identities agree.
+      - Routing descriptors use specific natural-language keywords without known cross-domain collisions.
+    prerequisites:
+      - runner:node-test
+      - fixture:package-personas
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: marketing-model
+    name: Marketing arithmetic and links
+    purpose: Exercise pure compiled UTM, reallocation, scorecard and reporting-period calculations.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-model.test.mjs
+    expected:
+      - UTM links encode their values and refuse unsuitable URLs.
+      - Budget proposals respect reallocation caps and floors; missing metrics stay no-data.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never

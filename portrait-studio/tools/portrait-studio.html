@@ -1,5 +1,10 @@
 <!DOCTYPE html>
 <!--
+CHANGE LOG
+1 | maintainer@emeraldcoastsystemsgroup.com | Reflect server-verified operation permissions and preserve independent ownership.
+2 | maintainer@emeraldcoastsystemsgroup.com | Find faces locally in a bounded worker while preserving newer photos and manual boxes.
+3 | maintainer@emeraldcoastsystemsgroup.com | 1.15.0: a Use my brand colors button adds the Create brand kit's colors, in words, to the portrait notes.
+
   Portrait Studio — upload a photo, crop the head, generate a portrait.
   Three modes: Professional (studio headshot), Character (the fun side:
   the subject's face — person OR pet — on a human-type body, hands in frame,
@@ -16,6 +21,9 @@
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
 <style>
+  [hidden] { display: none !important; }
+  .brand-chip { margin-top:6px; border:1px dashed var(--line); background:transparent; color:var(--text); border-radius:999px; padding:4px 11px; font:inherit; font-size:12px; cursor:pointer; }
+  .brand-chip:hover { border-color:var(--accent); }
   :root {
     --bg: var(--bg-primary, #101418);
     --panel: var(--bg-card, #181f26);
@@ -172,7 +180,8 @@
     </div>
   </header>
 
-  <div class="grid">
+  <div id="accessBanner" role="status">Checking your Portrait Studio permissions...</div>
+  <div class="grid" id="studioComposer" hidden>
     <!-- LEFT: photo + crop -->
     <div class="panel">
       <h2><span class="step">Step 1</span> Photo</h2>
@@ -250,6 +259,7 @@
         <div class="opt-group" style="flex-basis:100%">
           <label for="notes">Anything else? (optional)</label>
           <input type="text" id="notes" maxlength="300" placeholder="e.g. warm smile, glasses on, teal background…">
+          <button type="button" class="brand-chip" id="brandNotes" data-brand-target="notes" hidden>🎨 Use my brand colors</button>
         </div>
       </div>
 
@@ -259,7 +269,7 @@
     </div>
   </div>
 
-  <div id="gallery">
+  <div id="gallery" hidden>
     <h2>Your portraits</h2>
     <div class="g-grid" id="galleryGrid"></div>
     <div class="empty" id="galleryEmpty" style="display:none">Nothing here yet — your generated portraits will appear in this gallery.</div>
@@ -305,13 +315,45 @@
   </div>
 </div>
 
-<script src="/api/portrait-studio/capture.js"></script>
+<script src="/api/portrait-studio/capture-module"></script>
+<script src="/api/portrait-studio/face-module"></script>
 <script src="/api/artifacts/picker.js"></script>
+<script>
+/* Your brand: Create's brand kit, read in the viewer's own session. A "Use my brand colors" button
+   adds the brand's colors, in words, to its field (a generator reads words, not hex codes). Without
+   Create access or a saved kit every button stays hidden and nothing else changes. */
+(function () {
+  'use strict';
+  var buttons = Array.prototype.slice.call(document.querySelectorAll('.brand-chip[data-brand-target]'));
+  if (!buttons.length || typeof fetch !== 'function') return;
+  fetch('/api/create/brand-kit', { credentials: 'same-origin', cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (j) {
+      if (!j || !j.kit || !j.words || typeof j.words.phrase !== 'string' || !j.words.phrase) return;
+      var phrase = 'background and accents in ' + j.words.phrase;
+      buttons.forEach(function (button) {
+        var field = document.getElementById(button.dataset.brandTarget);
+        if (!field) return;
+        button.hidden = false; button.title = 'Adds: ' + phrase;
+        button.addEventListener('click', function () {
+          if (field.value.indexOf(phrase) !== -1) { field.focus(); return; }
+          var base = field.value.trim().replace(/[\s.,;]+$/, ''), limit = field.maxLength > 0 ? field.maxLength : 300;
+          field.value = (base ? base + ', ' : '') + phrase;
+          if (field.value.length > limit) field.value = field.value.slice(0, limit);
+          field.dispatchEvent(new Event('input', { bubbles: true })); field.focus();
+        });
+      });
+    })
+    .catch(function () { /* No Create access or no kit: the buttons stay hidden. */ });
+})();
+</script>
 <script>
 (function () {
   'use strict';
   var API = '/api/portrait-studio';
   var state = {
+    permissions: {},
+    unavailable: {},
     mode: 'professional',
     style: null,
     presetGroup: 'All',
@@ -327,6 +369,37 @@
   };
 
   var $ = function (id) { return document.getElementById(id); };
+  function can(action) { return state.permissions[action] === true; }
+  function escapeText(value) { var node = document.createElement('span'); node.textContent = String(value || ''); return node.innerHTML; }
+  function updateAccess(data) {
+    if (faceFinder) faceFinder.cancel();
+    state.permissions = data.permissions || {};
+    state.unavailable = data.unavailable || {};
+    $('studioComposer').hidden = !can('create');
+    $('gallery').hidden = !can('read');
+    document.querySelector('.mode-toggle').hidden = !can('create');
+    $('accessBanner').textContent = !can('view') ? 'Access to Portrait Studio is blocked.' :
+      !can('read') ? 'You may view the studio. Reading saved portraits requires the reader role.' :
+      !can('create') ? 'You can read your portraits. Creating portraits requires the creator role.' : '';
+    if (can('email') && state.unavailable.email) $('accessBanner').textContent += ' Email is unavailable until the connection broker supports verified issuer ownership. Download and use your own mail application.';
+    if (!can('read')) $('galleryGrid').replaceChildren();
+    updateGenerateBtn();
+  }
+  async function loadAccess() {
+    try {
+      var response = await fetch(API + '/permissions', { cache: 'no-store' });
+      updateAccess(response.ok ? await response.json() : {});
+    } catch (_) { updateAccess({}); }
+    return can('view');
+  }
+  function renamePortrait(id, current) {
+    if (!can('change')) return;
+    var title = window.prompt('Portrait title (up to 120 characters)', current || '');
+    if (title === null) return;
+    fetch(API + '/portraits/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title }) })
+      .then(function (response) { if (!response.ok) throw new Error('Title change refused (' + response.status + ')'); refreshGallery(); })
+      .catch(function (error) { setStatus(error.message, true); loadAccess(); });
+  }
   function cur() { return state.crops[state.active] || null; }
   function isGroup() { return state.mode === 'group'; }
   function imgW() { return state.img ? state.img.naturalWidth : 0; }
@@ -935,33 +1008,27 @@
     state.active = Math.max(0, Math.min(state.active, state.crops.length - 1));
     drawCrop(); updateFaceTools();
   };
-  // Auto-find is a progressive enhancement over the Shape Detection API (Chrome on Android today;
-  // desktop Chrome behind a flag). Where it is absent the button never renders — boxes are placed by hand.
-  if ('FaceDetector' in window) {
-    $('findFacesBtn').style.display = '';
-    $('findFacesBtn').onclick = async function () {
-      if (!state.img) return;
-      setStatus('Looking for faces…');
-      try {
-        // Other photos' boxes count against the group ceiling — detect only into what is left here.
-        var capLeft = Math.max(1, groupMax() - (totalFaces() - state.crops.length));
-        var detector = new window.FaceDetector({ fastMode: false, maxDetectedFaces: capLeft });
-        var found = await detector.detect(state.img);
-        var boxes = CAP.detectionsToBoxes(found.map(function (f) { return f.boundingBox; }), imgW(), imgH(), state.aspect, capLeft);
-        if (!boxes.length) { setStatus('No faces found — add the boxes by hand.', true); return; }
-        state.crops = boxes; state.active = 0;
-        syncPhoto();
-        drawCrop(); updateFaceTools();
-        setStatus('Found ' + boxes.length + (boxes.length === 1 ? ' face' : ' faces') + ' — adjust any box, then pick a scene.');
-      } catch (err) {
-        setStatus('Face detection is not available here — add the boxes by hand.', true);
-      }
-    };
-  }
+  // The optional local detector never changes the provider or artifact handoff.
+  var faceFinder = window.PortraitFaces && window.PortraitFaces.install({
+    button: $('findFacesBtn'), host: document,
+    read: function () {
+      return { allowed: can('create') && isGroup(), image: state.img, photo: state.photo,
+        mode: state.mode, aspect: state.aspect, boxes: state.crops,
+        maxFaces: Math.max(1, groupMax() - (totalFaces() - state.crops.length)) };
+    },
+    apply: function (found, maxFaces) {
+      var boxes = CAP.detectionsToBoxes(found, imgW(), imgH(), state.aspect, maxFaces);
+      if (!boxes.length) { setStatus('No faces found. Your boxes are unchanged; adjust them by hand.'); return; }
+      state.crops = boxes; state.active = 0; syncPhoto(); drawCrop(); updateFaceTools();
+      setStatus('Found ' + boxes.length + (boxes.length === 1 ? ' face' : ' faces') + ' — review and adjust every box. Faces are not identified.');
+    },
+    status: setStatus
+  });
 
   // ── generate ───────────────────────────────────────────────────────────────
   function updateGenerateBtn() {
     var btn = $('generateBtn');
+    if (!can('create')) { btn.disabled = true; btn.textContent = 'Creating portraits requires permission'; return; }
     if (!state.img) { btn.disabled = true; btn.textContent = 'Upload a photo first'; return; }
     if (state.generating) { btn.disabled = true; btn.textContent = 'Generating…'; return; }
     var total = isGroup() ? totalFaces() : state.crops.length;
@@ -1015,6 +1082,7 @@
   }
 
   $('generateBtn').onclick = function () {
+    if (!can('create')) return;
     if (!state.img || !state.style || state.generating) return;
     var subjects = isGroup() ? totalFaces() : state.crops.length;
     if (isGroup()) {
@@ -1059,7 +1127,8 @@
   }
 
   function refreshGallery(startPolling) {
-    fetch(API + '/portraits').then(function (r) { return r.json(); }).then(function (j) {
+    if (!can('read')) return;
+    fetch(API + '/portraits').then(function (r) { if (!r.ok) { loadAccess(); throw new Error('Portrait read refused'); } return r.json(); }).then(function (j) {
       var rows = j.portraits || [];
       var grid = $('galleryGrid');
       grid.innerHTML = '';
@@ -1073,13 +1142,13 @@
         if (row.status === 'done') {
           box = '<div class="imgbox"><img loading="lazy" src="' + API + '/portraits/' + row.portrait_id + '/image?v=' + (row.updated_at || '') + '" alt=""></div>';
         } else if (row.status === 'failed') {
-          box = '<div class="imgbox"><div class="failed">✗ ' + (row.error ? String(row.error).slice(0, 120) : 'Generation failed') + '</div></div>';
+          box = '<div class="imgbox"><div class="failed">✗ ' + (row.error ? escapeText(String(row.error).slice(0, 120)) : 'Generation failed') + '</div></div>';
         } else {
           pending = true;
           box = '<div class="imgbox"><div class="spin"></div></div>';
         }
         el.innerHTML = box +
-          '<div class="meta"><span class="lbl">' + styleLabel(row) + '<span class="sub2">' + when + '</span></span>' +
+          '<div class="meta"><span class="lbl">' + escapeText(row.title || styleLabel(row)) + '<span class="sub2">' + when + '</span></span>' +
           (row.status === 'done' ? '<a href="' + API + '/portraits/' + row.portrait_id + '/image?download=1" download title="Download the original">⬇</a>' : '') +
           '<button data-del="' + row.portrait_id + '" title="Delete">🗑</button></div>' +
           (row.status === 'done' ?
@@ -1091,11 +1160,18 @@
             '<button data-email="' + row.portrait_id + '" title="Email this portrait">✉️ Email</button>' +
             '<button data-sendto="' + row.portrait_id + '" title="Send this portrait to another app">📤 Send to…</button>' +
             '</div>' : '');
+        if (!can('delete')) el.querySelector('[data-del]').remove();
+        if (!can('export')) el.querySelectorAll('a[download], [data-sendto]').forEach(function (node) { node.remove(); });
+        if (!can('email') || state.unavailable.email) el.querySelectorAll('[data-email]').forEach(function (node) { node.remove(); });
+        if (can('change')) {
+          var rename = document.createElement('button'); rename.textContent = 'Rename'; rename.dataset.change = row.portrait_id;
+          rename.onclick = function () { renamePortrait(row.portrait_id, row.title); }; el.querySelector('.meta').appendChild(rename);
+        }
         grid.appendChild(el);
       });
       grid.querySelectorAll('button[data-del]').forEach(function (b) {
         b.onclick = function () {
-          fetch(API + '/portraits/' + b.dataset.del, { method: 'DELETE' }).then(function () { refreshGallery(); });
+          fetch(API + '/portraits/' + b.dataset.del, { method: 'DELETE' }).then(function (response) { if (!response.ok) throw new Error('Delete refused (' + response.status + ')'); refreshGallery(); }).catch(function (error) { setStatus(error.message, true); loadAccess(); });
         };
       });
       grid.querySelectorAll('button[data-email]').forEach(function (b) {
@@ -1139,6 +1215,7 @@
   // in OUR url (the cockpit shell forwards it — ADR-139 D4a). Resolve it into Step 1; an
   // expired or foreign ref 404s and the studio simply renders its normal empty state.
   function receiveArtifact() {
+    if (!can('create')) return;
     var ref = new URLSearchParams(location.search).get('artifact');
     if (!ref || !/^art_[A-Za-z0-9_-]{8,64}$/.test(ref)) return;
     fetch('/api/artifacts/handles/' + encodeURIComponent(ref) + '/content')
@@ -1208,9 +1285,10 @@
   };
 
   function schedulePoll() {
+    if (!can('read')) return;
     if (state.pollTimer) return;
     state.pollTimer = setInterval(function () {
-      fetch(API + '/portraits').then(function (r) { return r.json(); }).then(function (j) {
+      fetch(API + '/portraits').then(function (r) { if (!r.ok) { loadAccess(); throw new Error('Portrait read refused'); } return r.json(); }).then(function (j) {
         var rows = j.portraits || [];
         var pending = rows.some(function (r2) { return r2.status === 'queued' || r2.status === 'generating'; });
         refreshGalleryFromRows(rows);
@@ -1221,6 +1299,8 @@
   function refreshGalleryFromRows() { refreshGallery(); }
 
   // ── boot ───────────────────────────────────────────────────────────────────
+  loadAccess().then(function (allowed) {
+  if (!allowed) return;
   fetch(API + '/catalog').then(function (r) { return r.json(); }).then(function (j) {
     state.catalog = j;
     populateTunePickers();
@@ -1228,7 +1308,7 @@
     renderStyles();
     updateGenerateBtn();
   }).catch(function () { setStatus('Could not load the style catalog — is the app installed?', true); });
-  fetch(API + '/provider').then(function (r) { return r.json(); }).then(function (j) {
+  if (can('create')) fetch(API + '/provider').then(function (r) { return r.json(); }).then(function (j) {
     var b = $('providerBanner');
     if (!j.configured) {
       b.style.display = 'block';
@@ -1243,6 +1323,8 @@
   }).catch(function () { });
   refreshGallery();
   receiveArtifact();
+  });
+  window.addEventListener('focus', function () { loadAccess().then(function () { refreshGallery(); }); });
 })();
 </script>
 </body>

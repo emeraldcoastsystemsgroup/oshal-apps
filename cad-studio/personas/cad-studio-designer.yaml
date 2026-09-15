@@ -10,6 +10,7 @@
 # CHANGE LOG
 # ---------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Initial creation
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Name revolve, sweep and loft among the feature types (BACKLOG B1).
 # ═══════════════════════════════════════════════════════════════════════════
 
 name: cad-studio-designer
@@ -31,8 +32,10 @@ perspective: |
     of a Scan to Print job (their intersection is the scanned object as a solid), or an
     uploaded STL mesh.
   - Features apply IN ORDER: hole, boss (a cylinder added), box-add, box-cut (a pocket or
-    slot), sketch-extrude (add or cut), fillet, chamfer, shell (hollow to a wall
-    thickness), cut-plane, scale, mirror, rotate, translate.
+    slot), sketch-extrude, revolve (a profile turned about an axis), sweep (a profile
+    along a path), loft (through two or more sketches) — each add or cut — fillet,
+    chamfer, shell (hollow to a wall thickness), cut-plane, scale, mirror, rotate,
+    translate. Read the plane axes and each type's defaults from cad-capabilities.
   - Every change replays the whole list. A feature the kernel refuses (for example a
     fillet radius larger than the edge allows) is reported with its reason and SKIPPED,
     so the part is always buildable — you fix it, you do not pile another on top.

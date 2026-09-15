@@ -1,3 +1,7 @@
+<!-- CHANGE LOG
+SEQ | AUTHOR | DESCRIPTION
+1 | maintainer@emeraldcoastsystemsgroup.com | Document complete package test registration and honest isolated execution boundaries (1.4.1).
+-->
 # Venture Plan
 
 Version 1.1.0 accepts the `research-brief` v1 context through `research-idea` on `venture-home`. A compatible source, such as World Intelligence, may fill the new-venture name and idea fields with a finding, supporting notes and source URL. Receiving context only opens a draft: it does not create a venture or start paid research. The existing **Scope it** button remains the explicit next step. Source text must be reviewed as evidence, not treated as execution authority. File exports continue to use artifact exchange.
@@ -180,3 +184,22 @@ A plausible number is the failure mode this application is built around. If it e
 - **Side-by-side scenario compare.** Scenarios exist and compute; comparing N of them in one view does not.
 - **A saved-quote inbox.** Today a quote is entered by hand. Attaching the quote document and reading the figure off it is the obvious next step and the point where the register stops being tedious.
 - **Live supplier directory lookups.** Deliberately absent: a directory search that returns plausible-looking suppliers nobody has contacted would re-introduce exactly the confidence this package exists to remove.
+
+## AI Test Lab registration
+
+Version 1.4.1 declares `test-catalog` and [tests/test-lab.yaml](tests/test-lab.yaml). Installation registers all 18 shipped Node test files as separate unit-suite cases, plus the existing `package-readiness` smoke case. Registration does not execute these suites.
+
+The local Lab can run 16 suites in its sealed Node sandbox. They exercise the committed compiled modules with synthetic inputs; route/store suites use explicit router, database, logger, vault or bot stubs. They do not establish real HTTP, database/RLS, browser, provider, payment or deployment acceptance.
+
+Open **AI Test Lab**, choose this application and select **Run**. Each declared suite has a 60-second limit and 256 MiB memory bound. The controller stages only eligible package code and starts a disposable, network-disabled container without host mounts or deployment credentials. Results bind the package version and staged source revision; an unavailable runner stays pending.
+
+- `venture-dataset` waits for `fixture:package-venture-datasets`; its persona or public example/dataset directory is deliberately outside the sealed execution inventory.
+- `venture-example-pumpkin` waits for `fixture:package-venture-example`; its persona or public example/dataset directory is deliberately outside the sealed execution inventory.
+
+Existing test commands remain available for a source checkout:
+
+```bash
+node --test tests/*.test.js
+```
+
+Venture tests never start real paid research or provider work. The example and dataset suites remain registered and pending; excluding runtime data from the sandbox is deliberate. Store stubs verify call contracts, while real forced-RLS and deployed scheduler proof remain separate acceptance work.

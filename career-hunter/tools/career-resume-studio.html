@@ -1,5 +1,13 @@
 <!doctype html>
-<html lang="en" data-theme="midnight">
+<!--
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  SEQ | AUTHOR | DESCRIPTION
+  -----------------------------------------------------------------------------
+  1 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
+-->
+
+<html lang="en" data-theme="midnight" data-career-surface="resume-studio">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -16,7 +24,7 @@
     --text: var(--text-primary); --muted: var(--text-secondary);
     --accent: var(--accent-primary); --danger: var(--status-error);
     /* Ink for text sitting ON the accent fill. Every theme pairs a bright accent with a dark page
-       (or the inverse), so the page background is the one ink that contrasts in all eleven. */
+       (or the inverse), so the page background is the one ink that contrasts in all supported. */
     --on-accent: var(--bg-primary);
   }
   * { box-sizing: border-box; }
@@ -62,6 +70,7 @@
   .empty { color: var(--muted); padding: 40px; text-align: center; }
 </style>
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
 </head>
 <body>
 <div class="wrap">

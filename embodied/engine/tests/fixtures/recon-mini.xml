@@ -1,0 +1,70 @@
+<mujoco model="embodied-recon-mini">
+  <compiler angle="radian" autolimits="true"/>
+  <option timestep="0.002" gravity="0 0 -9.81" integrator="implicitfast"/>
+  <default>
+    <default class="scene"><geom contype="1" conaffinity="1" friction="0.8 0.005 0.0001" rgba="0.6 0.6 0.65 1"/></default>
+    <default class="drone"><geom contype="1" conaffinity="1" friction="0.6 0.005 0.0001" rgba="0.55 0.35 0.9 1"/></default>
+  </default>
+  <worldbody>
+    <geom name="counter-left" class="scene" type="box" pos="0.675 3.7 0.45" size="0.275 0.3 0.45"/>
+    <geom name="sink-basin" class="scene" type="box" pos="1.275 3.7 0.36" size="0.325 0.3 0.36"/>
+    <geom name="counter-right" class="scene" type="box" pos="2.6 3.7 0.45" size="1 0.3 0.45"/>
+    <geom name="fridge-base" class="scene" type="box" pos="4.1 3.6 0.2" size="0.4 0.4 0.2"/>
+    <geom name="fridge-left-wall" class="scene" type="box" pos="3.725 3.6 0.9" size="0.025 0.4 0.9"/>
+    <geom name="fridge-right-wall" class="scene" type="box" pos="4.475 3.6 0.9" size="0.025 0.4 0.9"/>
+    <geom name="fridge-back" class="scene" type="box" pos="4.1 3.975 0.9" size="0.4 0.025 0.9"/>
+    <geom name="fridge-top" class="scene" type="box" pos="4.1 3.6 1.775" size="0.4 0.4 0.025"/>
+    <geom name="fridge-shelf-slab" class="scene" type="box" pos="4.1 3.625 1.19" size="0.35 0.325 0.01"/>
+    <geom name="island" class="scene" type="box" pos="2.4 2 0.45" size="0.6 0.4 0.45"/>
+    <geom name="fridge-door" class="scene" type="box" pos="3.725 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.1" class="scene" type="box" pos="3.775 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.2" class="scene" type="box" pos="3.825 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.3" class="scene" type="box" pos="3.875 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.4" class="scene" type="box" pos="3.925 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.5" class="scene" type="box" pos="3.975 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.6" class="scene" type="box" pos="4.025 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.7" class="scene" type="box" pos="4.075 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.8" class="scene" type="box" pos="4.125 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.9" class="scene" type="box" pos="4.175 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.10" class="scene" type="box" pos="4.225 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.11" class="scene" type="box" pos="4.275 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.12" class="scene" type="box" pos="4.325 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.13" class="scene" type="box" pos="4.375 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="fridge-door.14" class="scene" type="box" pos="4.425 3.175 0.9" size="0.025 0.025 0.9"/>
+    <geom name="plate-1" class="scene" type="box" pos="1.1 3.56 0.73" size="0.13 0.13 0.01"/>
+    <geom name="plate-2" class="scene" type="box" pos="1.43 3.7 0.73" size="0.13 0.13 0.01"/>
+    <geom name="mug-1" class="scene" type="box" pos="1.1 3.8 0.77" size="0.045 0.045 0.05"/>
+    <geom name="milk-1" class="scene" type="box" pos="4.3 3.45 1.3" size="0.035 0.035 0.1"/>
+    <geom name="floor" class="scene" type="box" pos="2.5 2 -0.025" size="2.5 2 0.025"/>
+    <geom name="wall-south" class="scene" type="box" pos="2.5 -0.025 1.15" size="2.5 0.025 1.15"/>
+    <geom name="wall-north" class="scene" type="box" pos="2.5 4.025 1.15" size="2.5 0.025 1.15"/>
+    <geom name="wall-west" class="scene" type="box" pos="-0.025 2 1.15" size="0.025 2 1.15"/>
+    <geom name="wall-east" class="scene" type="box" pos="5.025 2 1.15" size="0.025 2 1.15"/>
+    <geom name="ceiling" class="scene" type="box" pos="2.5 2 2.325" size="2.5 2 0.025"/>
+    <body name="drone" pos="0.6 0.6 0.03" quat="1 0 0 0">
+      <freejoint name="drone-free"/>
+      <inertial pos="0 0 0" mass="0.746" diaginertia="0.002603 0.002603 0.005206"/>
+      <geom name="drone-hull" class="drone" type="box" pos="0 0 0" size="0.178124 0.178124 0.03"/>
+      <site name="rotor-0" pos="0.091924 0.091924 0" size="0.01"/>
+      <site name="rotor-1" pos="-0.091924 0.091924 0" size="0.01"/>
+      <site name="rotor-2" pos="-0.091924 -0.091924 0" size="0.01"/>
+      <site name="rotor-3" pos="0.091924 -0.091924 0" size="0.01"/>
+      <site name="ring" pos="0 0 0" size="0.005"/>
+      <site name="zenith" pos="0 0 0" size="0.005"/>
+      <site name="nadir" pos="0 0 -0.02" size="0.005"/>
+      <site name="depth-camera" pos="0 0 -0.02" size="0.005"/>
+    </body>
+  </worldbody>
+  <actuator>
+    <motor name="motor-0" site="rotor-0" gear="0 0 1 0 0 0.012" ctrllimited="true" ctrlrange="0 3.65913"/>
+    <motor name="motor-1" site="rotor-1" gear="0 0 1 0 0 -0.012" ctrllimited="true" ctrlrange="0 3.65913"/>
+    <motor name="motor-2" site="rotor-2" gear="0 0 1 0 0 0.012" ctrllimited="true" ctrlrange="0 3.65913"/>
+    <motor name="motor-3" site="rotor-3" gear="0 0 1 0 0 -0.012" ctrllimited="true" ctrlrange="0 3.65913"/>
+  </actuator>
+  <sensor>
+    <framepos name="drone-pos" objtype="body" objname="drone"/>
+    <framequat name="drone-quat" objtype="body" objname="drone"/>
+    <framelinvel name="drone-vel" objtype="body" objname="drone"/>
+    <frameangvel name="drone-angvel" objtype="body" objname="drone"/>
+  </sensor>
+</mujoco>

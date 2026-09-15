@@ -14,6 +14,14 @@
  *                     |                             | both endians, x/y/z only) because the store package may not
  *                     |                             | pull a dependency and the kernel's converter targets splats.
  *                     |                             | A leak (scan gap larger than a voxel) is REPORTED, not hidden.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Base sealing (BACKLOG B7). A phone LiDAR scan of an object standing
+ *                     |                             | on a table has no underside, so the flood fill walks in from below
+ *                     |                             | and the lane can only report a leak. The object resting on the bed
+ *                     |                             | plane is a FACT the caller can assert: with `sealBase`, the holes in
+ *                     |                             | the lowest occupied layer are capped before the flood, which closes
+ *                     |                             | exactly the missing-underside case and nothing else — a gap in a
+ *                     |                             | side wall still leaks and is still reported, because the seal only
+ *                     |                             | ever touches that one layer.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.parsePly = parsePly;
@@ -236,16 +244,79 @@ function morph3(grid, dilate) {
         }
     }
 }
+/** @description Index of the lowest Z layer holding at least one solid voxel, or -1 when empty. */
+function lowestOccupiedLayer(grid) {
+    const layer = grid.nx * grid.ny;
+    for (let k = 0; k < grid.nz; k += 1) {
+        const base = k * layer;
+        for (let at = base; at < base + layer; at += 1)
+            if (grid.data[at] === 1)
+                return k;
+    }
+    return -1;
+}
 /**
- * @description Turn a surface-only grid into a solid: close sub-voxel gaps, flood the exterior
- * from the border, and fill everything the flood could not reach. If the flood reaches the
- * inside (a gap bigger than the closing radius), nothing fills and the caller is told.
+ * @description Cap the holes in one Z layer: flood the layer's empty cells in 2-D from its border,
+ * then set every empty cell the flood could not reach. On the lowest occupied layer of a scan this
+ * turns the outline where the object meets the table into a solid footprint.
+ * @param grid - The grid, mutated in place.
+ * @param k - Layer index.
+ * @returns Voxels added to the layer.
+ */
+function capLayerHoles(grid, k) {
+    const layer = grid.nx * grid.ny;
+    const base = k * layer;
+    const reached = new Uint8Array(layer);
+    const queue = new Int32Array(layer);
+    let head = 0;
+    let tail = 0;
+    for (let j = 0; j < grid.ny; j += 1) {
+        for (let i = 0; i < grid.nx; i += 1) {
+            if (i !== 0 && i !== grid.nx - 1 && j !== 0 && j !== grid.ny - 1)
+                continue;
+            const at = i + grid.nx * j;
+            if (grid.data[base + at] === 0 && reached[at] === 0) {
+                reached[at] = 1;
+                queue[tail++] = at;
+            }
+        }
+    }
+    while (head < tail) {
+        const at = queue[head++];
+        const i = at % grid.nx;
+        const j = (at - i) / grid.nx;
+        const steps = [[i < grid.nx - 1, 1], [i > 0, -1], [j < grid.ny - 1, grid.nx], [j > 0, -grid.nx]];
+        for (const [open, step] of steps) {
+            if (!open)
+                continue;
+            const q = at + step;
+            if (grid.data[base + q] === 0 && reached[q] === 0) {
+                reached[q] = 1;
+                queue[tail++] = q;
+            }
+        }
+    }
+    let capped = 0;
+    for (let at = 0; at < layer; at += 1) {
+        if (grid.data[base + at] === 0 && reached[at] === 0) {
+            grid.data[base + at] = 1;
+            capped += 1;
+        }
+    }
+    return capped;
+}
+/**
+ * @description Turn a surface-only grid into a solid: close sub-voxel gaps, optionally cap the base
+ * layer, flood the exterior from the border, and fill everything the flood could not reach. If the
+ * flood reaches the inside (a gap bigger than the closing radius), nothing fills and the caller is told.
  * @param grid - Surface grid, mutated in place. Its empty shell must be thicker than `closeRadius`.
  * @param closeRadius - Dilate/erode passes before filling. Default 1. 0 disables closing.
- * @returns Interior voxels filled, and whether the surface was closed.
- * @throws RangeError when the grid is too small to hold a shell thicker than the closing radius.
+ * @param options - See {@link FillSolidOptions}.
+ * @returns Interior voxels filled, whether the surface was closed, and whether a base seal was applied.
+ * @throws RangeError when the grid is too small to hold a shell thicker than the closing radius, or
+ * when a base seal is asked for on a grid with no solid voxel to seal against.
  */
-function fillSolidFromSurface(grid, closeRadius = 1) {
+function fillSolidFromSurface(grid, closeRadius = 1, options = {}) {
     if (!Number.isInteger(closeRadius) || closeRadius < 0)
         throw new RangeError('closeRadius must be a non-negative integer');
     if (Math.min(grid.nx, grid.ny, grid.nz) < 2 * (closeRadius + 1) + 1)
@@ -254,6 +325,14 @@ function fillSolidFromSurface(grid, closeRadius = 1) {
         morph3(grid, true);
     for (let r = 0; r < closeRadius; r += 1)
         morph3(grid, false);
+    let sealedBase = false;
+    if (options.sealBase) {
+        const k = lowestOccupiedLayer(grid);
+        if (k < 0)
+            throw new RangeError('Base sealing needs at least one solid voxel; the point cloud produced an empty grid');
+        capLayerHoles(grid, k);
+        sealedBase = true;
+    }
     const reached = new Uint8Array(grid.data.length);
     const queue = new Int32Array(grid.data.length);
     let head = 0;
@@ -284,6 +363,6 @@ function fillSolidFromSurface(grid, closeRadius = 1) {
             interiorFilled += 1;
         }
     }
-    return { interiorFilled, closed: interiorFilled > 0 };
+    return { interiorFilled, closed: interiorFilled > 0, sealedBase };
 }
 //# sourceMappingURL=point-cloud.js.map

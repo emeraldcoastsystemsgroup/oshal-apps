@@ -21,6 +21,8 @@
 # 17 | maintainer@emeraldcoastsystemsgroup.com | Declare the ADR-141 per-user readiness probes the Intelligent Career GROUP's setup page asks (resume on the existing resume-state route, stories + materials on a new GET /readiness reading the caller's own profile and artifacts), as version 1.15.0. The group itself lives in intelligent-career/ and carries no code.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | Release the ADR-141 D7 story review — one defensible story per job title — as version 1.16.0. The engine gains a `stories` verb (engine/jobhunter/stories.py) that walks YOUR roles, asks about the one still missing a story using that role's own bullets, and attaches the answer to the role AND to the bullet it supports; a model may never cite a bullet the role does not carry, and with no provider reachable the answer is kept verbatim with the best-overlapping bullet, so the review never depends on a key. GET /stories + POST /stories/answer drive it, Strengthen renders it, and profile.summary() now emits an EVIDENCE line per role so tailored resumes and covers cite the story instead of restating the bullet. The group's "Review your resume story by story" readiness stops reading 0 of N.
 # 19 | maintainer@emeraldcoastsystemsgroup.com | Release remote-only matching as version 1.18.0. The corpus has carried a per-posting `remote` flag since 095 and Job Search has filtered on it since 1.11.0, but nothing AUTOMATED consulted it — a remote-only candidate was still scored against, digested and shown on-site roles. career_score_settings.remote_only (migration 104, additive, default FALSE) is the standing preference, and it is honoured at every automated path: the scoring candidate query (so an on-site role never costs an inference), the digest, and the matched board as a DEFAULT an explicit Any/Remote/On-site pill still overrides. Job Search is deliberately untouched — it is a browse surface with its own pills. Settings gains the toggle.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | Release shared portal palettes across thirteen existing screens and an honest package Test Lab catalog as version 1.20.0.
+# 21 | maintainer@emeraldcoastsystemsgroup.com | Release connected Job Board/open search views, responsive result-first controls and bounded retryable board reads as version 1.21.0.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — career-hunter (Career Hunter)
@@ -61,7 +63,7 @@ description: >-
   posting against your private career profile, and turns the best fits into a human-in-the-loop
   application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume +
   cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.
-version: 1.19.2
+version: 1.21.0
 
 # ── ADR-139 artifact exchange — this app as a "Send to…" DESTINATION ─────────
 # Any document anywhere in the swarm (files browser, another app) can be sent
@@ -88,9 +90,15 @@ theme: daylight
 # invisible to the prune guard: the first carve that drops the skill would break this app at
 # MOUNT time, not at compile time. See docs/apps/kernel-skills.md.
 uses:
+  - test-catalog     # installed scenario registration; unavailable harnesses stay pending
   - graph            # career-graph-routes.js queries the caller-scoped graph tier
   - notifications    # career-digest.js sends the digest through the kernel notifier
+  - app-dependencies # compatibility floor for the tiered dependencies block (ADR-085 addendum)
 
+
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 
 source:
   type: git-subdir
@@ -111,11 +119,12 @@ smoke:
       rejectValues: [noop, stub, empty]
     requiresAi: false
 
-# ADR-085 dependencies. `apps:` names the OTHER installed packages this one links into:
-# the Presence ribbon group carries a cross-app tile to portrait-studio's own surface
-# (/api/portrait-studio/app), so with portrait-studio absent that tile would load nothing.
-# Declaring it makes the reverse-dependency guard block a portrait-studio uninstall while
-# Career Hunter is active, and lets the installer pull it in.
+# ADR-085 dependencies, tiered. `optional.apps` names another installed package this one links
+# into but does not need: the Presence ribbon group carries a cross-app tile to
+# portrait-studio's own surface (/api/portrait-studio/app), and the headshot picker probes that
+# app and hides its own button on a 404. It is offered at install as an unchecked choice and
+# never installed unasked; a portrait-studio uninstall is no longer blocked by this app, it is
+# reported as an optional dependent instead.
 #
 # `connectors:` is deliberately ABSENT, not []. The key doubles as this app's runtime
 # connector allow-list — PRESENT means "this is the complete set my surfaces may offer",
@@ -156,8 +165,15 @@ guestSeed:
   path: /api/career-hunter/guest-seed
 
 dependencies:
-  apps: [portrait-studio]
-  tools: []
+  required:
+    apps: []
+    tools: []
+  optional:
+    # portrait-studio is a cross-app tile plus an opportunistic headshot picker, never a runtime.
+    # tools/career-profile-studio.html:243 says so in the code - "If the app isn't installed (404)
+    # the button never appears and upload still works" - and the probe at :247 hides the button.
+    apps: [portrait-studio]
+    tools: []
 
 # Guests may browse read-only; every write is gated. (Was hardcoded Tier A in core —
 # the literal left with this carve. Request only; grants come from the operator, D4.)

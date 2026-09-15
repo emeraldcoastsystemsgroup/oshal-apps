@@ -1,0 +1,595 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register all shipped package tests with explicit runner and fixture boundaries; retain readiness smoke identity.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register actual Home/New palette, input retention, optional application colors and cross-tab browser proof.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register actual responsive workspace layout, distinct templates, keyboard navigation and unchanged studio access boundaries.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register real Scan-to-Print launchers, access-gated owner summaries and query-free handoffs using the existing isolated Create fixture.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register seven editor suites with explicit model, browser, HTTP, PostgreSQL and real core admission boundaries.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Include real shared-pool concurrency and queued authorization checks in the existing editor authorization recipe.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Register original editable templates and real gallery, project, export and access behavior.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Register shared artifact handoffs and bounded read-only editor context against the real core contracts.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Retain the Home boot-order guard for the access-gated artifact handoff in the existing surface recipe.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Register the brand kit: shared contract, HTTP boundary, PostgreSQL ownership and the real page, editor and Home in Chromium.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: editor-context
+    name: Selected image layer context for Jarvis
+    purpose: Exercise actual editor selection and the core surface bridge without granting editing capabilities.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files: [tests/browser/create-editor-context-proof.mjs]
+    expected:
+      - The shared bridge receives bounded current project and selected-layer context, with no pixels, asset references or editing operations.
+      - Selection, draft and revision changes stay current; loading, dialogs, missing permissions and teardown retire stale context.
+      - Exact manifest operations and the compiled static route admit the shipped module; browser restoration rebinds once.
+    prerequisites: [runner:playwright, browser:chromium, harness:oshal-core-root, core:dependencies, core:shared-theme-assets, core:surface-bridge]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/browser/create-editor-context-fixture.mjs, tests/browser/create-editor-fixture.mjs]
+      cleanup: Close loopback servers, synthetic stores and the exact owned Chromium process with exit verification; no installed data or providers.
+    limits: {timeoutMs: 120000, maxMemoryMb: 1024}
+    installation: never
+  - id: editor-artifact
+    name: Send an authorized image to Create
+    purpose: Exercise shared artifact dispatch, actual Cockpit navigation and the existing owned image import path.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files: [tests/browser/create-artifact-proof.mjs]
+    expected:
+      - The shared Send to action opens one independent image layer through the existing owner upload path.
+      - Duplicate forwarding imports once; ambiguous, denied and expired handles preserve the current draft.
+      - Held permission, content and upload responses cannot modify a different document or revision.
+      - Consumed handle cleanup preserves unrelated local and parent query parameters and history state.
+    prerequisites: [runner:playwright, browser:chromium, harness:oshal-core-root, core:dependencies, core:shared-theme-assets]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/browser/create-artifact-fixture.mjs, tests/browser/create-editor-fixture.mjs]
+      cleanup: Close synthetic HTTP servers, owner-upload fixtures and the exact owned Chromium process; no installed records or provider calls.
+    limits: {timeoutMs: 120000, maxMemoryMb: 1024}
+    installation: never
+  - id: editor-templates
+    name: Original editable image templates
+    purpose: Validate every catalog design with the production project model and prove independent editable copies.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/editor/templates.test.mjs
+    expected:
+      - All eight templates produce bounded named editable layers and portable documents with no external assets.
+      - Exact catalog IDs are required and separate instances never share mutable layers or identities.
+      - Text and shapes remain editable after reference and portable serialization round trips.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Fresh in-memory documents only; no filesystem, provider, user-data or network operations.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: editor-templates-browser
+    name: Image template gallery and editable project workflow
+    purpose: Exercise the actual template picker, Create entry points, production Canvas2D rendering and owned-project operations over isolated synthetic HTTP.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/browser/create-templates-proof.mjs
+    expected:
+      - Search and category filters show real template previews with usable keyboard and narrow-screen controls in current portal palettes.
+      - Choosing a template starts a new unsaved project; cancelled draft replacement and original saved projects remain intact.
+      - Open dialogs isolate background canvas shortcuts and raster paste without breaking normal editing after close.
+      - Current create permissions, loading and saved-project precedence govern template deep links and application.
+      - Manual text edits, save/reopen and actual exported image pixels retain the selected design.
+    prerequisites:
+      - runner:playwright
+      - browser:chromium
+      - core:shared-theme-assets
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/browser/create-editor-fixture.mjs
+      cleanup: Close isolated HTTP servers and browser contexts; synthetic stores only, reject external requests and provider calls.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never
+  - id: create-scan-to-print-browser
+    name: Create 3D scan-to-print launchers
+    purpose: Exercise actual Home and New HTML, their access checks and owner-summary presentation with synthetic local HTTP and real shared theme code.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/browser/create-scan-to-print-proof.mjs
+    expected:
+      - Home has one studio and one 3D Quick start; New has one 3D & print starter with the owning tool identity.
+      - The owner summary waits for access; denied entries neither navigate nor request that summary, and unavailable data stays distinct from empty data.
+      - Create emits an embedded app-navigate message containing only the exact tool identity; its standalone fallback opens the exact app URL without query context.
+      - Narrow Workspace and Midnight layouts retain reachable controls and a readable cube preview without camera access, external traffic or business mutations.
+    prerequisites:
+      - runner:playwright
+      - browser:chromium
+      - core:shared-theme-assets
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/browser/create-theme-fixture.mjs
+      cleanup: Close every browser context and ephemeral HTTP server; reject external traffic, camera use and business mutations.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: create-workspace-browser
+    name: Create workspace layout and studio handoffs
+    purpose: Exercise the actual Home and New pages over isolated synthetic HTTP with real shared theme code and Chromium.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/browser/create-workspace-proof.mjs
+    expected:
+      - Home puts saved work before quick starts and provides one clear route to the template catalog.
+      - Template cards are not duplicated and keyboard search preserves the exact owning-studio kind, starter and theme.
+      - Desktop and narrow pages keep controls in bounds; section and filter interactions retain keyboard focus.
+      - Locked studios never navigate or receive summary probes, and unavailable data stays visibly unavailable.
+    prerequisites:
+      - runner:playwright
+      - browser:chromium
+      - core:shared-theme-assets
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/browser/create-theme-fixture.mjs
+      cleanup: Close browser contexts and ephemeral HTTP servers; reject external requests and business mutations.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: create-theme-browser
+    name: Create surfaces follow the portal palette
+    purpose: Render the actual Home and New HTML with current shared theme code and synthetic read-only responses.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/browser/create-theme-proof.mjs
+    expected:
+      - All twelve portal palettes reach both surfaces without replacing their documents or search inputs.
+      - Optional Create colors preserve the saved portal theme; standalone pages follow real cross-tab changes without preference writes.
+      - Primary and preview labels retain readable contrast in every portal palette.
+    prerequisites:
+      - runner:playwright
+      - browser:chromium
+      - core:shared-theme-assets
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/browser/create-theme-fixture.mjs
+      cleanup: Close every browser context and ephemeral HTTP server; reject external requests and all business mutations.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the existing metadata-only readiness probe without provider or user-data access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed create package identity satisfies its manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: create-surface
+    name: Home surface contracts
+    purpose: Parse the shipped Home scripts and verify theme, rail, starter and access-discovery contracts.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/create-surface.test.js
+    expected:
+      - Inline scripts parse and the bundled theme supplies the framework tokens.
+      - Studios and starters match declared navigation; unauthorized studios are not opened or probed.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: create-new
+    name: New screen contracts
+    purpose: Verify the shipped New screen and its owning-app starter links without opening any provider.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/create-new.test.js
+    expected:
+      - Inline scripts parse and studio links match manifest routes.
+      - Office starters remain owned by AI Office and access-denied cards stay locked.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: create-routes
+    name: Packaged surfaces over local HTTP
+    purpose: Exercise compiled routes over an ephemeral loopback server with only the Express seam replaced.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/create-routes.test.js
+    expected:
+      - Home, New and theme bytes come from the captured package directory with correct headers.
+      - Missing files return a safe 404 and readiness reads the package manifest.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: The suite closes all loopback connections and removes temporary directories in finally blocks.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: editor-model
+    name: Editable image model and history
+    purpose: >-
+      Exercise immutable layer operations, validation, crop geometry, hit testing and bounded independent undo
+      snapshots.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/editor/model.test.mjs
+    expected:
+      - Layer operations preserve independent editable snapshots.
+      - Malformed geometry, sources, oversized documents and unsafe keys are refused.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 512
+    installation: never
+  - id: editor-renderer
+    name: Native canvas pixels and editable image export
+    purpose: Render supported layers in Chromium and decode real exported files with synthetic local raster assets.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/editor/renderer-browser.test.mjs
+    expected:
+      - Crop, transforms, opacity, layer order and adjustments produce the expected pixels.
+      - PNG, JPEG and portable round trips retain declared content; unavailable assets fail honestly.
+    prerequisites:
+      - runner:playwright
+      - browser:chromium
+      - core:dependencies
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/editor/renderer-fixture.mjs
+      cleanup: >-
+        Close local servers and browser contexts and remove owned temporary assets; all account and project
+        data is synthetic.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never
+  - id: editor-workspace
+    name: Image editor save, reopen and export
+    purpose: Exercise actual editor HTML, modules and shared themes in Chromium with isolated stateful HTTP fixtures.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/browser/create-editor-proof.mjs
+    expected:
+      - Manual layered edits save, reopen, export real pixels and import an editable project.
+      - Conflicts, failed autosave, denied actions and pending reads preserve drafts.
+      - Live portal themes and phone canvas controls retain a working editor.
+    prerequisites:
+      - runner:playwright
+      - browser:chromium
+      - core:shared-theme-assets
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/browser/create-editor-fixture.mjs
+      cleanup: >-
+        Close local servers and browser contexts and remove owned temporary assets; all account and project
+        data is synthetic.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never
+  - id: editor-api
+    name: Owned image project HTTP boundary
+    purpose: >-
+      Exercise the compiled Express routes and raster normalization against isolated verified actors and a
+      transactional store double.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/project-api.test.mjs
+    expected:
+      - Only the active framework actor establishes ownership, including multipart continuation.
+      - Invalid inputs, denied operations and failed transactions do not become successful writes.
+    prerequisites:
+      - runner:node
+      - core:dependencies
+      - harness:oshal-core-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/project-api.fixture.mjs
+      cleanup: >-
+        Close local servers and browser contexts and remove owned temporary assets; all account and project
+        data is synthetic.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never
+  - id: editor-postgres
+    name: Durable revisions and ownership in PostgreSQL
+    purpose: >-
+      Apply the real migration and exercise SQL through HTTP against a uniquely named disposable PostgreSQL
+      container.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/project-postgres.test.mjs
+    expected:
+      - Concurrent saves admit one current revision and preserve immutable history and owner separation.
+      - Revocation rollback, deletion, quota and cleanup are exercised against actual PostgreSQL.
+    prerequisites:
+      - runner:node
+      - core:dependencies
+      - harness:oshal-core-root
+      - service:docker
+      - image:postgres-16-alpine-local
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/project-postgres.fixture.mjs
+        - tests/project-api.fixture.mjs
+      cleanup: Remove the unique fixture container and temporary storage; never connect to the installed database.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never
+  - id: editor-authorization
+    name: Editor catalog and real core admission
+    purpose: >-
+      Mount real package factories through the actual policy runtime and route mounter with synthetic
+      principals; verify concurrent saves and fresh permission checks against an isolated PostgreSQL pool.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/editor/authorization-boundary.spec.ts
+        - tests/editor/project-concurrency.spec.ts
+        - tests/editor/brand-authorization.spec.ts
+    expected:
+      - Six app roles expose their exact actions and fixed assets.
+      - >-
+        Unknown paths, wrong issuers, tenant selectors, revocation and legacy management grants cannot bypass
+        admission.
+      - Concurrent saves retain database capacity for current authorization; queued and failed work releases its admission slot.
+      - Each role gets exactly its brand kit access (read for project readers, change for editors and admins) through the real runtime.
+    prerequisites:
+      - runner:vitest
+      - harness:oshal-core-root
+      - core:authorization-runtime
+      - service:docker
+      - image:postgres-16-alpine-local
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/editor/authorization-boundary.fixture.ts
+        - tests/editor/authorization-boundary.config.mjs
+        - tests/editor/project-concurrency.fixture.ts
+        - tests/project-postgres.fixture.mjs
+      cleanup: >-
+        Close local servers and pools, remove the uniquely named PostgreSQL fixture container and temporary
+        storage; never connect to the installed database. All account and project data is synthetic.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never
+  - id: editor-launchers
+    name: Image editor entry points and exact project reopening
+    purpose: Exercise actual Home and New with the existing isolated read-only fixture and current shared themes.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/browser/create-editor-launchers-proof.mjs
+    expected:
+      - The editor appears once as a studio and opens the exact saved project or blank design.
+      - Pending, unknown and denied Create access block project probes and navigation.
+      - Malformed/null actions cannot inject a project query and narrow controls stay usable.
+    prerequisites:
+      - runner:playwright
+      - browser:chromium
+      - core:shared-theme-assets
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/browser/create-theme-fixture.mjs
+      cleanup: Close every local browser and HTTP fixture; reject all business mutations and external traffic.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: brand-kit
+    name: Brand kit contract and branded templates
+    purpose: Validate the shared brand module and dress every original image template in several deliberately different brands.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/editor/brand-kit.test.mjs
+    expected:
+      - Kits admit only role colors, Office faces, one-line text and an owned Create image as the logo.
+      - Every template takes only brand colors and faces, carries the brand name and a fitted logo, and keeps text readable.
+      - Branding never alters the catalog or shares layers between copies.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Fresh in-memory kits and documents only; no filesystem, provider, user-data or network operations.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: brand-api
+    name: Brand kit HTTP boundary
+    purpose: >-
+      Exercise the compiled brand kit routes with real Express, multer and sharp against isolated verified actors and a
+      strict non-writing store double.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/brand-api.test.mjs
+    expected:
+      - Only the active framework actor reaches a brand function; brand.read and brand.change are checked before any work.
+      - Tenant selectors, identity fields, invalid kits and invalid revisions are refused without database work.
+      - A logo upload needs brand.change, not project create or change.
+    prerequisites:
+      - runner:node
+      - core:dependencies
+      - harness:oshal-core-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/project-api.fixture.mjs
+      cleanup: Close local servers and remove owned temporary assets; all actors and kits are synthetic.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: brand-postgres
+    name: Brand kits in PostgreSQL
+    purpose: >-
+      Apply both real migrations and exercise brand kit SQL through HTTP against a uniquely named disposable PostgreSQL
+      container.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/brand-postgres.test.mjs
+    expected:
+      - One row per owner with optimistic revisions; other owners, including a same-subject other issuer, see nothing.
+      - A logo must be an image the same owner uploaded at its real size; the database refuses a foreign logo.
+      - Unused-upload cleanup keeps a kit's logo and releases it once the kit lets go.
+    prerequisites:
+      - runner:node
+      - core:dependencies
+      - harness:oshal-core-root
+      - service:docker
+      - image:postgres-16-alpine-local
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/project-postgres.fixture.mjs
+        - tests/project-api.fixture.mjs
+      cleanup: Remove the unique fixture container and temporary storage; never connect to the installed database.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never
+  - id: brand-browser
+    name: Brand Kit page, branded editor and Home band
+    purpose: Exercise the real Brand Kit page, image editor and Home over isolated synthetic HTTP in Chromium.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/browser/create-brand-proof.mjs
+    expected:
+      - Editing colors, fonts and the logo repaints real branded templates; suggested colors come from the logo's pixels and can be undone.
+      - Saving sends the validated kit with its base revision and survives a reload.
+      - The editor opens templates in the brand, recolors the selected layer from a brand swatch, lists brand fonts and adds the logo without a new upload.
+      - Home shows the saved brand or a setup prompt; without brand read the page is locked and the editor unchanged; without change the kit is view-only.
+    prerequisites:
+      - runner:playwright
+      - browser:chromium
+      - core:shared-theme-assets
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/browser/create-brand-fixture.mjs
+        - tests/browser/create-editor-fixture.mjs
+      cleanup: Close isolated HTTP servers and browser contexts; synthetic stores only, reject external requests and provider calls.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never

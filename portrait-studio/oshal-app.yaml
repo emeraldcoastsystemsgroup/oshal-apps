@@ -23,7 +23,7 @@ description: >-
   whole crew from one group shot placed in a scene as a superhero team.
   Take the photo with your camera or upload one, crop the head (or every
   head), pick a style, generate.
-version: 1.11.0
+version: 1.15.0
 status: active
 # Deployment-wide tile visibility (the little-monsters lesson: person-scope hid
 # the installed row from every other user). Portrait DATA stays strictly
@@ -36,13 +36,14 @@ source:
   path: portrait-studio
   ref: main
 
-# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
-# touches user data, calls a provider, mutates state, or spends tokens.
+# CORE-05 readiness requires a verified user with portrait.view. Installation reports pending
+# until a user PAT is supplied; this metadata read never calls a provider or mutates data.
 smoke:
   - name: package-readiness
     method: GET
     path: /api/portrait-studio/_smoke
-    auth: service
+    auth: pat
+    requiresUser: true
     expect:
       status: 200
       jsonPointer: /package
@@ -56,10 +57,24 @@ smoke:
 uses:
   - media-generation
   - tool-registry
+  - test-catalog
+  - application-authorization
+  - authenticated-artifacts
+  - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
 
-# Runtime connector allow-list (the presentations idiom): the email-a-portrait leg sends over
-# the caller's OWN connected mailbox — Gmail when Google is connected, else Microsoft Graph.
-# Neither is required to install or generate; without one the email route answers 409.
+authorization:
+  version: 1
+  catalog: authorization.yaml
+
+# Named application permissions above own admission. The retired subject-only
+# access.defaultTier would deny legitimate named-role holders before that policy.
+
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+
+# Connector dependencies remain declared for future issuer-qualified mail capability.
+# Email currently refuses with 503 before the subject-only credential broker is called.
 # ── ADR-141 per-user readiness (asked by the Intelligent Career group's setup page) ──
 readiness:
   - name: portrait
@@ -68,9 +83,14 @@ readiness:
     detailPointer: /portrait/detail
 
 dependencies:
-  apps: []
-  tools: []
-  connectors: [google, microsoft]
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: [google, microsoft]
 
 ragCollections: []
 
@@ -122,18 +142,10 @@ ui:
 # (Jarvis / operator tools / smoke tests) pass X-Service-Secret + X-OSHAL-User-Sub,
 # which the mounter resolves into the caller sub (same pattern as eats/rides/spotify).
 routes:
-  - module: routes/home-summary.js
-    factory: createHomeSummaryRoutes
-    mountPath: /api/portrait-studio/home-summary
-    auth: oidc
-    requiresAuth: true
-    requiresContext: true
-    requiresAi: false
-
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/portrait-studio/_smoke
-    auth: service
+    auth: oidc
     requiresContext: true
     requiresAi: false
 
@@ -147,6 +159,7 @@ routes:
 migrations:
   - migrations/001-portrait-studio.sql
   - migrations/002-cost-and-resilience.sql
+  - migrations/003-verified-portrait-ownership.sql
 
 theme: midnight
 

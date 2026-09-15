@@ -19,16 +19,30 @@
  *                     |                             | assigned its view, so the engine's input contract is
  *                     |                             | unchanged. A capture=environment file input is the fallback
  *                     |                             | when the browser will not hand this page a live camera.
- * 3 | maintainer@emeraldcoastsystemsgroup.com   | "Open in CAD Studio": the job's outlines (the new contours
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Clear stale output controls on input changes and ignore late STL responses; require saved scale and fresh reconstruction before printing.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | "Open in CAD Studio": the job's outlines (the new contours
  *                     |                             | artifact) become a CAD Studio part with a `contours` base, then
  *                     |                             | the cockpit switches to that app. Refuses honestly when the
  *                     |                             | package is not installed or not granted.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Fence CAD handoff with the existing output epoch and source revision so delayed contours cannot create another object's part or replace newer feedback.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | "Seal base" on the point-cloud import (BACKLOG B7): a phone scan
+ *                     |                             | of an object on a table has no underside, so the operator asserts
+ *                     |                             | the bed plane and the toast says the base was assumed rather than
+ *                     |                             | measured. Changing it invalidates the outputs like every other
+ *                     |                             | point-cloud setting.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | "Suggest views from the video" (BACKLOG B12): the square-on frame
+ *                     |                             | per unassigned view comes back from /frame-suggestions and is
+ *                     |                             | listed with an Assign button; nothing is assigned until the
+ *                     |                             | person clicks. Views the clip never showed are named, not filled.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com   | The upload toast says how many views the orientation cube named
+ *                     |                             | (BACKLOG B9); those photos arrive already assigned.
  */
 (function () {
   'use strict';
   const BASE = '/api/scan-to-print';
   const $ = (id) => document.getElementById(id);
-  const state = { jobs: [], job: null, detail: null, capabilities: null, printers: [], viewer: null, showMask: false };
+  const state = { jobs: [], job: null, detail: null, capabilities: null, printers: [], viewer: null, showMask: false,
+    outputEpoch: 0, outputsFresh: false, scaleDirty: false, suggestions: [] };
 
   /** One fetch helper: JSON in, JSON out, errors as Error with the server's message. */
   async function api(path, opts) {
@@ -80,10 +94,14 @@
     await openJob(job.job_id);
   }
   async function openJob(jobId) {
-    state.detail = await api('/jobs/' + jobId);
-    state.job = state.detail.job;
-    await loadJobs();
+    clearOutputs('Loading the object and its current outputs.');
+    const epoch = state.outputEpoch;
+    const detail = await api('/jobs/' + jobId);
+    if (epoch !== state.outputEpoch) return;
+    state.detail = detail;
+    state.job = detail.job;
     renderJob();
+    await loadJobs();
   }
   async function deleteJob() {
     if (!state.job || !window.confirm('Delete "' + state.job.title + '" and all its files?')) return;
@@ -130,37 +148,82 @@
       ]));
     });
     $('assigned-summary').textContent = 'Assigned: ' + (images.filter((i) => i.view).map((i) => i.view).join(', ') || 'none') + '. Minimum for a solid: front, top and right.';
+    $('suggest-panel').hidden = !images.some((i) => /^frame-\d{3}\.png$/.test(i.file_name));
+    $('suggest-list').replaceChildren();
+    $('suggest-all').hidden = true;
+    $('suggest-note').textContent = '';
+  }
+  // Frame suggestion (B12): the server proposes, the person confirms each assignment.
+  async function suggestViews() {
+    const out = await api('/jobs/' + state.job.job_id + '/frame-suggestions');
+    const list = $('suggest-list');
+    list.replaceChildren();
+    out.suggestions.forEach((s) => list.appendChild(el('li', {}, [
+      el('span', { text: s.view + ' → ' + s.fileName }),
+      el('button', { class: 'link', text: 'assign', onclick: () => confirmSuggestion(s).catch((e) => toast(e.message, 'error')) }),
+    ])));
+    const notes = [];
+    if (out.unmatched.length) notes.push('No square-on frame for: ' + out.unmatched.join(', ') + '.');
+    if (out.proportionsKnown < 3) notes.push('Enter all three dimensions to also compare proportions; these were ranked on where the outline turns.');
+    if (!out.suggestions.length && !out.unmatched.length) notes.push('Every view is already assigned.');
+    $('suggest-note').textContent = notes.join(' ');
+    $('suggest-all').hidden = out.suggestions.length === 0;
+    state.suggestions = out.suggestions;
+  }
+  async function confirmSuggestion(s) {
+    await assignView(s.imageId, s.view);
+    await suggestViews();
+  }
+  async function assignAllSuggested() {
+    const pending = state.suggestions;
+    if (!pending.length) return;
+    clearOutputs('Views changed. Reconstruct to refresh the model and downloads.');
+    for (const s of pending) await api('/jobs/' + state.job.job_id + '/images/' + s.imageId, { method: 'PATCH', json: { view: s.view } });
+    await openJob(state.job.job_id);
+    toast(pending.length + ' views assigned from the video.');
   }
   async function assignView(imageId, view) {
+    clearOutputs('Views changed. Reconstruct to refresh the model and downloads.');
     try { await api('/jobs/' + state.job.job_id + '/images/' + imageId, { method: 'PATCH', json: { view: view || null } }); await openJob(state.job.job_id); } catch (e) { toast(e.message, 'error'); }
   }
   async function removeImage(imageId) {
+    clearOutputs('Photos changed. Reconstruct to refresh the model and downloads.');
     try { await api('/jobs/' + state.job.job_id + '/images/' + imageId, { method: 'DELETE' }); await openJob(state.job.job_id); } catch (e) { toast(e.message, 'error'); }
   }
   async function uploadPhotos(files) {
     if (!files.length) return;
+    clearOutputs('Photos changed. Assign the views, then reconstruct.');
     const form = new FormData();
     Array.from(files).slice(0, 12).forEach((f) => form.append('images', f, f.name));
-    try { toast('Extracting silhouettes…'); await api('/jobs/' + state.job.job_id + '/images', { method: 'POST', body: form }); await openJob(state.job.job_id); toast('Photos added.'); } catch (e) { toast(e.message, 'error'); }
+    try {
+      toast('Extracting silhouettes…');
+      const out = await api('/jobs/' + state.job.job_id + '/images', { method: 'POST', body: form });
+      await openJob(state.job.job_id);
+      toast(out.viewsFromMarkers ? 'Photos added; ' + out.viewsFromMarkers + ' view' + (out.viewsFromMarkers === 1 ? '' : 's') + ' read from the orientation cube.' : 'Photos added.');
+    } catch (e) { toast(e.message, 'error'); }
   }
   async function uploadVideo(file) {
     if (!file) return;
+    clearOutputs('Capture changed. Assign the new views, then reconstruct.');
     const form = new FormData();
     form.append('video', file, file.name);
-    try { toast('Extracting frames…'); const out = await api('/jobs/' + state.job.job_id + '/video', { method: 'POST', body: form }); await openJob(state.job.job_id); toast(out.frames + ' frames added — assign the square-on ones to views.'); } catch (e) { toast(e.message, 'error'); }
+    try { toast('Extracting frames…'); const out = await api('/jobs/' + state.job.job_id + '/video', { method: 'POST', body: form }); await openJob(state.job.job_id); toast(out.frames + ' frames added. Use "Suggest views from the video", or assign the square-on ones by hand.'); } catch (e) { toast(e.message, 'error'); }
   }
   async function uploadPointCloud(file) {
     if (!file) return;
+    clearOutputs('Processing the new point cloud. Previous outputs are unavailable.');
     const form = new FormData();
     form.append('model', file, file.name);
     form.append('voxelMm', $('pc-voxel').value);
     form.append('unitScale', $('pc-units').value);
     form.append('up', $('pc-up').value);
-    try { toast('Voxelising point cloud…'); const out = await api('/jobs/' + state.job.job_id + '/pointcloud', { method: 'POST', body: form }); await openJob(state.job.job_id); toast(out.closed ? 'Point cloud closed and filled.' : 'Surface did not close — see the report.', out.closed ? 'ok' : 'error'); } catch (e) { toast(e.message, 'error'); }
+    form.append('sealBase', $('pc-seal').checked ? 'true' : 'false');
+    try { toast('Voxelising point cloud…'); const out = await api('/jobs/' + state.job.job_id + '/pointcloud', { method: 'POST', body: form }); await openJob(state.job.job_id); toast(out.closed ? (out.sealedBase ? 'Point cloud closed and filled — base sealed, so the underside is assumed.' : 'Point cloud closed and filled.') : 'Surface did not close — see the report.', out.closed ? 'ok' : 'error'); } catch (e) { toast(e.message, 'error'); }
   }
 
   // ── Dimensions + settings ──────────────────────────────────────────────────
   function renderDimensions(job) {
+    state.scaleDirty = false;
     const dims = { x: '', y: '', z: '' };
     (job.known_dimensions || []).forEach((d) => { dims[d.axis] = d.mm; });
     $('dim-x').value = dims.x; $('dim-y').value = dims.y; $('dim-z').value = dims.z;
@@ -168,6 +231,7 @@
   async function saveDimensions() {
     const known = ['x', 'y', 'z'].map((a) => ({ axis: a, mm: Number($('dim-' + a).value) })).filter((d) => d.mm > 0);
     if (!known.length) { toast('Enter at least one measurement in millimetres.', 'error'); return; }
+    clearOutputs('Saving scale. Reconstruct to refresh the model and downloads.');
     try { await api('/jobs/' + state.job.job_id, { method: 'PATCH', json: { knownDimensions: known } }); await openJob(state.job.job_id); toast('Scale saved.'); } catch (e) { toast(e.message, 'error'); }
   }
   function renderSettings(job) {
@@ -178,23 +242,42 @@
     $('res-label').textContent = $('res').value; $('smooth-label').textContent = $('smooth').value;
   }
   async function reconstruct() {
+    if (state.scaleDirty) { toast('Save the scale before reconstructing.', 'error'); return; }
     const settings = { resolution: Number($('res').value), smoothIterations: Number($('smooth').value) };
+    const jobId = state.job.job_id;
+    clearOutputs('Reconstructing. Previous outputs are unavailable.');
+    const epoch = state.outputEpoch;
     try {
       $('reconstruct').disabled = true; toast('Carving the visual hull…');
-      await api('/jobs/' + state.job.job_id, { method: 'PATCH', json: { settings } });
-      const out = await api('/jobs/' + state.job.job_id + '/reconstruct', { method: 'POST', json: settings });
-      await openJob(state.job.job_id);
+      await api('/jobs/' + jobId, { method: 'PATCH', json: { settings } });
+      const out = await api('/jobs/' + jobId + '/reconstruct', { method: 'POST', json: settings });
+      if (epoch !== state.outputEpoch || jobId !== state.job.job_id) return;
+      await openJob(jobId);
       toast('Reconstructed in ' + out.durationMs + ' ms — ' + out.report.triangleCount + ' facets.', 'ok');
-    } catch (e) { toast(e.message, 'error'); await openJob(state.job.job_id); } finally { $('reconstruct').disabled = false; }
+    } catch (e) {
+      toast(e.message, 'error');
+      if (epoch === state.outputEpoch && jobId === state.job.job_id) await openJob(jobId);
+    } finally { $('reconstruct').disabled = false; }
   }
 
   // ── Report, drawing, viewer ────────────────────────────────────────────────
+  function clearOutputs(message) {
+    state.outputEpoch += 1; state.outputsFresh = false;
+    $('report').replaceChildren(el('p', { class: 'muted', role: 'status', text: message }));
+    $('drawing-wrap').hidden = true; $('viewer-wrap').hidden = true; $('print-step').hidden = true;
+    $('drawing').removeAttribute('src'); $('viewer-info').textContent = '';
+    $('send').disabled = true;
+    if (state.viewer) state.viewer.clear();
+  }
+
   function renderReport(report, artifacts) {
+    clearOutputs(state.job.failure_reason || 'Reconstruct to refresh the model and downloads.');
+    if (!report || state.job.state !== 'reconstructed') return;
+    state.outputsFresh = Boolean(artifacts.stl);
     const card = $('report');
     card.replaceChildren();
     $('drawing-wrap').hidden = !artifacts.svg;
     $('viewer-wrap').hidden = !artifacts.stl;
-    if (!report) { card.appendChild(el('p', { class: 'muted', text: 'Not reconstructed yet.' })); if (state.viewer) state.viewer.clear(); return; }
     const src = report.dimensionSources || {};
     const rows = [
       ['Extents (X × Y × Z)', fmt(report.sizeMm.x) + ' × ' + fmt(report.sizeMm.y) + ' × ' + fmt(report.sizeMm.z) + ' mm  (' + src.x + ' / ' + src.y + ' / ' + src.z + ')'],
@@ -215,13 +298,16 @@
     if (artifacts.stl) loadStl();
   }
   async function loadStl() {
+    const epoch = state.outputEpoch, jobId = state.job.job_id;
     try {
       if (!state.viewer) state.viewer = window.ScanToPrintViewer.mount($('viewer'));
-      const res = await fetch(BASE + '/jobs/' + state.job.job_id + '/artifacts/stl', { credentials: 'same-origin' });
+      const res = await fetch(BASE + '/jobs/' + jobId + '/artifacts/stl', { credentials: 'same-origin' });
       if (!res.ok) throw new Error('STL fetch failed');
-      const info = state.viewer.load(await res.arrayBuffer());
+      const bytes = await res.arrayBuffer();
+      if (epoch !== state.outputEpoch || !state.outputsFresh || jobId !== state.job.job_id) return;
+      const info = state.viewer.load(bytes);
       $('viewer-info').textContent = info.triangles + ' facets · ' + fmt(info.size[0]) + ' × ' + fmt(info.size[1]) + ' × ' + fmt(info.size[2]) + ' mm · drag to orbit, wheel to zoom, shift-drag to pan';
-    } catch (e) { $('viewer-info').textContent = e.message; }
+    } catch (e) { if (epoch === state.outputEpoch) $('viewer-info').textContent = e.message; }
   }
 
   // ── Printers + print ───────────────────────────────────────────────────────
@@ -250,10 +336,12 @@
     try { const out = await api('/printers/' + id + '/status', { method: 'POST' }); toast(out.printer.label + ': ' + out.status.state, 'ok'); } catch (e) { toast('Printer did not answer: ' + ((e.body && e.body.status && e.body.status.state) || e.message), 'error'); }
   }
   function renderPrint(artifacts) {
-    $('print-step').hidden = !artifacts.stl;
+    $('print-step').hidden = !artifacts.stl || !state.outputsFresh;
+    $('send').disabled = !state.outputsFresh;
     loadPrinters().catch((e) => toast(e.message, 'error'));
   }
   async function sendToPrinter() {
+    if (!state.outputsFresh) { toast('Reconstruct before sending this model to a printer.', 'error'); return; }
     const printerId = $('printer').value;
     if (!printerId) { toast('Choose a printer first.', 'error'); return; }
     const fileKind = $('file-kind').value;
@@ -266,7 +354,7 @@
       const out = await api('/jobs/' + state.job.job_id + '/print', { method: 'POST', json: { printerId, fileKind, startPrint, confirm: true } });
       toast(out.outcome.message, 'ok');
       await loadSubmissions();
-    } catch (e) { toast(e.message, 'error'); await loadSubmissions(); } finally { $('send').disabled = false; }
+    } catch (e) { toast(e.message, 'error'); await loadSubmissions(); } finally { $('send').disabled = !state.outputsFresh; }
   }
   async function loadSubmissions() {
     if (!state.job) return;
@@ -280,16 +368,21 @@
 
   // ── Hand-off to CAD Studio: the outlines become a B-rep part ─────────────
   async function openInCadStudio() {
-    if (!state.job) return;
+    if (!state.job || !state.outputsFresh) return;
+    const { job_id: jobId, title, updated_at: revision } = state.job, epoch = state.outputEpoch;
+    const current = () => state.job && state.job.job_id === jobId && state.job.updated_at === revision
+      && state.outputsFresh && state.outputEpoch === epoch;
     try {
-      const contours = await api('/jobs/' + state.job.job_id + '/artifacts/contours');
-      const res = await fetch('/api/cad-studio/models', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: state.job.title, base: { kind: 'contours', views: contours.views, size: contours.sizeMm }, source: { kind: 'scan', jobId: state.job.job_id, title: state.job.title } }) });
+      const contours = await api('/jobs/' + jobId + '/artifacts/contours');
+      if (!current()) return;
+      const res = await fetch('/api/cad-studio/models', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, base: { kind: 'contours', views: contours.views, size: contours.sizeMm }, source: { kind: 'scan', jobId, title } }) });
       if (res.status === 404 || res.status === 401 || res.status === 403) throw new Error('CAD Studio is not installed on this swarm, or you are not granted access to it.');
       const out = await res.json().catch(() => ({}));
+      if (!current()) return;
       if (!res.ok) throw new Error((out.build && (out.build.reason || out.build.error)) || out.message || out.error || ('HTTP ' + res.status));
       toast('Opened in CAD Studio as "' + out.model.title + '" (revision ' + out.model.revision + ').', 'ok');
       (window.top || window).location.assign('/cockpit/?app=cad-studio');
-    } catch (e) { toast(e.message, 'error'); }
+    } catch (e) { if (current()) toast(e.message, 'error'); }
   }
 
   // ── ADR-139: an image sent from elsewhere becomes the first photo of a new job ──
@@ -349,6 +442,7 @@
   /** Grab the current frame, upload it as a photo of `view`, and assign the view — the engine never learns it came from a camera. */
   async function captureView(view) {
     const shot = await cam.stream.capture(makeCanvas, 1280, 0.92);
+    clearOutputs('Capture changed. Assign the views, then reconstruct.');
     const form = new FormData();
     form.append('images', shot.blob, cam.lib.fileNameFor(view));
     const out = await api('/jobs/' + state.job.job_id + '/images', { method: 'POST', body: form });
@@ -416,11 +510,19 @@
     window.addEventListener('pagehide', closeCamera);
     if (!camAvailable()) { $('open-camera').hidden = true; $('camera-note').textContent = 'Live camera needs HTTPS and a camera-capable browser — "Take a photo" opens the phone camera app instead.'; }
     $('video').addEventListener('change', (ev) => { uploadVideo(ev.target.files[0]); ev.target.value = ''; });
+    $('suggest-views').addEventListener('click', () => suggestViews().catch((e) => toast(e.message, 'error')));
+    $('suggest-all').addEventListener('click', () => assignAllSuggested().catch((e) => toast(e.message, 'error')));
     $('pointcloud').addEventListener('change', (ev) => { uploadPointCloud(ev.target.files[0]); ev.target.value = ''; });
     $('toggle-mask').addEventListener('click', () => { state.showMask = !state.showMask; $('toggle-mask').textContent = state.showMask ? 'show photos' : 'show silhouettes'; renderImages(state.detail.images); });
     $('save-dims').addEventListener('click', saveDimensions);
-    $('res').addEventListener('input', () => { $('res-label').textContent = $('res').value; });
-    $('smooth').addEventListener('input', () => { $('smooth-label').textContent = $('smooth').value; });
+    ['dim-x', 'dim-y', 'dim-z'].forEach((id) => $(id).addEventListener('input', () => {
+      state.scaleDirty = true; clearOutputs('Scale changed. Save the scale, then reconstruct.');
+    }));
+    $('res').addEventListener('input', () => { $('res-label').textContent = $('res').value; clearOutputs('Settings changed. Reconstruct to refresh the model and downloads.'); });
+    $('smooth').addEventListener('input', () => { $('smooth-label').textContent = $('smooth').value; clearOutputs('Settings changed. Reconstruct to refresh the model and downloads.'); });
+    ['pc-voxel', 'pc-units', 'pc-up', 'pc-seal'].forEach((id) => $(id).addEventListener('change', () => {
+      if (state.job && state.job.source_kind === 'pointcloud') clearOutputs('Point-cloud settings changed. Import the point cloud again to rebuild.');
+    }));
     $('reconstruct').addEventListener('click', reconstruct);
     $('printer-form').addEventListener('submit', addPrinter);
     $('send').addEventListener('click', sendToPrinter);

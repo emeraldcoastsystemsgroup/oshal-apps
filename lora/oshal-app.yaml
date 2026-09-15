@@ -62,9 +62,21 @@ smoke:
 # Kernel skills only (logger, database bootstrap, authz, remote-client registry via
 # @/app alias) — no app, tool, or connector dependencies.
 dependencies:
-  apps: []
-  tools: []
-  connectors: []
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+
+# Kernel skills this app declares (ADR-090 uses: contract, fail-closed at load).
+# `app-dependencies` is the compatibility floor for the tiered dependencies block above: a core
+# that predates required/optional refuses this package instead of installing it without its
+# required dependencies and without its connector allow-list.
+uses:
+  - app-dependencies
 
 # Guests never reach the studio (was hardcoded core Tier-C pre-carve). Declaring it
 # here is a REQUEST (ADR-085 D4) — unapproved default already blocks guest writes.

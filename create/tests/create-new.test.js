@@ -5,6 +5,8 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Contract for the New screen (1.1.0): its inline script parses; every studio it opens is a rail tile the manifest declares, at the manifest's URL; the Office cards come from AI Office's starter route (no inline copy of a template); a card opens its studio through app-navigate with a k=v query the cockpit sanitizes (kind/starter/theme); the categories rail covers every kind; no CDN script, no inline handlers; the New tile leads the rail and the route serves the page.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | 1.2.0 — the access probe, the locked state and the Access link are pinned.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | Require the 3D category alongside the retained studio categories.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | Include the image-editor category and catalog-compatible theme namespace.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -70,7 +72,7 @@ test('the Office cards come from the owning app and open it on a purpose', () =>
 
 test('the categories rail covers the three Office kinds and the other studios', () => {
   const cats = literal(html(), 'CATEGORIES').map((c) => c.id);
-  for (const id of ['foryou', 'pptx', 'docx', 'xlsx', 'portrait', 'video', 'story']) assert.ok(cats.includes(id), `category ${id}`);
+  for (const id of ['foryou', 'image', 'pptx', 'docx', 'xlsx', 'portrait', 'video', 'story', '3d']) assert.ok(cats.includes(id), `category ${id}`);
   const other = literal(html(), 'OTHER');
   const studios = literal(html(), 'STUDIO');
   for (const o of other) assert.ok(studios[o.studio], `${o.id} opens a known studio`);
@@ -81,7 +83,7 @@ test('no CDN script, no inline handlers, wears the bundled skin', () => {
   assert.doesNotMatch(source, /<script[^>]*\ssrc\s*=\s*["']https?:/i);
   assert.doesNotMatch(source, /\son[a-z]+\s*=\s*["']/i);
   assert.match(source, /<html lang="en" data-theme="create">/);
-  assert.match(source, /href="\/api\/create\/theme\.css"/);
+  assert.match(source, /href="\/api\/create\/theme\/create\.css"/);
 });
 
 test('the New tile leads the rail and the route serves the screen', () => {

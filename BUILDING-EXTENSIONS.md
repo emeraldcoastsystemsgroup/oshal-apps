@@ -9,6 +9,15 @@ should be able to build a working extension using every available feature.
 - Full reference app (open source): [`little-monsters/`](little-monsters/)
 - Architecture & rationale: ADR-085 in the OSHAL repo.
 
+**Reuse before implementing.** Inspect the existing package tools, kernel skills,
+shared surface components and artifact receivers first. Routine AI work should
+supply parameters to those tested contracts. Keep new capability code and its
+registered tests for later callers; extract a common UI implementation when two
+real consumers need it. UI, concierge and MCP operations should converge on the
+same owned handlers rather than maintaining separate business logic. The kernel
+[authoring guide](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/apps/authoring-app-packages.md)
+links the shared component inventory and existing integration contracts.
+
 ---
 
 ## 1. Mental model — it's npm, for swarm apps
@@ -85,10 +94,16 @@ source:                         # provenance — installer pins sha
 kind: app                       # or `group` — a code-less binding of installed apps (ADR-141):
                                 # `toolbar:` borrows member surfaces by app + surface name and
                                 # `setup:` drives the kernel setup dashboard; see intelligent-career/
-dependencies:                   # resolved + ref-counted on install
-  apps: [presentations]         # other app packages this one needs
-  tools: []                     # existing tools by id
-  connectors: []                # connectors by id
+uses: [app-dependencies]        # the floor for the tiered dependencies below (see 6)
+dependencies:                   # resolved on install; see 6 for what each tier means
+  required:                     # comes with this app — fail-closed
+    apps: [presentations]       # other app packages this one cannot run without
+    tools: []                   # existing tools by id; must exist at load
+    connectors: []              # connectors by id
+  optional:                     # this app works without these
+    apps: []                    # offered at install; installed only when chosen
+    tools: []
+    connectors: []
 
 settings:                       # typed per-app settings (rendered in a settings panel)
   schema:
@@ -373,15 +388,53 @@ never mounts package routes.
 
 ## 6. Dependencies + lifecycle
 
-- **Install is automatic:** clone the pinned `source`, run the audit gate, resolve
-  `dependencies` (install/enable missing apps, ref-count them), hot-load.
-- **Uninstall is manual + dependency-aware:** a reverse-dependency check runs first — removing
-  an app another installed app depends on is blocked; you get an impact list and only true
-  orphans (ref-count → 0) are offered. Nothing auto-cascades.
+Declare what your package needs in two tiers. The tier decides what the installer does when the
+thing is missing, and what the uninstall guard does when someone removes it:
 
-Example: `little-monsters` declares `dependencies.apps: [presentations]` (it surfaces a
-Presentations tab). Installing it pulls presentations; presentations is protected from removal
-while little-monsters remains.
+| | `required` | `optional` |
+|---|---|---|
+| install | missing apps are installed from the same store; anything unresolvable **fails the install** | never installed unasked — `install <pkg> --with <app>`, `--with-optional`, or the App Loader's checkboxes |
+| load | a required tool nothing provides **fails the load** | not checked |
+| someone uninstalls the dependency | **blocked** while your app is active (`--force` overrides) | never blocked; your app is listed as losing that integration |
+| your app is uninstalled | its required apps that nothing else requires are offered as orphans | never offered |
+| `connectors` | part of your app's connector allow-list, and what its setup screens ask for | also part of the allow-list, as an extra |
+
+Put an app under `required` only when yours genuinely cannot run without it. A launcher that
+routes to whatever is installed, or a surface that hands work to a partner app when it is there,
+belongs under `optional` — otherwise installing your package drags its whole shelf in.
+
+**The connector allow-list is the union of both tiers.** When either tier declares `connectors`,
+that union is the complete set of providers your surfaces may offer (`[]` = offer none — a kids'
+app never asks for Facebook). Declare the key nowhere and nothing is filtered.
+
+**The tiered form must declare `uses: [app-dependencies]`.** An older core does not understand
+`required:` / `optional:`: it would install your package with neither its required dependencies
+nor its connector allow-list. Naming the floor makes such a core refuse the package instead, the
+same way `test-catalog` does — so publish a tiered manifest only once the core that understands
+it is available. The legacy flat form (`dependencies: {apps, tools, connectors}`) is still valid,
+needs no floor, and means **all required**.
+
+- **Install is automatic:** clone the pinned `source`, run the audit gate, resolve the required
+  tier plus any optional apps the operator chose, then hot-load the dependencies it pulled in
+  **before** your package. A required dependency that fails to load leaves your package unloaded
+  rather than live-but-broken; a failed optional one is reported and your package still loads.
+- **Uninstall is manual + dependency-aware:** a reverse-dependency check runs first — removing an
+  app another installed app REQUIRES is blocked; you get an impact list and only true orphans are
+  offered. Nothing auto-cascades.
+
+**None of this repo's published packages have been converted yet** - they all still carry the
+legacy flat form, which is valid and means all-required. Converting them is planned work that has
+to follow the core deploy (a tiered manifest declares the floor, and an older core refuses it): the
+plan, the per-package classification and the acceptance criteria live in the core repo at
+`docs/backlog/store-dependency-tier-migration.md`. Until that lands, write NEW packages with the
+tiered form only if the swarm you are publishing to runs a core that understands it - `oshal-app
+init` scaffolds the tiered shape, so delete the `optional:` block and the floor if you must target
+an older core.
+
+Example: `little-monsters` requires `presentations` (it surfaces a Presentations tab). Installing
+it pulls presentations; presentations is protected from removal while little-monsters remains. A
+package that merely hands an outline to `cad-studio` lists it under `optional` instead: the App
+Loader offers it as a checkbox, and removing cad-studio later is never blocked by that package.
 
 ## 7. The CLI (`scripts/oshal-app.js`, also `npm run app`)
 
@@ -389,7 +442,7 @@ while little-monsters remains.
 |---|---|
 | `init <name>` | scaffold a new package (folder + starter `oshal-app.yaml` + dirs) |
 | `validate <dir>` | lint against the contract (self-contained, files present, agentId unique, deps ok). CI-gate-able. |
-| `install <name> [--repo <url>] [--ref <ref>] [--dest <dir>]` | git-subdir-pull a package from a store repo into `deployed-apps/` |
+| `install <name> [--repo <url>] [--ref <ref>] [--dest <dir>] [--with a,b \| --with-optional]` | git-subdir-pull a package from a store repo into `deployed-apps/`, with its required apps and any optional apps you name |
 
 ## 8. Publishing to this store
 
@@ -427,6 +480,42 @@ records, then install the exact `sourceSha` returned by the validator instead of
 See [`audits/README.md`](audits/README.md) for the controls, evidence format, and maintainer flow.
 
 ## 9. For an LLM asked to "build an OSHAL extension"
+
+### Registering package tests with the AI Test Lab
+
+Include the test inventory in the installation contract:
+
+```yaml
+uses: [test-catalog] # add this to the package's existing capability dependencies
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+```
+
+Copy [Hello OSHAL's catalog](hello-oshal/tests/test-lab.yaml) for a smoke plus a real Node HTTP
+suite, or [Portrait Studio's catalog](portrait-studio/tests/test-lab.yaml) for custom harnesses,
+browser proofs and an explicitly pinned core-owned suite. The
+[core contract](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/testing/package-test-catalog.md)
+defines the closed schema, stable IDs, expected assertions, prerequisites, side effects, isolation,
+cleanup and runner limits. Package test paths must exist inside the package. Core references name
+an exact commit and core test files; they never assume a sibling checkout.
+
+Registration happens during activation and reconciles during reload, disable and uninstall.
+It does not execute local suites or certify a pass. Eligible existing smoke probes reuse
+the core verifier. Supported offline package Node suites run in the Lab's isolated container
+runner and local schedules; unavailable runners and fixtures stay visibly pending. See the
+[execution guide](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/testing/package-test-execution.md).
+Keep arbitrary shell commands out of catalogs, and keep audit records pending until their
+separate controls are proven.
+The `test-catalog` dependency makes older cores refuse the package instead of silently dropping
+its tests. Publish/install catalog-bearing packages only after that core capability is available.
+
+Match the runner to the actual test harness. A test using in-memory query or Express stubs is
+a unit test; a real loopback HTTP server is integration coverage. Standalone assertion scripts
+run through `node-test` report file-level results. Do not count their inner console messages as
+separate Node tests. Keep real database, browser, provider and excluded-data fixture prerequisites
+explicit. The isolated runner includes canonical `tools/` surfaces and `src-routes/` source files;
+runtime data, generated output and arbitrary sibling checkouts are unavailable.
 
 For configurable Home data, assess the app in [the extraction ledger](APP-HOME-EXTRACTION-PLAN.md).
 Return stable-id data points via optional `summary.metricsPointer` alongside legacy tiles/items.

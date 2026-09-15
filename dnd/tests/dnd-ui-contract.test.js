@@ -67,7 +67,7 @@ const assert = require('node:assert/strict');
 const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'ui', 'table.html'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'ui', 'dnd.css'), 'utf8');
-const tableScriptFiles = ['table-runtime.js', 'table-voice.js', 'table-dice.js', 'table-presentation.js', 'table-turns.js', 'table-combat-narration.js', 'table-automation.js', 'table-outcomes.js', 'table-story.js', 'table-exploration.js', 'table-character-sheet.js', 'table-campaigns.js', 'table-seats.js', 'table-playback.js', 'table-immersive.js', 'table-screens.js'];
+const tableScriptFiles = ['table-runtime.js', 'table-voice.js', 'table-dice.js', 'table-presentation.js', 'table-turns.js', 'table-combat-narration.js', 'table-automation.js', 'table-outcomes.js', 'table-story.js', 'table-exploration.js', 'table-character-sheet.js', 'table-campaigns.js', 'table-seats.js', 'table-playback.js', 'table-immersive.js', 'table-dock.js', 'table-screens.js'];
 const classicScriptFiles = ['engine.js'].concat(tableScriptFiles);
 const tableScriptSources = tableScriptFiles.map((file) => fs.readFileSync(path.join(root, 'ui', file), 'utf8'));
 const voiceSource = fs.readFileSync(path.join(root, 'ui', 'table-voice.js'), 'utf8');

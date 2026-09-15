@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.1.1: register every shipped test and preserve the existing readiness smoke for versioned Test Lab discovery.
+# -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — identity ("Identity Hub")
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
@@ -40,7 +46,11 @@ description: >-
   LinkedIn, your smart-home app, and more, reconnect a login that's expired, or connect
   a new one. Plus an optional access review that flags what needs attention. OSHAL never
   shows or hands back a password — this launches accounts you've already authorized.
-version: 1.1.0
+version: 1.1.1
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+uses: [test-catalog, app-dependencies]
 status: active
 
 # Trustworthy blue skin for the keys/identity surface.
@@ -69,9 +79,14 @@ smoke:
 # user has connected at /utilities — the catalog comes from /api/connect/list at
 # request time, never from a static list here.
 dependencies:
-  apps: []
-  tools: []
-  connectors: []
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
 
 ticketType: identity-review
 

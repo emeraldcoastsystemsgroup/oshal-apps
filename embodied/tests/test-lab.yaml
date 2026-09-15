@@ -1,0 +1,626 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped package test with explicit runner and fixture boundaries; retain the readiness smoke identity. The framework-coupled route suite is registered with its real prerequisite (a framework checkout) rather than hidden.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register the hinged-door / fetch-from-appliance suite (0.2.0).
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register the discovered-world suite (0.3.0); every other suite now runs on an explored world.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register the blind-recon / localisation suite (0.4.0).
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register the sensor-set suite — the printed drone's single scan plane (0.5.0).
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register the drone-designer suite — sizing, parts model, CAD Studio programs (0.6.0).
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Register the single-plane regression suite and the browser proof of the tile over the real routes (0.6.1).
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Register the physics lane (0.7.0): the MJCF and plant seam without a container, the plant's own Python suite, and the live suite against the engine bridge.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 0.8.0: the task suite joins the Python case; the physics case covers B18 and the certification gate (B19).
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 0.9.0: the node rail (B20) — the fleet and a node double without a container, the Python node front joins the plant's suite, the route and browser cases cover a node on the rail, and the live case starts the real plant as a node.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 0.10.0: named scenarios (B4) in the world case, route and browser cases; recovery from lost (B14) in the localisation case.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 0.11.0: the PX4 node (B6) joins the Python suite and its sandbox proof is registered as the external case it is; the off-pad climb in the world case; the ctbr interface (B19) in the task cases.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 0.12.0: the printed arm (ADR-152 D5 task 3) - a case of its own for the design, the parts and the model, its plant and check join the Python suite, and the tile's arm panel joins the browser case.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 0.13.0: B23 - the Spaces-scan doorway gets a case of its own (a scene artifact redeemed over a real relay socket, registered per owner, flown to done, and every refusal proven one rule at a time).
+# 15 | maintainer@emeraldcoastsystemsgroup.com | Rename the drifted framework-checkout prerequisites to the Test Lab's own vocabulary so these cases can run: node-test cases declare fixture:core-checkout (the sealed Node profile runs on the oshal image, where /app is the checkout); browser cases declare harness:oshal-core-root and core:dependencies, as create does. A case that imports core's tests/fixtures, which the image does not ship, also declares harness:core-test-fixtures and stays pending with that exact reason instead of an unknown name.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | routes-scene-import points at its renamed suite, tests/routes-scene-import.core.test.js.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | 0.16.0: ADR-160 S1 - the medium record and the falling hull get a case of their own; the routes and browser cases already registered above also cover the new /physics/media and /physics/hull answers.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | Name engine/tests/test_hull_fall.py in the Python case (BACKLOG B25). It has now been run on the real plant in oshal-embodied-engine (MuJoCo 3.3.5): 3 cases, 3 passed. The image ships no pytest, so the file carries its own runner and the case records that exact command rather than one that cannot run there.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the existing metadata-only readiness probe without provider or user-data access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed embodied package identity satisfies its manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: engine-kinematics
+    name: Arm forward and inverse kinematics
+    purpose: Prove the sim-6 arm's forward kinematics against hand-derived poses, inverse-kinematics round trips within tolerance, the out-of-reach refusal, multiple distinct solutions, determinism, and that the compiled engine imports no framework module.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-kinematics.test.js
+    expected:
+      - At q = 0 the tool sits at (0.35, 0, 0.70) and joint 1 rotates it about world z.
+      - Inverse kinematics recovers forward-kinematics poses within 0.1 mm and 1 mrad; a 1 m target is refused as out_of_reach before iterating.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-base
+    name: Base drive and stability budget
+    purpose: Prove unicycle integration, the lift-dependent speed ceiling, the turn–drive–align controller, lift clamps, and the hardware design's stability numbers (67 kg, 9 cm shift, ≈134 N·m, factor 2.0 facing the work, 1.5 sideways, ≈63 J stowed).
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-base.test.js
+    expected:
+      - A raised lift caps speed at 0.3 m/s; the controller arrives at rest within 3 cm and 1°.
+      - The 60 N fridge pull at 1.1 m has factor 2.0 ± 0.05 facing the work; a 2 m/s dead stop is refused.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-drone
+    name: Mini drone, fence and camera
+    purpose: Prove the flight mode machine and battery, every fence refusal including a path through furniture and a rising diagonal that clips a keep-out, pinhole projection, detection of unenclosed objects only, and monocular localisation within 1 cm.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-drone.test.js
+    expected:
+      - Room edge, ceiling, floor, keep-out and blocked paths are each refused with a named reason.
+      - From the sink vantage the three dishes are detected and localised within 1 cm; a closed fridge hides its shelf.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-world
+    name: World model and navigation grid
+    purpose: Prove the kitchen grid frees the standoffs and blocks furniture, A* routes around the island with every simplified leg clear and deterministically, unreachable goals return null, resting heights and fridge enclosure behave, every named scenario validates as a sound hidden scene, and the studio is explored drone-first to done on both sensor sets with its work heights discovered by the map alone.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-world.test.js
+    expected:
+      - The park and every zone standoff are free; the island and its inflation band are blocked.
+      - Two A* runs are identical; a goal inside the counter returns null.
+      - Both scenarios validate; a floating object and furniture outside the room are refused; the studio exploration ends landed and anchored with the desk, the bench and a shelf discovered.
+      - A plant resting a centimetre off the pad with a hair of yaw (the pose a PX4 SIH vehicle reported at rest) clears the climb after its pad sweep - the sweep is placed by the pose the plant reports with its frames.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-manifest
+    name: Capability manifest validator
+    purpose: Prove both simulated nodes validate and every malformed shape (unknown kind, act outside the vocabulary, class below the floor, kinetic without e-stop, non-finite envelope) is refused with a named issue; confirm rules by safety class; and that the ADR-156 prop kind validates at both ends of its range while the five shapes it refuses each name their rule.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-manifest.test.js
+    expected:
+      - Nine malformed manifests are refused, each naming its issue.
+      - Class-2 grasp and goto require confirm; e-stop, abort, stop, land and observe never do.
+      - A prop validates at class 1 on micro servos and at class 2 on torque servos.
+      - Five prop shapes are refused, and disarm never waits for a confirm.
+      - A prop is refused as a heartbeating node, so the word does not mint a rail node.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-sim
+    name: Simulation end to end — plan, rehearse, execute, command
+    purpose: Prove the clear-the-sink plan rehearses identically twice and executes live with every dish on the rack and every step logged; the e-stop latches, aborts and refuses until reset; take/release pauses and resumes to completion; manual refusals are logged; a release over nothing drops the object; empty and full surfaces refuse a plan.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-sim.test.js
+    expected:
+      - Every plan step has an accepted and a completed record; no refusals in a clean run.
+      - After e-stop, driveTo and take are refused until reset; a jog into the counter is refused and logged.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: engine-appliance
+    name: Hinged door and fetch-from-appliance
+    purpose: Prove the door geometry (free end, handle point, offset-corrected angle, bounded slice over-cover), that the gripper takes the handle and the door follows the tool, that opening past the threshold reveals the shelf to the drone, that the tip budget accepts the 60 N design pull and refuses 200 N, that the swept-volume guard refuses a joint path whose endpoints are clear, and that the open → fetch → deliver → close plan rehearses and runs live with the door shut again.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-appliance.test.js
+    expected:
+      - Taking the handle leaves the door at 0°; the handle arc maps back to the swing angle.
+      - The first pull carries 60 N and passes; 200 N at 1.1 m is refused by the tip budget; a sweep through the island is refused with its name.
+      - The fetch plan completes with the carton on the island and the fridge at 0°, identically twice.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 90000
+      maxMemoryMb: 512
+    installation: never
+  - id: engine-perception
+    name: The discovered world — sensing, mapping, discovery, exploration, the full loop
+    purpose: Prove ray/box hits, voxel carving and the height map, discovery of a table and a mug from sweeps of a synthetic room, the kitchen explored from nothing (exploration converges, every discovered object matches a real one within 6 cm, no phantoms), the guards refusing motion into unknown space, and the full loop explore → draft against discovered ids → rehearse → run live with the plates on the counter the machine found for itself.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-perception.test.js
+    expected:
+      - A synthetic table is found at its height and the mug on it at its centroid within 3 cm and guessed as a mug.
+      - After at most 14 drone scans more than 85 % of the kitchen is known, the basin and counters are surfaces, and no discovered object lacks a real counterpart.
+      - An unexplored machine cannot drive, take off, or reach into unknown space; after exploring, the discovered-id plan rehearses deterministically and runs to completion.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 768
+    installation: never
+  - id: engine-localization
+    name: Blind recon — the upward ranger, dead reckoning, scan-to-map registration, the pad fix, drone-first exploration, and a lying odometry that fails closed
+    purpose: Prove that the spinning LiDAR alone cannot clear the column above the pad and the upward ranger can; that the drone's true pose drifts from its belief in flight and one registered sweep pulls it back; that an injected 10 cm / 2° error recovers under 2 cm (in fact under 1 cm); that landing on the pad re-anchors the belief; that the drone maps the room alone with the rover parked and the rover can still plan against that map; that odometry lying by a third ends in a failed plan and a grounded drone, never a flight that continues on a wrong map; and that a drone reporting itself lost recovers by the global search when its belief is within the window, flies its registered trail back to the pad when it is not, and declares itself grounded when neither the search nor the pad can place it (B14).
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-localization.test.js
+    expected:
+      - Without the upward ranger the column above the pad stays unknown and takeoff is refused; with it the climb is known free after one sweep from the pad.
+      - After a climb and a 2 m leg the true pose is centimetres from the belief; after one sweep the gap is under 1 cm and the heading within 0.3°.
+      - A drone-first exploration knows more than 85 % of the room, every discovered object matches a real one within 6 cm, and a clear-surface plan against that map rehearses.
+      - A 22 cm belief error is recovered by the spliced drone.recover step and the plan finishes; a 34° yaw error takes the trail back and the pad fix re-anchors; a belief wrong in both ends grounded and the plan fails with that reason; the manual recover command is one search sweep.
+      - With a third of the distance unaccounted for, the plan fails and the drone is on the floor.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 768
+    installation: never
+  - id: engine-sensor-sets
+    name: The drone we print versus the drone we would buy — a single scan plane maps the kitchen
+    purpose: Prove that the 3-D set stays the default with unchanged behaviour; that the printed drone's ring flies in its own voxel layer with the pad plate under it on the ground; that its first sweep at altitude registers against the walls seen from the pad or is honestly dead-reckoned, never lost; that the nadir ranger holds altitude; that planar registration recovers an injected in-plane error against the ring's own layer; and that a drone-first exploration with the 2-D ring and a downward depth camera maps the flight layer, discovers the basin and a counter, and finds the dishes within 6 cm with no phantoms.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-sensor-sets.test.js
+    expected:
+      - recon-3d is the default set with full registration and the 8 cm mast; sensorSetById falls back to it.
+      - recon-mini takes off after one sweep from the pad, holds altitude within 5 mm of the truth, and never reports lost on a sweep with nothing to match.
+      - An injected 8 cm / 1.7° in-plane error recovers under 2 cm with the heading within 0.3°.
+      - Drone first with the printed sensor set — more than 60 % of the flight layer known, at least 3 registrations, home anchored on the pad, basin and counter discovered, every discovered object within 6 cm of a real one, at least 2 dishes found in the basin.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 768
+    installation: never
+  - id: engine-build
+    name: The drone designer — sizing, parts model, CAD Studio programs, generated tables
+    purpose: Prove that momentum-theory sizing reproduces the hardware design's rows (6 in / 750 g / 4S 1500 mAh gives about 105 W and 10.2 min), that the printed drone's mass budget is summed from its parts and the sizing is computed at that mass, that the reserve fit differs where it should, that every printed part's base and every feature validate against CAD Studio's own compiled contract, that the mast the sim flies is the mast the printer makes, and that the design document's tables are generated rather than typed.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-build.test.js
+    expected:
+      - The 6 in / 750 g / 4S 1500 mAh row sizes to 105 ± 1 W electrical and 10.2 ± 0.1 min; 5 in sizes to 126 W and 8.5 min.
+      - Recon-mini sums to about 746 g all-up and hovers 9.5–11 min in theory; recon-3d carries the 3-D LiDAR on 7 in props and 6S.
+      - All eight printed parts for both fits pass CAD Studio's validateBase and validateFeatureList; the centre plate has sixteen holes.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: routes-http
+    name: Packaged routes over loopback HTTP
+    purpose: Drive the compiled routes with express from a framework checkout — the caller gate, owner scoping, draft → rehearsal row → confirm-gated execute → deterministic time through GET /state → done, take/release/e-stop/reset, a refused manual command in the log, world reset refused mid-run, the physics backend and the certification gate on a plant double, and a node on the rail (heartbeat ingest, the fleet listed, a world reset onto the node, a drone-first exploration over its command channel, silence taking it offline, the manifest's service-secret posture for the mount).
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/routes.core.test.js
+    expected:
+      - 401 without a caller, 404 across owners, 428 without confirm, 409 refusals with reasons.
+      - A task reaches status done with every dish on the rack and the log carrying every step.
+      - A node that heartbeat in is online with the package's engine tree hash, belongs to the owner its heartbeats carried (another owner sees no node and gets 404), flies an exploration to done, and after 20 s of silence a reset onto it is 503 node_offline.
+      - Capabilities list the two scenarios; a reset onto the studio answers scenario studio; an unknown scene is 400.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fake-plant.js
+        - tests/fake-node.js
+        - tests/fake-node-worker.js
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never
+  - id: routes-scene-import
+    name: A Spaces scan becomes a scenario a world can fly
+    purpose: Drive the ADR-139 accepts destination end to end over loopback HTTP - a scene artifact seeded into the kernel handle endpoints the shared redeem dials, redeemed as the caller, registered per owner under scan:<scanId>, listed by /capabilities after the built-ins, reset onto and explored to done - and prove every refusal names the rule it broke without registering anything.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/routes-scene-import.core.test.js
+    expected:
+      - A redeemed scene registers as scan:scan0001, lists after kitchen and studio with its solid count, and a world reset onto it explores the scanned room to done with the discovery code unchanged.
+      - An unauthenticated caller is 401; a malformed ref 400, an unminted ref 404, and another owner's handle 404 - none of them register a scenario.
+      - The wrong MIME is 415 naming the type this destination takes; malformed JSON, a missing scene, a bad scanId and a wrong scene shape are 400 with rule malformed_json / envelope / scan_id / scene_shape.
+      - A capture below or above the extent, ceiling, volume or solid bounds is 422 naming that bound; a scene that breaks validateScene is 422 carrying the issues.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/routes.harness.js
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: engine-regressions
+    name: One case per defect the single scan plane exposed
+    purpose: Guard each rule the 0.4.0 and 0.5.0 debugging established with a case small enough to name it - the air voxel of a hit on a voxel-boundary face, the nudge into the solid along the face normal, mission altitudes at voxel centres, tops seen above the surface cap, tops with clearance, normal agreement in planar registration, the fence drift buffer on every exploration goal, plan steps counted without the executor's registration sweeps, and the pad fix.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-regressions.test.js
+    expected:
+      - A hit on a voxel-boundary face leaves the solid's cell occupied and the air cell in front free.
+      - No floor return is matched against a wall anchor in planar mode; the sweep is dead-reckoned, not dragged.
+      - Every exploration goal and leg for both sensor sets lies inside the fence by the drift buffer at the mission altitude.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: surface-browser
+    name: The tile in a real browser over the real routes
+    purpose: Drive the shipped HTML and JS in headless Chromium against the compiled routes on loopback - the unknown world, both simulated pictures pixel-for-pixel from the picture route and the drone design render; Explore the room (drone first) runs through the confirm dialog to done with surfaces discovered, the drone tracking and every step in the log; Take command scans and flies by hand and a refused command is a refused log row; Reset world onto the node that heartbeat in (a node double on the rail) runs the plant on it and the node panel says so, the Room selector lists the scenes and a reset onto the studio is confirmed by name, then switches to the printed sensor set; Open in CAD Studio posts exactly the part program the routes publish and lands on the CAD Studio tile.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/surface.core.spec.mjs
+    expected:
+      - The explore run ends with the mode idle, no failure text, at least one discovered surface and drone.register rows in the log.
+      - The body posted to /api/cad-studio/models equals the cadStudio body of GET /build/drone/parts/(id) byte for byte.
+      - Outside command every manual button is disabled while the designer's buttons stay live.
+      - The header names the node online, the truth-model selector offers it, and after Reset world onto it the node panel reads physics on rail node tile-plant.
+      - The Build panel lists the printed arm's six joints and its parts, and Check on physics puts the container's measured hold in the joint's row.
+    prerequisites:
+      - runner:playwright
+      - harness:oshal-core-root
+      - browser:chromium
+      - core:dependencies
+      - harness:core-test-fixtures
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/surface.core.fixture.mjs
+        - tests/routes.harness.js
+        - tests/fake-node.js
+        - tests/fake-node-worker.js
+      cleanup: Close the owned Chromium process, the node double's worker and the loopback fixture; the world, tasks and log live in the fixture's memory only.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never
+  - id: engine-physics
+    name: The physics lane without a container
+    purpose: Prove the MJCF generated from the parts model is exactly the fixture the engine's tests and self-test load, that its numbers are the parts model's, that the sensor specification is the kinematic raycaster's geometry, that the plant's frames become painted sweeps, that the simulation on a plant double holds a phase until the plant settles, grounds the drone on a reported contact, clones the plant for a rehearsal, runs a drone-first exploration through every guard, lets a drone that overshot the fence ceiling fly back inside, reads the hull from the parts model (B18), and that the certification gate refuses a recorded flight on an unexplored map and passes it over explored floor (B19).
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-physics.test.js
+    expected:
+      - droneMjcf for recon-mini equals engine/tests/fixtures/recon-mini.xml byte for byte; the plant mass is 0.746 kg.
+      - On the plant double the belief holds takeoff until the plant settles, a forced contact grounds the drone, and the exploration ends landed and anchored.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fake-plant.js
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: engine-medium
+    name: The medium as a parameter, and the boat that falls
+    purpose: Prove ADR-160 S1 end to end in the engine. A medium is a named record carrying a gravity vector, density, dynamic viscosity, a field with an analytic gradient, a free surface or none and a validity band; its property values come from one committed data row rather than a second copy; the real MJCF generators are driven with each of the three media and what they emit follows the medium they were given; the explorer hull is one solid from the design study's published envelope and all-up mass; in air it falls at g; and every refusal is raised by its own name.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-medium.test.js
+    expected:
+      - "The three media are vacuum, air and seawater; seawater carries rho 1025 kg/m3 and nu 1.05e-6 m2/s derived from it, and air carries the ISA sea-level station; no second copy of either value exists in package code outside the pinned inventory."
+      - "explorerHullMjcf writes the chosen medium's gravity vector into the scene, a zero-g or tilted medium changes that line, and neither density nor viscosity is ever emitted."
+      - "The hull is one 300 mm solid of 24.7 kg and falls 2 m in sqrt(2h/g) seconds in air; droneMjcf is byte-identical to its shipped fixture now that its medium is named vacuum."
+      - "Seawater raises model_not_valid_in_medium (rigid-body-plant), every medium raises medium_property_unavailable for freeSurface, and a release height outside the band raises medium_outside_validity."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - engine/tests/fixtures/explorer-hull-air.xml
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-plant-python
+    name: The MuJoCo plant (Python)
+    purpose: The plant against the shipped fixture - rests on its pad plate, climbs to the mission altitude and holds it under the gust model, tracks and settles on a leg with a small lag, senses the walls at the ranges the room dictates, reports a contact when flown into the island, and is deterministic for a seed with clone and restore exact.
+    level: unit
+    runner:
+      kind: external
+      scope: package
+      files:
+        - engine/tests/test_worker.py
+        - engine/tests/test_hover_leg.py
+        - engine/tests/test_node.py
+        - engine/tests/test_px4_node.py
+        - engine/tests/test_arm.py
+        - engine/tests/test_hull_fall.py
+    expected:
+      - Six worker cases pass under `python -m pytest -q engine/tests` in oshal-embodied-engine (or a venv with the requirements pins); the resting height is 0.03 m; the hover holds within 8 cm; two plants with one seed replay one trajectory.
+      - Five task cases pass; a zero residual flies exactly the controller's trajectory; a tiny trained policy loaded through set_controller flies the plant with snapshot/restore exact; the verdict needs every facet.
+      - Four node-rail cases pass; the rail is off without the secret; commands without or with the wrong secret are 401; envelopes fly the plant over HTTP; heartbeats reach a loopback controller and the ack trims the events.
+      - Six PX4-node cases pass - the room frame comes from the vehicle at rest; against a link double takeoff arms and engages OFFBOARD, hover settles, LAND settles, a pose inside the island is a contact, clone and a second load are refused; over a real UDP seam the node's fixed-port socket hears the vehicle, learns its system, records the ack and version, and the setpoint commands position and yaw.
+      - Seven printed-arm cases pass - the model is the arm the design describes; inverse kinematics reaches over the bench and refuses a pose through it; a servo holding the payload in the worst pose carries what the design said within 15 percent; a move trims the servos' sag to 8 mm at the tool; the taught pick-and-place places the block inside every servo's continuous torque; the check returns four verdicts and calls a wrong design figure a disagreement; the environment steps the same way twice.
+      - The ctbr task cases pass - collective thrust and body rates through the plant's own rate loop, the look-ahead observation, the smoothness penalty and thrust jitter in the reward.
+      - "Three hull cases pass under `python engine/tests/test_hull_fall.py` in oshal-embodied-engine, which ships no pytest - that file drives its own test functions and exits non-zero on any failure. The scene carries the air row's gravity and no fluid model; the hull is one 300 mm solid of 24.7 kg; and it falls at g - qvel is -g*t exactly, cvel trails it by one step of g*dt, the height leads h - g t^2/2 by g*dt*t/2, and it rests 5.7e-5 m into the floor."
+    prerequisites:
+      - engine-container:oshal-embodied-engine
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: engine-node
+    name: The node rail without a container
+    purpose: Prove the fleet mints a node on its first heartbeat, refuses malformed ones, flags a plant from another engine tree, goes offline on silence and refuses to hand out a dead link; that a node double on loopback (a worker thread speaking exactly the Python front's rail) is commanded under the swarm service secret with the wrong secret and a stale build refused before the first request; that the simulation flies it through the same seam as the dialled plant, holding a phase until it settles and cloning a session for the rehearsal; and that a node that is one body refuses to be cloned, the rehearsal runs on the kinematic twin, and a drone-first exploration runs to done over the rail through every unchanged guard.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-node.test.js
+    expected:
+      - A heartbeat with a path-hostile id, a non-http endpoint, an unknown kind or a string protocol is refused; after 15 s of silence get() throws NodeOffline.
+      - On the node double the belief holds takeoff until the node settles; the snapshot reports backend node and the node's id, link and endpoint; both sessions are dropped on the node.
+      - With clone refused the rehearsal copy has no plant and the exploration ends landed and anchored with more than 400 envelopes answered.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fake-plant.js
+        - tests/fake-node.js
+        - tests/fake-node-worker.js
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+
+  - id: engine-node-live
+    name: The MuJoCo plant as a node on the rail
+    purpose: Start the Python engine bridge as a node (EMBODIED_PYTHON, a secret minted for the run) pointed at the real package routes on loopback; it heartbeats in, the fleet lists it online with the package's own engine tree hash, an owner's world is reset onto it, and a drone-first exploration runs to done on MuJoCo through every unchanged guard, every step a command envelope to the node.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-node.live.test.js
+    expected:
+      - The node is online with engine mujoco, protocol 1 and stale false; the reset answers backend node and the node's endpoint.
+      - The exploration ends done, landed, not down; the node's /health counts acknowledged heartbeats.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+      - engine-container:oshal-embodied-engine
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/routes.harness.js
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1024
+    installation: never
+
+  - id: engine-physics-live
+    name: The MuJoCo plant behind the bridge flies the sim's drone
+    purpose: Against a running engine bridge (EMBODIED_ENGINE_ADDR) the synchronous client verifies the hello, loads the generated MJCF, and the simulation on the MuJoCo plant anchors on the pad, climbs, holds the phase until the controller settles, registers a sweep at altitude within centimetres of the true pose, lands and re-anchors, and runs a drone-first exploration to done through every unchanged guard on a cloned rehearsal session.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-physics.live.test.js
+    expected:
+      - The hello names mujoco and protocol 1; the plant mass is 0.746 kg and the rest height 0.03 m.
+      - After the climb the belief is within 8 cm of the plant's truth; the exploration ends done, landed, not down.
+    prerequisites:
+      - runner:node-test
+      - engine-container:oshal-embodied-engine
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1024
+    installation: never
+
+  - id: engine-px4-sandbox
+    name: A PX4 flight stack as a node on the rail (sandbox)
+    purpose: The B6 proof on the platform's own image - a sandbox api beside the stack, the engine container as embodied-plant and embodied-px4 (EMBODIED_PX4_ADDR), the official PX4 SITL image (SIH physics) started with the px4 binary as its entrypoint and stdin open; a world reset onto embodied-px4 and a drone-first exploration executed through the api's own timer. The recipe is in the core runbook docs/runbooks/embodied-tile.md.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - engine/container/embodied_px4_node.py
+        - engine/container/compose.yaml
+    expected:
+      - GET /physics/status lists embodied-px4 online as kind drone, engine px4-sih, version 1.18.0; POST /world/reset {backend:'node', node:'embodied-px4'} answers backend node with controller px4.
+      - PX4's log reads Armed by external command, Takeoff detected, Landing at current position, Landing detected; the exploration ends done and landed with localisation tracking at altitude (2026-09-14, 183 s).
+      - The node's log names the vehicle at rest (NED position and heading as the pad frame) and never says no telemetry; the api's fleet shows the node's session in its telemetry after the first step.
+    prerequisites:
+      - docker:oshal-local
+      - image:px4io.px4-sitl
+      - engine-container:oshal-embodied-engine
+      - sandbox-api:oshal-sandbox-api
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 2048
+    installation: never
+
+  - id: engine-arm
+    name: The printed arm, its parts and its model
+    purpose: The arm we print (ADR-152 D1, D5 task 3) against the compiled engine - the gravity torque at a pose a hand can check, the worst-pose search staying above the bench, each joint taking the simplest drive that holds it, the mass budget summing from the parts and the servos, every part validating against CAD Studio's own compiled contract, the MuJoCo model matching its committed fixture and carrying each drive's torque limit, the sim's inverse kinematics reaching a pick pose, and the design document being generated.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-arm.test.js
+    expected:
+      - The shoulder's gravity torque equals the outboard masses at their levers; a vertical axis carries none of it.
+      - Every joint's worst pose is inside its limits and above the bench, and the torque reported for it is the torque in it.
+      - The shoulder takes two direct servos, no other joint is offered a second, and an arm asked for 5 kg names the joints no drive holds.
+      - Every printed part's base and features pass CAD Studio's contract, and a servo pocket is the case plus its clearance.
+      - The generated MJCF equals engine/tests/fixtures/desk-6-arm.xml, compiles in radians, and each joint's force range is its drive's stall torque.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+
+  - id: engine-arm-plant
+    name: The arm on the rail, in the room (B22 half a)
+    purpose: The printed arm as a PLANT inside the room's WorldSim - the room model is the same arm the sizing check measures standing at the carriage pose with the scene's own solids around it, the mount is refused before any model is built, the joint truth is the measurement and not the command echoed back, arrival is the plant's, a rehearsal clones the arm, and a plant that is not this arm is refused outright.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-arm-plant.test.js
+    expected:
+      - The room model declares radians and carries the same six joints and actuators as the bench model.
+      - A base outside the room, a base whose rim overhangs a wall, and a base standing inside a solid are each refused.
+      - On a plant the simulation holds the MEASURED joint angles, which sit short of the command by the servo's droop.
+      - A rehearsal clones the arm plant; an arm that is one body returns no copy and the rehearsal runs kinematically.
+      - A plant built from a different arm's joint table is refused before a single step is taken.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never

@@ -129,3 +129,13 @@ cd bake-off && node --test "tests/*.test.js"
   anyway.
 - **No cross-user leaderboard.** Prompts and outputs are the caller's; there is no aggregate view
   and no "popular lane" telemetry.
+
+## Test Lab catalog (1.1.1)
+
+[tests/test-lab.yaml](tests/test-lab.yaml) registers every shipped test and preserves the existing `package-readiness` smoke ID. Registration does not execute tests. An authorized operator can run the supported Node suites from the AI Test Lab against a sealed package snapshot; versioned results record the source revision and sandbox cleanup.
+
+| Test entry | Level | Execution boundary |
+| --- | --- | --- |
+| `tests/bake-off-scoring.test.js` | unit | Isolated Node runner; synthetic data only |
+
+These tests do not contact accounts, providers or live business records. Surface syntax and stubbed-handler assertions do not claim browser or connector acceptance. Package readiness remains a separate metadata-only probe.

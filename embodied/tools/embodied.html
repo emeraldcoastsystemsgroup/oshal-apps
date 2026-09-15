@@ -1,0 +1,219 @@
+<!doctype html>
+<!--
+  Embodied Swarm — the machine knows only what its sensors have seen. A self-contained cockpit
+  surface: the one script is served by this package's route (/api/embodied/assets/embodied.js),
+  the theme is inherited from the surrounding cockpit through the shared surface-theme bootstrap,
+  and every framework token is consumed READ-ONLY with a local fallback so the page renders in any
+  skin. Everything shown is a SIMULATION and says so; the 3-D view draws the DISCOVERED map, never
+  the hidden scene. (.html is exempt from the CHANGE LOG header.)
+-->
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Embodied Swarm</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  :root { --em-bg: var(--bg, var(--bg-primary, #12151c)); --em-panel: var(--panel, var(--bg-card, #1b1f29)); --em-panel2: var(--panel2, var(--bg-tertiary, #232836));
+          --em-text: var(--text, var(--text-primary, #e6e9ef)); --em-muted: var(--muted, var(--text-muted, #9aa3b2)); --em-line: var(--line, var(--border-color, #2f3646));
+          --em-accent: var(--accent, #4f8cff); --em-danger: var(--danger, #e5534b); --em-ok: var(--ok, #3fb950); --em-warn: var(--warn, #d9a441); }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--em-text); background: var(--em-bg); }
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--em-line); background: var(--em-panel); flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0; }
+  header .spacer { flex: 1; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--em-line); color: var(--em-muted); white-space: nowrap; text-transform: uppercase; letter-spacing: .04em; }
+  .badge.auto { border-color: var(--em-accent); color: var(--em-accent); }
+  .badge.manual { border-color: var(--em-warn); color: var(--em-warn); }
+  .badge.estop { border-color: var(--em-danger); color: var(--em-danger); background: rgba(229,83,75,.12); }
+  .badge.sim { border-color: var(--em-warn); color: var(--em-warn); }
+  button, select, input { font: inherit; color: var(--em-text); }
+  select, input[type=number], input[type=text] { background: var(--em-panel2); border: 1px solid var(--em-line); border-radius: 6px; padding: 4px 6px; }
+  button.primary { background: var(--em-accent); color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+  button.primary:disabled, button.ghost:disabled, button.jog:disabled { opacity: .45; cursor: default; }
+  button.ghost { background: transparent; border: 1px solid var(--em-line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  button.danger { background: var(--em-danger); color: #fff; border: 0; border-radius: 8px; padding: 8px 16px; font-weight: 700; cursor: pointer; }
+  button.jog { background: var(--em-panel2); border: 1px solid var(--em-line); border-radius: 8px; padding: 6px 10px; cursor: pointer; min-width: 44px; }
+  button.link { background: none; border: 0; color: var(--em-accent); cursor: pointer; padding: 0 4px; }
+  .layout { display: grid; grid-template-columns: 1.35fr 1fr; gap: 14px; padding: 14px 16px 40px; }
+  .panel { border: 1px solid var(--em-line); border-radius: 10px; padding: 12px 14px; background: var(--em-panel); }
+  .panel h2 { font-size: 13px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .05em; color: var(--em-muted); }
+  .panel h2 small { text-transform: none; letter-spacing: 0; font-weight: normal; margin-left: 8px; }
+  canvas#view3d { width: 100%; aspect-ratio: 16 / 10; background: #0b0d12; border-radius: 8px; border: 1px solid var(--em-line); cursor: grab; touch-action: none; }
+  svg#map { width: 100%; aspect-ratio: 5 / 4; background: var(--em-panel2); border-radius: 8px; border: 1px solid var(--em-line); }
+  .pictures { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .pictures canvas { width: 100%; aspect-ratio: 4 / 3; background: #0b0d12; border-radius: 8px; border: 1px solid var(--em-line); image-rendering: pixelated; }
+  .pictures figcaption { font-size: 11px; color: var(--em-muted); margin-top: 2px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; }
+  .muted { color: var(--em-muted); } .small { font-size: 12px; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 0; font-size: 13px; }
+  dt { color: var(--em-muted); } dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .stack { display: flex; flex-direction: column; gap: 14px; }
+  table.world { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.world th, table.world td { text-align: left; padding: 3px 6px; border-bottom: 1px dotted var(--em-line); }
+  table.world input { width: 90px; padding: 2px 4px; font-size: 12px; }
+  ol#steps { margin: 6px 0 0; padding-left: 20px; max-height: 220px; overflow: auto; font-size: 13px; }
+  ol#steps li.done { color: var(--em-muted); } ol#steps li.current { color: var(--em-accent); font-weight: 600; } ol#steps li.failed { color: var(--em-danger); }
+  .gauge { height: 8px; border-radius: 4px; background: var(--em-panel2); border: 1px solid var(--em-line); overflow: hidden; }
+  .gauge > div { height: 100%; background: var(--em-ok); }
+  .gauge.warn > div { background: var(--em-warn); } .gauge.bad > div { background: var(--em-danger); }
+  ul#log { list-style: none; margin: 6px 0 0; padding: 0; max-height: 200px; overflow: auto; font-size: 12px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  ul#log li { padding: 2px 0; border-bottom: 1px dotted var(--em-line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  ul#log li.refused, ul#log li.failed { color: var(--em-danger); }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 44px); gap: 4px; }
+  .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+  .controls h3 { font-size: 12px; margin: 0 0 6px; color: var(--em-muted); }
+  .toast { position: fixed; right: 16px; bottom: 16px; padding: 10px 14px; border-radius: 8px; background: var(--em-panel2); border: 1px solid var(--em-line); max-width: 460px; z-index: 5; }
+  .toast.error { border-color: var(--em-danger); } .toast.ok { border-color: var(--em-ok); }
+  .watermark { position: absolute; left: 10px; top: 8px; font-size: 11px; color: var(--em-warn); letter-spacing: .08em; }
+  .rel { position: relative; }
+  .legend { font-size: 11px; color: var(--em-muted); display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+  @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Embodied Swarm</h1>
+  <span class="badge sim">simulation</span>
+  <span id="mode" class="badge">idle</span>
+  <span id="holder" class="muted small"></span>
+  <span class="spacer"></span>
+  <button id="explore" class="primary">Explore the room</button>
+  <button id="take" class="ghost">Take command</button>
+  <button id="release" class="ghost" hidden>Release command</button>
+  <button id="reset-estop" class="ghost" hidden>Reset e-stop</button>
+  <label class="small muted" title="What the drone carries. The 2-D ring is the drone we print; the 3-D LiDAR is the one we would buy. Applied on Reset world.">Drone sensors <select id="sensor-set"><option value="recon-3d">3-D LiDAR (Mid-360 class)</option><option value="recon-mini">2-D ring + ToF (the printed drone)</option></select></label>
+  <label class="small muted" title="The hidden room the machine starts in knowing nothing: every scene is plain data; the discovery reads only the map. Applied on Reset world.">Room <select id="scenario"><option value="kitchen">Kitchen</option><option value="studio">Studio</option></select></label>
+  <label class="small muted" title="What moves the drone's TRUE pose. Kinematic: the odometry drift model. Physics: the MuJoCo engine container flies the printed drone's parts model under gusts, with real contacts; every guard, the map and the registration are unchanged. A rail node: the same physics on a node that joined the swarm by heartbeat (the engine container as a drone node, or a real one later). Applied on Reset world."><select id="backend"><option value="kinematic">kinematic truth</option><option value="physics">physics (MuJoCo)</option></select></label>
+  <label class="small muted" title="What flies the physics plant: its own cascaded controller, or a trained policy that has passed THIS world's certification gate (Policies panel)."><select id="controller"><option value="pid">flown by PID</option></select></label>
+  <button id="reset-world" class="ghost">Reset world</button>
+  <span id="physics-status" class="small muted"></span>
+  <button id="estop" class="danger">E-STOP</button>
+</header>
+<div class="layout">
+  <div class="stack">
+    <section class="panel rel">
+      <h2>Discovered world — 3-D <small class="muted">only what LiDAR sweeps and depth pictures have mapped · drag to orbit · wheel to zoom</small></h2>
+      <canvas id="view3d" width="960" height="600"></canvas>
+      <span class="watermark" style="top:34px">SIMULATED · DISCOVERED MAP</span>
+      <div class="legend"><span><i style="background:#6b7a99"></i>mapped voxels (by height)</span><span><i style="background:#3fb950"></i>discovered surface</span><span><i style="background:#f6c177"></i>discovered object</span><span><i style="background:#4f8cff"></i>rover + arm</span><span><i style="background:#c792ea"></i>drone (believed pose)</span><span><i style="background:#5a4470"></i>drone true pose (sim only)</span><span><i style="background:#ffffff"></i>last sweep</span></div>
+      <div id="world-stats" class="small muted" style="margin-top:6px">No scans yet — the map is entirely unknown.</div>
+    </section>
+    <section class="panel">
+      <h2>Task <small class="muted">explore first · then draft against discovered ids · rehearse on a clone · you execute · every step re-validated live</small></h2>
+      <div class="row">
+        <label class="small">Task <select id="task"><option value="explore">Explore the room</option><option value="clear-surface">Clear a discovered surface</option><option value="fetch-from-appliance">Fetch from the fridge (taught door)</option></select></label>
+        <label class="small" data-task="explore">Scans <input id="max-scans" type="number" min="1" max="30" value="12" style="width:64px" /></label>
+        <label class="small" data-task="explore" title="The rover stays parked. The drone's upward ranger clears its climb and every sweep is registered against the map it has built."><input id="drone-first" type="checkbox" /> drone first (rover parked)</label>
+        <label class="small" data-task="clear-surface" hidden>From <select id="from"></select></label>
+        <label class="small" data-task="clear-surface" hidden>To <select id="to"></select></label>
+        <label class="small" data-task="fetch-from-appliance" hidden>Object <select id="object"><option value="milk-1">milk-1 (carton)</option></select></label>
+        <button id="draft" class="primary">Draft plan</button>
+        <button id="execute" class="primary" disabled>Execute</button>
+        <button id="abort" class="ghost" disabled>Abort</button>
+      </div>
+      <div id="task-summary" class="small muted">No plan drafted.</div>
+      <div id="rehearsal" class="small"></div>
+      <ol id="steps"></ol>
+    </section>
+    <section class="panel">
+      <h2>Top view <small class="muted">discovered surfaces and objects · the room outline and the taught fridge door are the only given geometry</small></h2>
+      <svg id="map" viewBox="0 0 500 400" preserveAspectRatio="xMidYMid meet"></svg>
+    </section>
+    <section class="panel">
+      <h2>Command log <small class="muted">every command, every actor, every outcome</small></h2>
+      <ul id="log"></ul>
+    </section>
+  </div>
+  <div class="stack">
+    <section class="panel">
+      <h2>Pictures <small class="muted">what the cameras see right now (simulated depth pictures)</small></h2>
+      <div class="pictures">
+        <figure style="margin:0"><canvas id="pic-drone" width="160" height="120"></canvas><figcaption id="cap-drone">drone camera</figcaption></figure>
+        <figure style="margin:0"><canvas id="pic-wrist" width="160" height="120"></canvas><figcaption id="cap-wrist">wrist camera</figcaption></figure>
+      </div>
+    </section>
+    <section class="panel">
+      <h2>Medium &mdash; drop the explorer hull <small class="muted">the medium is a parameter, not a property of this lab &middot; one solid from the study's published 300&nbsp;mm envelope &middot; simulated</small></h2>
+      <div class="row">
+        <label class="small" title="Choose what the scene runs in. The plant takes ONLY the gravity vector from a medium: no density and no viscosity are written into the model, so no fluid model runs.">Medium <select id="medium"></select></label>
+        <label class="small" title="Height of the hull's underside above the floor at release.">Drop from <input id="drop-height" type="number" min="0.1" max="99" step="0.5" value="2" style="width:72px" />&nbsp;m</label>
+        <button id="drop-hull" class="primary">Drop the hull</button>
+        <a id="hull-mjcf" class="small" href="#" target="_blank" rel="noopener">scene as MJCF</a>
+      </div>
+      <div id="medium-summary" class="small muted" style="margin-top:6px">Loading the media&hellip;</div>
+      <svg id="fall" viewBox="0 0 320 128" preserveAspectRatio="xMidYMid meet" style="width:100%;height:132px;margin-top:8px;background:var(--em-panel2);border:1px solid var(--em-line);border-radius:8px"></svg>
+      <div id="drop-result" class="small" style="margin-top:6px"></div>
+    </section>
+    <section class="panel">
+      <h2>Build the drone <small class="muted">the parts model behind the sim · sizing by momentum theory · every part a CAD Studio program</small></h2>
+      <div class="row"><label class="small">Fit <select id="build-fit"><option value="recon-mini">Recon-mini — 2-D ring + ToF (print this one)</option><option value="recon-3d">Recon-3D — the 3-D LiDAR fit, in reserve</option></select></label> <a id="build-md" class="small" href="#" target="_blank" rel="noopener">design as markdown</a></div>
+      <div id="build-summary" class="small muted" style="margin-top:6px">Loading the design…</div>
+      <table class="world" id="build-parts" style="margin-top:8px"><thead><tr><th>part</th><th>qty</th><th>base</th><th>features</th><th>material</th><th>mass</th><th></th></tr></thead><tbody></tbody></table>
+      <div id="build-bought" class="small muted" style="margin-top:6px"></div>
+      <h3 style="margin-top:14px">Build the arm <small class="muted">the hands: six axes on serial-bus servos, sized from the same parts model</small></h3>
+      <div class="row"><label class="small">Fit <select id="arm-fit"><option value="desk-6">Desk-6 &mdash; the arm we print first</option></select></label> <a id="arm-md" class="small" href="#" target="_blank" rel="noopener">design document</a> <button id="arm-check" class="jog build" title="The engine container holds the payload in each joint's worst pose and runs the taught pick-and-place, then reports what it measured against what the design expects.">Check on physics</button></div>
+      <div id="arm-summary" class="small muted" style="margin-top:6px">Loading the design&hellip;</div>
+      <table class="world" id="arm-joints" style="margin-top:8px"><thead><tr><th>joint</th><th>holds</th><th>needs</th><th>drive</th><th>continuous</th><th>margin</th><th>measured</th></tr></thead><tbody></tbody></table>
+      <table class="world" id="arm-parts" style="margin-top:8px"><thead><tr><th>part</th><th>qty</th><th>material</th><th>mass</th><th></th></tr></thead><tbody></tbody></table>
+      <div id="arm-bought" class="small muted" style="margin-top:6px"></div>
+      <h3 style="margin-top:14px">Policies (trained in the engine container)</h3>
+      <div id="policies-note" class="small muted">A policy may fly the plant only after its recorded flight passes this world's guards — explore first, then certify.</div>
+      <table class="world" id="policies" style="margin-top:8px"><thead><tr><th>report</th><th>mode</th><th>steps</th><th>baseline hold / leg</th><th>policy hold / leg</th><th>beats</th><th>gate</th><th></th></tr></thead><tbody></tbody></table>
+    </section>
+    <section class="panel">
+      <h2>Discovered surfaces &amp; objects <small class="muted">ids are what plans take · label what you recognise</small></h2>
+      <table class="world" id="surfaces"><thead><tr><th>surface</th><th>height</th><th>area</th><th>label</th></tr></thead><tbody></tbody></table>
+      <table class="world" id="objects" style="margin-top:8px"><thead><tr><th>object</th><th>guess</th><th>at</th><th>on</th><th>label</th></tr></thead><tbody></tbody></table>
+    </section>
+    <section class="panel">
+      <h2>Nodes</h2>
+      <div class="controls">
+        <div>
+          <h3>rover-arm-1 · mobile manipulator · class 2</h3>
+          <dl id="unit"></dl>
+          <div class="small muted" style="margin-top:6px">Tip budget vs the 60 N fridge pull</div>
+          <div id="tip-gauge" class="gauge"><div style="width:0%"></div></div>
+          <div id="tip-text" class="small"></div>
+        </div>
+        <div>
+          <h3>mini-drone-1 · drone · class 2</h3>
+          <dl id="drone"></dl>
+        </div>
+      </div>
+    </section>
+    <section class="panel">
+      <h2>Manual control <small class="muted">take command first · the same guards apply to you · unknown space blocks everyone</small></h2>
+      <div class="controls">
+        <div>
+          <h3>Sensors</h3>
+          <div class="row"><button class="jog" data-cmd="scan" data-sensor="rover">Base LiDAR</button><button class="jog" data-cmd="scan" data-sensor="wrist">Wrist camera</button><button class="jog" data-cmd="scan" data-sensor="drone">Drone LiDAR</button></div>
+          <h3 style="margin-top:8px">Base</h3>
+          <div class="grid3">
+            <span></span><button class="jog" data-cmd="jog" data-v="0.3" data-w="0">▲</button><span></span>
+            <button class="jog" data-cmd="jog" data-v="0" data-w="0.6">↶</button><button class="jog" data-cmd="stop">■</button><button class="jog" data-cmd="jog" data-v="0" data-w="-0.6">↷</button>
+            <span></span><button class="jog" data-cmd="jog" data-v="-0.3" data-w="0">▼</button><span></span>
+          </div>
+          <div class="row"><button class="jog" data-cmd="lift" data-dz="0.1">Lift +</button><button class="jog" data-cmd="lift" data-dz="-0.1">Lift −</button></div>
+        </div>
+        <div>
+          <h3>Arm (tool, 5 cm)</h3>
+          <div class="row"><button class="jog" data-cmd="arm" data-dx="0.05">X+</button><button class="jog" data-cmd="arm" data-dx="-0.05">X−</button><button class="jog" data-cmd="arm" data-dy="0.05">Y+</button><button class="jog" data-cmd="arm" data-dy="-0.05">Y−</button></div>
+          <div class="row"><button class="jog" data-cmd="arm" data-dz="0.05">Z+</button><button class="jog" data-cmd="arm" data-dz="-0.05">Z−</button><button class="jog" data-cmd="joints" data-q="ready">Ready</button><button class="jog" data-cmd="joints" data-q="stow">Stow</button></div>
+          <div class="row"><button class="jog" data-cmd="grasp">Grasp</button><button class="jog" data-cmd="release">Release</button></div>
+        </div>
+        <div>
+          <h3>Drone</h3>
+          <div class="row"><button class="jog" data-cmd="drone" data-drone="takeoff">Take off</button><button class="jog" data-cmd="drone" data-drone="land">Land</button><button class="jog" data-cmd="drone" data-drone="recover" title="One wide registration sweep (30 cm capture) for a drone that reports itself lost; a plan recovers on its own — climb, wide sweep, back along the registered trail.">Recover</button></div>
+          <div class="row"><button class="jog" data-cmd="drone" data-drone="frontier">Next frontier</button></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+<script src="/api/embodied/assets/embodied.js"></script>
+</body>
+</html>

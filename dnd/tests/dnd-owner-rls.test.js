@@ -4,6 +4,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-08-06 02:43:35 | maintainer@emeraldcoastsystemsgroup.com     | Pin the SEC-04 owner backfill, six-table FORCE RLS, non-recursive member ACL, exact private library, bounded join capability, manifest release, and disposable live proof.
+ * 2026-09-14 14:23:00 | maintainer@emeraldcoastsystemsgroup.com     | Stop pinning the CURRENT manifest version to 0.19.1. That equality asserted a release moment rather than an invariant, so it went red the day dnd shipped 0.20.0 and stayed red through 0.21.1, blocking store-ci on every run while proving nothing about the migration. The SEC-04 guards are untouched: the manifest and README must still reference migrations/006-owner-rls.sql, the README must still carry the historical "Shipped in v0.19.1" line, catalog and manifest must still agree, and every column/trigger/FORCE RLS assertion is unchanged.
  */
 
 'use strict';
@@ -34,7 +35,11 @@ test('the released package installs the idempotent SEC-04 owner migration', () =
   assert.match(readme, /migrations\/006-owner-rls\.sql/);
   assert.match(readme, /RLS hardening\.\*\*~~ \*\*Shipped in v0\.19\.1/);
   assert.doesNotMatch(readme, /add\s+per-request GUC RLS policies as defense-in-depth/);
-  assert.equal(manifestVersion(), '0.19.1');
+  // The version is deliberately NOT pinned to 0.19.1. What proves the migration is installed is the
+  // manifest + README references above and the README's historical "Shipped in v0.19.1" claim, which
+  // stays true forever. Asserting the CURRENT version equals the release the fix shipped in passes
+  // exactly once and then fails every subsequent release - it went red at 0.20.0 and stayed red.
+  assert.ok(manifestVersion(), 'the manifest must declare a version');
   assert.equal(catalog.apps.find((app) => app.name === 'dnd').version, manifestVersion());
   assert.equal((liveRunner.match(/'006-owner-rls\.sql'/g) || []).length, 2);
   assert.match(migration, /DROP TRIGGER IF EXISTS dnd_player_membership_sync/);

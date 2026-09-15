@@ -1,0 +1,410 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — animatronics ("Animatronics")
+#
+# The motion layer for a Halloween prop or any servo animatronic: a RIG of hobby or bus servos
+# with per-channel calibration and software limits, grouped into MECHANISMS (an eye gimbal,
+# eyelids, a neck, a jaw, an arm); a POSE library (LOOK_LEFT, EYES_CLOSED, JAW_OPEN); and
+# SCENARIOS — timed scripts of scenes (move, hold, together, run, repeat) in the Glicksman shape.
+# The server compiles a scenario to a 50 Hz frame stream through the calibration, REHEARSES it on
+# servos that move no faster than their rated speed, budgets the actuator supply (idle / peak /
+# stall against the rail; a USB port is refused), and only then hands the page the exact
+# controller protocol lines to stream — over Web Serial — to an ESP32 / Arduino driving a
+# PCA9685. The PC thinks, the microcontroller drives (the ServoEye / Phil / PiBob split).
+#
+# THE AUTHORITY RAIL: draft → rehearse → ARM (a person, on the surface, controller connected,
+# `confirm: true` or 428) → play / look-at / jog (409 until armed) → DISARM (the e-stop; always
+# allowed). Every command is a row in the command log. The concierge rehearses; it never arms.
+#
+# The `prop` peripheral kind now lives in embodied's capability-manifest vocabulary (ADR-156 D6
+# folded in): embodied owns the row, this package pins it as data and engine-kind.test.js holds
+# the two in agreement. No engine container: the engine is deterministic TypeScript in this package.
+#
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md,
+# docs/adr/036-bot-owned-application-architecture.md, docs/adr/151-eyes-and-hands-embodied-swarm.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Initial package: rig contract, poses and scenarios, compiler, servo rehearsal, supply budget, look-at, controller protocol, Web Serial surface, concierge, Test Lab catalog.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | ADR-156 D6 fold-in: the `prop` kind moved to embodied's KIND_VOCABULARY. This package binds to that row instead of declaring its own, /capabilities names embodied as the vocabulary owner, and the seam test now proves agreement (embodied ACCEPTS a real rig's manifest) instead of refusal.
+name: animatronics
+suite: ai-creative   # ADR-097: primary catalog shelf — exactly one (the prop is the creative deliverable; Pumpkin sits here too)
+displayName: Animatronics
+description: >-
+  The motion layer for a Halloween prop or any servo animatronic. Describe the rig — servos with
+  calibration and software limits, grouped into an eye gimbal, eyelids, a neck, a jaw or an arm —
+  build a pose library (LOOK_LEFT, BLINK, JAW_OPEN) and timed scenarios, and the server compiles
+  them to a 50 Hz frame stream, rehearses them on rate-limited servos with a supply budget, and
+  streams the exact controller lines from the page over Web Serial to an ESP32 or Arduino driving
+  a PCA9685. Look-at splits a bearing between eyes and neck. Arm with a confirm, e-stop always.
+  The director in the chat rail edits and rehearses the same libraries; it cannot arm or play.
+version: 0.2.0
+status: active
+scope: person
+
+uses: [test-catalog, app-dependencies]
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: animatronics
+  ref: main
+
+# CORE-05 install readiness is service-authenticated and reads package metadata only.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/animatronics/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
+# No connector allow-list: the inputs are the person's own rig; the controller is a USB device
+# the person's browser opens. Nothing here leaves the box.
+dependencies:
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — one INLINE concierge (no container: reasoning rides the caller's hosted/BYO brain
+# through the framework's accounted path). It turns "make it glance left and blink" into pose
+# and scenario edits and READS the rehearsal; a person arms and plays.
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: e48e0e14-a2eb-44c1-a1dc-b82c661cadcb
+    name: animatronics-director
+    persona: personas/animatronics-director.yaml
+    role: creative/animatronics-director
+    capabilities:
+      - pose-authoring
+      - scenario-authoring
+      - servo-rehearsal
+      - servo-selection
+    selectorDescriptor: >-
+      Select for the Animatronics app ONLY: designing or changing an animatronic prop's rig
+      (servo channels, calibration, software limits, mechanisms such as eyes, eyelids, neck, jaw,
+      arm), writing or changing poses (LOOK_LEFT, EYES_CLOSED) and scenarios (BLINK, IDLE, SCARE,
+      TALK), rehearsing a move and reading why a servo lags or a supply is refused, choosing a
+      servo from the catalog, or a look-at bearing. Do NOT select for circuits (circuit-lab), CAD
+      parts (cad-studio-designer), the talking pumpkin projector (pumpkin-bot), or anything that
+      is not this app.
+    routingKeywords:
+      - animatronic
+      - animatronics
+      - prop
+      - halloween prop
+      - servo
+      - servos
+      - pca9685
+      - esp32
+      - eye mechanism
+      - eyelids
+      - blink
+      - jaw
+      - look at
+      - pose
+      - scenario
+      - rig
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TOOLS — route-backed. Reads are free; writes edit ONLY the caller's own rig and every
+# rehearsal is logged, so the director iterates without a click per edit. There is NO arm and
+# NO play tool: those need a person on the surface with the controller connected.
+# ─────────────────────────────────────────────────────────────────────────────
+tools:
+  - name: animatronics-capabilities
+    displayName: Animatronics Capabilities
+    type: api
+    category: creative
+    description: The exact contract the server enforces — channel calibration fields, mechanism kinds and their roles, the step kinds and easings, the caps, the controller protocol, the templates (with their pose and scenario names) and the `prop` kind vocabulary.
+    executor: { executorType: api, apiEndpoint: "GET /api/animatronics/capabilities" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Read this FIRST before adding or changing anything; axis keys, step kinds and easings come from here and from the rig, never from memory.
+    routingTags: [animatronics, capabilities, contract]
+    tags: [animatronics, route-backed]
+
+  - name: animatronics-list-rigs
+    displayName: List Rigs
+    type: api
+    category: creative
+    description: The caller's rigs with title, armed state, channel count, pose and scenario names, believed pose and command count.
+    executor: { executorType: api, apiEndpoint: "GET /api/animatronics/rigs" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Owner-scoped. Use it to find the rigId the person is talking about; ask when two could match.
+    routingTags: [animatronics, rigs, list]
+    tags: [animatronics, route-backed]
+
+  - name: animatronics-get-rig
+    displayName: Read a Rig
+    type: api
+    category: creative
+    description: One rig in full — channels with calibration and limits, mechanisms, the axis keys, supply, controller, the pose and scenario libraries, armed state, the believed pose, the last report, the command log and the idle supply budget.
+    executor: { executorType: api, apiEndpoint: "GET /api/animatronics/rigs/{input.rigId}" }
+    inputSchema:
+      type: object
+      properties: { rigId: { type: string, description: "the rig's rig_id (UUID)" } }
+      required: [rigId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Quote axis keys, limits and numbers from this reply; never invent an axis or an angle.
+    routingTags: [animatronics, rig, read]
+    tags: [animatronics, route-backed]
+
+  - name: animatronics-create-rig
+    displayName: Create a Rig
+    type: api
+    category: creative
+    description: Create a rig from a template (two-axis-eyes, six-servo-face, skull) or from a full rig document (channels, mechanisms, supply, controller), with optional pose and scenario libraries.
+    executor: { executorType: api, apiEndpoint: "POST /api/animatronics/rigs" }
+    inputSchema:
+      type: object
+      properties:
+        title: { type: string, description: "rig name" }
+        template: { type: string, description: "optional template id from animatronics-capabilities" }
+        rig: { type: object, description: "optional full rig {channels, mechanisms, supply, controller}" }
+        poses: { type: object, description: "optional POSE_ID → {axisKey: degrees}" }
+        scenarios: { type: object, description: "optional SCENARIO_ID → {steps, description}" }
+      required: []
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Prefer a template when the person's prop matches one, then edit it. The reply carries the new rigId and the idle supply budget; quote the budget verdict.
+    routingTags: [animatronics, create]
+    tags: [animatronics, route-backed]
+
+  - name: animatronics-update-rig
+    displayName: Change a Rig
+    type: api
+    category: creative
+    description: Change a rig's title, its rig document (calibration, limits, mechanisms, supply, controller — the whole document is replaced and re-validated; a rig change DISARMS), or replace its pose / scenario libraries.
+    executor: { executorType: api, apiEndpoint: "PATCH /api/animatronics/rigs/{input.rigId}" }
+    inputSchema:
+      type: object
+      properties:
+        rigId: { type: string }
+        title: { type: string }
+        rig: { type: object, description: "the full rig document (read it first, change the fields, send it back)" }
+        poses: { type: object }
+        scenarios: { type: object }
+      required: [rigId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Read the rig first and send the whole document back with the change. A refusal names the field. Tell the person a rig change disarmed the rig.
+    routingTags: [animatronics, rig, update, calibration]
+    tags: [animatronics, route-backed]
+
+  - name: animatronics-set-pose
+    displayName: Set a Pose
+    type: api
+    category: creative
+    description: Create or replace one pose — axis keys to degrees within each channel's software limits.
+    executor: { executorType: api, apiEndpoint: "PUT /api/animatronics/rigs/{input.rigId}/poses/{input.poseId}" }
+    inputSchema:
+      type: object
+      properties:
+        rigId: { type: string }
+        poseId: { type: string, description: "UPPER_CASE name such as LOOK_LEFT" }
+        axes: { type: object, description: "axisKey → degrees, e.g. {\"eyes.pan\": -25}" }
+      required: [rigId, poseId, axes]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: One pose per call. Axes you leave out hold their current angle when the pose is played.
+    routingTags: [animatronics, pose, set]
+    tags: [animatronics, route-backed]
+
+  - name: animatronics-delete-pose
+    displayName: Delete a Pose
+    type: api
+    category: creative
+    description: Delete one pose; refused (409) while a scenario still moves to it.
+    executor: { executorType: api, apiEndpoint: "DELETE /api/animatronics/rigs/{input.rigId}/poses/{input.poseId}" }
+    inputSchema:
+      type: object
+      properties: { rigId: { type: string }, poseId: { type: string } }
+      required: [rigId, poseId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: A 409 names the scenario that uses the pose; change that scenario first.
+    routingTags: [animatronics, pose, delete]
+    tags: [animatronics, route-backed]
+
+  - name: animatronics-set-scenario
+    displayName: Set a Scenario
+    type: api
+    category: creative
+    description: Create or replace one scenario — a list of steps (move {pose|axes, ms, ease}, hold {ms}, together {steps}, run {scenario}, repeat {times, steps}) and a description. Cycles are refused.
+    executor: { executorType: api, apiEndpoint: "PUT /api/animatronics/rigs/{input.rigId}/scenarios/{input.scenarioId}" }
+    inputSchema:
+      type: object
+      properties:
+        rigId: { type: string }
+        scenarioId: { type: string, description: "UPPER_CASE name such as BLINK" }
+        steps: { type: array, description: "the steps" }
+        description: { type: string }
+      required: [rigId, scenarioId, steps]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: After saving, REHEARSE it (animatronics-rehearse) and read verdict.ok, reasons and power.verdict before calling it done. A fast move should be `linear` (in-out peaks at three times the average speed).
+    routingTags: [animatronics, scenario, set]
+    tags: [animatronics, route-backed]
+
+  - name: animatronics-delete-scenario
+    displayName: Delete a Scenario
+    type: api
+    category: creative
+    description: Delete one scenario; refused (409) while another scenario runs it.
+    executor: { executorType: api, apiEndpoint: "DELETE /api/animatronics/rigs/{input.rigId}/scenarios/{input.scenarioId}" }
+    inputSchema:
+      type: object
+      properties: { rigId: { type: string }, scenarioId: { type: string } }
+      required: [rigId, scenarioId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: A 409 names the scenario that runs it; change that one first.
+    routingTags: [animatronics, scenario, delete]
+    tags: [animatronics, route-backed]
+
+  - name: animatronics-rehearse
+    displayName: Rehearse
+    type: api
+    category: creative
+    description: Compile a scenario, a pose, inline steps or axes into frames from the believed pose (or a given start), run them on rate-limited servos and budget the supply — the report (per-channel asked vs rated speed, lag, settling; idle / peak / stall current, verdict) without moving anything.
+    executor: { executorType: api, apiEndpoint: "POST /api/animatronics/rigs/{input.rigId}/rehearse" }
+    inputSchema:
+      type: object
+      properties:
+        rigId: { type: string }
+        scenario: { type: string, description: "a scenario name" }
+        pose: { type: string, description: "a pose name (a single move)" }
+        steps: { type: array, description: "inline steps" }
+        axes: { type: object, description: "axisKey → degrees (a single move)" }
+        ms: { type: number, description: "duration for a pose / axes move (default 400)" }
+        start: { type: object, description: "optional start pose (defaults to the believed pose)" }
+      required: [rigId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Give exactly one of scenario, pose, steps or axes. Quote report.verdict.summary and the first reason; name the channel that lags and what it was asked versus rated.
+    routingTags: [animatronics, rehearse, simulate]
+    tags: [animatronics, route-backed]
+
+  - name: animatronics-look-at
+    displayName: Look At (rehearsed)
+    type: api
+    category: creative
+    description: Split a bearing (azDeg right-positive, elDeg up-positive) between the eye gimbal and the neck — eyes first and fast, neck follows — and rehearse the resulting move; the reply carries the pose, the residual neither could reach and the report. It only rehearses; the surface plays look-at on an armed rig.
+    executor: { executorType: api, apiEndpoint: "POST /api/animatronics/rigs/{input.rigId}/look-at" }
+    inputSchema:
+      type: object
+      properties:
+        rigId: { type: string }
+        azDeg: { type: number }
+        elDeg: { type: number }
+        eyeShare: { type: number, description: "0…1, the eyes' share of the bearing (default 0.6)" }
+        rehearse: { type: boolean, description: "always send true from the chat rail" }
+      required: [rigId, azDeg, rehearse]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Always send rehearse true. Say the residual when the bearing is beyond the limits.
+    routingTags: [animatronics, look-at, bearing]
+    tags: [animatronics, route-backed]
+
+  - name: animatronics-servo-catalog
+    displayName: Servo Catalog
+    type: api
+    category: creative
+    description: Hobby and bus servos with pulse range, travel, speed, idle / moving / stall current, voltage range, torque, mass, price and a source line per row; the controller boards; filter by kind.
+    executor: { executorType: api, apiEndpoint: "GET /api/animatronics/catalog/servos?kind={input.kind}" }
+    inputSchema:
+      type: object
+      properties: { kind: { type: string, description: "hobby or bus (omit for all)" } }
+      required: []
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Quote the row's `source` when you recommend a servo; its numbers are typical, not measured.
+    routingTags: [servo, catalog, pca9685]
+    tags: [animatronics, route-backed]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon tile opens the app, self-served by this package's route.
+# Web Serial needs a Chromium desktop browser; the same-origin iframe inherits the permission.
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: animatronics
+      label: Animatronics
+      icon: codicon codicon-eye
+      iframeUrl: /api/animatronics/app
+      section: top
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — compiled JS bundled in this package, mounted in-process. OIDC only.
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/animatronics/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/animatronics/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/animatronics-routes.js
+    factory: createAnimatronicsRoutes
+    mountPath: /api/animatronics
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+# The app's own schema (rigs, the command log) with owner RLS, applied on install.
+migrations:
+  - migrations/001-animatronics.sql
+
+# The right-rail chat agent when this app is focused.
+chatBot: animatronics-director
+
+# RIBBON VISIBILITY — focus mode for /cockpit?app=animatronics (chat panel stays).
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  defaultView: animatronics
+
+summary:
+  path: /api/animatronics/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a build note
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

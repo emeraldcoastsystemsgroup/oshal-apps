@@ -1,0 +1,205 @@
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the existing metadata-only package smoke without user data or provider calls.
+    level: integration
+    runner: { kind: smoke, smoke: package-readiness }
+    expected: [The installed portrait-studio readiness marker satisfies the manifest assertions.]
+    prerequisites: []
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+  - id: catalog-invariants
+    name: Style catalog and prompt assertions
+    purpose: Verify the compiled style catalog and prompt builder using the existing exported-function harness.
+    level: unit
+    runner:
+      kind: external
+      scope: package
+      files: [tests/run.js, tests/catalog-invariants.spec.js]
+    expected:
+      - Preset layer IDs exist and overrides reach the generated prompt.
+      - Invalid selections are rejected and notes are sanitized.
+    prerequisites: [runner:node, harness:portrait-exported-function]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000, maxMemoryMb: 256 }
+    installation: never
+  - id: operational-primitives
+    name: Retry, timeout and concurrency behavior
+    purpose: Exercise the compiled operations primitives without contacting a provider.
+    level: unit
+    runner:
+      kind: external
+      scope: package
+      files: [tests/run.js, tests/ops.spec.js]
+    expected:
+      - Only transient failures retry and exhausted attempts propagate their last error.
+      - Timeouts reject slow work and the semaphore bounds concurrent work in FIFO order.
+    prerequisites: [runner:node, harness:portrait-exported-function]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000, maxMemoryMb: 256 }
+    installation: never
+  - id: photo-capture-rules
+    name: Photo capture and group geometry rules
+    purpose: Test the same capture module used by the package surface across supported capability combinations.
+    level: unit
+    runner:
+      kind: external
+      scope: package
+      files: [tests/run.js, tests/capture.spec.js]
+    expected:
+      - Live camera, camera-app and upload-only modes reflect available browser capabilities.
+      - Image validation, lens selection and group face boxes obey the shared rules.
+    prerequisites: [runner:node, harness:portrait-exported-function]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000, maxMemoryMb: 256 }
+    installation: never
+  - id: export-email-inputs
+    name: Export geometry and email input validation
+    purpose: Test the closed export-size catalog and recipient validation without generating or sending anything.
+    level: unit
+    runner:
+      kind: external
+      scope: package
+      files: [tests/run.js, tests/export-email.spec.js]
+    expected:
+      - Only declared export sizes and exact pixel geometry are accepted.
+      - Recipient validation rejects malformed and header-injection inputs.
+    prerequisites: [runner:node, harness:portrait-exported-function]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000, maxMemoryMb: 256 }
+    installation: never
+  - id: camera-browser
+    name: Camera capture in Chromium
+    purpose: Exercise the real package DOM under the Node test harness, over Chromium's own fake capture device and the shared picker asset resolved from the framework checkout.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files: [tests/browser/camera-proof.js]
+    expected:
+      - A secure page with a camera chooses live capture and the modal shows decoded, mirrored frames.
+      - A snap replaces the dropzone with the crop stage, offers a retake, and closing the modal ends every camera track.
+      - Desktop and phone fallback paths show working controls with accurate explanations and the right lens.
+    prerequisites: [runner:playwright, browser:chromium, core:dependencies, harness:oshal-core-root]
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: The recipe closes its browser contexts and ephemeral loopback server; no real camera device is requested.
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
+  - id: shared-artifact-picker
+    name: Shared artifact picker and owner-bound file handoff
+    purpose: Reference the core-owned real HTTP, filesystem, handle and Chromium proof against this installed package source.
+    level: browser
+    runner:
+      kind: vitest
+      scope: core
+      revision: 7ca9d81b6f54e1086bdd8c260f03ecd4d8bbca1a
+      files: [tests/unit/artifact-picker.spec.ts]
+    expected:
+      - Source discovery and file handle redemption respect the caller's ownership and visibility.
+      - A real image reaches the package crop stage and cancellation or invalid sources do not mint handles.
+    prerequisites: [runner:vitest, browser:chromium, package:portrait-studio]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: The core suite closes fixture browsers and HTTP services, removes its temporary files and retracts registry entries.
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
+  - id: local-face-cascade
+    name: Bundled face cascade integrity and bounds
+    purpose: Reconstruct the exact pinned upstream model and exercise the real classifier on bounded no-face inputs.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/face-cascade.test.js]
+    expected:
+      - Every bundled tree reconstructs the original upstream binary hash without network access.
+      - Uniform images produce no invented faces, and malformed models or unbounded inputs are refused.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable }
+    limits: { timeoutMs: 30000, maxMemoryMb: 256 }
+    installation: never
+  - id: local-face-browser
+    name: Local face finding in Chromium, Firefox and WebKit
+    purpose: Load the real public-domain face fixture through the actual protected page and run the bundled worker without image uploads.
+    level: browser
+    runner:
+      kind: vitest
+      scope: package
+      files: [tests/face-browser.spec.ts, tests/face.config.mjs, tests/authorization.config.mjs, tests/authorization.fixture.ts]
+    expected:
+      - The real local cascade locates the fixture face in all three browser engines; only fixed same-origin assets are fetched.
+      - No-face, model failure, cancellation and newer manual/photo/mode/permission changes preserve the user's current boxes.
+      - The four exact asset routes require the current principal's view grant without exposing arbitrary files.
+    prerequisites: [runner:vitest, browser:chromium, browser:firefox, browser:webkit, fixture:portrait-public-domain-photo, core:application-authorization, input:oshal-core-root]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/fixtures/astronaut.png, tests/fixtures/README.md]
+      cleanup: The suite terminates workers, closes browsers and loopback HTTP fixtures, and removes temporary fixture records and files. No providers or real camera are used.
+    limits: { timeoutMs: 180000, maxMemoryMb: 1024 }
+    installation: never
+  - id: application-permission-http
+    name: Application CRUD and independent ownership
+    purpose: Verify real core policy and package HTTP across exact principals without contacting a provider.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files: [tests/authorization.spec.ts, tests/authorization.fixture.ts, tests/authorization.config.mjs]
+    expected:
+      - View, read, create, change and delete grants remain independent and deny blocks the entire component.
+      - The actual manifest route mounter admits a named manager without a legacy assignment and refuses unassigned or revoked principals.
+      - Two users and a second issuer sharing a subject cannot read or change one another's portraits.
+      - Revoked generation cannot publish and unsafe CLI or mailbox transports fail before their effects.
+    prerequisites: [runner:vitest, core:application-authorization, input:oshal-core-root]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: The suite closes loopback HTTP servers and removes its temporary image directories; policy and record stores are isolated memory fixtures.
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
+  - id: application-permission-browser
+    name: Permission-aware Portrait UI
+    purpose: Exercise the actual page against real authorization and HTTP in disposable Chromium contexts.
+    level: browser
+    runner:
+      kind: vitest
+      scope: package
+      files: [tests/authorization-browser.spec.ts, tests/authorization.fixture.ts, tests/authorization.config.mjs]
+    expected:
+      - Readers see their own gallery and cannot access create, rename, delete or export controls.
+      - Editors rename only their own titles and live role revocation hides unavailable controls.
+    prerequisites: [runner:vitest, browser:chromium, core:application-authorization, input:oshal-core-root]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: The suite closes its Chromium contexts and loopback services and removes all fixture files.
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
+  - id: brand-colors
+    name: Use my brand colors in portrait notes
+    purpose: Run the surface's own brand button script against a stubbed session and field.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/portrait-brand.test.js]
+    expected:
+      - Without Create access or a kit the button stays hidden.
+      - With a kit it appends the brand's colors in words once, within the notes limit.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable }
+    limits: { timeoutMs: 30000, maxMemoryMb: 256 }
+    installation: never

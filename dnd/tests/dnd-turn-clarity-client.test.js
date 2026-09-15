@@ -17,7 +17,9 @@ const vm = require('node:vm');
 
 const root = path.join(__dirname, '..');
 const turnSource = fs.readFileSync(path.join(root, 'ui', 'table-turns.js'), 'utf8');
-const screenSource = fs.readFileSync(path.join(root, 'ui', 'table-screens.js'), 'utf8');
+// The dock lives in table-dock.js since the decomposition; the surface is both files.
+const screenSource = fs.readFileSync(path.join(root, 'ui', 'table-screens.js'), 'utf8')
+  + fs.readFileSync(path.join(root, 'ui', 'table-dock.js'), 'utf8');
 const presentationSource = fs.readFileSync(path.join(root, 'ui', 'table-presentation.js'), 'utf8');
 
 /** @description Create one isolated automated-turn HUD with deterministic shared state. */

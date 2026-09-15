@@ -1,0 +1,33 @@
+# CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Register truthful isolated recorded-report completion and source admission evidence.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Rename the drifted framework-checkout prerequisites to the Test Lab's own vocabulary so these cases can run: node-test cases declare fixture:core-checkout (the sealed Node profile runs on the oshal image, where /app is the checkout); browser cases declare harness:oshal-core-root and core:dependencies, as create does. A case that imports core's tests/fixtures, which the image does not ship, also declares harness:core-test-fixtures and stays pending with that exact reason instead of an unknown name.
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Read package metadata without collecting reports or contacting providers.
+    level: integration
+    runner: { kind: smoke, smoke: package-readiness }
+    expected: [The installed package readiness marker satisfies the manifest assertions.]
+    prerequisites: []
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: safe-smoke
+  - id: recorded-report-briefings
+    name: Recorded report to registered Jarvis briefing
+    purpose: Exercise the actual compiled collector and core completed-task helper/service with synthetic transactional SQL and loopback HTTP ports.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/completed-report-briefings.core.test.js] }
+    expected:
+      - Only recorded report owners resolved by the current service can receive a completed briefing.
+      - Disabled preferences, missing sources and changed authority fail closed without ordinary-task fallback.
+      - Duplicate and concurrent runs admit one completed row; transaction failure rolls back and later retries succeed.
+      - Reads and admissions remain bounded, and no report generation, trading or outward message is invoked.
+    prerequisites: [runner:node-test, fixture:core-checkout]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/completed-report-briefings.fixture.js]
+      cleanup: Synthetic SQL maps are discarded; loopback connections close; the composed briefing runtime is restored. No live database is used.
+    limits: { timeoutMs: 30000 }
+    installation: never

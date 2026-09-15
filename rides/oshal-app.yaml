@@ -58,9 +58,21 @@ smoke:
 
 # uber-rides is the one connector this app uses (optional operator config via broker).
 dependencies:
-  apps: []
-  tools: []
-  connectors: [uber-rides]
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: [uber-rides]
+
+# Kernel skills this app declares (ADR-090 uses: contract, fail-closed at load).
+# `app-dependencies` is the compatibility floor for the tiered dependencies block above: a core
+# that predates required/optional refuses this package instead of installing it without its
+# required dependencies and without its connector allow-list.
+uses:
+  - app-dependencies
 
 # Guests never request rides (this app really calls Uber). Request only — grants come
 # from the operator endpoint (D4).

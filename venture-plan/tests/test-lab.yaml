@@ -1,0 +1,490 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped Node test suite with exact files and honest fixture boundaries; retain readiness smoke identity.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Retain the existing metadata-only installation probe without running a business workflow.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed venture-plan metadata satisfies its existing manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: venture-bom
+    name: Bill-of-materials rollup
+    purpose: Evaluate synthetic component trees with the compiled BOM engine.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-bom.test.js
+    expected:
+      - Scrap, quantity breaks and vendor costs produce hand-derived totals.
+      - Invalid references and malformed quantities cannot become plausible costs.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fixture-venture.js
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-channels
+    name: Channel economics
+    purpose: Calculate synthetic channel waterfalls and their inverse price targets.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-channels.test.js
+    expected:
+      - Channel fees and margins agree with independently derived values.
+      - Forward and inverse calculations reconcile across the supported channel shapes.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fixture-venture.js
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-contracts
+    name: Model-authoring and document contracts
+    purpose: Run compiled assumption parsers and document checks with a logger stub.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-contracts.test.js
+    expected:
+      - Unknown computed fields, missing ranges and unsupported evidence confidence are refused or downgraded.
+      - Documents flag unsupported numerals and refuse a required figure that the engine did not compute.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-currency
+    name: Exact currency conversion
+    purpose: Exercise integer micro-unit currency arithmetic and explicit FX evidence.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-currency.test.js
+    expected:
+      - Known conversion and half-micro rounding vectors match exact expectations.
+      - Missing, invalid or mismatched currency evidence is refused.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fixture-venture.js
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-dataset
+    name: Shipped planning datasets
+    purpose: Rebuild every shipped public venture dataset and check its evidence and golden vectors.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-dataset.test.js
+    expected:
+      - Source references, units, confidence ranges and numerical vectors remain valid.
+      - Model-authored evidence cannot acquire quoted or observed status.
+    prerequisites:
+      - runner:node-test
+      - fixture:package-venture-datasets
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-example-pumpkin
+    name: Worked-example document generator
+    purpose: Render the shipped pumpkin example in memory and rebuild its scenario calculations.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-example-pumpkin.test.js
+    expected:
+      - >-
+        Rate-range and formatter checks catch scale errors; each rendered document retains its advice
+        boundary.
+      - Inventory, sell-through, cash and inversion claims agree with the rebuilt model.
+    prerequisites:
+      - runner:node-test
+      - fixture:package-venture-example
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-financials
+    name: Profit and cash reconciliation
+    purpose: Build synthetic profit, cash and working-capital statements through compiled modules.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-financials.test.js
+    expected:
+      - Monthly cash movements reconcile to profit and closing working capital.
+      - Unsold inventory and every buyer-paid landed-cost leg affect the corresponding financial statements.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fixture-venture.js
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-landed
+    name: Landed-cost calculations
+    purpose: Calculate synthetic shipping, incoterm, duty and fee stacks.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-landed.test.js
+    expected:
+      - Buyer-paid costs, caps and container choices produce known landed values.
+      - Unsupported or incomplete inputs surface issues instead of invented costs.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fixture-venture.js
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-primitives
+    name: Numerical primitives
+    purpose: Exercise the compiled engine unit and arithmetic primitives.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-primitives.test.js
+    expected:
+      - Rounding, bounds and integer quantities behave at their boundary values.
+      - Non-finite or malformed values cannot silently enter valid computed figures.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fixture-venture.js
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-provenance
+    name: Figure evidence and confidence
+    purpose: Rebuild synthetic models with altered assumption provenance.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-provenance.test.js
+    expected:
+      - Every figure carries its dependencies and the weakest supported confidence.
+      - Missing ledger entries or provenance chains block publishable output.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fixture-venture.js
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-purity
+    name: Deterministic engine isolation
+    purpose: Load actual compiled engine modules in clean child processes and rebuild synthetic models.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-purity.test.js
+    expected:
+      - Source and compiled engine inventories agree and modules load without framework dependencies.
+      - >-
+        Repeated output is byte-identical, inputs remain unchanged and wall-clock changes do not affect
+        results.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fixture-venture.js
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-rebaseline
+    name: Rebaseline policy and cost caps
+    purpose: Exercise pure closed policy parsing, UTC scheduling and integer-micro settlement.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-rebaseline.test.js
+    expected:
+      - Absent policies remain disabled and dry-run; malformed or unknown fields refuse.
+      - Run slots are deterministic and exhausted, invalid or unknown measured costs stop spending.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fixture-venture.js
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-rebaseline-routes
+    name: Scheduled-worker handler gates
+    purpose: Call compiled service and owner handlers with synthetic database and dispatch ports.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-rebaseline-routes.test.js
+    expected:
+      - The default service tick is dry-run and only exact execution intent reaches an enabled owner policy.
+      - Owner isolation, idempotent slots, closed timestamps and bounded measured-cost gates remain enforced.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-routes
+    name: Venture handler boundaries
+    purpose: Invoke compiled handlers through a fake router and pool with synthetic bot ports.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-routes.test.js
+    expected:
+      - Anonymous and foreign-owner calls refuse; free calculation and sensitivity never dispatch paid bots.
+      - >-
+        Runs remain single-flight, missing-model exports refuse and surface fetch targets match registered
+        routes.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-run-rebaseline
+    name: Paid-step stopping behavior
+    purpose: Run the compiled orchestrator with synthetic model results and measured-cost receipts.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-run-rebaseline.test.js
+    expected:
+      - >-
+        Cost overshoot or failed cost capture stops subsequent paid steps while free calculations remain
+        available.
+      - Replaying an owned run slot cannot dispatch the same work again.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-schedule
+    name: Manufacturing and cash timing
+    purpose: Calculate synthetic critical paths, production and inventory timelines.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-schedule.test.js
+    expected:
+      - Manufacturing, transport and customer payment terms produce expected availability and cash timing.
+      - Stockouts, unsold inventory and schedule bounds remain explicit.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fixture-venture.js
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-sensitivity
+    name: Sensitivity and inverse targets
+    purpose: Rebuild synthetic models through the actual sensitivity and search engines.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-sensitivity.test.js
+    expected:
+      - Each sweep really rebuilds the model and ranks only supported bounded input paths.
+      - Inverse searches identify achievable targets and refuse invalid or non-monotonic cases.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fixture-venture.js
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-store
+    name: Store ownership and immutable evidence
+    purpose: Exercise compiled store modules using recording in-memory pool and framework stubs.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-store.test.js
+    expected:
+      - >-
+        Foreign references, evidence rewrites and retry-key rebinding refuse; simulated races preserve atomic
+        contracts.
+      - Owner predicates, run slots, document versions and migration policy definitions remain consistent.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never

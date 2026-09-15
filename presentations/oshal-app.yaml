@@ -1,3 +1,10 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 2.11.2: register every shipped test and preserve the existing readiness smoke for versioned Test Lab discovery.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 2.12.0: read the person's Create brand kit in their own session: the nearest built-in look is badged and picked when nothing else chose one, the brand name fills an empty cover byline and AI drafts can use the brand voice.
+# -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — presentations (AI Office: deck / document / workbook studio)
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 2). "Skills with a surface":
@@ -25,7 +32,10 @@ description: >-
   Phone-friendly: dictate instead of typing, resume recent files in one tap, and drive
   edits with tap chips. My files is a real file browser - click a file for
   download, open-in-provider, or edit-and-regenerate. Saves to Dropbox, Google Drive, OneDrive, or OSHAL local.
-version: 2.11.1
+version: 2.12.0
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 
 # ADR-139 wave 1 — "Send to…" destination (open mode): an Office file from anywhere in the
 # swarm opens straight into the outline editor (the surface's existing /sections/import lane).
@@ -64,15 +74,22 @@ smoke:
 # deck-generation = the whole render/import engine; storage = the ADR-041 target layer
 # the artifacts save through.
 uses:
+  - test-catalog
   - deck-generation
   - storage
+  - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
 
 # Runtime connector allow-list — where artifacts save (ADR-108 delivery adapters) and
 # the mailboxes the approval-gated email leg sends over.
 dependencies:
-  apps: []
-  tools: []
-  connectors: [dropbox, github, google-drive, google, microsoft]
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: [dropbox, github, google-drive, google, microsoft]
 
 # Guest tier REQUEST (ADR-085 D4): core listed 'presentations' Tier-A (interactive demo
 # app — guests could build a deck). Unapproved default = guests read-only until the

@@ -1,0 +1,111 @@
+<!doctype html>
+<!-- CHANGE LOG
+1 | maintainer@emeraldcoastsystemsgroup.com | The Brand Kit page: brand name, logo, five role colors, Office-safe fonts and voice, previewed live on real editor templates and saved as one private kit every Create studio reads.
+-->
+<html lang="en" data-theme="create">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Brand Kit · Create</title>
+  <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+  <script src="/shared/ui/js/surface-theme.js"></script>
+  <link rel="stylesheet" href="/api/create/theme/create.css">
+  <link rel="stylesheet" href="/api/create/editor/brand.css">
+</head>
+<body>
+  <header class="brand-header">
+    <div class="brand-heading">
+      <p class="eyebrow">Create / Brand Kit</p>
+      <h1>Your brand kit</h1>
+      <p class="intro">Set your colors, fonts and logo once. The image editor, AI Office, Portrait Studio and Video Studio use them.</p>
+    </div>
+    <div class="header-actions">
+      <span id="saveStatus" role="status" aria-live="polite">Loading your brand kit…</span>
+      <button id="saveKit" class="primary" type="button" disabled>Save brand kit</button>
+    </div>
+  </header>
+  <p id="pageError" class="notice" role="alert" hidden></p>
+  <p id="locked" class="notice" hidden>Your role does not include the brand kit. An administrator can grant it in <a href="/access?app=create" target="_top" rel="noopener">Access</a>.</p>
+  <main id="workspace" class="brand-workspace" hidden>
+    <div class="brand-editor">
+      <section class="panel" aria-labelledby="nameTitle">
+        <h2 id="nameTitle">Brand name</h2>
+        <p class="hint">Shown on the signature line of branded templates.</p>
+        <label class="sr-only" for="brandName">Brand name</label>
+        <input id="brandName" maxlength="80" autocomplete="organization" placeholder="Your company, studio or name" data-edit>
+      </section>
+
+      <section class="panel" aria-labelledby="logoTitle">
+        <div class="panel-head"><h2 id="logoTitle">Logo</h2><span class="hint">PNG, JPEG or WebP up to 8 MB</span></div>
+        <div class="logo-stage">
+          <div class="logo-tile on-light"><img id="logoLight" alt="Your logo on your background color" hidden><span class="logo-empty">No logo yet</span></div>
+          <div class="logo-tile on-dark"><img id="logoDark" alt="Your logo on your text color" hidden><span class="logo-empty">No logo yet</span></div>
+        </div>
+        <div class="button-row">
+          <button id="uploadLogo" type="button" data-edit>Upload logo</button>
+          <button id="suggestColors" type="button" data-edit disabled>Suggest colors from logo</button>
+          <button id="removeLogo" type="button" class="ghost" data-edit disabled>Remove logo</button>
+        </div>
+        <input id="logoFile" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+      </section>
+
+      <section class="panel" aria-labelledby="colorsTitle">
+        <div class="panel-head"><h2 id="colorsTitle">Colors</h2><span class="hint">Every role is used by templates and studios</span></div>
+        <div id="roleColors" class="role-colors"></div>
+        <div class="contrast" id="contrast" aria-live="polite"></div>
+        <div class="panel-head extras-head"><h3>More colors</h3><button id="addExtra" type="button" class="ghost small" data-edit>Add a color</button></div>
+        <div id="extraColors" class="extra-colors"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="fontsTitle">
+        <h2 id="fontsTitle">Fonts</h2>
+        <p class="hint">These faces ship with Microsoft Office on Windows and macOS, so documents open the same everywhere.</p>
+        <div id="pairings" class="pairings" role="group" aria-label="Font pairings"></div>
+        <div class="pair">
+          <label>Heading<select id="headingFont" data-edit></select></label>
+          <label>Body<select id="bodyFont" data-edit></select></label>
+        </div>
+        <div class="specimen" id="specimen">
+          <p class="specimen-heading">Make something worth sharing</p>
+          <p class="specimen-body">Headlines use your heading face. Paragraphs, captions and details use your body face.</p>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="voiceTitle">
+        <h2 id="voiceTitle">Brand voice</h2>
+        <p class="hint">How your brand sounds. AI Office adds this to its AI drafts.</p>
+        <label class="sr-only" for="brandVoice">Brand voice</label>
+        <textarea id="brandVoice" rows="3" maxlength="280" placeholder="Warm, plain-spoken and confident. Short sentences, no jargon." data-edit></textarea>
+        <span class="counter" id="voiceCount">0 / 280</span>
+      </section>
+
+      <section class="panel" aria-labelledby="usesTitle">
+        <h2 id="usesTitle">Where your brand shows up</h2>
+        <ul class="uses">
+          <li><button type="button" data-go="create-editor" data-query="templates=1"><b>Image editor</b><span>Templates open in your colors, fonts and logo. Your swatches and fonts sit beside every layer.</span></button></li>
+          <li><button type="button" data-go="create-office"><b>AI Office</b><span>Suggests the look closest to your brand and writes AI drafts in your voice.</span></button></li>
+          <li><button type="button" data-go="create-portrait"><b>Portrait Studio</b><span>One tap adds your brand colors to a portrait's notes.</span></button></li>
+          <li><button type="button" data-go="create-video"><b>Video Studio</b><span>One tap adds your brand colors to a video's style.</span></button></li>
+        </ul>
+      </section>
+
+      <button id="removeKit" type="button" class="danger" data-edit hidden>Remove brand kit</button>
+    </div>
+
+    <aside class="brand-preview" aria-labelledby="previewTitle">
+      <div class="panel preview-panel">
+        <div class="panel-head"><h2 id="previewTitle">Live preview</h2><span class="hint">Real editor templates in your brand</span></div>
+        <div class="preview-grid">
+          <figure><canvas id="previewSquare" width="320" height="320" aria-label="A square announcement in your brand"></canvas><figcaption>Social post</figcaption></figure>
+          <figure><canvas id="previewWide" width="480" height="270" aria-label="A presentation title in your brand"></canvas><figcaption>Presentation title</figcaption></figure>
+          <figure><canvas id="previewVideo" width="480" height="270" aria-label="A video thumbnail in your brand"></canvas><figcaption>Video thumbnail</figcaption></figure>
+        </div>
+        <p class="words"><span class="hint">In words, for portraits and video:</span> <b id="paletteWords">—</b></p>
+        <button id="openTemplates" type="button" class="primary wide">Open templates in the image editor</button>
+      </div>
+    </aside>
+  </main>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/api/create/editor/brand-page.mjs"></script>
+</body>
+</html>

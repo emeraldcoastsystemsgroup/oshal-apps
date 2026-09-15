@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 2026-08-06 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Source-of-truth guard for the completed Spaces carve: protect the packaged factory and /pair endpoint in source and compiled routes, parse every served inline script, and pin the cockpit-versus-embed stylesheet boundary.
  * 2026-08-06 01:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Move the room-scale/8GB/multi-scan acceptance assertion beside its now-authoritative packaged surface before deleting the unrouted kernel copy.
+ * 2026-09-14 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | The comment stripper treated the `video/*` MIME wildcard inside the ADR-139 error string as the start of a block comment and swallowed the source up to the next close marker, so the POST /pair invariant has failed against the maintained source since 2026-09-06. A block comment now has to start at a line start or after a non-word character; the two lanes' identity guard lives in upload-identity.core.test.js (needs a framework checkout, so the CI glob is tests/spaces-*.test.js).
  *
  * Dependency-free `node --test` suite, matching the store CI contract.
  */
@@ -29,10 +30,12 @@ const SURFACES = [
 
 const read = (filePath) => fs.readFileSync(filePath, 'utf8');
 
-/** Remove comments so prose cannot satisfy a route-code invariant. */
+/** Remove comments so prose cannot satisfy a route-code invariant. A block comment must start at a
+ *  line start or after a non-word character — `video/*` inside a string literal is a MIME wildcard,
+ *  not a comment opener. */
 function codeOnly(text) {
   return text
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|[^\w])\/\*[\s\S]*?\*\//g, '$1 ')
     .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
 }
 

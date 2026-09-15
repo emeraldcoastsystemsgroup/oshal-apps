@@ -1,0 +1,218 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped package test with explicit runner and fixture boundaries; retain the readiness smoke identity. The framework-coupled route suite is registered with its real prerequisite (a framework checkout); the actual page runs in headless Chromium against a fake Web Serial port; the seam suite reads embodied's compiled manifest module read-only; the firmware sketch has NO registered case because nothing here compiles or runs it (BACKLOG B2).
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Rename the drifted framework-checkout prerequisites to the Test Lab's own vocabulary so these cases can run: node-test cases declare fixture:core-checkout (the sealed Node profile runs on the oshal image, where /app is the checkout); browser cases declare harness:oshal-core-root and core:dependencies, as create does. A case that imports core's tests/fixtures, which the image does not ship, also declares harness:core-test-fixtures and stays pending with that exact reason instead of an unknown name.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the existing metadata-only readiness probe without provider or user-data access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed animatronics package identity satisfies its manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: engine-contract
+    name: Rig, pose and scenario contract
+    purpose: Prove the rig contract the routes, tools and surface enforce — channel defaults and the pulse maths (centre, microseconds per degree, reversal), every refusal naming its field (duplicate ids and outputs, an output beyond the board, a software limit whose pulse leaves the hard clamps, a neutral outside the limits, unknown properties, unknown or unbound mechanism roles, a channel bound twice), and the pose and scenario contracts (unknown axes, out-of-limit angles, bad ids, unknown poses, cycles, the depth, repeat and duration caps).
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-contract.test.js
+    expected:
+      - A channel with minDeg −120 on a 500–2400 µs servo is refused naming rig.channels[0].minDeg with the pulse it would need; a scenario that runs itself is refused naming the chain.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-compile
+    name: Compiler, templates and the servo rehearsal
+    purpose: Prove the motion compiler and the rate-limited servo rehearsal — every template builds from the catalog and every template scenario rehearses ok on its own servos; frames are deterministic and 50 Hz with every pulse inside its clamps; together, run, repeat, hold and a zero-ms snap expand as written and one axis in two concurrent children is refused; the start pose is honoured; the sim reports lag, saturation, settling and travel.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-compile.test.js
+    expected:
+      - A 30° step commanded in one 20 ms frame lags an SG90 (500°/s covers 10° per frame), saturates and fails `followed`; the same move over 400 ms rehearses ok.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-power
+    name: Supply budget and servo catalog
+    purpose: Prove the supply budget and the catalog — every row validates with a source line and derives calibration; idle is the sum and the peak counts only the servos moving in that frame; a USB port with more than one servo, a servo outside its voltage range, an unknown model and a too-small supply refuse; over 80 % warns; the all-stalled worst case is a note; a malformed catalog row fails the load naming the field.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-power.test.js
+    expected:
+      - One MG996R moving on the seven-servo skull draws 0.56 A (500 mA moving plus six times 10 mA idle); the skull on USB is refused with the separate-rails message.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-lookat
+    name: Look-at split
+    purpose: Prove LOOK_AT — a bearing splits between eyes and neck by the eye share, saturated eyes hand the rest to the neck, an eyes-only rig takes what it can, the residual is reported and never clamped away, the steps are a together with the eyes faster than the neck, and bad bearings or a rig with nothing to look with are refused.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-lookat.test.js
+    expected:
+      - Azimuth 60°, elevation −20° on the six-servo face becomes eyes.pan 30, eyes.tilt −12, neck.yaw 30, neck.pitch −8 with zero residual; azimuth 100° leaves a 25° residual and is reported unreachable.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-protocol
+    name: Controller line protocol
+    purpose: Prove the controller protocol the page streams and the firmware parses — the checksum vectors, every message round-tripping through the one parser, malformed lines as `invalid` with the reason, delta-encoded frame lines with keyframes and heartbeats that fit 115 200 baud, and the line splitter.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-protocol.test.js
+    expected:
+      - The checksum vectors are `H*48`, `E*45` and `F 7 0=1500,1=1720*5C`; frame 0 carries every output, frame 1 only the changed one, frame 25 is a keyframe, a still frame is an empty heartbeat.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-kind
+    name: The prop kind seam with embodied
+    purpose: Prove the `prop` kind AGREES with embodied's compiled capability manifest (read-only cross-package import) now that the ADR-156 D6 fold-in has landed — embodied owns KIND_VOCABULARY.prop, our pinned row equals it in both directions, a real rig's manifest built from the servo catalog is ACCEPTED by embodied's own validateManifest, the confirm rule matches embodied's actRequiresConfirm, and a prop is still refused as a heartbeating node on the rail.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-kind.test.js
+    expected:
+      - embodied's KIND_VOCABULARY.prop and our pinned row are equal in both directions, and the row shape matches the drone row.
+      - embodied's validateManifest accepts the skull rig manifest unchanged; the skull is safety class 2 (an 11 kg·cm servo), the two-axis eyes class 1.
+      - Every act in PROP_CONFIRM_EXEMPT is also exempt in embodied, and pose still requires a confirm on a kinetic rig.
+      - A prop heartbeat is refused by embodied's node fleet, so the kind is vocabulary only.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: surface-serial
+    name: Controller link and view under node
+    purpose: Prove the browser-side pieces under plain node — the controller link over a fake Web Serial port (open at the baud, lines written exactly, a paced stream with progress, E-STOP aborting a stream and going out, replies parsed and counted through the shared protocol, hello remembered, disconnect closing the port, a browser without Web Serial refused plainly) and the view's pure layout (pupils, lids, head, jaw, bars follow the angles).
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/surface-serial.test.js
+    expected:
+      - Four frames at 20 ms wait 20 ms each; an E-STOP during a 50-frame stream stops it within a few frames and `E*45` is the last byte sequence written.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: routes-http
+    name: Packaged routes over loopback HTTP
+    purpose: Drive the compiled routes with express from a framework checkout — the manifest and this catalog load through the framework's own loaders (the limits the box enforces on install); the surface, assets and the browser protocol module serve; caller gate; a rig from a template with its manifest, axes and idle budget; poses and scenarios one per call with refusals and in-use 409s; rehearse answers report, frames and protocol lines; play, look-at and jog 409 until armed while look-at rehearses without arming; arm 428 without confirm, 422 on a refused supply, bring-up lines on success; play advances the believed pose; a rig change disarms; disarm answers the e-stop line; owner scoping; the command log; the Home summary; deletion.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/routes.core.test.js
+    expected:
+      - 401 without a caller, 404 across owners, 400 with the field for bad input, 409 rig_not_armed before arming, 428 on arm without confirm, 422 supply_refused on a USB rig, 200 with hello + seven clamp lines + the neutral frame on arm.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/core.fixture.js
+      cleanup: Close the loopback HTTP server; the database is an in-memory double confined to the disposable Node process.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: surface-page
+    name: The actual page in a browser
+    purpose: Drive the actual packaged page in headless Chromium over the compiled routes on loopback with a fake Web Serial port injected as navigator.serial that answers the way the reference firmware does — a rig from the skull template shows its seven channels, poses and scenarios; a jog slider moves the pupil in the drawing and the angles capture as a pose; BLINK rehearses to an ok verdict with the report filled and the run logged; the controller connects at 115200 baud; Arm (confirmed) writes hello, seven clamp lines and the neutral frame and the hello reply names the board; TALK plays and all 66 frame lines reach the port; E-STOP writes E*45 last and the rig is disarmed on the server; the page raises no errors.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/surface.core.spec.mjs
+    expected:
+      - Arm writes `H*48`, seven `L` lines and `F 0 0=1450,1=1450,2=1450,3=1450,4=1500,5=1500,6=1500`; TALK streams 66 frames; the last line written after E-STOP is `E*45`; zero page errors.
+    prerequisites:
+      - runner:playwright
+      - harness:oshal-core-root
+      - browser:chromium
+      - core:dependencies
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/core.fixture.js
+      cleanup: Close the owned Chromium process and the loopback HTTP server; the rigs live in the disposable in-memory pool and the serial port is a page-local double, with no live database or device.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never

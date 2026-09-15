@@ -13,6 +13,16 @@
  *                     |                             | solver iterates to convergence and nothing is estimated
  *                     |                             | stochastically: the same photos and the same number always
  *                     |                             | yield the same grid, which is the whole point of the package.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Joint registration (BACKLOG B10): the greedy propagation from the
+ *                     |                             | known dimension is replaced by ONE least-squares fit in log space
+ *                     |                             | over every view's two axis measurements (known dimensions held
+ *                     |                             | exact), solved directly through the normal equations — still no
+ *                     |                             | iteration. Each view now reports a residual, so a skewed photo is
+ *                     |                             | named with a number instead of blamed by the order the views were
+ *                     |                             | read in. Consistent views register exactly as before.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Export `SCALE_DISAGREEMENT` so the video lane's frame suggestion
+ *                     |                             | (BACKLOG B12) refuses a frame by the same 10 % the registration
+ *                     |                             | warns at, rather than a second number that could drift.
  */
 
 import type { Vec3 } from '../geometry/geometry-types';
@@ -57,6 +67,18 @@ export interface ViewCalibration {
   vCenterMm: number;
 }
 
+/** @description One view's misfit against the joint solution, so a skewed photo is named with a number. */
+export interface ViewResidual {
+  /** Which view. */
+  view: ViewName;
+  /** Signed fraction by which this view's outline along image-right exceeds the fitted extent of that axis. */
+  u: number;
+  /** The same along image-down. */
+  v: number;
+  /** How far the view's own proportions sit from the joint fit, as a fraction; above 10 % it warns. */
+  disagreement: number;
+}
+
 /** @description The resolved object size and the per-view calibrations. */
 export interface Registration {
   /** Object extent along each world axis, millimetres. */
@@ -65,12 +87,26 @@ export interface Registration {
   sources: Record<Axis, DimensionSource>;
   /** One calibration per supplied view. */
   views: ViewCalibration[];
+  /** One misfit per supplied view, in the order supplied; all zero when the views agree. */
+  residuals: ViewResidual[];
   /** Consistency and coverage problems, human-readable. */
   warnings: string[];
 }
 
-/** @description Relative disagreement between two scale estimates above which a warning is raised. */
-const SCALE_DISAGREEMENT = 0.1;
+/**
+ * @description Disagreement between a view's proportions and what it should show, above which a view
+ * is called not square to its face: the registration warns past it, and the video lane's frame
+ * suggestion will not propose a frame past it.
+ */
+export const SCALE_DISAGREEMENT = 0.1;
+
+/**
+ * @description Significant digits the joint fit is rounded to. Floating-point roundoff in the
+ * log-space solve is around 1e-15; a photograph resolves about 1 part in 1e3. Rounding at 12 digits
+ * sits between the two, so roundoff can never push an extent across a voxel boundary and move the
+ * grid, while no measurement is changed.
+ */
+const FIT_DIGITS = 12;
 
 /** @description Pixel extents of a silhouette along the view's `u` and `v` axes. */
 function pixelExtents(box: PixelBox): { uPx: number; vPx: number } {
@@ -95,55 +131,104 @@ function validateInputs(silhouettes: ViewSilhouette[], known: KnownDimension[]):
 }
 
 /**
- * @description Propagate known extents through the views until nothing new resolves: a view that
- * knows one of its two axes in millimetres yields the other from the pixel ratio.
- * @param boxes - Silhouette bounds per view.
- * @param sizes - Partially known extents, mutated.
- * @param sources - Provenance per axis, mutated.
- * @returns Nothing; the maps are updated in place.
+ * @description Axes whose size can be reached from the known dimensions: a view that shows one
+ * reached axis reaches the other it shows. What is left is visible to no view that connects to a
+ * measurement, and is assumed.
  */
-function propagateExtents(
-  boxes: Map<ViewName, PixelBox>,
-  sizes: Partial<Record<Axis, number>>,
-  sources: Partial<Record<Axis, DimensionSource>>,
-): void {
-  let progress = true;
-  while (progress) {
-    progress = false;
-    for (const [view, box] of boxes) {
-      const frame = VIEW_FRAMES[view];
-      const { uPx, vPx } = pixelExtents(box);
-      const uAxis = frame.u.axis;
-      const vAxis = frame.v.axis;
-      if (sizes[uAxis] !== undefined && sizes[vAxis] === undefined) {
-        sizes[vAxis] = (sizes[uAxis] as number) * (vPx / uPx);
-        sources[vAxis] = 'derived';
-        progress = true;
-      } else if (sizes[vAxis] !== undefined && sizes[uAxis] === undefined) {
-        sizes[uAxis] = (sizes[vAxis] as number) * (uPx / vPx);
-        sources[uAxis] = 'derived';
-        progress = true;
-      }
+function reachableAxes(boxes: Map<ViewName, PixelBox>, known: Set<Axis>): Set<Axis> {
+  const reached = new Set(known);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const view of boxes.keys()) {
+      const { u, v } = VIEW_FRAMES[view];
+      if (reached.has(u.axis) === reached.has(v.axis)) continue;
+      reached.add(u.axis);
+      reached.add(v.axis);
+      grew = true;
     }
   }
+  return reached;
 }
 
-/** @description Build one view's calibration from the resolved sizes, warning when its two axes disagree. */
-function calibrateView(view: ViewName, box: PixelBox, sizeMm: Vec3, warnings: string[]): ViewCalibration {
+/** @description Solve `M x = b` by Gaussian elimination with partial pivoting; `M` is consumed. */
+function solveLinear(m: Float64Array[], b: Float64Array): Float64Array {
+  const n = b.length;
+  for (let c = 0; c < n; c += 1) {
+    let pivot = c;
+    for (let r = c + 1; r < n; r += 1) if (Math.abs(m[r][c]) > Math.abs(m[pivot][c])) pivot = r;
+    if (Math.abs(m[pivot][c]) < 1e-12) throw new RangeError('Registration is under-determined: a view is not connected to any known dimension');
+    [m[c], m[pivot]] = [m[pivot], m[c]];
+    [b[c], b[pivot]] = [b[pivot], b[c]];
+    for (let r = c + 1; r < n; r += 1) {
+      const f = m[r][c] / m[c][c];
+      for (let k = c; k < n; k += 1) m[r][k] -= f * m[c][k];
+      b[r] -= f * b[c];
+    }
+  }
+  const x = new Float64Array(n);
+  for (let r = n - 1; r >= 0; r -= 1) {
+    let s = b[r];
+    for (let k = r + 1; k < n; k += 1) s -= m[r][k] * x[k];
+    x[r] = s / m[r][r];
+  }
+  return x;
+}
+
+/**
+ * @description The joint fit. Every view says, for each of its two image axes,
+ * `log extent(axis) = log mmPerPx(view) + log pixels`: linear in log space. Unknowns are the log
+ * extent of each free axis and the log scale of each view; fixed axes move to the right-hand side.
+ * Least squares over all equations at once, solved through the normal equations.
+ */
+function solveLogFit(boxes: Map<ViewName, PixelBox>, fixedLog: Partial<Record<Axis, number>>, free: Axis[]): { logSize: Record<Axis, number>; logScale: Map<ViewName, number> } {
+  const views = [...boxes.keys()];
+  const n = free.length + views.length;
+  const ata = Array.from({ length: n }, () => new Float64Array(n));
+  const atb = new Float64Array(n);
+  views.forEach((view, vi) => {
+    const { uPx, vPx } = pixelExtents(boxes.get(view) as PixelBox);
+    const frame = VIEW_FRAMES[view];
+    for (const [axis, px] of [[frame.u.axis, uPx], [frame.v.axis, vPx]] as [Axis, number][]) {
+      const row = new Float64Array(n);
+      const ai = free.indexOf(axis);
+      if (ai >= 0) row[ai] = 1;
+      row[free.length + vi] = -1;
+      const rhs = Math.log(px) - (ai >= 0 ? 0 : (fixedLog[axis] as number));
+      for (let r = 0; r < n; r += 1) {
+        if (row[r] === 0) continue;
+        atb[r] += row[r] * rhs;
+        for (let c = 0; c < n; c += 1) ata[r][c] += row[r] * row[c];
+      }
+    }
+  });
+  const x = solveLinear(ata, atb);
+  const logSize = { ...fixedLog } as Record<Axis, number>;
+  free.forEach((axis, i) => { logSize[axis] = x[i]; });
+  return { logSize, logScale: new Map(views.map((view, vi) => [view, x[free.length + vi]] as const)) };
+}
+
+/** @description Round to the fit's significant digits so solver roundoff never moves a voxel boundary. */
+function settle(value: number): number {
+  return Number(value.toPrecision(FIT_DIGITS));
+}
+
+/** @description A view's misfit: how far its outline along each image axis is from the fitted extent. */
+function residualOf(view: ViewName, box: PixelBox, mmPerPx: number, sizeMm: Vec3): ViewResidual {
   const frame = VIEW_FRAMES[view];
   const { uPx, vPx } = pixelExtents(box);
-  const fromU = sizeMm[frame.u.axis] / uPx;
-  const fromV = sizeMm[frame.v.axis] / vPx;
-  const disagreement = Math.abs(fromU - fromV) / Math.max(fromU, fromV);
-  if (disagreement > SCALE_DISAGREEMENT) {
-    warnings.push(
-      `${view} view: its ${frame.u.axis}/${frame.v.axis} proportions disagree with the other views by ${Math.round(disagreement * 100)}%; the photo may not be square to the face.`,
-    );
-  }
+  const u = settle((uPx * mmPerPx) / sizeMm[frame.u.axis] - 1);
+  const v = settle((vPx * mmPerPx) / sizeMm[frame.v.axis] - 1);
+  return { view, u, v, disagreement: settle(1 - Math.min(1 + u, 1 + v) / Math.max(1 + u, 1 + v)) };
+}
+
+/** @description Build one view's calibration from the fitted size and its fitted scale. */
+function calibrateView(view: ViewName, box: PixelBox, sizeMm: Vec3, mmPerPx: number): ViewCalibration {
+  const frame = VIEW_FRAMES[view];
   const center: Vec3 = { x: 0, y: 0, z: sizeMm.z / 2 };
   return {
     view,
-    mmPerPx: (fromU + fromV) / 2,
+    mmPerPx,
     bbox: box,
     uCenterPx: (box.minX + box.maxX + 1) / 2,
     vCenterPx: (box.minY + box.maxY + 1) / 2,
@@ -152,10 +237,27 @@ function calibrateView(view: ViewName, box: PixelBox, sizeMm: Vec3, warnings: st
   };
 }
 
+/** @description Pin each axis the fit cannot reach to the first known dimension, and say so. */
+function assumeUnreachable(reached: Set<Axis>, known: KnownDimension[], fixedLog: Partial<Record<Axis, number>>, sources: Partial<Record<Axis, DimensionSource>>, warnings: string[]): void {
+  for (const axis of ['x', 'y', 'z'] as Axis[]) {
+    if (reached.has(axis)) continue;
+    fixedLog[axis] = Math.log(known[0].mm);
+    sources[axis] = 'assumed';
+    warnings.push(`Extent along ${axis.toUpperCase()} is not visible in any supplied view; assumed ${known[0].mm} mm. Add a view that shows it, or enter it as a known dimension.`);
+  }
+}
+
 /**
  * @description Resolve the object's world size and every view's pixel calibration from the
- * silhouettes and the known dimension(s). An axis no supplied view can see is ASSUMED equal to
- * the first known dimension and flagged — the drawing carries that flag.
+ * silhouettes and the known dimension(s), JOINTLY: one least-squares fit in log space over every
+ * view's two axis measurements, with the known dimensions held exact. Each view then reports its
+ * residual, so a photo that is not square to its face is named with a number rather than inferred
+ * from the order the views happened to be read in. Three views that close a single loop share
+ * that loop's misfit equally, since no fit can tell which of the three is skewed. A fourth view
+ * closing a second loop makes the skewed view carry the LARGEST residual, not the only one: least
+ * squares averages, so a view measuring the same axis pair carries part of the error. Warnings
+ * are ordered worst first. An axis no supplied view connects to a measurement is
+ * ASSUMED equal to the first known dimension and flagged; the drawing carries that flag.
  * @param silhouettes - One mask per supplied view.
  * @param known - One to three measured extents.
  * @returns The registration.
@@ -163,20 +265,44 @@ function calibrateView(view: ViewName, box: PixelBox, sizeMm: Vec3, warnings: st
  */
 export function registerSilhouettes(silhouettes: ViewSilhouette[], known: KnownDimension[]): Registration {
   const boxes = validateInputs(silhouettes, known);
-  const sizes: Partial<Record<Axis, number>> = {};
+  const fixedLog: Partial<Record<Axis, number>> = {};
   const sources: Partial<Record<Axis, DimensionSource>> = {};
-  for (const dim of known) { sizes[dim.axis] = dim.mm; sources[dim.axis] = 'known'; }
-  propagateExtents(boxes, sizes, sources);
+  for (const dim of known) { fixedLog[dim.axis] = Math.log(dim.mm); sources[dim.axis] = 'known'; }
+  const reached = reachableAxes(boxes, new Set(known.map((d) => d.axis)));
   const warnings: string[] = [];
-  for (const axis of ['x', 'y', 'z'] as Axis[]) {
-    if (sizes[axis] !== undefined) continue;
-    sizes[axis] = known[0].mm;
-    sources[axis] = 'assumed';
-    warnings.push(`Extent along ${axis.toUpperCase()} is not visible in any supplied view; assumed ${known[0].mm} mm. Add a view that shows it, or enter it as a known dimension.`);
+  assumeUnreachable(reached, known, fixedLog, sources, warnings);
+  const free = (['x', 'y', 'z'] as Axis[]).filter((axis) => fixedLog[axis] === undefined);
+  for (const axis of free) sources[axis] = 'derived';
+  const fit = solveLogFit(boxes, fixedLog, free);
+  const sizeOf = (axis: Axis) => (sources[axis] === 'derived' ? settle(Math.exp(fit.logSize[axis])) : Math.exp(fixedLog[axis] as number));
+  const sizeMm: Vec3 = { x: sizeOf('x'), y: sizeOf('y'), z: sizeOf('z') };
+  for (const dim of known) sizeMm[dim.axis] = dim.mm;
+  for (const axis of ['x', 'y', 'z'] as Axis[]) if (sources[axis] === 'assumed') sizeMm[axis] = known[0].mm;
+  const views: ViewCalibration[] = [];
+  const residuals: ViewResidual[] = [];
+  for (const [view, box] of boxes) {
+    const mmPerPx = settle(Math.exp(fit.logScale.get(view) as number));
+    views.push(calibrateView(view, box, sizeMm, mmPerPx));
+    residuals.push(residualOf(view, box, mmPerPx, sizeMm));
   }
-  const sizeMm: Vec3 = { x: sizes.x as number, y: sizes.y as number, z: sizes.z as number };
-  const views = [...boxes].map(([view, box]) => calibrateView(view, box, sizeMm, warnings));
-  return { sizeMm, sources: sources as Record<Axis, DimensionSource>, views, warnings };
+  return { sizeMm, sources: sources as Record<Axis, DimensionSource>, views, residuals, warnings: [...warnings, ...misfitWarnings(residuals)] };
+}
+
+/** @description One warning per view past the threshold, worst first (ties keep the supplied order). */
+function misfitWarnings(residuals: ViewResidual[]): string[] {
+  return residuals
+    .filter((r) => r.disagreement > SCALE_DISAGREEMENT)
+    .sort((a, b) => b.disagreement - a.disagreement)
+    .map((r) => {
+      const { u, v } = VIEW_FRAMES[r.view];
+      return `${r.view} view: its ${u.axis}/${v.axis} proportions disagree with the joint fit of all views by ${Math.round(r.disagreement * 100)}% (outline ${signedPercent(r.u)} along ${u.axis.toUpperCase()}, ${signedPercent(r.v)} along ${v.axis.toUpperCase()}); the photo may not be square to the face.`;
+    });
+}
+
+/** @description `+12%` / `-3%` for a signed fraction. */
+function signedPercent(fraction: number): string {
+  const pct = Math.round(fraction * 100);
+  return `${pct >= 0 ? '+' : ''}${pct}%`;
 }
 
 /** @description Pixel coordinates a world point lands on in one calibrated view. */

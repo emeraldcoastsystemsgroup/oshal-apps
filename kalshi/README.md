@@ -52,6 +52,41 @@ Now a poller owned by this package keeps a snapshot warm:
 
 ### What Jarvis gets
 
+Version **1.5.0** registers **Kalshi playable hands** in Jarvis briefing settings. You can
+disable delivery or choose its frequency and voice, bubble, or main-screen channel. The
+untouched defaults remain enabled, as updates arrive, with voice. Jarvis must be open and
+voice requires browser audio permission. Kalshi's existing alert thresholds and `notifyJarvis`
+setting still apply; the shared preference controls delivery, not market scanning or orders.
+
+The core checks the existing recipient's exact identity and current application access before
+enqueueing and again before showing or announcing a briefing. An ambiguous or unavailable
+identity, disabled source, denied access, or disabled preference declines delivery. Kalshi
+then leaves that hand's alert ledger marked undelivered and never completes a missing task.
+Its existing first-seen deduplication remains in effect; enabling delivery later does not replay
+hands already ledgered while delivery was disabled. Optional outward notifications retain
+their separate opt-in setting.
+
+This release requires the `jarvis-briefings` and `test-catalog` kernel capabilities. Older cores
+reject it during validation. Its [test catalog](tests/test-lab.yaml) registers the existing smoke
+and all package suites during activation; local suites remain pending until their runner is
+available. Registration alone is not a successful test result.
+
+Run the compiled delivery, scan-rule and trend tests from the store root:
+
+```sh
+node --test kalshi/tests/kalshi-briefing-delivery.test.js kalshi/tests/kalshi-scan-config.test.js kalshi/tests/kalshi-trends.test.js
+```
+
+The existing Settings/Alerts browser suite uses Node's test runner with Express and Playwright
+available via `KALSHI_BROWSER_DEPS` (a checkout containing `node_modules`) and installed Chromium:
+
+```sh
+node --test kalshi/tests/kalshi-settings-alerts-browser.test.js
+```
+
+These suites use synthetic records and dependency fixtures. They do not connect to Kalshi,
+send notifications, or place orders.
+
 New playable hands are written to the user's `jarvis_tasks` feed, which is how background work
 reaches Jarvis: he announces it once, and it stays in his OPEN WORK context — so *"what did the
 Kalshi scan find?"* is answered from what actually happened rather than a fresh 23-second scan.

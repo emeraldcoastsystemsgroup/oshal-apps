@@ -1,0 +1,181 @@
+<!doctype html>
+<!--
+  Drone Relay — design a chain of mini drones that relays commands and telemetry drone to drone so
+  one can work beyond the base link: size the hop from a link budget, place the slots, break a
+  relay in a simulated scenario and read how long the tip was out of reach and when the chain was
+  restored. A self-contained cockpit surface: the script is served by this package's route
+  (/api/drone-relay/assets/…), the theme is inherited from the surrounding cockpit through the
+  shared surface-theme bootstrap, and every framework token is consumed READ-ONLY with a local
+  fallback so the page renders in any skin. (.html is exempt from the CHANGE LOG header.)
+-->
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Drone Relay</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  :root { --dr-bg: var(--bg, var(--bg-primary, #12151c)); --dr-panel: var(--panel, var(--bg-card, #1b1f29)); --dr-panel2: var(--panel2, var(--bg-tertiary, #232836));
+          --dr-text: var(--text, var(--text-primary, #e6e9ef)); --dr-muted: var(--muted, var(--text-muted, #9aa3b2)); --dr-line: var(--line, var(--border-color, #2f3646));
+          --dr-accent: var(--accent, #4f8cff); --dr-danger: var(--danger, #e5534b); --dr-ok: var(--ok, #3fb950); --dr-warn: var(--warn, #d29922); }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--dr-text); background: var(--dr-bg); }
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--dr-line); background: var(--dr-panel); }
+  header h1 { font-size: 16px; margin: 0; }
+  header .spacer { flex: 1; }
+  .layout { display: grid; grid-template-columns: 300px 1fr; min-height: calc(100vh - 49px); }
+  aside { border-right: 1px solid var(--dr-line); padding: 12px; background: var(--dr-panel); overflow: auto; }
+  main { padding: 16px 20px 40px; overflow: auto; }
+  .plan-item { display: flex; justify-content: space-between; align-items: center; width: 100%; text-align: left; padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--dr-line); border-radius: 8px; background: var(--dr-panel2); color: var(--dr-text); cursor: pointer; }
+  .plan-item.active { border-color: var(--dr-accent); }
+  .plan-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--dr-line); color: var(--dr-muted); white-space: nowrap; }
+  .badge.ok { border-color: var(--dr-ok); color: var(--dr-ok); }
+  .badge.bad { border-color: var(--dr-danger); color: var(--dr-danger); }
+  .badge.warn { border-color: var(--dr-warn); color: var(--dr-warn); }
+  section.step { border: 1px solid var(--dr-line); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; background: var(--dr-panel); }
+  section.step h2 { font-size: 14px; margin: 0 0 8px; }
+  section.step h2 small { color: var(--dr-muted); font-weight: normal; margin-left: 8px; }
+  button, input, select { font: inherit; color: var(--dr-text); }
+  button.primary { background: var(--dr-accent); color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+  button.primary:disabled { opacity: .5; cursor: default; }
+  button.ghost { background: transparent; border: 1px solid var(--dr-line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  button.link { background: none; border: 0; color: var(--dr-accent); cursor: pointer; padding: 0 4px; }
+  button.link.danger { color: var(--dr-danger); }
+  input[type=number], input[type=text], select { background: var(--dr-panel2); border: 1px solid var(--dr-line); border-radius: 6px; padding: 6px 8px; }
+  input[type=number] { width: 96px; }
+  input[type=range] { width: 100%; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 6px 0; }
+  .field { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--dr-muted); }
+  .muted { color: var(--dr-muted); }
+  .small { font-size: 12px; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; }
+  dt { color: var(--dr-muted); }
+  dd { margin: 0; }
+  ul.notes { margin: 6px 0 0; padding-left: 18px; }
+  ul.notes li.bad { color: var(--dr-danger); }
+  ul.notes li.warn { color: var(--dr-warn); }
+  svg#map { width: 100%; height: 300px; border-radius: 8px; border: 1px solid var(--dr-line); background: var(--dr-panel2); }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--dr-line); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.ok td { color: var(--dr-text); }
+  tr.bad td { color: var(--dr-danger); }
+  .events { max-height: 220px; overflow: auto; font-size: 12px; }
+  .toast { position: fixed; right: 16px; bottom: 16px; padding: 10px 14px; border-radius: 8px; background: var(--dr-panel2); border: 1px solid var(--dr-line); max-width: 460px; z-index: 5; }
+  .toast.error { border-color: var(--dr-danger); }
+  .toast.ok { border-color: var(--dr-ok); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--dr-muted); margin-top: 6px; }
+  .legend span::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+  .legend .l-reach::before { background: var(--dr-accent); }
+  .legend .l-lost::before { background: var(--dr-danger); }
+  .legend .l-return::before { background: var(--dr-muted); }
+  .legend .l-slot::before { background: transparent; border: 1px dashed var(--dr-muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Drone Relay</h1>
+  <span class="muted small">size the hop from a link budget · place the chain · break a relay · read the outage</span>
+  <span class="spacer"></span>
+  <span class="muted small" id="engine-note">simulated — nothing here flies</span>
+</header>
+<div class="layout">
+  <aside>
+    <div class="row"><strong>Chains</strong><span class="spacer"></span><button class="ghost" id="new-plan">New</button></div>
+    <div id="plan-list"></div>
+    <section class="step" id="plan-form">
+      <h2 id="form-title">New chain</h2>
+      <div class="field">Title <input type="text" id="f-title" value="Data run east" /></div>
+      <div class="field">Transport <select id="f-transport"></select></div>
+      <div class="row">
+        <div class="field">Corridor east (m) <input type="number" id="f-length" value="1000" min="2" step="50" /></div>
+        <div class="field">Spacing × design range <input type="number" id="f-spacing" value="0.6" min="0.2" max="1" step="0.05" /></div>
+      </div>
+      <div class="row">
+        <div class="field">Design margin (dB) <input type="number" id="f-margin" value="10" min="0" max="30" step="1" /></div>
+        <div class="field">Degraded margin (dB) <input type="number" id="f-degraded" value="5" min="0" max="30" step="1" /></div>
+      </div>
+      <div class="row">
+        <div class="field">Relays in the fleet <input type="number" id="f-fleet" value="6" min="0" max="64" step="1" /></div>
+        <div class="field">Tip data (kbps) <input type="number" id="f-kbps" value="20" min="0" step="1" /></div>
+      </div>
+      <div class="row">
+        <div class="field">Endurance (s) <input type="number" id="f-endurance" value="480" min="60" step="30" /></div>
+        <div class="field">Reserve (s) <input type="number" id="f-reserve" value="90" min="0" step="10" /></div>
+      </div>
+      <div class="row">
+        <div class="field">Path-loss exponent <input type="number" id="f-exponent" value="2.2" min="1.8" max="4" step="0.1" /></div>
+        <div class="field">Gap policy <select id="f-policy"><option value="retreat">retreat</option><option value="hold-degraded">hold-degraded</option></select></div>
+      </div>
+      <div class="row">
+        <div class="field">Posture <select id="f-posture"><option value="hover">hover</option><option value="perch">perch</option></select></div>
+        <div class="field">Perched draw (× hover) <input type="number" id="f-perch" value="0.03" min="0.005" max="0.5" step="0.005" /></div>
+      </div>
+      <div class="row">
+        <div class="field">Control channel <select id="f-control"></select></div>
+        <div class="field">Heartbeat (s) <input type="number" id="f-heartbeat" value="2" min="0.5" max="60" step="0.5" /></div>
+      </div>
+      <div class="row">
+        <div class="field">Courier (MB per trip) <input type="number" id="f-courier" value="0" min="0" step="10" /></div>
+        <div class="field">Courier radio <select id="f-courier-transport"></select></div>
+      </div>
+      <div class="row"><button class="primary" id="save-plan">Save</button><button class="ghost" id="preview-plan">Preview</button><button class="link danger" id="delete-plan" hidden>Delete</button></div>
+    </section>
+  </aside>
+  <main>
+    <section class="step" id="empty-panel"><p class="muted">Pick a chain on the left, or set the numbers and press <em>Preview</em> to size one without saving.</p></section>
+    <div id="plan-panel" hidden>
+      <section class="step">
+        <h2 id="plan-heading">Chain</h2>
+        <div class="two">
+          <dl id="plan-facts"></dl>
+          <div><ul class="notes" id="plan-notes"></ul><div class="row"><button class="ghost" id="open-design">Design write-up</button><button class="ghost" id="trace-cmd">Trace a command to the tip</button></div></div>
+        </div>
+      </section>
+      <section class="step">
+        <h2>Corridor <small id="frame-note"></small></h2>
+        <svg id="map" viewBox="0 0 1000 300" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="legend"><span class="l-reach">reachable</span><span class="l-lost">out of reach</span><span class="l-return">returning / failed</span><span class="l-slot">slot</span></div>
+        <div class="row"><input type="range" id="scrub" min="0" max="0" value="0" /></div>
+        <div class="row"><button class="ghost" id="play">Play</button><span class="small muted" id="clock"></span></div>
+      </section>
+      <section class="step">
+        <h2>Scenario</h2>
+        <div class="row">
+          <div class="field">Duration (s) <input type="number" id="s-duration" value="300" min="10" step="30" /></div>
+          <div class="field">Fail drone <select id="s-drone"></select></div>
+          <div class="field">at (s) <input type="number" id="s-at" value="60" min="0" step="5" /></div>
+          <button class="ghost" id="s-add">Add failure</button>
+          <label class="small muted"><input type="checkbox" id="s-deployed" checked /> chain on station at t = 0</label>
+        </div>
+        <ul class="notes small" id="s-events"></ul>
+        <div class="row"><button class="primary" id="run-sim">Run</button><span class="small muted" id="run-note"></span></div>
+      </section>
+      <section class="step" id="result-panel" hidden>
+        <h2>Result <small id="verdict"></small></h2>
+        <div class="two">
+          <dl id="metrics"></dl>
+          <div class="events" id="events"></div>
+        </div>
+      </section>
+      <section class="step" id="trace-panel" hidden>
+        <h2>One command through the chain <small>source-routed, signed end to end</small></h2>
+        <table><thead><tr><th>node</th><th class="num">hop</th><th class="num">ttl</th><th>decision</th></tr></thead><tbody id="trace-body"></tbody></table>
+        <p class="small muted" id="trace-note"></p>
+      </section>
+      <section class="step">
+        <h2>Transports at one hop <small>margin at the distance below, all catalog entries</small></h2>
+        <div class="row"><div class="field">Distance (m) <input type="number" id="c-distance" value="200" min="1" step="10" /></div><button class="ghost" id="compare">Compare</button></div>
+        <table><thead><tr><th>transport</th><th class="num">design range</th><th class="num">margin here</th><th class="num">kbps / hop</th><th>multi-hop</th><th>module</th></tr></thead><tbody id="compare-body"></tbody></table>
+      </section>
+    </div>
+  </main>
+</div>
+<div id="toast" class="toast" hidden></div>
+<script src="/api/drone-relay/assets/drone-relay.js"></script>
+</body>
+</html>

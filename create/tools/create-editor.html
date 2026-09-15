@@ -1,0 +1,126 @@
+<!doctype html>
+<!-- CHANGE LOG
+1 | maintainer@emeraldcoastsystemsgroup.com | Add the themed layered image workspace, owned projects and explicit export controls.
+2 | maintainer@emeraldcoastsystemsgroup.com | Add an accessible catalog of real editable image templates inside the existing workspace.
+3 | maintainer@emeraldcoastsystemsgroup.com | Add the Your brand panel (swatches, logo, kit link), brand and Office fonts, and the gallery's Show in my brand switch.
+-->
+<html lang="en" data-theme="create">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Image editor · Create</title>
+  <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+  <script src="/shared/ui/js/surface-theme.js"></script>
+  <link rel="stylesheet" href="/api/create/theme/create.css">
+  <link rel="stylesheet" href="/api/create/editor/editor.css">
+</head>
+<body>
+  <header class="editor-header">
+    <div class="identity"><span class="eyebrow">CREATE STUDIO</span><h1>Image editor</h1></div>
+    <label class="project-title"><span class="sr-only">Project name</span><input id="projectName" maxlength="160" value="Untitled image" autocomplete="off" disabled></label>
+    <div class="header-actions">
+      <button id="newProject" disabled>New</button><button id="openProjects" disabled>My projects</button>
+      <button id="saveProject" class="primary" disabled>Save</button>
+      <details id="exportMenu"><summary>Export</summary><div class="popover">
+        <button id="exportPng" disabled>PNG image</button><button id="exportJpeg" disabled>JPEG image</button>
+        <button id="exportJson" disabled>Editable project</button>
+      </div></details>
+    </div>
+  </header>
+  <div class="status-strip"><span id="saveStatus" role="status" aria-live="polite">Checking your access…</span>
+    <label><input id="autosave" type="checkbox" checked> Autosave saved projects</label>
+    <button id="saveCopy" disabled>Save a copy</button>
+  </div>
+  <p id="editorError" class="notice" role="alert" hidden></p>
+  <main class="editor-workspace">
+    <aside class="tool-panel" aria-label="Add to your image">
+      <button id="openTemplates" class="wide template-launcher" type="button" disabled>Browse image templates</button>
+      <h2>Add to canvas</h2>
+      <div class="tool-grid">
+        <button id="uploadImage" data-edit disabled><span aria-hidden="true">＋</span> Image</button>
+        <button id="chooseArtifact" data-edit disabled><span aria-hidden="true">▧</span> OSHAL files</button>
+        <button id="addText" data-edit disabled><span aria-hidden="true">T</span> Text</button>
+        <button id="addRectangle" data-edit disabled><span aria-hidden="true">□</span> Rectangle</button>
+        <button id="addEllipse" data-edit disabled><span aria-hidden="true">○</span> Ellipse</button>
+        <button id="drawMode" data-edit aria-pressed="false" disabled><span aria-hidden="true">✎</span> Draw</button>
+      </div>
+      <input id="imageFile" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+      <input id="projectFile" type="file" accept="application/json,.json" hidden>
+      <section id="brandPanel" class="brand-panel" aria-labelledby="brandPanelTitle" hidden>
+        <h2 id="brandPanelTitle">Your brand <button id="editBrand" type="button">Edit kit</button></h2>
+        <div id="brandSetup" hidden><p class="hint">Save your colors, fonts and logo once and they appear here.</p><button id="setupBrand" type="button" class="wide">Set up your brand kit</button></div>
+        <div id="brandTools" hidden>
+          <div id="brandSwatches" class="brand-swatches" role="group" aria-label="Brand colors"></div>
+          <p class="hint">Select a layer, then a color. With nothing selected, a color fills the canvas.</p>
+          <button id="addLogo" type="button" class="wide" hidden>Add logo</button>
+        </div>
+      </section>
+      <button id="importProject" data-edit class="wide" disabled>Import editable project</button>
+      <p class="hint">Add an image, place a title, or draw directly on the canvas. Each element stays on its own layer.</p>
+      <details id="canvasOptions" open><summary>Canvas settings</summary><fieldset id="canvasSettings" disabled><legend>Canvas</legend>
+        <div class="pair"><label>Width<input id="canvasWidth" type="number" min="1" max="8192" value="1200"></label>
+          <label>Height<input id="canvasHeight" type="number" min="1" max="8192" value="800"></label></div>
+        <label>Background<input id="canvasBackground" type="color" value="#ffffff"></label>
+        <label class="check"><input id="transparentBackground" type="checkbox" checked> Transparent</label>
+        <button id="applyCanvas" type="button">Apply canvas size</button>
+      </fieldset></details>
+      <p class="hint">PNG preserves transparency. JPEG uses a white background. Projects are private to your account.</p>
+    </aside>
+    <section class="canvas-panel" aria-label="Image canvas">
+      <div class="canvas-toolbar"><div><button id="undo" disabled>Undo</button><button id="redo" disabled>Redo</button></div>
+        <label>Zoom <select id="zoom"><option value="fit">Fit</option><option value="0.25">25%</option><option value="0.5">50%</option><option value="1">100%</option><option value="2">200%</option></select></label>
+      </div>
+      <div id="canvasViewport" class="canvas-viewport"><div id="canvasFrame" class="canvas-frame">
+        <canvas id="artboard" width="1200" height="800" aria-label="Editable image canvas" tabindex="0"></canvas>
+        <canvas id="selection" width="1200" height="800" aria-hidden="true"></canvas>
+      </div></div>
+      <footer class="canvas-footer"><span id="canvasDimensions">1200 × 800</span><span id="selectionHint">Select a layer to move or resize it.</span></footer>
+    </section>
+    <aside class="inspector-panel" aria-label="Layers and properties">
+      <section><h2>Layers <span id="layerCount" class="count">0</span></h2>
+        <div id="layers" class="layers" role="list" aria-label="Layer stack"><p class="hint">Your layers will appear here.</p></div>
+        <div class="layer-actions"><button id="raiseLayer" data-selected disabled aria-label="Move selected layer up">Up</button><button id="lowerLayer" data-selected disabled aria-label="Move selected layer down">Down</button>
+          <button id="duplicateLayer" data-selected disabled>Duplicate</button><button id="deleteLayer" data-selected disabled>Delete</button></div>
+      </section>
+      <fieldset id="properties" disabled><legend>Selected layer</legend>
+        <p id="noSelection" class="hint">Select an element on the canvas or in the layer list.</p>
+        <div id="propertyFields" hidden>
+          <label>Name<input id="layerName" data-property="name" maxlength="120"></label>
+          <div class="pair"><label>X<input id="layerX" data-property="x" type="number" min="-32768" max="32768"></label><label>Y<input id="layerY" data-property="y" type="number" min="-32768" max="32768"></label></div>
+          <div class="pair"><label>Width<input id="layerWidth" data-property="w" type="number" min="0.1" max="32768"></label><label>Height<input id="layerHeight" data-property="h" type="number" min="0.1" max="32768"></label></div>
+          <div class="pair"><label>Rotation<input id="layerRotation" data-property="rotation" type="number" min="-360" max="360"></label><label>Opacity<input id="layerOpacity" data-property="opacity" type="number" min="0" max="1" step="0.05"></label></div>
+          <div id="textProperties" hidden><label>Text<textarea id="layerText" data-property="text" maxlength="20000" rows="3"></textarea></label>
+            <div class="pair"><label>Size<input id="fontSize" data-property="fontSize" type="number" min="1" max="1024"></label><label>Weight<select id="fontWeight" data-property="fontWeight"><option value="400">Regular</option><option value="700">Bold</option></select></label></div>
+            <label>Font<select id="fontFamily" data-property="fontFamily"><option value="sans-serif">Sans serif</option><option value="serif">Serif</option><option value="monospace">Monospace</option></select></label>
+          </div>
+          <label id="fillProperty">Color<input id="layerFill" data-property="fill" type="color"></label>
+          <div id="strokeProperties" hidden><label>Stroke color<input id="layerStroke" data-property="stroke" type="color" value="#111827"></label><label>Stroke width<input id="strokeWidth" data-property="strokeWidth" type="number" min="0" max="512"></label></div>
+          <div id="imageProperties" hidden><label>Brightness<input id="brightness" data-property="brightness" type="range" min="0" max="300"></label><label>Contrast<input id="contrast" data-property="contrast" type="range" min="0" max="300"></label>
+            <p class="hint">Crop source image (%)</p><div class="pair"><label>Left<input id="cropX" type="number" min="0" max="99.9" step="0.1" value="0"></label><label>Top<input id="cropY" type="number" min="0" max="99.9" step="0.1" value="0"></label></div>
+            <div class="pair"><label>Width<input id="cropW" type="number" min="0.1" max="100" step="0.1" value="100"></label><label>Height<input id="cropH" type="number" min="0.1" max="100" step="0.1" value="100"></label></div>
+            <button id="applyCrop" type="button">Apply crop</button><button id="resetCrop" type="button">Reset crop</button>
+          </div>
+        </div>
+      </fieldset>
+    </aside>
+  </main>
+  <dialog id="projectDialog" aria-labelledby="projectsTitle"><header><h2 id="projectsTitle">My image projects</h2><button id="closeProjects" aria-label="Close projects">Close</button></header>
+    <p class="hint">Open a saved canvas or a previous revision. Restoring a revision becomes a new edit.</p>
+    <button id="cleanupUploads" disabled>Clean unused uploads</button><p id="cleanupResult" class="hint" role="status"></p>
+    <div id="projectList" class="project-list"></div>
+  </dialog>
+  <dialog id="templateDialog" aria-labelledby="templatesTitle" aria-describedby="templateIntro">
+    <header><div><span class="eyebrow">MAKE IT YOURS</span><h2 id="templatesTitle">Start with a design</h2></div><button id="closeTemplates" type="button" aria-label="Close templates">Close</button></header>
+    <p id="templateIntro" class="hint">Choose a starting point, then change every title, shape and color. Your saved projects stay in My projects.</p>
+    <div class="template-filters"><label>Find a design<input id="templateSearch" type="search" placeholder="Try announcement, quote or event" maxlength="160" autocomplete="off"></label>
+      <label>Category<select id="templateCategory"><option value="">All designs</option></select></label></div>
+    <label id="brandTemplateToggle" class="brand-template-toggle" hidden><input id="brandTemplates" type="checkbox" checked> Show in my brand: colors, fonts, name and logo</label>
+    <p id="templatePermission" class="hint" hidden>Your current role allows browsing. Creating a design requires project create access.</p>
+    <p id="templateCount" class="hint" role="status" aria-live="polite"></p>
+    <div id="templateGrid" class="template-grid"></div>
+    <p id="templateEmpty" class="hint" hidden>No matching designs. Try another search or category.</p>
+  </dialog>
+  <script src="/api/artifacts/picker.js"></script>
+  <script type="module" src="/api/create/editor/editor.mjs"></script>
+</body>
+</html>

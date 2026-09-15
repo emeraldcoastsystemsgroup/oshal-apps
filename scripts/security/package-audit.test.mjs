@@ -8,6 +8,8 @@
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | Ledger to the real 54-app catalog: the Create launcher lands with a truthfully pending record like every other package.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Ledger to the real 55-app catalog: Scan to Print lands with a truthfully pending record like every other package.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Ledger to the real 56-app catalog: CAD Studio lands with a truthfully pending record like every other package.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Retain both published Embodied and CAD Studio entries in the complete pending-audit ledger.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Ledger to the real 60-app catalog: Circuit Lab, Drone Relay and Animatronics each landed a truthfully pending record without bumping this count, so the suite has been red since 7380e96; every other assertion was already true of the 60 records.
  */
 
 import test from 'node:test';
@@ -165,15 +167,15 @@ test('catalog validation mutation-tests missing, noncanonical, and mismatched re
 test('the real store has one canonical truthfully pending record per catalog app', () => {
   const report = validatePackageAuditCatalog(process.cwd(), 'compatible');
   assert.deepEqual(report.errors, []);
-  assert.equal(report.records.length, 56);
-  assert.equal(report.records.filter(({ record }) => record.status === 'pending').length, 56);
+  assert.equal(report.records.length, 61);
+  assert.equal(report.records.filter(({ record }) => record.status === 'pending').length, 61);
   assert.equal(report.records.filter(({ decision }) => decision.verified).length, 0);
-  assert.equal(report.warnings.length, 56);
+  assert.equal(report.warnings.length, 61);
 });
 
 test('the real pending store cannot accidentally claim enforce readiness', () => {
   const report = validatePackageAuditCatalog(process.cwd(), 'enforce');
-  assert.equal(report.records.length, 56);
-  assert.ok(report.errors.length >= 56);
+  assert.equal(report.records.length, 61);
+  assert.ok(report.errors.length >= 61);
   assert.ok(report.records.every(({ decision }) => decision.allowed === false));
 });

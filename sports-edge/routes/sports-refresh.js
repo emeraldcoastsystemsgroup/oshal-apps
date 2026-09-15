@@ -27,6 +27,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — season keying per league, cached rating rebuilds, horizon game listing for followed teams, preview build/cache with pre-kickoff registration, the settlement grader, and the interval loop the route factory starts.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | A failed ESPN read now logs at WARN (the box runs LOG_LEVEL=info, so a debug-level failure is invisible exactly when someone asks why the surface is empty) and followedGames returns upstreamOk alongside the rows, so the caller can tell "no games" apart from "could not reach the schedule service".
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | The pass now feeds followed teams, their injury wire and their upcoming matchups into the shared World Intelligence layer instead of this package growing a news reader of its own. Subject NAMING lives here; fetching, dedup, classification and the time series stay in World, which is what stops two applications pulling the same wire twice and disagreeing about what it said. Runs LAST — it is the only step whose work can be caught up on a later pass.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Resolve current head coaches from followed ESPN team IDs only when their team is due, then use the same shared World ingest, persistent cooldown and pass budget.
  *
  * @module sports-refresh
  */
@@ -332,6 +333,20 @@ async function captureLines(pool) {
     }
     return tally;
 }
+/** @description Find conflicting stored ESPN IDs without choosing whichever owner's row happened to arrive first.
+ * @param rows Followed rows from the existing deployment-wide public archive query.
+ * @returns Subject IDs for which coach discovery must wait for a consistent team selection.
+ */
+function conflictingCoachTeams(rows) {
+    const ids = new Map();
+    for (const row of rows) {
+        const entity = (0, sports_world_1.teamEntityId)(row.league, row.team);
+        if (!ids.has(entity))
+            ids.set(entity, new Set());
+        ids.get(entity).add(String(row.team_id));
+    }
+    return new Set([...ids].filter(([, values]) => values.size > 1).map(([entity]) => entity));
+}
 /**
  * @description Pull this deployment's followed teams — and the games they are about to play —
  * through the shared World Intelligence layer.
@@ -345,21 +360,49 @@ async function captureLines(pool) {
  * The whole thing is a NO-OP when the layer is switched off (ENABLE_WORLD_INTELLIGENCE, TSDB_URL,
  * ARANGO_URL) — a deployment without it keeps a working odds maker, just without the wires.
  * @param pool - Postgres pool.
- * @returns How many subjects were pulled and how many new items landed, for the log line.
+ * @param lastPulled - Persistent subject timestamps shared with the ingest pass.
+ * @returns Followed team, injury and known-coach subjects within the pass budget.
+ */
+async function followedWorldSubjects(pool, lastPulled) {
+    const followed = await pool.query('SELECT DISTINCT league, team, team_id, display_name FROM sports_followed_teams ORDER BY league, team, team_id, display_name');
+    const subjects = [];
+    const seen = new Set();
+    const conflicts = conflictingCoachTeams(followed.rows);
+    for (const row of followed.rows) {
+        const team = (0, sports_world_1.teamSubjects)({
+            league: row.league,
+            team: String(row.team),
+            displayName: row.display_name ? String(row.display_name) : null,
+        });
+        if (seen.has(team[0].entity))
+            continue;
+        seen.add(team[0].entity);
+        // Keep a whole team/injury/coach group together; slicing away only its coach could starve it.
+        if ((0, sports_world_1.dueSubjects)(subjects, lastPulled, WORLD_COOLDOWN_HOURS).length > MAX_WORLD_SUBJECTS_PER_PASS - 3)
+            break;
+        subjects.push(...team);
+        if (!(0, sports_world_1.dueSubjects)([team[0]], lastPulled, WORLD_COOLDOWN_HOURS).length)
+            continue;
+        if (conflicts.has(team[0].entity)) {
+            log.warn({ entity: team[0].entity }, 'Conflicting followed ESPN team IDs; coach discovery skipped');
+            continue;
+        }
+        const current = await (0, sports_espn_1.teamHeadCoach)(row.league, String(row.team_id ?? ''), String(row.team), espn);
+        const coach = current ? (0, sports_world_1.coachSubject)(current.name, current.teamName, row.league) : null;
+        if (coach)
+            subjects.push(coach);
+    }
+    return subjects;
+}
+/** @description Ingest deployment-public sports subjects through the existing shared World service.
+ * @param pool Current deployment database pool. @returns Actual subject and new-item counts.
  */
 async function refreshWorld(pool) {
     const svc = (0, world_data_1.createWorldIntelligenceService)();
     if (!svc)
         return { subjects: 0, newItems: 0 };
-    const followed = await pool.query('SELECT DISTINCT league, team, display_name FROM sports_followed_teams');
-    const subjects = [];
-    for (const row of followed.rows) {
-        subjects.push(...(0, sports_world_1.teamSubjects)({
-            league: row.league,
-            team: String(row.team),
-            displayName: row.display_name ? String(row.display_name) : null,
-        }));
-    }
+    const lastPulled = await (0, sports_store_1.worldPullTimes)(pool);
+    const subjects = await followedWorldSubjects(pool, lastPulled);
     // The matchup subjects come from previews already built this pass, so a game nobody follows never
     // gets a subject — the same team-first discipline the rest of the package is built on.
     const upcoming = await pool.query(`SELECT league, event_id, home_team, away_team FROM sports_previews
@@ -367,7 +410,7 @@ async function refreshWorld(pool) {
     for (const row of upcoming.rows) {
         subjects.push((0, sports_world_1.matchupSubject)(row.league, String(row.event_id), String(row.home_team), String(row.away_team)));
     }
-    const due = (0, sports_world_1.dueSubjects)((0, sports_world_1.dedupeSubjects)(subjects), await (0, sports_store_1.worldPullTimes)(pool), WORLD_COOLDOWN_HOURS)
+    const due = (0, sports_world_1.dueSubjects)((0, sports_world_1.dedupeSubjects)(subjects), lastPulled, WORLD_COOLDOWN_HOURS)
         .slice(0, MAX_WORLD_SUBJECTS_PER_PASS);
     const ingest = (query, entity, label, sources, opts) => (0, world_data_1.ingestFeeds)(svc, query, entity, label, sources, opts);
     let newItems = 0;

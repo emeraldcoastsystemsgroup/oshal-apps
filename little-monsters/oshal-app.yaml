@@ -105,6 +105,7 @@ uses:
   - rag
   - tool-registry
   - storage
+  - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
 
 # ── ADR-090 addendum (skill profiles) ───────────────────────────────────────
 # Teach the generic `summarize` capability the CLASS-NOTES domain, declaratively. `summarize`
@@ -132,9 +133,14 @@ skillProfiles:
 # ── ADR-085: dependencies ───────────────────────────────────────────────────
 # No app dependencies: everything LM leans on is a kernel skill (see `uses:` above).
 dependencies:
-  apps: []
-  tools: []
-  connectors: []
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
 
 # ── ADR-085: app-scoped settings (typed keys the app reads; per-app settings panel) ──
 settings:

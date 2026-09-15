@@ -62,6 +62,7 @@ smoke:
 #   @/features/rag → rag (the corpus this app files into)
 uses:
   - rag
+  - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
 
 # ── ADR-141 per-user readiness (asked by the Intelligent Career group's setup page) ──
 #   subscription — at least one printed document has reached this caller's inbox, which
@@ -73,9 +74,14 @@ readiness:
     detailPointer: /subscription/detail
 
 dependencies:
-  apps: []
-  tools: []
-  connectors: []
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
 
 # Lifecycle ownership only (NOT access control — ADR-135 amendment A). Declares
 # the namespace an optional package-owned destination would use, so an operator's

@@ -48,6 +48,8 @@
   .muted { color: var(--stp-muted); }
   .small { font-size: 12px; }
   .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 8px; }
+  .suggestions { list-style: none; padding: 0; margin: 6px 0; }
+  .suggestions li { display: flex; gap: 8px; align-items: center; margin: 2px 0; }
   .image-card { border: 1px solid var(--stp-line); border-radius: 8px; padding: 6px; background: var(--stp-panel2); }
   .image-card.assigned { border-color: var(--stp-accent); }
   .image-card img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #000; border-radius: 6px; }
@@ -141,8 +143,15 @@
           <label>voxel <input id="pc-voxel" type="number" value="1" min="0.1" step="0.1" style="width:70px" /> mm</label>
           <label>units × <input id="pc-units" type="number" value="1000" min="0.001" step="any" style="width:80px" /></label>
           <label>up <select id="pc-up"><option value="y">Y (phone export)</option><option value="z">Z</option></select></label>
+          <label title="Tick when the object stood on a flat surface and its underside was never scanned. The lowest scanned layer is capped so the interior can close; the base face is then an assumption, and the report says so."><input id="pc-seal" type="checkbox" /> seal base</label>
         </div>
         <p id="assigned-summary" class="small muted"></p>
+        <div id="suggest-panel" class="small" hidden>
+          <button id="suggest-views" class="ghost">Suggest views from the video</button>
+          <button id="suggest-all" class="ghost" hidden>Assign all suggested</button>
+          <span id="suggest-note" class="muted small"></span>
+          <ul id="suggest-list" class="suggestions"></ul>
+        </div>
         <div id="image-grid" class="image-grid"></div>
       </section>
 
@@ -203,6 +212,8 @@
   </main>
 </div>
 <div id="toast" class="toast" hidden></div>
+<!-- Shared renderer v1 must load before the application compatibility adapter. -->
+<script src="/shared/ui/js/stl-viewer.js"></script>
 <script src="/api/scan-to-print/assets/scan-to-print-gl.js"></script>
 <script src="/api/scan-to-print/assets/scan-to-print-camera.js"></script>
 <script src="/api/scan-to-print/assets/scan-to-print.js"></script>

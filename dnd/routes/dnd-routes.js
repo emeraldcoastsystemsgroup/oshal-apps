@@ -77,6 +77,7 @@ const UI_SCRIPTS = [
   'table-seats.js',
   'table-playback.js',
   'table-immersive.js',
+  'table-dock.js',
   'table-screens.js',
 ];
 

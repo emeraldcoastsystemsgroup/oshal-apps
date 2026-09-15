@@ -75,9 +75,21 @@ smoke:
 # still framework-resident (Wave 2), so the resolver satisfies this from core; when
 # vids carves, this same declaration resolves to the store package instead.
 dependencies:
-  apps: [vids]
-  tools: []
-  connectors: []
+  required:
+    apps: [vids]
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+
+# Kernel skills this app declares (ADR-090 uses: contract, fail-closed at load).
+# `app-dependencies` is the compatibility floor for the tiered dependencies block above: a core
+# that predates required/optional refuses this package instead of installing it without its
+# required dependencies and without its connector allow-list.
+uses:
+  - app-dependencies
 
 # The brand specialist bot — upserted + registered in the ACTIVE bot registry by the
 # loader from this manifest (ADR-085; zero core-registry edits).

@@ -20,6 +20,9 @@
  * 2026-07-20 21:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | ADR-111 geometry export: GET /scans/:id/geometry downloads the ACCURATE model a build consumes (the original LiDAR/photogrammetry .ply for an import, the produced .splat for a reconstruction) via the kernel engine's getGeometryPath; GET /scans/:id/dimensions returns the to-scale footprint (getDimensions — metres for LiDAR, labelled relative otherwise). Owner-scoped; turns Spaces from a viewer into a model you can build on.
  * 2026-08-06 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Declare the package as the maintained Spaces source after the completed carve. Retire the stale core-sync marker and add a source/compiled/surface contract suite that protects the loader's single-argument factory, appPackageDir serving, /pair ingest, inline-script grammar, and deliberate stylesheet boundary.
  * 2026-09-06 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | ADR-139 wave 2 — POST /scans/import-artifact {ref}: the "Send to…" destination. Redeems a walkthrough video via the SHARED kernel-relay helper (415 for non-video) and starts the same registerAndStart reconstruction the multipart lane uses; the pre-built model lane is unchanged.
+ * 2026-09-14 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Both multipart lanes (POST /scans video, POST /scans/import model) re-enter the caller's RLS request identity after multer. The body streams on the socket's own async context, so once busboy finished on a later chunk the AsyncLocalStorage identity was gone and the spatial_scans insert was refused (OSHAL_DB_GUC_STRICT=deny / RLS WITH CHECK) — every import over roughly one socket chunk failed 500 "failed to import capture" while a small file that fit the first chunk succeeded (reproduced 2026-09-13 with public .splat files on the box's own image). Guarded by tests/upload-identity.core.test.js.
+ * 2026-09-14 01:30:00 | maintainer@emeraldcoastsystemsgroup.com | Spaces → embodied (ADR-151 D3/Q3): GET /scans/:id/scene builds the ready scan into an embodied hidden scene (obstacle boxes from the splat, metres, z-up, drone home on the clearest floor; up/scaleM/ceilingM/maxBoxes/minPoints query, download=1) via the pure embodied-scene module; GET /scenes lists the caller's ready scans as ADR-139 provides artifacts; the surface tags every ready scan as an embodied-scene source and offers the download. The embodied-side accept endpoint is the other half of the contract.
+ * 2026-09-14 20:00:00 | maintainer@emeraldcoastsystemsgroup.com | POST /scans/import gates a `.ply` by size WHILE IT STREAMS. The import lane accepted 300 MB of anything and handed it to the kernel converter, which parsed the whole buffer on the api's event loop: a 44 MB `.ply` held the loop for about 14 s and a 117 MB one ran the 7 GB Docker VM out of memory and took the stack down (2026-09-14). multer's `limits.fileSize` is one number for every file and the extension only arrives with the part header, so the second, per-format gate is a storage engine (import-upload-gate.ts) that stops writing at the first chunk past `resolvePlyImportLimits().plyMaxBytes` (OSHAL_SPACES_PLY_MAX_BYTES, default 50 MiB — no number lives in this file) and answers 413 naming the limit. An oversized `.ply` is never fully received, written, or parsed; `.splat` keeps the 300 MB ceiling and both lanes keep their post-multer identity re-entry. Guarded by tests/ply-import-off-loop.core.test.js.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -66,9 +69,12 @@ const path = __importStar(require("path"));
 const crypto_1 = require("crypto");
 const logger_1 = require("@/shared/logger");
 const artifact_exchange_1 = require("@/shared/artifact-exchange");
+const request_identity_1 = require("@/shared/services/database/request-identity");
 const spatial_mapping_1 = require("@/features/spatial-mapping");
 const drone_1 = require("@/features/drone");
 const cli_token_routes_1 = require("@/app/routes/cli-token-routes");
+const embodied_scene_1 = require("./embodied-scene");
+const import_upload_gate_1 = require("./import-upload-gate");
 const logger = (0, logger_1.createChildLogger)({ module: 'spaces-routes' });
 /** Max accepted upload size — a room walkthrough clip, not a movie. */
 const MAX_UPLOAD_BYTES = 300 * 1024 * 1024;
@@ -198,16 +204,23 @@ function createSpacesRoutes(ctx) {
     // imports via the @/app/routes/cli-token-routes alias. Keep the single-arg
     // (ctx) factory signature — do NOT reintroduce the `apiDir` parameter.
     // ══════════════════════════════════════════════════════════════════════════
-    // multer writes the upload straight into the scan-scoped dir (no full-video
-    // buffering in RAM) using the sub + scan id stashed by prepUpload below.
-    const storage = multer_1.default.diskStorage({
-        destination(req, _file, cb) {
+    // The upload streams straight into the scan-scoped dir (no full-video buffering in RAM) using
+    // the sub + scan id stashed by prepUpload below. A `.ply` carries a SECOND, much lower gate
+    // (the kernel's OSHAL_SPACES_PLY_MAX_BYTES — resolved per request, never a number here): its
+    // conversion is the expensive step, and before the gate existed a 117 MB `.ply` reached the
+    // converter and collapsed the Docker VM. The engine refuses at the first chunk past the gate,
+    // so an oversized capture is never fully received, written, or parsed.
+    const storage = (0, import_upload_gate_1.createGatedDiskStorage)({
+        destination(req) {
             const s = req;
-            const dir = (0, spatial_mapping_1.scanDir)(s._spacesSub, s._spacesScanId);
-            fs.promises.mkdir(dir, { recursive: true }).then(() => cb(null, dir)).catch((e) => cb(e, dir));
+            return fs.promises.mkdir((0, spatial_mapping_1.scanDir)(s._spacesSub, s._spacesScanId), { recursive: true })
+                .then(() => (0, spatial_mapping_1.scanDir)(s._spacesSub, s._spacesScanId));
         },
-        filename(_req, file, cb) {
-            cb(null, `source${safeExt(file.originalname)}`);
+        filename(file) {
+            return `source${safeExt(file.originalname)}`;
+        },
+        limitFor(file) {
+            return safeExt(file.originalname) === '.ply' ? (0, spatial_mapping_1.resolvePlyImportLimits)().plyMaxBytes : undefined;
         },
     });
     const upload = (0, multer_1.default)({ storage, limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 } });
@@ -235,47 +248,49 @@ function createSpacesRoutes(ctx) {
         s._spacesScanId = (0, crypto_1.randomUUID)();
         next();
     };
-    // Run multer, translating its errors to clean 4xx (413 for too-large, 400 otherwise) and removing
-    // the pre-created scan dir so a rejected upload never leaks an empty directory.
-    const uploadVideo = (req, res, next) => {
-        upload.single('video')(req, res, (err) => {
-            if (!err) {
-                next();
-                return;
-            }
-            const s = req;
-            if (s._spacesSub && s._spacesScanId) {
-                void fs.promises.rm((0, spatial_mapping_1.scanDir)(s._spacesSub, s._spacesScanId), { recursive: true, force: true })
-                    .catch((e) => logger.warn({ e }, 'orphan scan dir cleanup failed'));
-            }
-            const tooLarge = err instanceof multer_1.default.MulterError && err.code === 'LIMIT_FILE_SIZE';
-            logger.warn({ err }, 'spaces video upload rejected');
-            res.status(tooLarge ? 413 : 400).json({
-                error: tooLarge ? 'video_too_large' : 'invalid_video_upload',
-                maxUploadBytes: MAX_UPLOAD_BYTES,
-            });
+    // Run multer for one multipart field and RE-ENTER the caller's RLS request identity in its
+    // completion callback. The multipart body arrives on the socket's own async context, so once
+    // busboy finishes on a later chunk the AsyncLocalStorage store the identity middleware set for
+    // this request is gone — the handler after multer would then reach the GUC pool with NO identity
+    // and the spatial_scans insert is refused (OSHAL_DB_GUC_STRICT=deny / RLS WITH CHECK). A body
+    // that fits the first chunk finishes synchronously and keeps the store, which is why the defect
+    // looked size-dependent. Capturing the identity BEFORE the stream and re-binding it around the
+    // continuation restores the contract for both the video and the model lane.
+    const runUpload = (field, req, res, done) => {
+        const identity = (0, request_identity_1.getRequestIdentity)();
+        upload.single(field)(req, res, (err) => {
+            if (identity)
+                (0, request_identity_1.runWithRequestIdentity)(identity, () => done(err));
+            else
+                done(err);
         });
+    };
+    // Translate multer errors to clean 4xx (413 for too-large, 400 otherwise) and remove the
+    // pre-created scan dir so a rejected upload never leaks an empty directory.
+    const rejectUpload = (req, res, err, lane) => {
+        const s = req;
+        if (s._spacesSub && s._spacesScanId) {
+            void fs.promises.rm((0, spatial_mapping_1.scanDir)(s._spacesSub, s._spacesScanId), { recursive: true, force: true })
+                .catch((e) => logger.warn({ e }, 'orphan scan dir cleanup failed'));
+        }
+        logger.warn({ err, lane }, lane === 'video' ? 'spaces video upload rejected' : 'spaces model import rejected');
+        if (err instanceof import_upload_gate_1.ImportTooLargeError) {
+            res.status(413).json((0, import_upload_gate_1.importTooLargeBody)(err));
+            return;
+        }
+        const tooLarge = err instanceof multer_1.default.MulterError && err.code === 'LIMIT_FILE_SIZE';
+        res.status(tooLarge ? 413 : 400).json({
+            error: tooLarge ? `${lane}_too_large` : `invalid_${lane}_upload`,
+            maxUploadBytes: MAX_UPLOAD_BYTES,
+        });
+    };
+    const uploadVideo = (req, res, next) => {
+        runUpload('video', req, res, (err) => (err ? rejectUpload(req, res, err, 'video') : next()));
     };
     // Same disk-streaming + orphan-cleanup contract as uploadVideo, but for the import lane's
     // multipart field ("model") — a pre-built .ply/.splat capture rather than a walkthrough video.
     const uploadModel = (req, res, next) => {
-        upload.single('model')(req, res, (err) => {
-            if (!err) {
-                next();
-                return;
-            }
-            const s = req;
-            if (s._spacesSub && s._spacesScanId) {
-                void fs.promises.rm((0, spatial_mapping_1.scanDir)(s._spacesSub, s._spacesScanId), { recursive: true, force: true })
-                    .catch((e) => logger.warn({ e }, 'orphan scan dir cleanup failed'));
-            }
-            const tooLarge = err instanceof multer_1.default.MulterError && err.code === 'LIMIT_FILE_SIZE';
-            logger.warn({ err }, 'spaces model import rejected');
-            res.status(tooLarge ? 413 : 400).json({
-                error: tooLarge ? 'model_too_large' : 'invalid_model_upload',
-                maxUploadBytes: MAX_UPLOAD_BYTES,
-            });
-        });
+        runUpload('model', req, res, (err) => (err ? rejectUpload(req, res, err, 'model') : next()));
     };
     router.get('/app', (_req, res) => sendPage(res, appHtml));
     router.get('/viewer', (_req, res) => sendPage(res, viewerHtml));
@@ -525,6 +540,63 @@ function createSpacesRoutes(ctx) {
         catch (err) {
             logger.error({ err, id }, 'dimensions read failed');
             res.status(500).json({ error: 'dimensions_failed' });
+        }
+    });
+    // Spaces → embodied (ADR-151 D3/Q3): a ready scan as an embodied hidden scene — obstacle boxes
+    // carved from the splat, metres, z-up, drone home on the clearest floor. Query: up=auto|y|-y|z,
+    // scaleM, ceilingM (fitted captures), maxBoxes, minPoints, download=1. Owner-scoped; the scene
+    // is built from the caller's own artifact on every read (nothing is cached on disk).
+    router.get('/scans/:id/scene', async (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        const id = String(req.params.id);
+        try {
+            const scan = await service.getScan(sub, id);
+            const artifact = await service.getArtifactPath(sub, id);
+            if (!scan || !artifact || !fs.existsSync(artifact)) {
+                res.status(404).json({ error: 'artifact_not_ready' });
+                return;
+            }
+            const opts = (0, embodied_scene_1.sceneOptionsFromQuery)(req.query, `scan:${id}`, scan.sourceKind === 'model');
+            const result = (0, embodied_scene_1.buildEmbodiedScene)(await fs.promises.readFile(artifact), opts);
+            res.setHeader('Cache-Control', 'private, no-store');
+            res.setHeader('Content-Type', `${embodied_scene_1.EMBODIED_SCENE_TYPE}; charset=utf-8`);
+            if (req.query.download === '1')
+                res.setHeader('Content-Disposition', `attachment; filename="scan-${id}.scene.json"`);
+            res.send(JSON.stringify({ ...result, scanId: id, title: scan.title }));
+        }
+        catch (err) {
+            if (err instanceof RangeError) {
+                res.status(422).json({ error: 'scene_unbuildable', message: err.message });
+                return;
+            }
+            logger.error({ err, id }, 'embodied scene build failed');
+            res.status(500).json({ error: 'scene_build_failed' });
+        }
+    });
+    // ADR-139 provides.list: the caller's ready scans as embodied-scene artifacts for the shared picker.
+    router.get('/scenes', async (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        try {
+            const scans = (await service.listScans(sub)).filter((s) => s.status === 'ready');
+            res.setHeader('Cache-Control', 'private, no-store');
+            res.json({
+                artifacts: scans.map((s) => ({
+                    id: s.id, name: `${s.title}.scene.json`, type: embodied_scene_1.EMBODIED_SCENE_TYPE,
+                    source: `/api/spaces/scans/${encodeURIComponent(s.id)}/scene`, gaussianCount: s.gaussianCount, updatedAt: s.updatedAt,
+                })),
+            });
+        }
+        catch (err) {
+            logger.error({ err }, 'scene list failed');
+            res.status(500).json({ error: 'failed to list scenes' });
         }
     });
     // ADR-111 increment A: the scan's camera poses (poses.json) — owner-scoped; 404 when the

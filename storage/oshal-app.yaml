@@ -48,11 +48,17 @@ smoke:
 # MOUNT time, not at compile time. See docs/apps/kernel-skills.md.
 uses:
   - storage          # storage-routes.js calls the kernel storage-target resolver
+  - app-dependencies # compatibility floor for the tiered dependencies block (ADR-085 addendum)
 
 dependencies:
-  apps: []
-  tools: []
-  connectors: [dropbox, github, google-drive]
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: [dropbox, github, google-drive]
 
 # Per-app skin (approved palette) — graphite so the storage hub reads distinct.
 theme: graphite

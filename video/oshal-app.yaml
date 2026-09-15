@@ -31,7 +31,7 @@ description: >-
   Make prompted short-form videos (TikTok / YouTube Shorts / Instagram Reels) from an idea.
   Shape the style, tone, length, captions and voiceover; the director storyboards it and the
   studio renders a real .mp4 with voiceover and captions, saved to your Files storage.
-version: 1.4.0
+version: 1.5.0
 status: active
 
 # Per-app skin (approved palette) — sakura so the media studio reads distinct.
@@ -62,11 +62,17 @@ smoke:
 uses:
   - media-generation # video-routes.js renders through the video-generation slice (Veo + storyboard)
   - storage          # video-routes.js saves finished MP4s through the kernel storage target
+  - app-dependencies # compatibility floor for the tiered dependencies block (ADR-085 addendum)
 
 dependencies:
-  apps: []
-  tools: []
-  connectors: []
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
 
 # Server-side TTS for narration defers to the swarm default (Google Cloud TTS when the
 # operator OAuth profile is present). Override here to pin a specific provider.

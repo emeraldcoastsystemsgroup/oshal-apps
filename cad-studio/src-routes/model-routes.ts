@@ -12,16 +12,20 @@
  *                     |                             | contract first and then rebuilds through the engine, answering
  *                     |                             | with the model AND the build outcome so an iterating caller
  *                     |                             | sees a refused feature or a stalled engine in the same reply.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B5: POST /models/:id/cancel stops the owner's running
+ *                     |                             | rebuild (the connection is closed mid-rebuild, the bridge kills
+ *                     |                             | the worker) and answers once the part is recorded at its last
+ *                     |                             | good revision; settings.featureBudgetMs is validated by field.
  */
 
 import fs from 'node:fs';
 import { Router, type Request, type Response } from 'express';
 import multer from 'multer';
 import { createChildLogger } from '@/shared/logger';
-import { ContractError, validateBase, validateFeature, validateFeatureList, type CadFeature } from './feature-contract';
+import { ContractError, validateBase, validateFeature, validateFeatureBudget, validateFeatureList, type CadFeature } from './feature-contract';
 import { ARTIFACT_TYPES, artifactPath, isArtifactKey, modelDir, requireUuid, revisionDir, type ArtifactKey } from './data-dir';
 import { createModel, deleteModel, getModel, getRevision, listModels, listRevisions, updateModel, type ModelRow, type QueryablePool } from './model-store';
-import { buildStatus, rebuildModel, storeMeshBase, type BuildOutcome, type RebuildDeps } from './rebuild-service';
+import { buildStatus, cancelRebuild, rebuildModel, storeMeshBase, type BuildOutcome, type RebuildDeps } from './rebuild-service';
 
 const logger = createChildLogger({ module: 'cad-studio-model-routes' });
 export const UPLOAD_LIMITS = Object.freeze({ meshBytes: 64 * 1024 * 1024 });
@@ -133,7 +137,12 @@ export function createModelRoutes(deps: ModelRouteDeps): Router {
         const base = validateBase(body.base);
         patch.base = base.kind === 'mesh' ? storeMeshBase(deps.dataRoot, req.cadSub as string, model.model_id, Buffer.from(String(base.stl), 'base64')) : base;
       }
-      if (body.settings !== undefined) { if (!body.settings || typeof body.settings !== 'object' || Array.isArray(body.settings)) throw new ContractError('settings must be an object', 'settings'); patch.settings = { ...model.settings, ...(body.settings as Record<string, unknown>) }; }
+      if (body.settings !== undefined) {
+        if (!body.settings || typeof body.settings !== 'object' || Array.isArray(body.settings)) throw new ContractError('settings must be an object', 'settings');
+        const settings = body.settings as Record<string, unknown>;
+        if (settings.featureBudgetMs !== undefined) validateFeatureBudget(settings.featureBudgetMs);
+        patch.settings = { ...model.settings, ...settings };
+      }
       const updated = (await updateModel(deps.pool, req.cadSub as string, model.model_id, patch)) ?? model;
       if (patch.base === undefined && patch.settings === undefined) { res.json({ model: publicModel(updated), build: { ok: true, ms: 0 } }); return; }
       const built = await rebuildModel(deps, updated);
@@ -229,6 +238,16 @@ export function createModelRoutes(deps: ModelRouteDeps): Router {
   router.post('/models/:modelId/rebuild', async (req: ModelRequest, res) => {
     const built = await rebuildModel(deps, req.cadModel as ModelRow);
     answer(res, built.model, built.build);
+  });
+
+  /** Stop this part's running rebuild; the reply is the part as recorded (its last good revision). */
+  router.post('/models/:modelId/cancel', async (req: ModelRequest, res) => {
+    const model = req.cadModel as ModelRow;
+    try {
+      const stage = await cancelRebuild(deps, req.cadSub as string, model.model_id);
+      const row = (await getModel(deps.pool, req.cadSub as string, model.model_id)) ?? model;
+      res.json({ cancelled: stage !== null, stage, lastGoodRevision: row.revision, model: publicModel(row) });
+    } catch (error) { logger.error({ err: error, modelId: model.model_id }, 'Cancel rebuild failed'); res.status(500).json({ error: 'cancel_failed' }); }
   });
 
   router.post('/models/:modelId/restore', async (req: ModelRequest, res) => {

@@ -6,6 +6,7 @@
 <title>AI Office — OSHAL</title>
 <!-- 2.10.0: starters are served per kind by GET /starters and grouped by purpose; ?kind=&starter=&theme=&topic= deep links (the Create front door). -->
 <!-- 2.11.1: the making bar uses the starter's own article (a Budget, an Invoice), not the kind's. -->
+<!-- 2.12.0: your brand from Create's brand kit: the nearest built-in look is badged (and picked when nothing else chose one), the brand name fills an empty cover byline, and AI drafts can use the brand voice. -->
 <!-- 2.11.0: the studio speaks the purpose — a starter folds the setup away behind one "making" bar, every label uses the kind's words (sections / sheets / slides), the AI-draft prompt is the purpose's own. -->
 <!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
      Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
@@ -61,6 +62,10 @@
   .th .tn { font-weight:700; font-size:12.5px; margin:7px 2px 1px; display:flex; align-items:center; gap:5px; }
   .th .tn .dot { width:7px; height:7px; border-radius:50%; flex:0 0 auto; }
   .th .tm { color:var(--muted); font-size:10.5px; margin:0 2px 3px; line-height:1.35; }
+  .brandTag { display:inline-block; margin:3px 2px 2px; padding:1px 8px; border-radius:999px; font-size:10.5px; font-weight:700; color:var(--accent); border:1px solid var(--accent); background:var(--panel2); }
+  .brandVoice[hidden] { display:none; }
+  .brandVoice { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); margin:8px 0 2px; min-width:0; }
+  .brandVoice input { width:auto; margin:0; } .brandVoice span { font-style:italic; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
   .themeNote { color:var(--muted); font-size:11.5px; margin:0 0 18px; }
 
   /* ── Starter outlines ──────────────────────────────────────────────────── */
@@ -475,6 +480,7 @@
         <button class="btn ghost" id="openBtn" title="Open an existing .docx / .pptx / .xlsx — its content loads into the editor for AI edits, then regenerate in any format">📂 Open a file</button>
         <input type="file" id="openFile" accept=".docx,.pptx,.xlsx" style="display:none" />
       </div>
+      <label class="brandVoice" id="brandVoiceRow" hidden><input type="checkbox" id="useBrandVoice" checked> AI drafts in your brand voice <span id="brandVoiceText"></span></label>
       </details>
 
       <div class="lbl" id="outlineStep">4 · Title + outline</div>
@@ -701,16 +707,66 @@ function renderThemes(){
     <div class="th${THEME===t.id?' sel':''}" data-id="${t.id}" role="button" tabindex="0" aria-pressed="${THEME===t.id}">
       ${thumb(t,'cover')}
       <div class="tn"><span class="dot" style="background:${hx(t.colors.accent)}"></span>${esc(t.name)}</div>
-      <div class="tm">${esc(t.blurb)}</div>
+      <div class="tm">${esc(t.blurb)}</div>${BRAND.look === t.id ? '<div class="brandTag">Closest to your brand</div>' : ''}
     </div>`).join('');
   $('themes').querySelectorAll('.th').forEach(el => {
     el.onclick = () => pickTheme(el.dataset.id);
     el.onkeydown = (e) => { if (e.key==='Enter'||e.key===' '){ e.preventDefault(); pickTheme(el.dataset.id); } };
   });
   const t = THEMES.find(x => x.id === THEME);
-  $('themeNote').innerHTML = t ? `<b>${esc(t.name)}</b> — ${esc(t.mood)} · ${esc(t.fonts.heading)} / ${esc(t.fonts.body)} · six editable slide masters` : '';
+  $('themeNote').innerHTML = t ? `<b>${esc(t.name)}</b> — ${esc(t.mood)} · ${esc(t.fonts.heading)} / ${esc(t.fonts.body)} · six editable slide masters${BRAND.look === t.id ? ' · closest to your brand' : ''}` : '';
 }
-function pickTheme(id){ THEME = id; renderThemes(); pvKick(); }
+function pickTheme(id){ THEME = id; themeChosen = true; renderThemes(); pvKick(); }
+
+// ── Your brand: Create's brand kit, read in the viewer's own session ─────────────────────────
+// A person without Create access (or without a kit) gets a refusal and AI Office behaves exactly
+// as before. The kit's name fills an empty cover byline, its voice rides the AI draft's topic,
+// and the built-in look nearest its colors and fonts is badged, and picked only when nothing else
+// (a deep link, a starter or a click) chose a look. The renderer still draws its own ten looks.
+const BRAND = { kit: null, look: null };
+let themeChosen = false;
+const brandReady = fetch('/api/create/brand-kit', { credentials: 'same-origin', cache: 'no-store',
+  signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(4000) : undefined })
+  .then(r => (r.ok ? r.json() : null)).then(j => { if (j && j.kit) BRAND.kit = j.kit; })
+  .catch(() => { /* No Create access or no kit: the studio keeps its own looks. */ });
+function hslOf(hex){
+  const n = parseInt(String(hex).replace('#', ''), 16), r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+  if (max === min) return [0, 0, l];
+  const d = max - min, s = l > .5 ? d / (2 - max - min) : d / (max + min);
+  return [(max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4) * 60, s, l];
+}
+/** Hue distance (a neutral against a color counts as far apart) plus a lightness term. */
+function colorGap(a, b){
+  const [ha, sa, la] = hslOf(a), [hb, sb, lb] = hslOf(b), na = sa < .15, nb = sb < .15;
+  const hue = na || nb ? (na && nb ? 0 : 90) : Math.min(Math.abs(ha - hb), 360 - Math.abs(ha - hb));
+  return hue + 60 * Math.abs(la - lb);
+}
+function lookScore(kit, t){
+  let score = colorGap(kit.colors.primary, t.colors.accent) + .6 * colorGap(kit.colors.secondary, t.colors.accent2);
+  if (t.darkCanvas !== (hslOf(kit.colors.light)[2] < .35)) score += 90;
+  if (t.fonts.heading === kit.fonts.heading) score -= 20;
+  if (t.fonts.body === kit.fonts.body) score -= 10;
+  return score;
+}
+/** The built-in look nearest a brand kit, or null without looks. */
+function brandLook(kit, themes){ return themes.reduce((best, t) => (!best || lookScore(kit, t) < lookScore(kit, best) ? t : best), null); }
+function applyBrand(){
+  const kit = BRAND.kit; if (!kit) return;
+  const look = THEMES.length ? brandLook(kit, THEMES) : null;
+  BRAND.look = look ? look.id : null;
+  if (look && !themeChosen) THEME = look.id;
+  renderThemes(); renderWizThemes(); renderWizChips(); pvKick();
+  if (kit.name && !$('byline').value.trim()) $('byline').value = kit.name;
+  const voice = String(kit.voice || '').trim();
+  $('brandVoiceRow').hidden = !voice; $('brandVoiceText').textContent = voice ? '“' + voice + '”' : '';
+}
+/** An AI draft's topic, with the brand's name and voice while "AI drafts in your brand voice" is on. */
+function brandTopic(topic){
+  const kit = BRAND.kit, voice = kit ? String(kit.voice || '').trim() : '';
+  if (!voice || !$('useBrandVoice').checked) return topic;
+  return topic + ' (written' + (kit.name ? ' for ' + kit.name : '') + ', in this voice: ' + voice + ')';
+}
 
 function renderLayouts(){
   $('lay').innerHTML = LAYOUTS.map(l =>
@@ -871,14 +927,14 @@ function genAs(fmt){
   if (!sections.length && !topic){ res('Pick a shape, write an outline, or enter a topic.', false); return; }
   const label = 'Rendering .' + fmt + '…';
   if (sections.length) generate({ title, sections }, label, fmt);
-  else generate({ title, topic, slideCount: 8 }, 'AI drafting + rendering… (~30s)', fmt);
+  else generate({ title, topic: brandTopic(topic), slideCount: 8 }, 'AI drafting + rendering… (~30s)', fmt);
 }
 $('genAlt1').onclick = () => genAs($('genAlt1').dataset.fmt);
 $('genAlt2').onclick = () => genAs($('genAlt2').dataset.fmt);
 
 $('aiBtn').onclick = () => {
   const topic = $('topic').value.trim(); if (!topic){ $('topic').focus(); return; }
-  generate({ title: $('title').value.trim() || topic, topic, slideCount: 8 }, 'AI drafting + rendering… (~30s)', KIND);
+  generate({ title: $('title').value.trim() || topic, topic: brandTopic(topic), slideCount: 8 }, 'AI drafting + rendering… (~30s)', KIND);
 };
 $('genBtn').onclick = () => genAs(KIND);
 
@@ -1238,6 +1294,8 @@ renderKinds(); renderTemplates(); loadThemes(); loadDecks(); refreshDest();
 applyKindVocabulary();
 // The starters and the deep link ride the same boot: once the looks AND the shapes are known.
 Promise.all([themesReady, loadStarters()]).then(applyDeepLink);
+// Your brand settles beside the deep link; whichever runs second, a chosen look is never overridden.
+Promise.all([themesReady, brandReady]).then(applyBrand);
 
 // ── The front-door walkthrough ─────────────────────────────────────────────
 // Drives the studio's own pickers, owns no duplicate state. Session-scoped skip: dismissing it
@@ -1271,7 +1329,7 @@ function renderWizThemes(){
     <div class="wzTh" data-id="${t.id}" role="button" tabindex="0" aria-label="Use the ${esc(t.name)} look">
       <div class="flip">${thumb(t,'cover')}<div class="alt">${thumb(t,'content')}</div></div>
       <div class="tn"><span class="dot" style="background:${hx(t.colors.accent)}"></span>${esc(t.name)}</div>
-      <div class="tm">${esc(t.blurb)}</div>
+      <div class="tm">${esc(t.blurb)}</div>${BRAND.look === t.id ? '<div class="brandTag">Closest to your brand</div>' : ''}
     </div>`).join('');
   bindCards($('wzThemes'), '.wzTh', el => { pickTheme(el.dataset.id); wzStepGo(3); });
 }

@@ -17,7 +17,12 @@
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Ledger to the real 53-package store (was 48). ADR-141 `kind: group` manifests own no routes, so they cannot mount a readiness smoke: they are excluded only after the real route parser proves they declare none and ship no smoke source/compiled pair, so the exclusion can never hide a routed package.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | Ledger to the real 54-package store: the Create launcher ships the canonical service-only readiness smoke pair like every routed package.
  * 14 | maintainer@emeraldcoastsystemsgroup.com | Ledger to the real 55-package store: Scan to Print ships the canonical service-only readiness smoke pair like every routed package.
- * 15 | maintainer@emeraldcoastsystemsgroup.com | Ledger to the real 56-package store: CAD Studio ships the canonical service-only readiness smoke pair like every routed package.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com | Ledger to the real 56-package store: Embodied Swarm ships the canonical service-only readiness smoke pair like every routed package.
+ * 16 | maintainer@emeraldcoastsystemsgroup.com | Retain both published Embodied and CAD Studio packages in the complete 57-package readiness ledger.
+ * 17 | maintainer@emeraldcoastsystemsgroup.com | Enforce the operator's manual-only workflow and Portrait's reviewed user-bound readiness with mutation guards, preserving other service-only contracts.
+ * 18 | maintainer@emeraldcoastsystemsgroup.com | Classify the known completed-task writer through actual route inventory fixtures while retaining read-only routes.
+ * 19 | maintainer@emeraldcoastsystemsgroup.com | Ledger to the real 60-package store: Animatronics ships the canonical service-only readiness smoke pair like every routed package; the count also takes in Circuit Lab and Drone Relay, which landed their smoke pairs without bumping it.
+ * 20 | maintainer@emeraldcoastsystemsgroup.com | Ledger to 61 with the Marketing group, and pin the write-class closure rule: a route that delegates its SQL to a package sibling is machine-write, transitively, while a file outside routes//src-routes is never read. Splitting marketing-routes.ts into modules had silently downgraded /api/marketing to no-sql-write, and the same shape was already under-reporting 19 routes across 14 packages.
  */
 
 import test from 'node:test';
@@ -26,7 +31,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { evaluateFindings, findingsFromSarif } from './check-codeql-sarif.mjs';
-import { parseManifestRoutes } from './check-store-security.mjs';
+import { parseManifestRoutes, routeInventory } from './check-store-security.mjs';
 import { assertStoreCiTestInventory, discoverStoreCiTests } from './check-store-test-discovery.mjs';
 import {
   legacyOwnerUpgradeProofSql,
@@ -35,6 +40,7 @@ import {
   runLiveOwnerRlsProof,
 } from './run-live-owner-rls-proof.mjs';
 import { extractVidsSurface, parseMobileProofOptions } from './run-vids-mobile-browser.mjs';
+import { normalizeCompilerOutput } from './rebuild-store-routes.mjs';
 
 const workflow = readFileSync('.github/workflows/security.yml', 'utf8');
 const gitleaksConfig = readFileSync('.gitleaks.toml', 'utf8');
@@ -54,12 +60,29 @@ function allWorkflowActions() {
     });
 }
 
-test('security workflow covers PR, exact main, weekly, and manual execution', () => {
-  assert.match(workflow, /^  pull_request:\s*$/m);
-  assert.match(workflow, /^  push:\s*\n    branches: \[main\]$/m);
-  assert.match(workflow, /^  schedule:\s*\n    - cron: "29 08 \* \* 2"$/m);
-  assert.match(workflow, /^  workflow_dispatch:\s*$/m);
-  assert.doesNotMatch(workflow, /pull_request_target:/);
+/** Require the reviewed trigger block, never re-enable billed automatic jobs to satisfy an old test. */
+function assertManualSecurityWorkflow(source) {
+  source = source.replaceAll('\r\n', '\n');
+  assert.equal([...source.matchAll(/^(?:on|["']on["']):/gm)].length, 1, 'only one unambiguous trigger mapping is allowed');
+  const triggers = /^on:[ \t]*\r?\n((?:[ \t]+[^\r\n]*\r?\n|[ \t]*\r?\n)*)/m.exec(source)?.[1];
+  assert.ok(triggers, 'security workflow must declare its manual trigger block');
+  assert.deepEqual([...triggers.matchAll(/^ {2}([a-z_]+):/gm)].map(match => match[1]), ['workflow_dispatch']);
+  assert.match(triggers, /^ {2}workflow_dispatch:[ \t]*$/m);
+  assert.doesNotMatch(triggers, /^[ \t]*(?:pull_request(?:_target)?|push|schedule):/m);
+}
+
+test('security workflow runs only by deliberate manual dispatch', () => {
+  assertManualSecurityWorkflow(workflow);
+});
+
+test('manual security contract refuses automatic triggers and missing dispatch', () => {
+  for (const event of ['pull_request', 'pull_request_target', 'push', 'schedule', 'workflow_call']) {
+    const source = workflow.replace(/^( {2}workflow_dispatch:)/m, `  ${event}:\n$1`);
+    assert.throws(() => assertManualSecurityWorkflow(source), undefined, event);
+  }
+  assert.throws(() => assertManualSecurityWorkflow(workflow.replace(/^ {2}workflow_dispatch:.*\r?\n/m, '')));
+  assert.throws(() => assertManualSecurityWorkflow(workflow.replace(/^on:\r?\n {2}workflow_dispatch:/m, 'on: [push, workflow_dispatch]')));
+  assert.throws(() => assertManualSecurityWorkflow(`${workflow}\non:\n  push:\n`));
 });
 
 test('every workflow pins actions and the security gate contains no advisory bypass', () => {
@@ -148,6 +171,79 @@ test('route parser inventories block and inline auth without an empty default', 
   assert.throws(() => parseManifestRoutes('routes:\n  - module: routes/c.js\n    factory: createC\n    mountPath: /api/c\n', 'missing.yaml'), /missing auth/);
 });
 
+/** Build complete isolated manifest/source/compiled peers without importing or executing route handlers. */
+function writeInventoryFixture(t, sourceBody, compiledBody = sourceBody) {
+  const root = mkdtempSync(join(tmpdir(), 'oshal-route-write-'));
+  t.after(() => { assert.equal(dirname(root), tmpdir()); rmSync(root, { recursive: true, force: true }); });
+  const packageRoot = join(root, 'fixture-app');
+  mkdirSync(join(packageRoot, 'src-routes'), { recursive: true });
+  mkdirSync(join(packageRoot, 'routes'));
+  writeFileSync(join(packageRoot, 'oshal-app.yaml'), 'name: fixture-app\nroutes:\n  - { module: routes/test.js, factory: createFixture, mountPath: /api/fixture, auth: service }\n');
+  writeFileSync(join(packageRoot, 'src-routes/test.ts'), sourceBody);
+  writeFileSync(join(packageRoot, 'routes/test.js'), compiledBody);
+  return routeInventory(root);
+}
+
+test('completed-task writer calls are machine-write in source or compiled route inventory', t => {
+  const reader = 'function createFixture() { return taskStore.findJarvisTaskSessionId(context, owner, id); }';
+  const writer = 'async function createFixture() { return await taskStore.saveCompletedBriefing(id, owner, session, title, result); }';
+  const expected = ['fixture-app|routes/test.js|createFixture|/api/fixture|service|machine-write'];
+  assert.deepEqual(writeInventoryFixture(t, writer), expected);
+  assert.deepEqual(writeInventoryFixture(t, writer, reader), expected);
+  assert.deepEqual(writeInventoryFixture(t, reader, writer), expected);
+});
+
+test('completed-task classification retains read-only routes and existing literal SQL writers', t => {
+  const reader = 'function createFixture() { const label = "saveCompletedBriefing"; return taskStore.findJarvisTaskSessionId(context, owner, label); }';
+  assert.deepEqual(writeInventoryFixture(t, reader), ['fixture-app|routes/test.js|createFixture|/api/fixture|service|no-sql-write']);
+  const sql = 'function createFixture() { return pool.query("INSERT INTO fixture_tasks(id) VALUES($1)", [id]); }';
+  assert.deepEqual(writeInventoryFixture(t, sql), ['fixture-app|routes/test.js|createFixture|/api/fixture|service|machine-write']);
+});
+
+/** Build a route module that delegates to sibling files, so the closure rule can be exercised. */
+function writeDelegatingFixture(t, files, entryBody) {
+  const root = mkdtempSync(join(tmpdir(), 'oshal-route-closure-'));
+  t.after(() => { assert.equal(dirname(root), tmpdir()); rmSync(root, { recursive: true, force: true }); });
+  const packageRoot = join(root, 'fixture-app');
+  mkdirSync(join(packageRoot, 'src-routes'), { recursive: true });
+  mkdirSync(join(packageRoot, 'routes'));
+  writeFileSync(join(root, 'outside.js'), 'pool.query("INSERT INTO elsewhere(id) VALUES($1)");');
+  writeFileSync(join(packageRoot, 'oshal-app.yaml'), 'name: fixture-app\nroutes:\n  - { module: routes/test.js, factory: createFixture, mountPath: /api/fixture, auth: service }\n');
+  for (const [name, body] of Object.entries(files)) {
+    writeFileSync(join(packageRoot, 'src-routes', `${name}.ts`), body);
+    writeFileSync(join(packageRoot, 'routes', `${name}.js`), body);
+  }
+  writeFileSync(join(packageRoot, 'src-routes/test.ts'), entryBody);
+  writeFileSync(join(packageRoot, 'routes/test.js'), entryBody);
+  return routeInventory(root);
+}
+
+test('a route that delegates its write to a package sibling is still machine-write', t => {
+  const helper = 'export function save(pool, id) { return pool.query("INSERT INTO fixture_rows(id) VALUES($1)", [id]); }';
+  const entry = 'const { save } = require("./helper");\nfunction createFixture() { return save; }';
+  assert.deepEqual(writeDelegatingFixture(t, { helper }, entry),
+    ['fixture-app|routes/test.js|createFixture|/api/fixture|service|machine-write']);
+
+  const deep = 'const { save } = require("./middle");\nfunction createFixture() { return save; }';
+  assert.deepEqual(
+    writeDelegatingFixture(t, { helper, middle: 'const { save } = require("./helper");\nexport { save };' }, deep),
+    ['fixture-app|routes/test.js|createFixture|/api/fixture|service|machine-write'],
+    'the closure is transitive — one more hop must not hide the write',
+  );
+});
+
+test('the closure stays inside the package and does not invent writes', t => {
+  const readOnlyHelper = 'export function read(pool) { return pool.query("SELECT 1"); }';
+  const entry = 'const { read } = require("./helper");\nfunction createFixture() { return read; }';
+  assert.deepEqual(writeDelegatingFixture(t, { helper: readOnlyHelper }, entry),
+    ['fixture-app|routes/test.js|createFixture|/api/fixture|service|no-sql-write']);
+
+  const escaping = 'const outside = require("../../outside.js");\nfunction createFixture() { return outside; }';
+  assert.deepEqual(writeDelegatingFixture(t, {}, escaping),
+    ['fixture-app|routes/test.js|createFixture|/api/fixture|service|no-sql-write'],
+    'a file outside routes//src-routes is not a package module and is never read');
+});
+
 test('route parser accepts only boolean requiresAi declarations', () => {
   const routes = parseManifestRoutes([
     'routes:',
@@ -184,31 +280,51 @@ function assertRoutelessGroup(packageDir, manifest, smokePaths) {
   return true;
 }
 
-/** Assert one package's service-only readiness route, smoke expectation, and canonical module pair. */
-function assertReadinessSmoke(packageDir, manifest, packageName, [sourcePath, compiledPath], canonical) {
+/** Portrait deliberately requires an authenticated user and the imported view permission, even for metadata. */
+function assertPortraitReadinessPermission(manifest, catalog) {
+  assert.match(manifest, /^name: portrait-studio\s*$/m);
+  const uses = /^uses:\r?\n((?: {2}- [^\r\n]*\r?\n)+)/m.exec(manifest)?.[1] || '';
+  assert.match(uses, /^ {2}- application-authorization\s*$/m);
+  assert.match(manifest, /^authorization:\r?\n {2}version: 1\r?\n {2}catalog: authorization\.yaml\s*$/m);
+  assert.match(catalog, /^version: 1\s*$/m);
+  assert.match(catalog, /^ {2}portrait\.view: \{ resource: portraits, effect: read, minimumTier: viewer \}\s*$/m);
+  assert.match(catalog, /^ {4}- id: package-smoke\r?\n {6}method: GET\r?\n {6}path: \/\r?\n {6}allOf: \[portrait\.view\]\s*$/m);
+}
+
+/** Compare actual module bytes strictly against the canonical compiler's package-specific output policy. */
+function assertReadinessModulePair(packageDir, source, compiled, canonical) {
+  assert.equal(source, canonical.source, `${packageDir} smoke source drifted`);
+  const expected = normalizeCompilerOutput({ sourceRoot: join(packageDir, 'src-routes') }, Buffer.from(canonical.compiled));
+  assert.equal(compiled, expected.toString('utf8'), `${packageDir} compiled smoke drifted`);
+}
+
+/** Assert the explicit reviewed auth contract and the unchanged non-AI metadata-only module pair. */
+function assertReadinessSmoke(packageDir, manifest, packageName, [sourcePath, compiledPath], canonical, catalog) {
+  const userBound = packageDir === 'portrait-studio';
+  if (userBound) assertPortraitReadinessPermission(manifest, catalog ?? readFileSync(join(packageDir, 'authorization.yaml'), 'utf8'));
   const escapedMount = `/api/${packageName}/_smoke`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   assert.match(manifest, new RegExp([
     '  - module: routes/package-smoke\\.js',
     '    factory: createPackageSmokeRoutes',
     `    mountPath: ${escapedMount}`,
-    '    auth: service',
+    `    auth: ${userBound ? 'oidc' : 'service'}`,
     '    requiresContext: true',
     '    requiresAi: false',
-  ].join('\\r?\\n')), `${packageDir} readiness route must remain service-only and non-AI`);
+  ].join('\\r?\\n')), `${packageDir} readiness route must retain its reviewed authentication and remain non-AI`);
   assert.match(manifest, new RegExp([
     'smoke:',
     '  - name: package-readiness',
     '    method: GET',
     `    path: ${escapedMount}`,
-    '    auth: service',
+    `    auth: ${userBound ? 'pat' : 'service'}`,
+    ...(userBound ? ['    requiresUser: true'] : []),
     '    expect:',
     '      status: 200',
     '      jsonPointer: /package',
     '      rejectValues: \\[noop, stub, empty\\]',
     '    requiresAi: false',
   ].join('\\r?\\n')), `${packageDir} readiness expectation must reject placeholder identities`);
-  assert.equal(normalizedModule(sourcePath), canonical.source, `${packageDir} smoke source drifted`);
-  assert.equal(normalizedModule(compiledPath), canonical.compiled, `${packageDir} compiled smoke drifted`);
+  assertReadinessModulePair(packageDir, normalizedModule(sourcePath), normalizedModule(compiledPath), canonical);
 }
 
 /** Classify one package: 'excluded' (Pumpkin), 'group' (route-less), or 'covered' (smoke asserted). */
@@ -227,27 +343,85 @@ function classifySmokePackage(packageDir, canonical) {
   return 'covered';
 }
 
-test('every non-Pumpkin routed package owns the reviewed service-only readiness smoke', () => {
+test('every non-Pumpkin routed package owns its reviewed authenticated readiness smoke', () => {
   const packageDirs = readdirSync('.', { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && existsSync(join(entry.name, 'oshal-app.yaml')))
     .map((entry) => entry.name)
     .sort();
-  assert.equal(packageDirs.length, 56, 'the smoke audit must cover the complete store manifest set');
+  assert.equal(packageDirs.length, 61, 'the smoke audit must cover the complete store manifest set');
 
   const canonical = {
     source: normalizedModule('brand-graphics/src-routes/package-smoke.ts'),
     compiled: normalizedModule('brand-graphics/routes/package-smoke.js'),
   };
   const kinds = packageDirs.map((packageDir) => [packageDir, classifySmokePackage(packageDir, canonical)]);
-  assert.deepEqual(kinds.filter(([, kind]) => kind === 'group').map(([packageDir]) => packageDir), ['intelligent-career'],
-    'the only route-less group is the career application group');
-  assert.equal(kinds.filter(([, kind]) => kind === 'covered').length, 54,
-    'only Pumpkin and the route-less group are outside the 56-package rollout');
+  assert.deepEqual(kinds.filter(([, kind]) => kind === 'group').map(([packageDir]) => packageDir), ['intelligent-career', 'marketing-suite'],
+    'the route-less groups are the career and marketing front doors');
+  assert.equal(kinds.filter(([, kind]) => kind === 'covered').length, 58,
+    'only Pumpkin and the two route-less groups are outside the 61-package rollout');
 
   const inventory = JSON.parse(readFileSync('scripts/security/store-route-inventory.json', 'utf8')).routes;
   const smokeRoutes = inventory.filter((entry) => entry.includes('|routes/package-smoke.js|'));
-  assert.equal(smokeRoutes.length, 54);
-  assert.ok(smokeRoutes.every((entry) => entry.endsWith('|service|no-sql-write')));
+  assert.equal(smokeRoutes.length, 58);
+  assert.deepEqual(smokeRoutes.filter(entry => entry.startsWith('portrait-studio|')), [
+    'portrait-studio|routes/package-smoke.js|createPackageSmokeRoutes|/api/portrait-studio/_smoke|oidc|no-sql-write',
+  ]);
+  assert.ok(smokeRoutes.filter(entry => !entry.startsWith('portrait-studio|')).every(entry => entry.endsWith('|service|no-sql-write')));
+});
+
+test('Portrait user-bound readiness rejects auth, prerequisite and permission weakening without relaxing other packages', () => {
+  const manifest = readFileSync('portrait-studio/oshal-app.yaml', 'utf8');
+  const catalog = readFileSync('portrait-studio/authorization.yaml', 'utf8');
+  const paths = ['portrait-studio/src-routes/package-smoke.ts', 'portrait-studio/routes/package-smoke.js'];
+  const canonical = { source: normalizedModule('brand-graphics/src-routes/package-smoke.ts'),
+    compiled: normalizedModule('brand-graphics/routes/package-smoke.js') };
+  const check = (source, permissions = catalog) => assertReadinessSmoke('portrait-studio', source, 'portrait-studio', paths, canonical, permissions);
+  check(manifest);
+  for (const [from, to] of [
+    ['auth: oidc', 'auth: service'], ['auth: oidc', 'auth: public'], ['auth: pat', 'auth: service'],
+    ['requiresUser: true', 'requiresUser: false'], ['    requiresUser: true', ''],
+    ['  - application-authorization', '  - test-catalog'], ['catalog: authorization.yaml', 'catalog: elsewhere.yaml'],
+    ['requiresAi: false', 'requiresAi: true'],
+  ]) {
+    assert.ok(manifest.includes(from), from);
+    assert.throws(() => check(manifest.replaceAll(from, to)), undefined, `${from} -> ${to}`);
+  }
+  for (const [from, to] of [
+    ['allOf: [portrait.view]', 'allOf: []'], ['allOf: [portrait.view]', 'allOf: [portrait.read]'],
+    ['id: package-smoke', 'id: another-route'], ['      path: /\n', '      path: /unbound\n'],
+    ['portrait.view: { resource: portraits, effect: read, minimumTier: viewer }', 'portrait.view: { resource: portraits, effect: read, minimumTier: guest }'],
+  ]) {
+    const source = catalog.replaceAll('\r\n', '\n'); assert.ok(source.includes(from), from);
+    assert.throws(() => check(manifest, source.replaceAll(from, to)), undefined, `${from} -> ${to}`);
+  }
+  const other = readFileSync('brand-graphics/oshal-app.yaml', 'utf8');
+  assert.throws(() => assertReadinessSmoke('brand-graphics', other.replaceAll('auth: service', 'auth: oidc'), 'brand-graphics', paths, canonical));
+  const source = normalizedModule(paths[0]), compiled = normalizedModule(paths[1]);
+  assert.ok(compiled.includes('res.json('));
+  assert.throws(() => assertReadinessModulePair('portrait-studio', source, compiled.replace('res.json(', 'res.status(201).json('), canonical));
+  assert.throws(() => assertReadinessModulePair('portrait-studio', source.replace("router.get('/'", "router.post('/'"), compiled, canonical));
+});
+
+test('readiness uses canonical source-map policy and retains strict executable-byte comparisons', () => {
+  const root = mkdtempSync(join(tmpdir(), 'readiness-format-'));
+  assert.equal(dirname(root), tmpdir(), 'cleanup is restricted to the new direct temporary child');
+  const sourceRoot = join(root, 'src-routes'); mkdirSync(sourceRoot);
+  const config = join(sourceRoot, 'tsconfig.json');
+  const body = 'exports.ready = true;\n', compiled = `${body}//# sourceMappingURL=package-smoke.js.map\n`;
+  const canonical = { source: 'source unchanged', compiled };
+  const check = actual => assertReadinessModulePair(root, canonical.source, actual, canonical);
+  try {
+    check(compiled); assert.throws(() => check(body), /compiled smoke drifted/);
+    for (const compilerOptions of [{ sourceMap: false }, {}]) {
+      writeFileSync(config, JSON.stringify({ compilerOptions }));
+      check(body); assert.throws(() => check(compiled), /compiled smoke drifted/);
+      assert.throws(() => check(body.replace('true', 'false')), /compiled smoke drifted/);
+    }
+    writeFileSync(config, JSON.stringify({ compilerOptions: { sourceMap: true } }));
+    check(compiled); assert.throws(() => check(body), /compiled smoke drifted/);
+    assert.throws(() => check(compiled.replace('package-smoke.js.map', 'other.js.map')), /compiled smoke drifted/);
+    writeFileSync(config, '{invalid'); assert.throws(() => check(compiled), /invalid JSON/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 test('route parser follows valid YAML field order, alternate indentation, and comment-separated entries', () => {

@@ -1,5 +1,7 @@
 # Portrait Studio — an OSHAL app package
 
+Version 1.13.0 requires explicit imported application roles. See [authorization and ownership](AUTHORIZATION.md) for independent view/read/create/change/delete grants, legacy ownership migration, and current email/CLI transport limits.
+
 Turn any photo into a portrait worth framing.
 
 **Choose from OSHAL (1.11.0):** Step 1 opens the shared file picker over your connected storage
@@ -43,10 +45,10 @@ changed here. Group mode works *inside* it:
 1. In the crop stage every face gets its own aspect-locked box — click a face to
    drop a box on it, drag to move, drag a corner to resize, **＋ Add face** for the
    next free spot, **✕ Remove this face** for the active one. Boxes are numbered
-   in the order they were added. Where the browser exposes a face detector
-   (`FaceDetector` — Chrome on Android today; desktop Chrome behind a flag) a
-   **✨ Find faces** button places them automatically, left to right; elsewhere
-   the button never renders and the boxes are placed by hand.
+   in the order they were added. **Find faces** suggests boxes locally using the
+   browser's detector or the bundled worker, including desktop Chromium, Firefox
+   and WebKit. Review and adjust every box; detection can miss faces. Manual
+   boxes remain available, and cancellation or no matches preserves them.
 2. On **Generate** the browser tiles the crops into a **numbered reference
    sheet** — two columns up to four faces, three beyond, each tile with a badge
    — and uploads that single PNG plus a `subjects` count.
@@ -109,7 +111,7 @@ rendered dead.
 1. The studio surface (`/api/portrait-studio/app`, a ribbon tile) does the
    capture-or-upload + interactive crop client-side and POSTs the cropped PNG
    (in group mode: the numbered reference sheet of every face box).
-   The source-selection logic is served at `/api/portrait-studio/capture.js` —
+   The source-selection logic is served at `/api/portrait-studio/capture-module` —
    the same file the test suite requires, so a fallback branch cannot pass in the
    test and differ in the page.
 2. The route builds a deterministic prompt from the style catalog
@@ -119,27 +121,26 @@ rendered dead.
    `media-generation` kernel skill): an image-to-image **edit**, vendor-abstracted
    and fail-closed.
 3. Generation runs async; the gallery polls until the portrait flips to `done`.
-   Rows live in `ps_portraits` (strictly `user_sub`-filtered), files under
-   `$CLINE_WORKSPACE_ROOT/portrait-studio/<sub-hash>/`.
+   Rows live in `ps_portraits` (strictly verified issuer-and-subject filtered), files under
+   `$CLINE_WORKSPACE_ROOT/portrait-studio/<issuer-and-subject-hash>/`.
 
 ## Image engine configuration (operator)
 
 The engine is chosen by `STORYBOARD_IMAGE_PROVIDER`, same as the Video Studio
 storyboard stage — **fail-closed**, never silently falling to a paid vendor.
 Unset, the default is demo-aware (ADR-130): `codex-cli` when the deployment
-runs `DEMO_MODE=true`, `codex` otherwise:
+runs `DEMO_MODE=true`, `codex` otherwise. Portrait Studio refuses the subject-only CLI rail; configure a supported platform image provider:
 
 | provider | model | needs |
 |---|---|---|
-| `codex-cli` (demo default) | the render bot's boot codex model (fleet `gpt-5.5`) via the swarm's own codex harness — **free**, subscription-included | `DEMO_MODE=true` + the caller in `OSHAL_OPERATOR_SUBS` (SEC-05 demo carve, enforced at the bot node) + the app-boot executor; render bot via `STORYBOARD_CLI_IMAGE_BOT_ID` |
+| `codex-cli` (unavailable for this protected package) | the render bot's boot codex model (fleet `gpt-5.5`) via the swarm's own codex harness — **free**, subscription-included | `DEMO_MODE=true` + the caller in `OSHAL_OPERATOR_SUBS` (SEC-05 demo carve, enforced at the bot node) + the app-boot executor; render bot via `STORYBOARD_CLI_IMAGE_BOT_ID` |
 | `codex` (non-demo default) | `gpt-image-1` edits | a **platform** OpenAI credential (`OPENAI_API_KEY` / `openAiApiKey`). ⚠ The Codex **ChatGPT-subscription** OAuth token does NOT work here — `/v1/images` rejects subscription tokens. |
 | `openrouter` | `google/gemini-2.5-flash-image` (override: `OPENROUTER_IMAGE_MODEL`) | the swarm's OpenRouter key (`OPENROUTER_API_KEY` / `openRouterApiKey`); ~$0.04/image, image-to-image via chat completions |
 | `vertex` | `gemini-2.5-flash-image` | a Google token with the cloud-platform scope (explicit opt-in) |
 | `comfyui` | local GPU workflow | not wired yet |
 
 Since 1.4.1 the routes pass the caller's sub to the resolver — the `codex-cli`
-rail authorizes **per caller**, so the `/provider` banner answers for the user
-looking at it, and non-operator callers fail closed with the carve hint.
+rail authorizes **per caller**, but this protected package now refuses that rail because it does not carry application permissions.
 
 The surface shows a banner (via `GET /api/portrait-studio/provider`) when the
 engine isn't configured. `PORTRAIT_STUDIO_DAILY_CAP` (default 25) caps
@@ -149,7 +150,7 @@ generations per user per 24 h.
 
 - **Interrupted generations never strand a spinner** — rows stuck in
   `queued`/`generating` past 10 minutes (api restart, vendor hang) are swept to
-  `failed` with an honest reason, at boot and lazily on gallery reads.
+  `failed` with an honest reason, at package startup. Gallery reads remain side-effect free.
 - **Transient vendor errors retry** — up to 3 attempts with exponential backoff;
   permanent errors (auth, refusal) fail fast rather than tripling the bill. Every
   attempt has a hard deadline (`PORTRAIT_STUDIO_VENDOR_TIMEOUT_MS`, 120 s).
@@ -172,22 +173,96 @@ generations per user per 24 h.
   messages, lens preference, device labelling and frame box), and the group-mode geometry (face-count rule, sheet
   layout in reading order with no overlaps, box placement clamped into the image,
   detector rectangles expanded into head-and-shoulders crops, left-to-right
-  numbering). `tests/browser/camera-proof.js` is the hand-run browser proof of
-  the DOM wiring — see [BACKLOG.md](BACKLOG.md).
+  numbering). `tests/browser/camera-proof.js` is the browser proof of the DOM
+  wiring: a `node:test` suite that drives real Chromium over its own fake capture
+  device, so the Test Lab runs it unattended.
   The framework's `tests/unit/artifact-picker.spec.ts` checks shared source discovery, owner-only
   file/handle access, folder navigation, filtering, cancellation and the actual crop-stage handoff.
 
 ## Package layout
 
+Version 1.14.1 registers all package test and authorization fixture files in `tests/test-lab.yaml` and requires the
+core `test-catalog` capability. Each custom exported-function suite references its existing
+`tests/run.js` launcher and is marked `external`, since it is not a Node test-runner suite.
+`tests/browser/camera-proof.js` registers separately as a Node test-runner browser recipe. The shared picker proof remains core-owned,
+pinned to core `7ca9d81b6f54e1086bdd8c260f03ecd4d8bbca1a`; it is not copied into this package.
+The pure Node cascade suite is eligible for the sealed package runner. Browser, custom-harness
+and core-owned suites remain pending their declared runner and fixture requirements. A catalog entry
+does not imply that generation, email, a real camera, or a local test runner executed.
+
+Manual isolated proofs from the store root:
+
+```text
+node portrait-studio/tests/run.js
+node --test portrait-studio/tests/face-cascade.test.js
+OSHAL_CORE_ROOT=<core-checkout> node --test portrait-studio/tests/browser/camera-proof.js
+```
+
+The camera recipe uses an ephemeral loopback port and Chromium's own fake capture device; Playwright
+and the shared picker asset both resolve from `OSHAL_CORE_ROOT` (default: an `oshal` checkout beside
+this store), a missing input fails the file loudly rather than skipping, and cleanup runs after
+success or failure.
+
+### Proving the camera on real hardware
+
+`--use-fake-device-for-media-stream` is a Chromium capture device, not a page-side stub: the page
+calls the browser's real `getUserMedia`, gets a real `MediaStream`, and the `<video>` decodes real
+frames, so the permission grant, the track lifecycle and the teardown are the browser's own. What it
+cannot cover is a **physical** camera — enumeration across real webcams, a human answering the OS
+permission prompt, and real lens and exposure behaviour. That check needs hardware and a person, so
+it is deliberately **not** a Lab case: open the installed Portrait Studio in a browser on a machine
+with a webcam, take a photo through Step 1, and confirm the preview is live, the snap lands in the
+crop stage, and the camera light goes out when the modal closes. The desktop and phone cases in the
+recipe remove `navigator.mediaDevices` (and, for the phone, add the HTML Media Capture IDL) — those
+are capability shapes proving the fallbacks, not a simulated camera.
+
+For the pinned shared proof, provision the
+named core revision and its locked dependencies, set `OSHAL_STORE_REPO` to this store checkout,
+then run `npx vitest run tests/unit/artifact-picker.spec.ts` from that core. The installed Lab does
+not assume either source checkout is present. Install 1.14.1 only with the matching application authorization and protected artifact relay support.
+
+Version 1.14.1 removes the obsolete subject-only `access.defaultTier: deny` gate,
+which ran before named permissions and prevented a correctly assigned manager from
+opening the app or seeing its Test Lab cases. The named authorization catalog is
+byte-for-byte unchanged from 1.14.0; no role regrant or legacy assignment is needed.
+Unassigned, revoked and wrong-issuer callers remain refused. The registered HTTP
+fixture now includes the actual core manifest route mounter as well as the named
+policy and package handlers, so it covers both admission boundaries.
+
+Installed acceptance on 2026-09-12 verified all eleven current Lab entries for
+1.14.1 source `2e10bbb6eb07fc69a9f6b3022b50ae165488f7f4`. A signed-in Lab run of
+`local-face-cascade` passed 4/4 with verified cleanup on core `9c5985ed`.
+At that checkpoint, a Windows prompt blocked the native image-picker check.
+A later native check on core `dd7bcaa4` loaded the licensed local photo through
+the actual picker in Group mode. Find faces used the bundled fallback and showed
+one editable box while retaining Daylight; no generation was requested. This is
+one installed-browser photo check, separate from the broader isolated
+Chromium/Firefox/WebKit evidence below. See
+[the exact installed receipt and limits](../TEST-LAB-ADOPTION.md#portrait-studio-follow-up-2026-09-12).
+
+For the local detector's actual browser proof, install Chromium, Firefox and WebKit matching
+the core's locked Playwright version, set `OSHAL_CORE_ROOT` to that checkout, and run its
+Vitest binary with `run --config portrait-studio/tests/face.config.mjs` from the store root.
+The suite uses the real protected page, Worker and bundled cascade with a licensed local
+photo. It also tests no-face/manual fallback, native failure, cancellation, current permission
+checks and the four exact asset routes. The PNG/browser prerequisites are explicit; this is
+not a sealed Node suite. No provider, real camera, account or image upload is used.
+
+**Local face finding:** the [pinned MIT model and implementation provenance](tools/face-model/README.md)
+describe exact hashes, limits and quality caveats. Detection processes grayscale pixels on
+this device and suggests boxes; it does not identify people. The worker is terminated after
+completion, cancellation, failure or its eight-second deadline. Edits, photo changes and
+permission refreshes invalidate pending results. It works best with clear frontal human
+faces; manually box profiles, small faces or pets when needed. The four additional read-only
+asset bindings require the existing `portrait.view` permission. Upgrading an installation
+with catalog-pinned role assignments requires its normal reviewed role/catalog update.
+
 Standard ADR-085 package: `oshal-app.yaml`, `personas/portrait-artist.yaml`,
 `src-routes/*.ts` → compiled `routes/*.js`, `migrations/001-portrait-studio.sql`,
-`tools/portrait-studio.html`. Build with the per-package tsconfig (the same idiom
-as marketing-engine — `@/` aliases stay intact for the runtime loader, framework
-types come from `src-routes/core-modules.d.ts`):
+`tools/portrait-studio.html`. Build the package with the canonical compiler against actual core exports (BUILDING-EXTENSIONS section 5). The old ambient declarations are not authoritative and must not participate in the canonical compile. Use an isolated store copy containing this package when rebuilding only Portrait, then copy its verified `routes/` outputs back:
 
 ```
-node <oshal checkout>/node_modules/typescript/bin/tsc -p portrait-studio/src-routes/tsconfig.json
-cp portrait-studio/routes-build/portrait-*.js portrait-studio/routes/     # never package-smoke.js (canonical copy)
+node scripts/security/rebuild-store-routes.mjs --store <isolated-store-copy> --framework <core-checkout>
 ```
 
 Install: `node scripts/oshal-app.js install portrait-studio`

@@ -6,6 +6,15 @@
 # 2   | maintainer@emeraldcoastsystemsgroup.com     | 1.0.1 — home surface unwraps the profile envelope so the studios row renders against the live api
 # 3   | maintainer@emeraldcoastsystemsgroup.com     | 1.1.0 — the New screen (tools/create-new.html, /api/create/new): categories, purpose chips and template cards drawn from AI Office's starter catalog; every card opens its studio on that purpose through app-navigate + query
 # 4   | maintainer@emeraldcoastsystemsgroup.com     | 1.2.0 — authorization-aware surfaces: a studio the person is not provisioned for is shown locked (ADR-149 GET /api/authorization/me), never opened, never probed
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1: register every shipped test and preserve the existing readiness smoke for versioned Test Lab discovery.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: Home and New follow the portal palette, retain optional Create colors and register real browser compatibility proof.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: refine Home and New workspace hierarchy, responsive cards, keyboard filtering and exact starter handoffs.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: add the existing 3D Scan-to-Print studio, owner summary and reviewed launcher paths.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: add the layered image editor, owned project revisions, explicit app roles and registered editor proof.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: add original editable image templates, a palette-aware gallery and registered model/browser proof.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: receive authorized image handoffs through the shared artifact exchange and publish bounded read-only editor selection context.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 1.7.1: align the retained Home contract with the reviewed access-gated artifact boot order.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: the Brand Kit: one private kit per person (colors, Office fonts, logo, voice) with its own permissions and migration, a Brand Kit tile, branded templates, swatches, fonts and logo in the editor, and a Your brand band on Home.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — create ("Create")
@@ -13,19 +22,14 @@
 # The Canva-shaped front door for everything you make with oshal: one rail, one
 # skin, one home page ("What will you create today?") over the studios that are
 # already installed — AI Office (deck / document / workbook), Portrait Studio,
-# Video Studio, LoRA Studio, Vids Studio and the Creative Studio story pipeline.
+# Video Studio, LoRA Studio, Vids Studio, the Creative Studio story pipeline and
+# 3D Scan-to-Print.
 #
-# What this package IS: the manifest, a package-bundled cockpit skin
-# (ui/create.css — applied transiently while ?app=create is focused, the ADR-085
-# bundled-skin mechanism Little Monsters uses), the home surface
-# (tools/create-home.html), and two tiny routes that serve them.
-#
-# What it is NOT: a second copy of any studio. Every studio tile below is the
-# member app's OWN surface URL (the launcher shape of `life` / `games` /
-# `creative-studio`); the home page reads each member's Home summary probe in the
-# signed-in user's session for "Continue creating", and navigates the cockpit to
-# the member's tile with the ribbon's `app-navigate` dialect. No provider call,
-# no schema, no bots — the members own their domains (ADR-036).
+# Create owns manual layered-image projects and their private immutable revisions, and
+# each person's brand kit (colors, fonts, logo and voice) that the other studios read.
+# The portable browser renderer is reusable; member studios retain their existing
+# generation pipelines and domain data. Manual editing makes no provider calls.
+# The package skin is optional; all surfaces follow the portal theme chooser.
 #
 # Framework: OSHAL (docs/adr/085-remote-app-packages-and-registries.md)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -35,13 +39,30 @@ suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own cate
 displayName: Create
 description: >-
   One studio for everything you make: decks, documents and workbooks from AI
-  Office, portraits, short videos, story episodes and your own LoRA characters —
+  Office, portraits, short videos, story episodes, LoRA characters and 3D scans —
   a single home page that shows what you were working on and one tap to pick up
   where you left off, in every studio you already have.
-version: 1.2.0
+version: 1.8.0
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+uses: [test-catalog, application-authorization, authenticated-artifacts, app-dependencies]
+# Context refresh uses the existing request_context operation; the editor
+# advertises no mutation capabilities or custom editing operations.
+surface:
+  ops: [context, custom]
+artifacts:
+  accepts:
+    - id: image-layer
+      label: Add image layer in Create
+      types: [image/png, image/jpeg, image/webp]
+      mode: open
+authorization:
+  version: 1
+  catalog: authorization.yaml
 status: active
 scope: public
-theme: create   # package-bundled skin: ui/create.css (ADR-085), worn by the cockpit while this app is focused
+theme: create   # package-bundled skin: ui/create.css (ADR-085), used when Application colors is enabled
 
 source:
   type: git-subdir
@@ -49,22 +70,34 @@ source:
   path: create
   ref: main
 
-# Installing Create resolves every studio it fronts (npm-style, fail-closed); the
-# reverse-dependency guard blocks a member's uninstall while Create is active.
-# `presentations` is deliberately an APP dependency here, not `uses: [deck-generation]`:
-# Create embeds AI Office's SURFACE (/api/presentations/sections/ui), which only exists
-# while that package is installed — the validator's kernel-skill warning is about the
-# engine (Little Monsters' old mis-declaration), which this package never calls.
+# ADR-085 dependencies, tiered. Create fronts seven studios and requires none of them: it owns
+# its own projects, brand kit and image editor, and every studio entry is a tile or a catalog
+# fetch that degrades on its own (the evidence is recorded against the optional tier below).
+# They are OFFERED at install as unchecked choices and never installed unasked; declining them
+# all installs Create alone. `presentations` stays an APP dependency rather than
+# `uses: [deck-generation]` because Create embeds AI Office's SURFACE
+# (/api/presentations/sections/ui), not its engine - the validator's kernel-skill warning is
+# about the engine (Little Monsters' old mis-declaration), which this package never calls.
 dependencies:
-  apps:
-    - presentations
-    - portrait-studio
-    - video
-    - lora
-    - vids
-    - creative-studio
-  tools: []
-  connectors: []
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    # Every studio Create fronts is a tile it routes to, not a runtime it needs. Create owns its
+    # projects, brand kit and image editor (migrations/001, migrations/002); the studio grid renders
+    # "No studio is installed yet" when none is present (tools/create-home.html:448) and the AI Office
+    # starter fetch catches its own failure with "the studios still open" (tools/create-new.html:421).
+    apps:
+      - presentations
+      - portrait-studio
+      - video
+      - lora
+      - vids
+      - creative-studio
+      - scan-to-print
+    tools: []
+    connectors: []
 
 # CORE-05 install readiness is service-authenticated and reads package metadata only. It never
 # touches user data, calls a provider, mutates state, or spends tokens.
@@ -83,6 +116,23 @@ routes:
     auth: service
     requiresContext: true
     requiresAi: false
+
+  - module: routes/create-project-routes.js
+    factory: createCreateProjectRoutes
+    mountPath: /api/create
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+migrations:
+  - migrations/001-create-projects.sql
+  - migrations/002-create-brand-kits.sql
+
+summary:
+  path: /api/create/home-summary
+  tilesPointer: /metrics
+  itemsPointer: /items
 
 smoke:
   - name: package-readiness
@@ -112,6 +162,17 @@ ui:
       icon: codicon codicon-home
       iframeUrl: /api/create/home
       section: top
+    - toolName: create-brand
+      label: Brand Kit
+      icon: codicon codicon-symbol-color
+      iframeUrl: /api/create/brand
+      section: top
+    - toolName: create-editor
+      label: Image editor
+      icon: codicon codicon-edit
+      iframeUrl: /api/create/editor
+      section: top
+      group: Studios
     - toolName: create-office
       label: AI Office
       icon: codicon codicon-files
@@ -134,6 +195,12 @@ ui:
       label: LoRA
       icon: codicon codicon-circuit-board
       iframeUrl: /api/lora/ui
+      section: top
+      group: Studios
+    - toolName: create-scan-to-print
+      label: 3D Scan-to-Print
+      icon: codicon codicon-package
+      iframeUrl: /api/scan-to-print/app
       section: top
       group: Studios
     - toolName: create-vids

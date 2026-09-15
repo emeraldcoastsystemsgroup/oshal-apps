@@ -1,0 +1,151 @@
+# Explicit application permissions; ownership remains issuer + subject and grants are own-only.
+version: 1
+resources:
+  portraits:
+    scopes: [own]
+permissions:
+  portrait.view: { resource: portraits, effect: read, minimumTier: viewer }
+  portrait.read: { resource: portraits, effect: read, minimumTier: viewer }
+  portrait.create: { resource: portraits, effect: write, minimumTier: editor }
+  portrait.change: { resource: portraits, effect: write, minimumTier: editor }
+  portrait.delete: { resource: portraits, effect: write, minimumTier: editor }
+  portrait.export: { resource: portraits, effect: export, minimumTier: editor }
+  portrait.email: { resource: portraits, effect: write, minimumTier: editor }
+  portrait.artist: { resource: portraits, effect: execute, minimumTier: editor }
+roles:
+  viewer:
+    tier: viewer
+    grants:
+      - { permission: portrait.view, scope: own }
+  reader:
+    tier: viewer
+    grants:
+      - { permission: portrait.view, scope: own }
+      - { permission: portrait.read, scope: own }
+  creator:
+    tier: editor
+    grants:
+      - { permission: portrait.view, scope: own }
+      - { permission: portrait.read, scope: own }
+      - { permission: portrait.create, scope: own }
+  editor:
+    tier: editor
+    grants:
+      - { permission: portrait.view, scope: own }
+      - { permission: portrait.read, scope: own }
+      - { permission: portrait.change, scope: own }
+  deleter:
+    tier: editor
+    grants:
+      - { permission: portrait.view, scope: own }
+      - { permission: portrait.read, scope: own }
+      - { permission: portrait.delete, scope: own }
+  exporter:
+    tier: editor
+    grants:
+      - { permission: portrait.view, scope: own }
+      - { permission: portrait.read, scope: own }
+      - { permission: portrait.export, scope: own }
+  mailer:
+    tier: editor
+    grants:
+      - { permission: portrait.view, scope: own }
+      - { permission: portrait.read, scope: own }
+      - { permission: portrait.export, scope: own }
+      - { permission: portrait.email, scope: own }
+  artist:
+    tier: editor
+    grants:
+      - { permission: portrait.view, scope: own }
+      - { permission: portrait.artist, scope: own }
+  manager:
+    tier: admin
+    grants:
+      - { permission: portrait.view, scope: own }
+      - { permission: portrait.read, scope: own }
+      - { permission: portrait.create, scope: own }
+      - { permission: portrait.change, scope: own }
+      - { permission: portrait.delete, scope: own }
+      - { permission: portrait.export, scope: own }
+      - { permission: portrait.email, scope: own }
+      - { permission: portrait.artist, scope: own }
+bindings:
+  http:
+    - id: surface
+      method: GET
+      path: /app
+      allOf: [portrait.view]
+    - id: capture-module
+      method: GET
+      path: /capture-module
+      allOf: [portrait.view]
+    - { id: face-module, method: GET, path: /face-module, allOf: [portrait.view] }
+    - { id: face-worker, method: GET, path: /face-worker, allOf: [portrait.view] }
+    - { id: face-cascade, method: GET, path: /face-cascade, allOf: [portrait.view] }
+    - { id: face-model, method: GET, path: /face-model, allOf: [portrait.view] }
+    - id: effective-permissions
+      method: GET
+      path: /permissions
+      allOf: [portrait.view]
+    - id: style-catalog
+      method: GET
+      path: /catalog
+      allOf: [portrait.view]
+    - id: provider-readiness
+      method: GET
+      path: /provider
+      allOf: [portrait.view, portrait.create]
+    - id: create-portrait
+      method: POST
+      path: /portraits
+      allOf: [portrait.view, portrait.create]
+    - id: list-portraits
+      method: GET
+      path: /portraits
+      allOf: [portrait.view, portrait.read]
+    - id: list-artifacts
+      method: GET
+      path: /artifacts
+      allOf: [portrait.view, portrait.read]
+    - id: portrait-readiness
+      method: GET
+      path: /readiness
+      allOf: [portrait.view, portrait.read]
+    - id: home-summary
+      method: GET
+      path: /home-summary
+      allOf: [portrait.view, portrait.read]
+    - id: read-image
+      method: GET
+      path: /portraits/:id/image
+      allOf: [portrait.view, portrait.read]
+    - id: read-source
+      method: GET
+      path: /portraits/:id/source
+      allOf: [portrait.view, portrait.read]
+    - id: export-portrait
+      method: GET
+      path: /portraits/:id/export
+      allOf: [portrait.view, portrait.read, portrait.export]
+    - id: change-portrait
+      method: PATCH
+      path: /portraits/:id
+      allOf: [portrait.view, portrait.change]
+    - id: delete-portrait
+      method: DELETE
+      path: /portraits/:id
+      allOf: [portrait.view, portrait.delete]
+    - id: email-portrait
+      method: POST
+      path: /portraits/:id/email
+      allOf: [portrait.view, portrait.read, portrait.email]
+    - id: package-smoke
+      method: GET
+      path: /
+      allOf: [portrait.view]
+  bots:
+    - id: b0100000-0000-0000-0000-000000000001
+      allOf: [portrait.view, portrait.artist]
+  artifactActions:
+    - id: restyle
+      allOf: [portrait.view, portrait.create]

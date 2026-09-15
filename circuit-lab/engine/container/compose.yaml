@@ -1,0 +1,29 @@
+# Circuit Lab engine -- its OWN compose project (never the core stack's: a core deploy's
+# --remove-orphans would sweep it), joined to the stack network under the alias the api's
+# client dials. No host port: only containers on the stack network can reach the bridge.
+name: oshal-circuit-lab-engine
+services:
+  circuit-lab-engine:
+    image: oshal-circuit-lab-engine:local
+    container_name: oshal-circuit-lab-engine
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: ${CIRCUIT_ENGINE_MEM_LIMIT:-1g}
+    labels:
+      oshal.app: circuit-lab
+    networks:
+      oshal:
+        aliases:
+          - circuit-lab-engine
+networks:
+  oshal:
+    external: true
+    name: ${OSHAL_NETWORK:-oshal-local_oshal}

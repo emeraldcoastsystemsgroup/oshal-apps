@@ -13,6 +13,11 @@
  *                     |                             | into honest 503s naming the install command. The socket
  *                     |                             | factory is injectable so the spec drives it with a fake
  *                     |                             | bridge on loopback.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Cancel (BACKLOG B5): a request may carry a tag; cancel(tag)
+ *                     |                             | removes it from the queue, or — when it is the one in flight —
+ *                     |                             | closes the connection (the bridge kills its worker, freeing
+ *                     |                             | the kernel mid-feature) and re-sends every OTHER queued
+ *                     |                             | request on a fresh connection. A typed `cancelled` failure.
  */
 
 import net from 'node:net';
@@ -25,7 +30,7 @@ export const BRIDGE_PROTOCOL = 1;
 export const DEFAULT_ENGINE_ADDR = 'cad-studio-engine:7412';
 const UNREACHABLE = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH', 'ETIMEDOUT']);
 
-export type EngineFailureCode = 'capability_unavailable' | 'engine_error' | 'engine_busy' | 'engine_timeout' | 'refused';
+export type EngineFailureCode = 'capability_unavailable' | 'engine_error' | 'engine_busy' | 'engine_timeout' | 'refused' | 'cancelled';
 
 /** @description A typed engine failure; `reason` carries the honest explanation for a 503 body. */
 export class EngineFailure extends Error {
@@ -47,7 +52,7 @@ export interface EngineClientOptions {
   connect?: (host: string, port: number) => net.Socket;
 }
 
-interface Pending { id: number; line: string; timeoutMs: number; resolve: (v: unknown) => void; reject: (e: Error) => void }
+interface Pending { id: number; line: string; timeoutMs: number; tag?: string; resolve: (v: unknown) => void; reject: (e: Error) => void }
 interface BridgeHello { protocol?: unknown; buildHash?: unknown }
 
 /** Split a byte stream into complete lines; a partial tail waits for the next chunk. */
@@ -88,16 +93,45 @@ export class EngineClient {
    * @param cmd - Worker command (hello | rebuild | check).
    * @param args - Command arguments.
    * @param timeoutMs - Wall clock for THIS request; the worker is killed when it elapses.
+   * @param tag - Optional owner-scoped handle that {@link cancel} can name (one model's rebuild).
    * @returns The worker's `result`.
    */
-  request(cmd: string, args: unknown, timeoutMs?: number): Promise<unknown> {
+  request(cmd: string, args: unknown, timeoutMs?: number, tag?: string): Promise<unknown> {
     const max = this.opts.maxQueue ?? 8;
     if (this.queue.length >= max) return Promise.reject(new EngineFailure('engine_busy', `engine queue is full (${max} waiting)`));
     return new Promise<unknown>((resolve, reject) => {
       const id = this.nextId++;
-      this.queue.push({ id, line: JSON.stringify({ id, cmd, args }) + '\n', timeoutMs: timeoutMs ?? this.opts.requestTimeoutMs ?? 120_000, resolve, reject });
+      this.queue.push({ id, line: JSON.stringify({ id, cmd, args }) + '\n', timeoutMs: timeoutMs ?? this.opts.requestTimeoutMs ?? 120_000, tag, resolve, reject });
       this.pump();
     });
+  }
+
+  /**
+   * @description Cancel the request carrying `tag`. A queued one is dropped and nothing else is
+   * touched. The one in flight cannot be recalled from the worker (a kernel call holds it), so the
+   * connection is closed — the bridge kills that worker — and every other queued request is sent
+   * again on a fresh connection; other callers never see this caller's cancel.
+   * @param tag - The handle given to {@link request}.
+   * @param why - Recorded in the `cancelled` failure.
+   * @returns Where the request was ('inflight' | 'queued'), or null when nothing carries the tag.
+   */
+  cancel(tag: string, why = 'cancelled'): 'inflight' | 'queued' | null {
+    const failure = new EngineFailure('cancelled', `rebuild cancelled (${why}); the engine worker was stopped`);
+    if (this.inflight && this.inflight.tag === tag) {
+      const current = this.inflight;
+      this.inflight = null;
+      if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+      this.teardown(`cancel: ${why}`);
+      current.reject(failure);
+      logger.info({ tag, queued: this.queue.length }, 'in-flight engine request cancelled; connection closed');
+      this.pump();
+      return 'inflight';
+    }
+    const index = this.queue.findIndex((p) => p.tag === tag);
+    if (index < 0) return null;
+    const [queued] = this.queue.splice(index, 1);
+    queued.reject(new EngineFailure('cancelled', `rebuild cancelled (${why}) before it reached the engine`));
+    return 'queued';
   }
 
   /** @description Close the connection (the bridge kills its worker); anything in flight or queued is rejected. */

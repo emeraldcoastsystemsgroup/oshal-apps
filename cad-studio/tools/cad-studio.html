@@ -3,9 +3,9 @@
   CAD Studio — a parametric part as a base + an ordered feature list, rebuilt by the OCCT kernel
   in the package's engine container on every change; STEP / STL / hidden-line views / report per
   revision; the right-rail concierge edits the SAME list through the package's tools. A
-  self-contained cockpit surface: the two scripts are served by this package's route
+  cockpit surface: its behaviour and viewer adapter are served by this package's route
   (/api/cad-studio/assets/…), the theme is inherited from the surrounding cockpit through the
-  shared surface-theme bootstrap with local fallbacks. (.html is exempt from the CHANGE LOG header.)
+  shared surface-theme bootstrap with local fallbacks. The STL renderer is provided by core. (.html is exempt from the CHANGE LOG header.)
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -87,6 +87,7 @@
   <span class="muted small">base + feature list → OCCT kernel → STEP · STL · drawings — every edit rebuilds</span>
   <span class="spacer"></span>
   <span id="engine-pill" class="badge">engine…</span>
+  <button id="cancel-rebuild" class="ghost" hidden title="Stop the rebuild the kernel is running for this part; it stays at its last good revision">Stop rebuild</button>
   <button id="new-model" class="primary">New part</button>
 </header>
 <div class="layout">
@@ -156,6 +157,8 @@
   </aside>
 </div>
 <div id="toast" class="toast" hidden></div>
+<!-- Shared renderer v1 must load before the application compatibility adapter. -->
+<script src="/shared/ui/js/stl-viewer.js"></script>
 <script src="/api/cad-studio/assets/cad-studio-gl.js"></script>
 <script src="/api/cad-studio/assets/cad-studio.js"></script>
 </body>

@@ -1,0 +1,55 @@
+<mujoco model="embodied-arm-desk-6">
+  <compiler angle="radian" autolimits="true"/>
+  <option timestep="0.002" integrator="implicitfast" gravity="0 0 -9.81"/>
+  <default><geom contype="1" conaffinity="1" friction="0.8 0.01 0.001"/></default>
+  <worldbody>
+    <geom name="bench" type="plane" size="1 1 0.1" rgba="0.6 0.6 0.55 1"/>
+    <light pos="0 0 2" dir="0 0 -1"/>
+    <geom name="base" type="cylinder" pos="0 0 0.026" size="0.06 0.026" contype="0" conaffinity="0" rgba="0.4 0.4 0.4 1"/>
+    <body name="block" pos="0.25 0 0.015"><freejoint name="block"/><geom name="block" type="box" size="0.015 0.015 0.015" mass="0.05" friction="1.0 0.02 0.001" condim="4" rgba="0.1 0.5 0.9 1"/></body>
+    <site name="place" pos="0.2 -0.15 0.001" size="0.02 0.02 0.001" type="box" rgba="0 1 0 0.4"/>
+    <body name="link1" pos="0 0 0" quat="1 0 0 0">
+      <joint name="j1" type="hinge" axis="0 0 1" range="-2.617994 2.617994" armature="0.01" damping="0.623686"/>
+      <geom name="link1" type="capsule" fromto="0 0 0 0 0 0.11" size="0.017" mass="0.341" rgba="0.85 0.55 0.2 1"/>
+      <body name="link2" pos="0 0 0.11" quat="0.707107 0.707107 0 0">
+        <joint name="j2" type="hinge" axis="0 0 1" range="-1.745329 1.745329" armature="0.02" damping="1.247373"/>
+        <geom name="link2" type="capsule" fromto="0 0 0 0.16 0 0" size="0.017" mass="0.158" rgba="0.85 0.55 0.2 1"/>
+        <body name="link3" pos="0.16 0 0" quat="1 0 0 0">
+          <joint name="j3" type="hinge" axis="0 0 1" range="-4.18879 1.047198" armature="0.01" damping="0.623686"/>
+          <geom name="link3" type="sphere" size="0.021" mass="0.094" rgba="0.85 0.55 0.2 1"/>
+          <body name="link4" pos="0 0 0" quat="0.707107 -0.707107 0 0">
+            <joint name="j4" type="hinge" axis="0 0 1" range="-2.617994 2.617994" armature="0.01" damping="0.623686"/>
+            <geom name="link4" type="capsule" fromto="0 0 0 0 0 0.16" size="0.017" mass="0.076" rgba="0.85 0.55 0.2 1"/>
+            <body name="link5" pos="0 0 0.16" quat="0.707107 0.707107 0 0">
+              <joint name="j5" type="hinge" axis="0 0 1" range="-2.356194 2.356194" armature="0.01" damping="0.623686"/>
+              <geom name="link5" type="sphere" size="0.021" mass="0.149" rgba="0.85 0.55 0.2 1"/>
+              <body name="link6" pos="0 0 0" quat="0.707107 -0.707107 0 0">
+                <joint name="j6" type="hinge" axis="0 0 1" range="-2.96706 2.96706" armature="0.01" damping="0.623686"/>
+                <geom name="link6-mass" type="capsule" fromto="0 0 0 0 0 0.095" size="0.017" mass="0.143" contype="0" conaffinity="0" rgba="0.85 0.55 0.2 0.35"/>
+      <geom name="link6" type="capsule" fromto="0 0 0 0 0 0.045" size="0.017" mass="0.000001" rgba="0.85 0.55 0.2 1"/>
+                <geom name="palm" type="box" pos="0 0 0.037" size="0.03 0.02 0.012" mass="0.001" rgba="0.3 0.3 0.3 1"/>
+                <geom name="jaw-fixed" type="box" pos="-0.0265 0 0.07" size="0.004 0.008 0.025" mass="0.001" friction="1.2 0.02 0.001" condim="4" rgba="0.2 0.2 0.2 1"/>
+                <body name="jaw" pos="0.0265 0 0.04">
+                  <joint name="grip" type="hinge" axis="0 1 0" range="-0.6 0.05" damping="0.05" armature="0.01"/>
+                  <geom name="jaw-moving" type="box" pos="0 0 0.0275" size="0.004 0.008 0.0275" mass="0.001" friction="1.2 0.02 0.001" condim="4" rgba="0.2 0.2 0.2 1"/>
+                </body>
+                <site name="tcp" pos="0 0 0.095" size="0.004" rgba="1 0 0 1"/>
+                <body name="payload" pos="0 0 0.095"><geom name="payload" type="sphere" size="0.005" mass="0.000001" contype="0" conaffinity="0" rgba="0 0 1 0.3"/></body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <contact><exclude body1="world" body2="link1"/><exclude body1="link1" body2="link2"/><exclude body1="link1" body2="link3"/><exclude body1="link1" body2="link4"/><exclude body1="link1" body2="link5"/><exclude body1="link1" body2="link6"/><exclude body1="link1" body2="jaw"/><exclude body1="link2" body2="link3"/><exclude body1="link2" body2="link4"/><exclude body1="link2" body2="link5"/><exclude body1="link2" body2="link6"/><exclude body1="link2" body2="jaw"/><exclude body1="link3" body2="link4"/><exclude body1="link3" body2="link5"/><exclude body1="link3" body2="link6"/><exclude body1="link3" body2="jaw"/><exclude body1="link4" body2="link5"/><exclude body1="link4" body2="link6"/><exclude body1="link4" body2="jaw"/><exclude body1="link5" body2="link6"/><exclude body1="link5" body2="jaw"/><exclude body1="link6" body2="jaw"/></contact>
+  <actuator>
+    <position name="j1" joint="j1" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-2.617994 2.617994"/>
+    <position name="j2" joint="j2" kp="117.6798" forcelimited="true" forcerange="-5.88399 5.88399" ctrlrange="-1.745329 1.745329"/>
+    <position name="j3" joint="j3" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-4.18879 1.047198"/>
+    <position name="j4" joint="j4" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-2.617994 2.617994"/>
+    <position name="j5" joint="j5" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-2.356194 2.356194"/>
+    <position name="j6" joint="j6" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-2.96706 2.96706"/>
+    <position name="grip" joint="grip" kp="1.5" forcelimited="true" forcerange="-0.15 0.15" ctrlrange="-0.6 0.05"/>
+  </actuator>
+</mujoco>

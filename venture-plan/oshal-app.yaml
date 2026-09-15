@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped test suite with explicit sealed-runner prerequisites; preserve readiness smoke (1.4.1).
+# -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — venture-plan ("Venture Plan")
 #
@@ -61,7 +67,7 @@ description: >-
   Bots supply assumptions with a source, a band and a confidence; a deterministic engine does
   every calculation. Every number is either computed and traceable, or visibly a labelled guess
   you should go replace with a quote.
-version: 1.4.0
+version: 1.4.1
 status: active
 scope: person
 
@@ -99,13 +105,20 @@ smoke:
 #   the kernel notification router and their own preference-center routing.
 # ─────────────────────────────────────────────────────────────────────────────
 uses:
+  - test-catalog
   - deck-generation
   - notifications
+  - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
 
 dependencies:
-  apps: []
-  tools: []
-  connectors: []
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
 
 theme: graphite
 
@@ -370,3 +383,7 @@ summary:
   tilesPointer: /tiles
   metricsPointer: /metrics
   itemsPointer: /items
+
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml

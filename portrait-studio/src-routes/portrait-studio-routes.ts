@@ -5,32 +5,34 @@
  * -----------------------------------------------------------------------------
  * 2026-07-16 10:45:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Portrait Studio routes (ADR-085 package): studio surface + style catalog + generate (multipart crop upload → storyboard image provider edit, async with gallery polling) + per-user gallery/serve/delete. All rows and files are caller-sub-scoped; the image engine is the media-generation kernel skill (vendor-abstracted, fail-closed).
  * 2026-07-17 11:30:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Industrial hardening: stuck-row sweep (boot + throttled lazy — an api restart mid-generation can no longer strand a spinner), retry-with-backoff on transient vendor errors + hard per-attempt timeout, process-wide generation semaphore + per-user in-flight cap (burst control), vendor-reported cost captured on the row (cost_usd) AND in the canonical ledger via recordStoryboardImageCost (chat_tasks + oshal_cost_events, attributed to portrait-artist + the caller), /provider now runs the provider's REAL healthCheck (key validity + credit) instead of key-presence.
- * 2026-08-12 09:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Serve the camera-source decision module at GET /capture.js from the package tools dir, so the surface's live-camera Step 1 runs the SAME file the package test suite requires — no inline copy that can drift from the tested fallback logic.
+ * 2026-08-12 09:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Serve the camera-source decision module at GET /capture-module from the package tools dir, so the surface's live-camera Step 1 runs the SAME file the package test suite requires — no inline copy that can drift from the tested fallback logic.
  * 2026-08-22 00:30:00 | maintainer@emeraldcoastsystemsgroup.com     | Thread the caller's sub into resolveStoryboardImageProvider (generation + /provider probe). The ADR-130 codex-cli provider — the demo-mode default that renders on the swarm's own codex harness — authorizes per caller via the SEC-05 demo carve, so a resolve without userSub reads unavailable and fails closed. Other providers ignore the field. (1.4.1)
  * 2026-08-29 10:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Group mode (1.5.0): mode=group is accepted alongside professional/character; the face count arrives as a multipart `subjects` field, validated fail-closed by the catalog (2..6, refused outside group mode) and stored in options.subjects for the prompt and the gallery (list now returns `subjects`). The uploaded photo in group mode is the browser-built numbered reference sheet — still ONE anchor, so the provider contract and every guard around it are unchanged.
  * 2026-08-31 12:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Passport export + email (1.6.0): GET /portraits/:id/export?size=300|600 square-crops the portrait with sharp (attention strategy — the crop follows the face) and downloads it as a passport-size PNG; POST /portraits/:id/email sends the portrait (original or a passport crop) as an attachment over the caller's OWN mailbox — sendGmail, else the Graph sibling, else 409 — behind the standard confirm:true 428 gate (the ADR-108 "email it" shape presentations proved). Sizes and recipient validate fail-closed in portrait-ops.
  * 2026-08-31 16:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Orientation formats (1.7.0): export/email `size` now resolves against the closed EXPORT_FORMATS catalog — 300/600 passport squares (unchanged contract) plus `portrait` (1200×1800) and `landscape` (1800×1200) 4×6-print crops, same attention-strategy cover-crop. No route shape changed; group mode's multi-photo sourcing is browser-side only (the numbered sheet remains the one anchor). * 2026-09-05 23:30:00 | maintainer@emeraldcoastsystemsgroup.com     | ADR-141 readiness (1.9.0): GET /readiness answers the Intelligent Career group's "profile picture" step from the caller's own ps_portraits rows — done when at least one portrait finished; asked in the user's session by the kernel setup dashboard.
  * 2026-09-10 | maintainer@emeraldcoastsystemsgroup.com | Use the framework artifact picker and remove the private file-picker implementation; source listings remain read-only and caller-scoped.
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Enforce explicit Portrait actions and exact verified owner issuer; protect queued generation and isolate metadata updates.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Mount the closed local face-detector asset set behind the existing view permission.
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
+import { AsyncResource } from 'node:async_hooks';
 import { Router } from 'express';
-import type { Request, Response } from 'express';
+import type { RequestHandler, Response } from 'express';
 import multer from 'multer';
 import sharp from 'sharp';
 import { createChildLogger } from '@/shared/logger';
-import { getTrustedServiceUserSub } from '@/shared/middleware/authz';
+import { createHomeSummaryRoutes } from './home-summary';
+import { registerPortraitFaceAssets } from './portrait-face-assets';
+import { createPortraitAuthorizationRoutes, registerPortraitAuthorization, portraitActor, requirePortraitPermission } from './portrait-authorization';
 import { resolveStoryboardImageProvider, recordStoryboardImageCost } from '@/features/video-generation';
 import type { StoryboardImageResult } from '@/features/video-generation';
 import type { AppContext } from '@/app/composition/app-context';
-import { getValidAccessToken } from '@/app/routes/connectors-routes';
-import { sendGmail, sendOutlookMail } from '@/app/routes/email-routes';
-import { confirmationRequiredPayload, hasExplicitWriteConfirmation } from '@/shared/security/explicit-write-confirmation';
 import { buildPortraitPrompt, clientCatalog, findStyle, isPortraitMode, validateOverrides, validateSubjects } from './portrait-catalog';
 import type { PortraitOptions } from './portrait-catalog';
-import { withRetries, isTransientVendorError, withTimeout, Semaphore, exportFormat, isValidEmailAddress, EXPORT_FORMATS } from './portrait-ops';
+import { withRetries, isTransientVendorError, withTimeout, Semaphore, exportFormat, EXPORT_FORMATS } from './portrait-ops';
 
 const logger = createChildLogger({ module: 'portrait-studio-routes' });
 
@@ -57,15 +59,9 @@ const generationSlots = new Semaphore(Math.max(1, parseInt(process.env.PORTRAIT_
  * @param req - The incoming Express request.
  * @returns The acting user's sub, or null when unauthenticated.
  */
-function callerSub(req: Request): string | null {
-  const trusted = getTrustedServiceUserSub(req);
-  if (trusted) return trusted;
-  const injected = (req as { oshalCallerSub?: string }).oshalCallerSub;
-  if (injected) return String(injected);
-  const u = (req as { oidc?: { user?: { sub?: string; oid?: string } } }).oidc?.user;
-  const sub = u?.sub || u?.oid;
-  return sub ? String(sub) : null;
-}
+function callerSub(ctx: AppContext): string { return portraitActor(ctx).sub; }
+function callerIssuer(ctx: AppContext): string { return portraitActor(ctx).issuer; }
+function errorStatus(err: unknown, fallback: number): number { return err && typeof err === 'object' && 'status' in err && typeof err.status === 'number' ? err.status : fallback; }
 
 /**
  * @description Per-user image directory under the shared workspace. The sub is
@@ -73,9 +69,9 @@ function callerSub(req: Request): string | null {
  * @param sub - The caller's user sub.
  * @returns Absolute directory path (created if missing).
  */
-function userDir(sub: string): string {
+function userDir(sub: string, issuer: string): string {
   const root = process.env.CLINE_WORKSPACE_ROOT || path.resolve(process.cwd(), 'workspace-shared');
-  const dir = path.join(root, 'portrait-studio', crypto.createHash('sha256').update(sub).digest('hex').slice(0, 16));
+  const dir = path.join(root, 'portrait-studio', crypto.createHash('sha256').update(JSON.stringify([issuer, sub])).digest('hex'));
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
@@ -106,6 +102,9 @@ async function ensureSchema(ctx: AppContext): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_ps_portraits_user ON ps_portraits (user_sub, created_at DESC);
     ALTER TABLE ps_portraits ADD COLUMN IF NOT EXISTS cost_usd NUMERIC(12,6);
+    ALTER TABLE ps_portraits ADD COLUMN IF NOT EXISTS owner_issuer TEXT;
+    ALTER TABLE ps_portraits ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT '';
+    CREATE INDEX IF NOT EXISTS idx_ps_portraits_principal ON ps_portraits (owner_issuer, user_sub, created_at DESC);
   `);
 }
 
@@ -166,10 +165,12 @@ async function runGeneration(ctx: AppContext, id: string, sub: string, prompt: s
   const started = Date.now();
   await generationSlots.acquire();
   try {
+    await requirePortraitPermission(ctx, 'create', id);
     await ctx.pool.query(`UPDATE ps_portraits SET status = 'generating', updated_at = NOW() WHERE portrait_id = $1`, [id]);
     // The caller's sub rides to the provider: the ADR-130 codex-cli rail authorizes per caller
     // (SEC-05 demo carve at the bot node); the vendor-API providers ignore it.
     const provider = await resolveStoryboardImageProvider({ userSub: sub });
+    if (provider.id === 'codex-cli') throw new Error('portrait_cli_authorization_unavailable');
     const attempt = (): Promise<StoryboardImageResult> => withTimeout(
       provider.generateWithMeta
         ? provider.generateWithMeta(prompt, source)
@@ -177,8 +178,9 @@ async function runGeneration(ctx: AppContext, id: string, sub: string, prompt: s
       VENDOR_TIMEOUT_MS,
       'image generation',
     );
-    const result = await withRetries(attempt, isTransientVendorError);
-    const outPath = path.join(userDir(sub), `${id}.png`);
+    const result = await withRetries(async () => { await requirePortraitPermission(ctx, 'create', id); return attempt(); }, isTransientVendorError);
+    await requirePortraitPermission(ctx, 'create', id);
+    const outPath = path.join(userDir(sub, callerIssuer(ctx)), `${id}.png`);
     fs.writeFileSync(outPath, result.image);
     await ctx.pool.query(
       `UPDATE ps_portraits SET status = 'done', output_path = $2, model = $3, cost_usd = $4, updated_at = NOW() WHERE portrait_id = $1`,
@@ -210,7 +212,7 @@ async function runGeneration(ctx: AppContext, id: string, sub: string, prompt: s
  */
 async function ownedRow(ctx: AppContext, id: string, sub: string): Promise<Record<string, unknown> | null> {
   if (!UUID_RE.test(id)) return null;
-  const r = await ctx.pool.query(`SELECT * FROM ps_portraits WHERE portrait_id = $1 AND user_sub = $2`, [id, sub]);
+  const r = await ctx.pool.query(`SELECT * FROM ps_portraits WHERE portrait_id = $1 AND user_sub = $2 AND owner_issuer = $3`, [id, sub, callerIssuer(ctx)]);
   return r.rows[0] ?? null;
 }
 
@@ -226,7 +228,7 @@ function sendImage(res: Response, filePath: string, download: boolean): void {
   }
   if (download) res.setHeader('Content-Disposition', `attachment; filename="${path.basename(filePath)}"`);
   res.setHeader('Content-Type', 'image/png');
-  res.setHeader('Cache-Control', 'private, max-age=3600');
+  res.setHeader('Cache-Control', 'private, no-store');
   fs.createReadStream(filePath).pipe(res);
 }
 
@@ -247,33 +249,6 @@ async function formatCrop(filePath: string, width: number, height: number): Prom
 const FORMAT_KEYS = Object.keys(EXPORT_FORMATS).join(', ');
 
 /**
- * @description Deliver one message over whichever mailbox the caller actually connected —
- * Gmail first, else Microsoft Graph (microsoft/outlook connection ids). The ADR-108
- * "email it" resolution order presentations proved; the token never leaves this function.
- * @param ctx - App context (pool for the connector-token lookup).
- * @param sub - The caller's sub (whose connections are consulted).
- * @param mail - The message + attachment to send.
- * @returns The vendor used (+ Gmail's message id), or null when no mailbox is connected.
- */
-async function sendOverCallersMailbox(
-  ctx: AppContext,
-  sub: string,
-  mail: { to: string; subject: string; body: string; attachment: { filename: string; contentBase64: string; mimeType: string } },
-): Promise<{ via: 'gmail' | 'outlook'; id?: string } | null> {
-  const gtok = await getValidAccessToken(ctx.pool, sub, 'google');
-  if (gtok) {
-    const sent = await sendGmail(gtok, mail);
-    return { via: 'gmail', id: sent.id };
-  }
-  const mtok = (await getValidAccessToken(ctx.pool, sub, 'microsoft')) || (await getValidAccessToken(ctx.pool, sub, 'outlook'));
-  if (mtok) {
-    await sendOutlookMail(mtok, mail);
-    return { via: 'outlook' };
-  }
-  return null;
-}
-
-/**
  * @description Create the Portrait Studio routes. Mounted at /api/portrait-studio
  * by the swarm-app loader (manifest auth: oidc — the mounter guards every call).
  * @param ctx - The swarm app context (pool + appPackageDir).
@@ -282,8 +257,15 @@ async function sendOverCallersMailbox(
 export function createPortraitStudioRoutes(ctx: AppContext): Router {
   if (ctx.appPackageDir) packageDir = ctx.appPackageDir;
   const surfaceDir = packageDir ? path.join(packageDir, 'tools') : path.resolve(process.cwd(), 'tools');
+  registerPortraitAuthorization(ctx);
   const router = Router();
+  router.use(createPortraitAuthorizationRoutes(ctx));
+  registerPortraitFaceAssets(router, surfaceDir);
+  router.use('/home-summary', createHomeSummaryRoutes(ctx));
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 } });
+  // Multipart events originate outside the request ALS chain. Bind the continuation while
+  // the core's verified actor and restricted database identity are still current.
+  const uploadPhoto: RequestHandler = (req, res, next) => upload.single('photo')(req, res, AsyncResource.bind(next));
   void ensureSchema(ctx)
     .then(() => sweepStuckRows(ctx, true))
     .catch((err) => logger.error({ err }, 'portrait-studio schema bootstrap failed'));
@@ -298,10 +280,10 @@ export function createPortraitStudioRoutes(ctx: AppContext): Router {
     });
   });
 
-  /** GET /capture.js — the surface's camera-source decision module. Served from the package
+  /** GET /capture-module — the surface's camera-source decision module. Served from the package
    *  (not inlined) so the SAME file the browser runs is the one `node tests/run.js` requires:
    *  a fallback branch cannot pass in the test and differ in the page. */
-  router.get('/capture.js', (_req, res) => {
+  router.get('/capture-module', (_req, res) => {
     res.type('application/javascript');
     res.sendFile(path.join(surfaceDir, 'portrait-capture.js'), (err) => {
       if (err) {
@@ -322,7 +304,8 @@ export function createPortraitStudioRoutes(ctx: AppContext): Router {
    *  banner must answer for the user who is looking at it. */
   router.get('/provider', async (req, res) => {
     try {
-      const provider = await resolveStoryboardImageProvider({ userSub: callerSub(req) || undefined });
+      const provider = await resolveStoryboardImageProvider({ userSub: callerSub(ctx) });
+      if (provider.id === 'codex-cli') { res.json({ configured: false, unavailable: 'portrait_cli_authorization_unavailable', detail: 'This image transport cannot carry application permissions. Select a configured platform image provider.' }); return; }
       if (provider.healthCheck) {
         const health = await provider.healthCheck();
         res.json({ configured: health.ok, provider: provider.id, costClass: provider.costClass, detail: health.detail, ...(health.ok ? {} : { hint: health.detail }) });
@@ -335,10 +318,10 @@ export function createPortraitStudioRoutes(ctx: AppContext): Router {
   });
 
   /** POST /portraits — cropped photo (multipart 'photo'; in group mode the browser-built numbered reference sheet) + mode/style/options (+ 'subjects' in group mode) → queue a generation. */
-  router.post('/portraits', upload.single('photo'), async (req, res) => {
+  router.post('/portraits', uploadPhoto, async (req, res) => {
     const started = Date.now();
     try {
-      const sub = callerSub(req);
+      const sub = callerSub(ctx);
       if (!sub) { res.status(401).json({ error: 'sign in to generate portraits' }); return; }
       const file = req.file;
       if (!file || !file.buffer?.length) { res.status(400).json({ error: 'photo is required (multipart field "photo")' }); return; }
@@ -362,8 +345,8 @@ export function createPortraitStudioRoutes(ctx: AppContext): Router {
       const capRow = await ctx.pool.query(
         `SELECT COUNT(*)::int AS n,
                 COUNT(*) FILTER (WHERE status IN ('queued','generating'))::int AS active
-         FROM ps_portraits WHERE user_sub = $1 AND created_at > NOW() - INTERVAL '24 hours'`,
-        [sub],
+         FROM ps_portraits WHERE user_sub = $1 AND owner_issuer = $2 AND created_at > NOW() - INTERVAL '24 hours'`,
+        [sub, callerIssuer(ctx)],
       );
       if ((capRow.rows[0]?.n ?? 0) >= DAILY_CAP) {
         res.status(429).json({ error: `daily cap reached (${DAILY_CAP} portraits/24h) — try again tomorrow` });
@@ -374,14 +357,17 @@ export function createPortraitStudioRoutes(ctx: AppContext): Router {
         return;
       }
 
+      await requirePortraitPermission(ctx, 'create');
+      const selectedProvider = await resolveStoryboardImageProvider({ userSub: sub });
+      if (selectedProvider.id === 'codex-cli') { res.status(503).json({ error: 'portrait_cli_authorization_unavailable' }); return; }
       const prompt = buildPortraitPrompt(mode, style, options);
       const inserted = await ctx.pool.query(
-        `INSERT INTO ps_portraits (user_sub, mode, style, options, prompt, status)
-         VALUES ($1, $2, $3, $4::jsonb, $5, 'queued') RETURNING portrait_id`,
-        [sub, mode, style, JSON.stringify(options), prompt],
+        `INSERT INTO ps_portraits (user_sub, mode, style, options, prompt, status, owner_issuer)
+         VALUES ($1, $2, $3, $4::jsonb, $5, 'queued', $6) RETURNING portrait_id`,
+        [sub, mode, style, JSON.stringify(options), prompt, callerIssuer(ctx)],
       );
       const id = String(inserted.rows[0].portrait_id);
-      const sourcePath = path.join(userDir(sub), `${id}-source.png`);
+      const sourcePath = path.join(userDir(sub, callerIssuer(ctx)), `${id}-source.png`);
       fs.writeFileSync(sourcePath, file.buffer);
       await ctx.pool.query(`UPDATE ps_portraits SET source_path = $2, updated_at = NOW() WHERE portrait_id = $1`, [id, sourcePath]);
 
@@ -390,22 +376,23 @@ export function createPortraitStudioRoutes(ctx: AppContext): Router {
       res.status(202).json({ portraitId: id, status: 'queued' });
     } catch (err) {
       logger.error({ err, durationMs: Date.now() - started }, 'portrait create failed');
-      res.status(500).json({ error: err instanceof Error ? err.message : 'portrait create failed' });
+      res.status(errorStatus(err, 500)).json({ error: err instanceof Error ? err.message : 'portrait create failed' });
     }
   });
 
   /** GET /artifacts — read-only, caller-owned PNG listing for the shared artifact picker. */
   router.get('/artifacts', async (req, res) => {
-    const sub = callerSub(req);
+    const sub = callerSub(ctx);
     if (!sub) { res.status(401).json({ error: 'sign in to choose portraits' }); return; }
     const cursor = String(req.query.cursor || '0');
     if (!/^\d{1,7}$/.test(cursor)) { res.status(400).json({ error: 'invalid cursor' }); return; }
     try {
       const rows = await ctx.pool.query(
-        `SELECT portrait_id FROM ps_portraits WHERE user_sub = $1 AND status = 'done'
+        `SELECT portrait_id FROM ps_portraits WHERE user_sub = $1 AND owner_issuer = $3 AND status = 'done'
          AND output_path IS NOT NULL ORDER BY created_at DESC, portrait_id DESC LIMIT 51 OFFSET $2`,
-        [sub, Number(cursor)],
+        [sub, Number(cursor), callerIssuer(ctx)],
       );
+      await requirePortraitPermission(ctx, 'read');
       res.set('Cache-Control', 'private, no-store').json({
         items: rows.rows.slice(0, 50).map(row => ({
           name: `portrait-${row.portrait_id}.png`, type: 'image/png',
@@ -422,19 +409,19 @@ export function createPortraitStudioRoutes(ctx: AppContext): Router {
   /** GET /portraits — the caller's gallery, newest first (lazy stuck-row sweep first). */
   router.get('/portraits', async (req, res) => {
     try {
-      const sub = callerSub(req);
+      const sub = callerSub(ctx);
       if (!sub) { res.status(401).json({ error: 'sign in to see your portraits' }); return; }
-      await sweepStuckRows(ctx);
       const r = await ctx.pool.query(
-        `SELECT portrait_id, mode, style, status, error, model, cost_usd, created_at, updated_at,
+        `SELECT portrait_id, title, mode, style, status, error, model, cost_usd, created_at, updated_at,
                 (options->>'subjects')::int AS subjects
-         FROM ps_portraits WHERE user_sub = $1 ORDER BY created_at DESC LIMIT 60`,
-        [sub],
+         FROM ps_portraits WHERE user_sub = $1 AND owner_issuer = $2 ORDER BY created_at DESC LIMIT 60`,
+        [sub, callerIssuer(ctx)],
       );
-      res.json({ portraits: r.rows });
+      await requirePortraitPermission(ctx, 'read');
+      res.set('Cache-Control', 'private, no-store').json({ portraits: r.rows });
     } catch (err) {
       logger.error({ err }, 'portrait list failed');
-      res.status(500).json({ error: 'portrait list failed' });
+      res.status(errorStatus(err, 500)).json({ error: 'portrait list failed' });
     }
   });
 
@@ -442,37 +429,40 @@ export function createPortraitStudioRoutes(ctx: AppContext): Router {
    *  picture" step: done when the caller has at least one finished portrait. Reads only the
    *  caller's own rows; asked in the signed-in user's session by the kernel setup dashboard. */
   router.get('/readiness', async (req, res) => {
-    const sub = callerSub(req);
+    const sub = callerSub(ctx);
     if (!sub) { res.status(401).json({ error: 'sign in to check your setup' }); return; }
     try {
       const r = await ctx.pool.query(
         `SELECT COUNT(*) FILTER (WHERE status = 'done')::int AS done, COUNT(*)::int AS total
-           FROM ps_portraits WHERE user_sub = $1`,
-        [sub],
+           FROM ps_portraits WHERE user_sub = $1 AND owner_issuer = $2`,
+        [sub, callerIssuer(ctx)],
       );
       const done = Number(r.rows[0]?.done || 0);
       const total = Number(r.rows[0]?.total || 0);
       const detail = done > 0
         ? `${done} portrait${done === 1 ? '' : 's'} ready to use.`
         : total > 0 ? 'A portrait is still generating — check back in a moment.' : 'No portrait yet — take or upload a photo and pick a style.';
-      res.json({ portrait: { ready: done > 0, done, total, detail } });
+      await requirePortraitPermission(ctx, 'read');
+      res.set('Cache-Control', 'private, no-store').json({ portrait: { ready: done > 0, done, total, detail } });
     } catch (err) {
       logger.error({ err }, 'portrait readiness failed');
-      res.status(500).json({ error: 'readiness unavailable' });
+      res.status(errorStatus(err, 500)).json({ error: 'readiness unavailable' });
     }
   });
 
   /** GET /portraits/:id/image — the generated portrait (owner only). */
   router.get('/portraits/:id/image', async (req, res) => {
     try {
-      const sub = callerSub(req);
+      const sub = callerSub(ctx);
       if (!sub) { res.status(401).json({ error: 'unauthenticated' }); return; }
       const row = await ownedRow(ctx, req.params.id, sub);
       if (!row || row.status !== 'done') { res.status(404).json({ error: 'portrait not found' }); return; }
+      await requirePortraitPermission(ctx, 'read', req.params.id);
+      if (req.query.download !== undefined) await requirePortraitPermission(ctx, 'export', req.params.id);
       sendImage(res, String(row.output_path || ''), req.query.download !== undefined);
     } catch (err) {
       logger.error({ err, portraitId: req.params.id }, 'portrait image serve failed');
-      res.status(500).json({ error: 'portrait image serve failed' });
+      res.status(errorStatus(err, 500)).json({ error: 'portrait image serve failed' });
     }
   });
 
@@ -481,7 +471,7 @@ export function createPortraitStudioRoutes(ctx: AppContext): Router {
    *  and 4×6-print orientations, not a free-form resizer. */
   router.get('/portraits/:id/export', async (req, res) => {
     try {
-      const sub = callerSub(req);
+      const sub = callerSub(ctx);
       if (!sub) { res.status(401).json({ error: 'unauthenticated' }); return; }
       const fmt = exportFormat(req.query.size);
       if (!fmt) { res.status(400).json({ error: `size must be one of: ${FORMAT_KEYS}` }); return; }
@@ -490,93 +480,56 @@ export function createPortraitStudioRoutes(ctx: AppContext): Router {
       const filePath = String(row.output_path || '');
       if (!filePath || !fs.existsSync(filePath)) { res.status(404).json({ error: 'image file not found' }); return; }
       const image = await formatCrop(filePath, fmt.width, fmt.height);
+      await requirePortraitPermission(ctx, 'export', req.params.id);
       res.setHeader('Content-Disposition', `attachment; filename="portrait-${String(row.portrait_id).slice(0, 8)}-${fmt.width}x${fmt.height}.png"`);
       res.setHeader('Content-Type', 'image/png');
-      res.setHeader('Cache-Control', 'private, max-age=3600');
+      res.setHeader('Cache-Control', 'private, no-store');
       res.end(image);
     } catch (err) {
       logger.error({ err, portraitId: req.params.id }, 'portrait export failed');
-      res.status(500).json({ error: 'portrait export failed' });
+      res.status(errorStatus(err, 500)).json({ error: 'portrait export failed' });
     }
   });
 
-  /** POST /portraits/:id/email — send the portrait (original, or a passport crop when `size`
-   *  is given) as an attachment over the caller's OWN connected mailbox: Gmail when Google is
-   *  connected, else Microsoft Graph, else 409. Approval-gated — generating a portrait is not
-   *  consent to broadcast it, so the server requires `confirm: true` (428 otherwise) and there
-   *  is no batch path: one explicit user action per send. Body: { confirm, to, size?, subject?, note? }. */
+  /** Email remains a declared permission; the current subject-only connection broker cannot safely execute it. */
   router.post('/portraits/:id/email', async (req, res) => {
     try {
-      const sub = callerSub(req);
-      if (!sub) { res.status(401).json({ error: 'unauthenticated' }); return; }
-      if (!hasExplicitWriteConfirmation(req.body)) {
-        res.status(428).json(confirmationRequiredPayload('portrait-email', 'Emailing a portrait'));
-        return;
-      }
-      const body = (req.body ?? {}) as { to?: unknown; size?: unknown; subject?: unknown; note?: unknown };
-      const to = typeof body.to === 'string' ? body.to.trim() : '';
-      if (!isValidEmailAddress(to)) { res.status(400).json({ error: 'a valid "to" address is required' }); return; }
-      const wantsResize = body.size !== undefined && body.size !== null && body.size !== '';
-      const fmt = wantsResize ? exportFormat(body.size) : null;
-      if (wantsResize && !fmt) {
-        res.status(400).json({ error: `size must be one of: ${FORMAT_KEYS} — or omitted to send the original` });
-        return;
-      }
-      const row = await ownedRow(ctx, req.params.id, sub);
-      if (!row || row.status !== 'done') { res.status(404).json({ error: 'portrait not found' }); return; }
-      const filePath = String(row.output_path || '');
-      if (!filePath || !fs.existsSync(filePath)) { res.status(404).json({ error: 'image file not found' }); return; }
-      const image = fmt ? await formatCrop(filePath, fmt.width, fmt.height) : fs.readFileSync(filePath);
-      const fileName = fmt ? `portrait-${fmt.width}x${fmt.height}.png` : 'portrait.png';
-      const note = typeof body.note === 'string' ? body.note.slice(0, 2000).trim() : '';
-      const mail = {
-        to,
-        subject: (typeof body.subject === 'string' && body.subject.trim() ? body.subject.trim().slice(0, 300) : 'Your portrait from oshal Portrait Studio'),
-        body: (note ? `${note}\n\n` : '') + `${fmt ? `The ${fmt.label} portrait` : 'The portrait'} is attached.\n\nGenerated with oshal Portrait Studio.`,
-        attachment: { filename: fileName, contentBase64: image.toString('base64'), mimeType: 'image/png' },
-      };
-      const sent = await sendOverCallersMailbox(ctx, sub, mail);
-      if (!sent) {
-        res.status(409).json({ error: 'no_mail_connection', message: 'Connect Google (Gmail) or Microsoft 365 in Utilities to send email.' });
-        return;
-      }
-      logger.info({ portraitId: req.params.id, via: sent.via, id: sent.id, size: fmt?.key ?? null, bytes: image.length }, 'portrait emailed');
-      res.json({ ok: true, via: sent.via, id: sent.id, to, size: fmt?.key ?? null });
-    } catch (err) {
-      logger.error({ err, portraitId: req.params.id }, 'portrait email failed');
-      res.status(502).json({ error: err instanceof Error ? err.message : 'portrait email failed' });
-    }
+      await requirePortraitPermission(ctx, 'email', req.params.id);
+      res.status(503).json({ error: 'portrait_mail_identity_unavailable', message: 'Email requires an issuer-qualified connection broker. Download the portrait and use your own mail application.' });
+    } catch { res.status(403).json({ error: 'portrait_permission_denied' }); }
   });
 
   /** GET /portraits/:id/source — the cropped input photo (owner only). */
   router.get('/portraits/:id/source', async (req, res) => {
     try {
-      const sub = callerSub(req);
+      const sub = callerSub(ctx);
       if (!sub) { res.status(401).json({ error: 'unauthenticated' }); return; }
       const row = await ownedRow(ctx, req.params.id, sub);
       if (!row) { res.status(404).json({ error: 'portrait not found' }); return; }
+      await requirePortraitPermission(ctx, 'read', req.params.id);
       sendImage(res, String(row.source_path || ''), false);
     } catch (err) {
       logger.error({ err, portraitId: req.params.id }, 'portrait source serve failed');
-      res.status(500).json({ error: 'portrait source serve failed' });
+      res.status(errorStatus(err, 500)).json({ error: 'portrait source serve failed' });
     }
   });
 
   /** DELETE /portraits/:id — remove the row + its files (owner only). */
   router.delete('/portraits/:id', async (req, res) => {
     try {
-      const sub = callerSub(req);
+      const sub = callerSub(ctx);
       if (!sub) { res.status(401).json({ error: 'unauthenticated' }); return; }
       const row = await ownedRow(ctx, req.params.id, sub);
       if (!row) { res.status(404).json({ error: 'portrait not found' }); return; }
-      await ctx.pool.query(`DELETE FROM ps_portraits WHERE portrait_id = $1 AND user_sub = $2`, [req.params.id, sub]);
+      await requirePortraitPermission(ctx, 'delete', req.params.id);
+      await ctx.pool.query(`DELETE FROM ps_portraits WHERE portrait_id = $1 AND user_sub = $2 AND owner_issuer = $3`, [req.params.id, sub, callerIssuer(ctx)]);
       for (const p of [row.source_path, row.original_path, row.output_path]) {
         if (p) { try { fs.rmSync(String(p), { force: true }); } catch (err) { logger.error({ err, path: p }, 'portrait file cleanup failed'); } }
       }
       res.json({ ok: true });
     } catch (err) {
       logger.error({ err, portraitId: req.params.id }, 'portrait delete failed');
-      res.status(500).json({ error: 'portrait delete failed' });
+      res.status(errorStatus(err, 500)).json({ error: 'portrait delete failed' });
     }
   });
 

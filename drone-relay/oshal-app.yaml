@@ -1,0 +1,489 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — drone-relay ("Drone Relay")
+#
+# A chain of mini drones that relays commands and telemetry drone to drone so
+# that one drone can work beyond the base station's own radio reach — designed,
+# sized and rehearsed here before a radio is soldered. A corridor, a transport
+# (ESP-NOW, ESP-NOW long range, Wi-Fi Direct, Wi-Fi mesh, BLE coded PHY, LoRa,
+# Wi-Fi HaLow) and a margin give the hop from a link budget; the plan places
+# the relay slots and counts the spares; a scenario fails relays at chosen
+# times and the run reports how long the tip was out of reach, when the chain
+# reconnected, when it was restored, the worst hop margin and a verdict. The
+# 0.3.0: GROUND NODES — a relay that never flew, placed by hand or dropped along the
+# corridor, holds an inner slot for days: it cuts the corridor into stretches the mobile
+# relays fill, and it costs the fleet and the rotation nothing. The CONTROL PLANE now runs
+# INSIDE the simulation: when the channel reaches the tip, a loss is known one heartbeat
+# later instead of one staleness window and the segment beyond the gap is commanded to the
+# meeting point rather than walking in blind.
+# 0.4.0: PROXY — while the tip is out of reach the outermost reachable relay answers a status
+# query for it (its own signed reply, stamped with whom it stands for and how old the tip's last
+# heartbeat is) and holds commands for it, releasing them on their original signature when the
+# tip is heard again or dropping them, naming why, once the tip's replay window would refuse them.
+# TREES — one trunk to a relay at the fork and a branch to each of two to four tips, met in the
+# middle when the trunk is cut; LATTICES — a survey area tiled with relay slots at the design hop,
+# the tip sweeping it, a lost relay routed around; and the saved formation drafted as a Drone Ops
+# fleet mission (returned, never sent or flown here).
+# chain's two rules — on board every relay (battery, then shift one hop inward,
+# then home) and at the controller (elastic spacing, meet in the middle, spares
+# that replace or swap, no move that breaks a good link) — are the ones a
+# companion firmware will carry line for line, and the source-routed, signed
+# envelope a relay forwards is shown hop by hop. 0.2.0: relays hover or PERCH (motors off
+# at the slot, the radio awake — an hour on the battery that hovers eight minutes, at the
+# price of the antenna height a perch needs); an optional out-of-band CONTROL CHANNEL is
+# sized by its direct reach and the air its heartbeats cost; a COURIER for bulk data by its
+# trip; every run reports the buffer the longest outage costs a collecting tip.
+#
+# THE ENGINE IS BUNDLED AND DETERMINISTIC — src-routes/engine/ compiled to
+# routes/engine/. No model, no seed: the budget is arithmetic, the plan is
+# geometry, the simulation is a fixed-step tick. Same spec, same scenario, same
+# bytes. The ONE inline concierge sizes and explains through route-backed
+# tools; it never computes a number itself and never commands a vehicle.
+#
+# NOTHING HERE FLIES. A vehicle is commanded only through the swarm drone rail
+# (ADR-099) behind its human confirm; this package designs the formation and
+# the protocol that rail will carry (ADR-155).
+#
+# Framework: OSHAL (see docs/adr/155-drone-relay-chains.md,
+# docs/architecture/drone-relay-link-hardware.md,
+# docs/adr/085-remote-app-packages-and-registries.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: drone-relay
+suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
+displayName: Drone Relay
+description: >-
+  Design a chain of mini drones that relays commands and telemetry drone to
+  drone so one can work beyond the base link: size the hop from a link budget
+  on ESP-NOW, Wi-Fi Direct, Wi-Fi mesh, BLE, LoRa or Wi-Fi HaLow, place the
+  relay slots and spares, fail a relay in a simulated scenario and read how
+  long the tip was out of reach and when the chain closed the gap and was
+  restored — with the on-board and controller rules a companion firmware
+  carries, and the signed, source-routed envelope shown hop by hop. Relays
+  hover or perch, and a relay that never flew — a ground node on a short mast
+  — holds an inner slot for days at no cost to the fleet; an out-of-band
+  control channel (which, when it reaches, tells the far segment where to meet
+  instead of leaving it to walk in blind) and a courier for bulk data are sized
+  beside the chain, and every run states the buffer an outage costs. A chain
+  may branch into a tree with a tip on each branch, or tile a survey area as
+  a lattice the tip sweeps, and a saved formation drafts as a Drone Ops fleet
+  mission that Drone Ops re-validates and a human approves there.
+  A designer concierge sizes and explains through the same tools. Simulated;
+  nothing here flies.
+version: 0.4.0
+status: active
+scope: person
+
+# The installer fingerprints and registers these recipes; execution retains each prerequisite.
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: drone-relay
+  ref: main
+
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/drone-relay/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
+# No connector allow-list: every input is a number the person types; nothing leaves the swarm.
+dependencies:
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+
+# Kernel skills this app CALLS (ADR-090 uses: contract, fail-closed at load).
+uses:
+  - test-catalog
+  - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — one INLINE concierge (no container: reasoning rides the caller's hosted/BYO brain
+# through the framework's accounted path). It sizes chains and explains runs through the tools
+# below; every number is the engine's. selectorDescriptor and routingKeywords are declared
+# HERE, not in the persona: the loader reads persona routing fields from a server-cwd path a
+# store package never lives at (ADR-083).
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: 569e21a7-3cb2-4703-8558-cc70be68ebab
+    name: relay-designer
+    persona: personas/relay-designer.yaml
+    role: engineering/drone-relay
+    capabilities:
+      - relay-chain-sizing
+      - transport-comparison
+      - failure-scenario-analysis
+      - relay-protocol-explainer
+    selectorDescriptor: >-
+      Select for the Drone Relay app ONLY: sizing a chain of relay drones so one drone can work
+      beyond the base radio's reach, comparing drone-to-drone radios (ESP-NOW, Wi-Fi Direct,
+      Wi-Fi mesh, BLE, LoRa, HaLow) by link budget, running a relay-loss scenario and reading
+      the tip's outage and restore time, or explaining how a relayed command envelope walks
+      the chain. Do NOT select for flying or commanding a real drone (drone-operator), for the
+      embodied kitchen simulation, or for anything that is not this app.
+    routingKeywords:
+      - relay chain
+      - relay drone
+      - drone to drone
+      - mesh drone
+      - esp-now
+      - link budget
+      - out of range drone
+      - hop distance
+      - drone repeater
+      - lora drone
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TOOLS — route-backed. A bot that calls these gets the engine's numbers and the caller's own
+# rows, never an opinion. Every write is owner-scoped and reversible (a plan is a design), so
+# writes are auto; there is no tool that commands a vehicle.
+# ─────────────────────────────────────────────────────────────────────────────
+tools:
+  - name: relay-capabilities
+    displayName: Drone Relay Capabilities
+    type: api
+    category: engineering
+    description: The transport catalog with every radio number and note, the spec limits and defaults the plan routes enforce, the scenario limits, the envelope constants.
+    executor: { executorType: api, apiEndpoint: "GET /api/drone-relay/capabilities" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Read-only. Read it before the first design in a conversation; quote its limits rather than guessing them.
+    routingTags: [relay, capabilities]
+    tags: [drone-relay, route-backed]
+
+  - name: relay-transports
+    displayName: Compare Transports at a Distance
+    type: api
+    category: engineering
+    description: Every catalog transport's link budget at one hop distance — margin, design range and modelled edge — so the person can pick a radio for the hop they need.
+    executor: { executorType: api, apiEndpoint: "GET /api/drone-relay/transports?distanceM={input.distanceM}&requiredMarginDb={input.requiredMarginDb}&exponent={input.exponent}" }
+    inputSchema:
+      type: object
+      properties:
+        distanceM: { type: number, description: "hop distance in metres" }
+        requiredMarginDb: { type: number, description: "design margin in dB (default 10)" }
+        exponent: { type: number, description: "path-loss exponent (default 2.2 air to air)" }
+      required: [distanceM]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Read-only. Quote `marginDb` and `designRangeM` per transport; `ok` is whether the margin meets the requirement at that distance.
+    routingTags: [relay, transport, compare]
+    tags: [drone-relay, route-backed]
+
+  - name: relay-link-budget
+    displayName: Link Budget for One Transport
+    type: api
+    category: engineering
+    description: The budget of one transport at one distance — path loss, received power, margin, the design range at the required margin and the modelled edge.
+    executor: { executorType: api, apiEndpoint: "POST /api/drone-relay/link-budget" }
+    inputSchema:
+      type: object
+      properties:
+        transport: { type: string, description: "transport id from relay-capabilities" }
+        distanceM: { type: number }
+        requiredMarginDb: { type: number }
+        exponent: { type: number }
+      required: [transport, distanceM]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Read-only; a refusal names the field.
+    routingTags: [relay, link, budget]
+    tags: [drone-relay, route-backed]
+
+  - name: relay-list-plans
+    displayName: List Relay Chains
+    type: api
+    category: engineering
+    description: The caller's saved chains with their sized plan and the last run's metrics.
+    executor: { executorType: api, apiEndpoint: "GET /api/drone-relay/plans" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Owner-scoped. Use the planId from here for every other plan tool.
+    routingTags: [relay, plans, list]
+    tags: [drone-relay, route-backed]
+
+  - name: relay-get-plan
+    displayName: Read a Relay Chain
+    type: api
+    category: engineering
+    description: One saved chain — spec, sized plan (ranges, hop, slots, spares, feasibility, warnings), roster and its last run.
+    executor: { executorType: api, apiEndpoint: "GET /api/drone-relay/plans/{input.planId}" }
+    inputSchema:
+      type: object
+      properties:
+        planId: { type: string }
+      required: [planId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Owner-scoped; a foreign or unknown id is 404.
+    routingTags: [relay, plan, read]
+    tags: [drone-relay, route-backed]
+
+  - name: relay-preview-plan
+    displayName: Size a Chain Without Saving
+    type: api
+    category: engineering
+    description: Validate a spec and size the chain — hop, relays, spares, slots, margins, throughput, feasibility — without saving it. Use it to sweep spacing, margin or transport.
+    executor: { executorType: api, apiEndpoint: "POST /api/drone-relay/plan-preview" }
+    inputSchema:
+      type: object
+      properties:
+        title: { type: string }
+        transport: { type: string, description: "transport id (default esp-now)" }
+        path: { type: array, description: "corridor points [{x, y, z}] in metres, base first at 0,0 (default a straight 1000 m east)" }
+        requiredMarginDb: { type: number }
+        degradedMarginDb: { type: number }
+        spacingFactor: { type: number, description: "hop = spacingFactor × design range (0.2..1, default 0.6)" }
+        fleetSize: { type: number, description: "relays available including spares" }
+        tipDataKbps: { type: number }
+        pathLossExponent: { type: number }
+        cruiseMps: { type: number }
+        recoverMps: { type: number }
+        enduranceS: { type: number }
+        reserveS: { type: number }
+        gapPolicy: { type: string, description: "retreat | hold-degraded" }
+        posture: { type: string, description: "hover | perch (perch: landed at the slot, motors off, radio awake)" }
+        perchDrawFraction: { type: number, description: "perched draw as a fraction of hover draw (default 0.03)" }
+        controlChannel: { type: string, description: "in-band, or a catalog transport id other than the chain's that carries heartbeats and the RTL word direct from the base" }
+        heartbeatS: { type: number, description: "heartbeat period in seconds (default 2)" }
+        courierMB: { type: number, description: "bulk data a courier carries home per trip, MB (default 0: no courier)" }
+        courierTransport: { type: string, description: "the radio the courier loads over beside the tip (default: the chain's)" }
+        branches: { type: array, description: "a TREE: 2 to 4 polylines [[{x, y, z}]] in metres, each continuing from the last point of path (the fork) to one work point; path is then the trunk. In band, hover or perch; no ground nodes, control channel or courier on a tree" }
+        area: { type: array, description: "a LATTICE instead of a corridor: the polygon [{x, y}] in metres (3 to 64 points in order around it) the tip surveys; it is tiled with relay slots on a grid at the design hop, joined to the base by feeder slots. No path, branches, ground nodes, control channel or courier with an area" }
+      required: []
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Nothing is saved. Read `sized.feasible`, `sized.reasons`, `sized.warnings`, `sized.hopM`, `sized.relaysNeeded`, `sized.sparesAvailable`, `sized.sustainFleet`, `sized.perchAntennaHeightM`, `sized.control`, `sized.courier`, on a tree `sized.tree` (the fork, the trunk's hops, each branch's hops and tip), and on a lattice `sized.lattice` (grid spacing, slots, feeders, depth, the cover, the tip's sweep).
+    routingTags: [relay, preview, size]
+    tags: [drone-relay, route-backed]
+
+  - name: relay-create-plan
+    displayName: Save a Relay Chain
+    type: api
+    category: engineering
+    description: Save a chain from a spec (same fields as relay-preview-plan); the reply carries the planId and the sized plan.
+    executor: { executorType: api, apiEndpoint: "POST /api/drone-relay/plans" }
+    inputSchema:
+      type: object
+      properties:
+        title: { type: string }
+        transport: { type: string }
+        path: { type: array }
+        requiredMarginDb: { type: number }
+        degradedMarginDb: { type: number }
+        spacingFactor: { type: number }
+        fleetSize: { type: number }
+        tipDataKbps: { type: number }
+        pathLossExponent: { type: number }
+        enduranceS: { type: number }
+        reserveS: { type: number }
+        gapPolicy: { type: string }
+        posture: { type: string, description: "hover | perch (perch: landed at the slot, motors off, radio awake)" }
+        perchDrawFraction: { type: number, description: "perched draw as a fraction of hover draw (default 0.03)" }
+        controlChannel: { type: string, description: "in-band, or a catalog transport id other than the chain's that carries heartbeats and the RTL word direct from the base" }
+        heartbeatS: { type: number, description: "heartbeat period in seconds (default 2)" }
+        courierMB: { type: number, description: "bulk data a courier carries home per trip, MB (default 0: no courier)" }
+        courierTransport: { type: string, description: "the radio the courier loads over beside the tip (default: the chain's)" }
+        branches: { type: array, description: "a TREE: 2 to 4 polylines [[{x, y, z}]] in metres, each continuing from the last point of path (the fork) to one work point" }
+        area: { type: array, description: "a LATTICE: the polygon [{x, y}] in metres the tip surveys, tiled with relay slots at the design hop" }
+      required: []
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Keep the returned planId for simulate, design-doc and trace.
+    routingTags: [relay, plan, create]
+    tags: [drone-relay, route-backed]
+
+  - name: relay-update-plan
+    displayName: Change a Relay Chain
+    type: api
+    category: engineering
+    description: Change any spec field of a saved chain; it is re-sized and its last run is cleared.
+    executor: { executorType: api, apiEndpoint: "PATCH /api/drone-relay/plans/{input.planId}" }
+    inputSchema:
+      type: object
+      properties:
+        planId: { type: string }
+        transport: { type: string }
+        spacingFactor: { type: number }
+        requiredMarginDb: { type: number }
+        fleetSize: { type: number }
+        enduranceS: { type: number }
+        gapPolicy: { type: string }
+        posture: { type: string, description: "hover | perch (perch: landed at the slot, motors off, radio awake)" }
+        perchDrawFraction: { type: number, description: "perched draw as a fraction of hover draw (default 0.03)" }
+        controlChannel: { type: string, description: "in-band, or a catalog transport id other than the chain's that carries heartbeats and the RTL word direct from the base" }
+        heartbeatS: { type: number, description: "heartbeat period in seconds (default 2)" }
+        courierMB: { type: number, description: "bulk data a courier carries home per trip, MB (default 0: no courier)" }
+        courierTransport: { type: string, description: "the radio the courier loads over beside the tip (default: the chain's)" }
+      required: [planId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Tell the person the last run was cleared and offer to run the scenario again.
+    routingTags: [relay, plan, update]
+    tags: [drone-relay, route-backed]
+
+  - name: relay-simulate
+    displayName: Run a Relay Scenario
+    type: api
+    category: engineering
+    description: Run a scenario against a saved chain — a duration, failures of named drones at chosen seconds, on station or built from the base — and read the tip's outage, gap detection, reconnection and restore times, worst hop margin, spares used and the verdict. Stored as the plan's last run.
+    executor: { executorType: api, apiEndpoint: "POST /api/drone-relay/plans/{input.planId}/simulate" }
+    inputSchema:
+      type: object
+      properties:
+        planId: { type: string }
+        durationS: { type: number, description: "10..7200 (default 600)" }
+        startDeployed: { type: boolean, description: "true: chain on station at t = 0 (default); false: launch everything from the base" }
+        events: { type: array, description: "[{atS, kind: 'fail', drone}] — drone ids from the plan's roster (r1..rN, g1..gK, s1..sM, tip; tip1..tipK on a tree)" }
+      required: [planId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Read `run.metrics` (verdict, tipOutageS, gapDetectedAtS, reconnectedAtS, restoredAtS, minHopMarginDb, sparesLaunched, swaps, forcedReturns, longestOutageS, tipBufferKB, drainS; on a tree `branches` — every tip's own outage and reconnections, the others counting "the tip reachable" as every tip reachable) and `run.events`; an infeasible plan answers 409 with the reasons.
+    routingTags: [relay, simulate, scenario]
+    tags: [drone-relay, route-backed]
+
+  - name: relay-design-doc
+    displayName: Relay Chain Design Write-up
+    type: api
+    category: engineering
+    description: The generated Markdown design of a saved chain — link budget, chain table, the rules as implemented, the last run's timeline and verdict, and what the model does not cover.
+    executor: { executorType: api, apiEndpoint: "GET /api/drone-relay/plans/{input.planId}/design.md" }
+    inputSchema:
+      type: object
+      properties:
+        planId: { type: string }
+      required: [planId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Read-only; generated from the stored plan so it cannot disagree with the numbers.
+    routingTags: [relay, design, document]
+    tags: [drone-relay, route-backed]
+
+  - name: relay-trace-envelope
+    displayName: Trace an Envelope Through the Chain
+    type: api
+    category: engineering
+    description: Build one signed, source-routed envelope (a command to the tip or a heartbeat inward) and walk it hop by hop through the saved chain, showing each relay's decision.
+    executor: { executorType: api, apiEndpoint: "POST /api/drone-relay/plans/{input.planId}/trace" }
+    inputSchema:
+      type: object
+      properties:
+        planId: { type: string }
+        dst: { type: string, description: "destination drone id (default tip; tip1 on a tree)" }
+        kind: { type: string, description: "command | heartbeat | reply (default command)" }
+      required: [planId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Read-only demonstration of the protocol; the key is a stand-in for the pair key a node receives at enrolment.
+    routingTags: [relay, envelope, trace]
+    tags: [drone-relay, route-backed]
+
+  - name: relay-fleet-mission-draft
+    displayName: Draft the Formation for Drone Ops
+    type: api
+    category: engineering
+    description: Turn a saved chain into a Drone Ops fleet-mission DRAFT — every relay and tip flying to its slot (latitude / longitude placed from the base's position), holding together for one hovering sortie, then returning to launch. Returns the JSON; nothing is stored or sent, and nothing flies.
+    executor: { executorType: api, apiEndpoint: "POST /api/drone-relay/plans/{input.planId}/fleet-mission" }
+    inputSchema:
+      type: object
+      properties:
+        planId: { type: string }
+        home: { type: object, description: "the base's position {lat, lon} in degrees (Drone Ops shows its home)" }
+        drones: { type: object, description: "optional Drone Ops fleet ids for the formation's drones, e.g. {\"r1\": \"alpha\", \"tip\": \"bravo\"}; unnamed ones keep their roster id" }
+      required: [planId, home]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Computes a draft and returns it; a formation of more than eight drones is refused (one fleet mission carries eight). Say plainly that it is the formation at full strength for one sortie, that Drone Ops re-validates it, and that a human approves every flight there.
+    routingTags: [relay, formation, drone-ops]
+    tags: [drone-relay, route-backed]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon tile opens the app, self-served by this package's route from
+# tools/drone-relay.html (ctx.appPackageDir). iframeUrl matches the serve route (GET /app).
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: drone-relay
+      label: Drone Relay
+      icon: codicon codicon-radio-tower
+      iframeUrl: /api/drone-relay/app
+      section: top
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — compiled JS bundled in this package, mounted in-process. OIDC only: every input is
+# the person's own numbers and nothing leaves the swarm.
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/drone-relay/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/drone-relay/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/drone-relay-routes.js
+    factory: createDroneRelayRoutes
+    mountPath: /api/drone-relay
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+# The app's own schema (plans) with owner RLS, applied on install.
+migrations:
+  - migrations/001-drone-relay.sql
+
+# The right-rail chat agent when this app is focused.
+chatBot: relay-designer
+
+# RIBBON VISIBILITY — focus mode for /cockpit?app=drone-relay (chat panel stays: the concierge
+# is the app's designer).
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - calendar
+    - addressbook
+    - dashboard
+    - echo
+    - logs
+    - operations
+  defaultView: drone-relay
+
+summary:
+  path: /api/drone-relay/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+integrations:
+  offers:
+    - id: prepare-document
+      label: Prepare a design brief
+      targetApp: presentations
+      targetAction: prepare-brief
+      contextType: research-brief
+      version: 1

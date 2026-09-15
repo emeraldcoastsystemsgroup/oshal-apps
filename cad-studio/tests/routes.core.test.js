@@ -5,6 +5,12 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The packaged routes over real loopback HTTP with express and multer resolved from the framework checkout (OSHAL_CORE_DIR) and the REAL engine client talking to a fake bridge on loopback that speaks the wire protocol: the surface, assets and capabilities serve; the caller gate 401s; a part is created and built (revision 1, artifacts on disk, report from the engine); features add / refuse-with-reason / validate-with-field / merge-update / disable / move / remove / restore, each a new revision; owner scoping (a second subject gets 404); artifacts download by key and revision; a mesh base upload reaches the engine as base64 and is stored only as a file reference; the Home summary; deletion removes rows and files; and with the bridge gone, a rebuild answers 503 naming the install command while the last good revision still serves. The database is a SQL-dispatching in-memory double — the owner RLS boundary itself is proven by the migration's policy text and the live installer, not here.
  *
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | BACKLOG B5: POST /models/:id/cancel — idle answers cancelled:false; another subject gets 404; mid-rebuild it closes the engine connection, the triggering request answers 409 cancelled, the part is recorded failed at its last good revision whose artifacts still serve, and the next rebuild reconnects. settings.featureBudgetMs is refused by field, defaults to 60000, is sent with every rebuild, and a worker budget_exceeded status is stored per feature.
+ *
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Resolve the framework checkout from OSHAL_CORE_ROOT first (what the Test Lab sandbox sets, /app) and OSHAL_CORE_DIR second, and fail loud when neither is set. The old default C:/Projects/oshal existed on one Windows box only and turned a missing variable into a confusing module error.
+ *
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Redirect a bare require to the framework checkout only when the package itself asks for it. Requires made inside node_modules resolve normally again: redirecting them to core's root broke in the Test Lab sandbox, where the image's pruned node_modules keeps semver only nested under sharp (Cannot find module 'semver'); a developer checkout hoists it, which is why no local run saw it.
+ *
  * FRAMEWORK-COUPLED: needs a core checkout for express/multer. Not part of the store-CI
  * wildcard; run locally: OSHAL_CORE_DIR=C:/Projects/oshal node --test tests/routes.core.test.js
  */
@@ -18,8 +24,9 @@ const path = require('node:path');
 const Module = require('node:module');
 const { randomUUID } = require('node:crypto');
 
-const CORE = process.env.OSHAL_CORE_DIR || 'C:/Projects/oshal';
-assert.ok(fs.existsSync(path.join(CORE, 'node_modules', 'express')), `OSHAL_CORE_DIR must point at a framework checkout with node_modules (got ${CORE})`);
+const CORE = process.env.OSHAL_CORE_ROOT || process.env.OSHAL_CORE_DIR;
+if (!CORE) throw new Error('Set OSHAL_CORE_ROOT (the Test Lab sets /app) or OSHAL_CORE_DIR to a framework checkout');
+assert.ok(fs.existsSync(path.join(CORE, 'node_modules', 'express')), `OSHAL_CORE_ROOT (or OSHAL_CORE_DIR) must point at a framework checkout with node_modules (got ${CORE})`);
 const coreRequire = Module.createRequire(path.join(CORE, 'package.json'));
 const PKG = path.resolve(__dirname, '..');
 
@@ -30,7 +37,7 @@ const originalLoad = Module._load;
 Module._load = function patched(request, parent, isMain) {
   if (STUBS[request]) return STUBS[request];
   if (request.startsWith('@/')) throw new Error(`Unexpected framework import: ${request}`);
-  if (!request.startsWith('.') && !path.isAbsolute(request) && !request.startsWith('node:') && !Module.builtinModules.includes(request)) {
+  if (!request.startsWith('.') && !path.isAbsolute(request) && !request.startsWith('node:') && !Module.builtinModules.includes(request) && String(parent?.filename || '').startsWith(PKG + path.sep)) {
     return originalLoad.call(this, coreRequire.resolve(request), parent, isMain);
   }
   return originalLoad.call(this, request, parent, isMain);
@@ -133,7 +140,9 @@ function tinyStl() {
 function fakeEngine() {
   const seen = [];
   const sockets = new Set();
+  const stats = { connections: 0 };
   const server = net.createServer((socket) => {
+    stats.connections += 1;
     sockets.add(socket); socket.on('close', () => sockets.delete(socket)); socket.setEncoding('utf8');
     socket.write(JSON.stringify({ bridge: { protocol: 1, buildHash: HASH } }) + '\n');
     let tail = '';
@@ -145,11 +154,14 @@ function fakeEngine() {
         seen.push(req);
         const base = req.args.base;
         if (base.kind === 'sphere') { socket.write(JSON.stringify({ id: req.id, ok: false, error: { code: 'refused', message: 'base.kind must be one of box, …' } }) + '\n'); continue; }
+        // A feature the worker is still grinding on: never answered (only a cancel or the wall clock ends it).
+        if (req.args.features.some((f) => f.enabled !== false && f.params && f.params.diameter === 777)) continue;
         const size = base.kind === 'box' ? [base.sizeX, base.sizeY, base.sizeZ] : base.kind === 'contours' ? [base.size.x, base.size.y, base.size.z] : [20, 20, 20];
         let volume = size[0] * size[1] * size[2];
         const features = req.args.features.map((f, index) => {
           if (f.enabled === false) return { id: f.id, index, ok: true, skipped: true };
           if (f.params && f.params.diameter === 999) return { id: f.id, index, ok: false, error: 'kernel refused: StdFail_NotDone' };
+          if (f.params && f.params.diameter === 555) return { id: f.id, index, ok: false, ms: req.args.featureBudgetMs + 1, code: 'budget_exceeded', error: `took ${req.args.featureBudgetMs + 1} ms, over the ${req.args.featureBudgetMs} ms per-feature budget; its result was discarded` };
           if (f.type === 'hole') volume -= 100;
           return { id: f.id, index, ok: true, ms: 5 };
         });
@@ -159,8 +171,9 @@ function fakeEngine() {
       }
     });
   });
-  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve({ port: server.address().port, seen, close: () => { for (const s of sockets) s.destroy(); server.close(); } })));
+  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve({ port: server.address().port, seen, sockets, stats, close: () => { for (const s of sockets) s.destroy(); server.close(); } })));
 }
+const until = async (check) => { for (let i = 0; i < 400 && !check(); i += 1) await new Promise((r) => setTimeout(r, 5)); assert.ok(check(), 'condition not reached within 2 s'); };
 
 // ── The app under test ───────────────────────────────────────────────────────
 let currentSub = 'alice';
@@ -276,6 +289,45 @@ test('a mesh base upload is stored as a file reference and reaches the engine as
   pool.tables.cad_model.find((m) => m.title === 'nope').base = { kind: 'sphere' };
   const rebuilt = await call(`/models/${refusedBase.body.model.model_id}/rebuild`, { method: 'POST' });
   assert.equal(rebuilt.status, 422); assert.equal(rebuilt.body.build.code, 'refused'); assert.equal(rebuilt.body.model.state, 'failed');
+});
+
+test('the per-feature budget is a validated setting that reaches the worker, and its refusal is stored per feature', async () => {
+  assert.equal(engine.seen[0].args.featureBudgetMs, 60000, 'the default budget goes with every rebuild');
+  const bad = await call(`/models/${modelId}`, json('PATCH', { settings: { featureBudgetMs: 0 } }));
+  assert.equal(bad.status, 400); assert.equal(bad.body.field, 'settings.featureBudgetMs');
+  const set = await call(`/models/${modelId}`, json('PATCH', { settings: { featureBudgetMs: 5000 } }));
+  assert.equal(set.status, 200); assert.equal(engine.seen.at(-1).args.featureBudgetMs, 5000);
+  const slow = await call(`/models/${modelId}/features`, json('POST', { type: 'hole', params: { diameter: 555 } }));
+  assert.equal(slow.status, 200);
+  const status = slow.body.model.feature_status.find((s) => s.id === slow.body.feature.id);
+  assert.equal(status.ok, false); assert.equal(status.code, 'budget_exceeded'); assert.match(status.error, /over the 5000 ms per-feature budget/);
+  assert.equal((await call(`/models/${modelId}/features/${slow.body.feature.id}`, { method: 'DELETE' })).status, 200);
+});
+
+test('cancel stops a running rebuild: the connection closes, the part stays at its last good revision, the next rebuild reconnects', async () => {
+  const good = (await call(`/models/${modelId}`)).body.model;
+  const idle = await call(`/models/${modelId}/cancel`, { method: 'POST' });
+  assert.equal(idle.status, 200); assert.equal(idle.body.cancelled, false); assert.equal(idle.body.stage, null);
+  assert.equal(idle.body.lastGoodRevision, good.revision); assert.equal(idle.body.model.state, 'built');
+  const seenBefore = engine.seen.length, connectionsBefore = engine.stats.connections;
+  const pending = call(`/models/${modelId}/features`, json('POST', { type: 'hole', params: { diameter: 777 } }));
+  await until(() => engine.seen.length > seenBefore);
+  currentSub = 'bob';
+  assert.equal((await call(`/models/${modelId}/cancel`, { method: 'POST' })).status, 404, 'another subject cannot reach, let alone cancel, the rebuild');
+  currentSub = 'alice';
+  const cancel = await call(`/models/${modelId}/cancel`, { method: 'POST' });
+  assert.equal(cancel.status, 200); assert.equal(cancel.body.cancelled, true); assert.equal(cancel.body.stage, 'inflight');
+  assert.equal(cancel.body.lastGoodRevision, good.revision);
+  assert.equal(cancel.body.model.state, 'failed'); assert.match(cancel.body.model.failure_reason, /^cancelled: rebuild cancelled \(cancelled by the owner\)/);
+  const answered = await pending;
+  assert.equal(answered.status, 409); assert.equal(answered.body.build.code, 'cancelled');
+  assert.equal(answered.body.model.revision, good.revision, 'no revision was recorded for the cancelled rebuild');
+  await until(() => engine.sockets.size === 0);
+  assert.equal((await call(`/models/${modelId}/artifacts/stl?revision=${good.revision}`)).status, 200, 'the last good revision still serves');
+  const removed = await call(`/models/${modelId}/features/${answered.body.feature.id}`, { method: 'DELETE' });
+  assert.equal(removed.status, 200); assert.equal(removed.body.build.ok, true); assert.equal(removed.body.model.revision, good.revision + 1);
+  assert.equal(removed.body.model.state, 'built');
+  assert.equal(engine.stats.connections, connectionsBefore + 1, 'the rebuild after the cancel opened a fresh connection');
 });
 
 test('the Home summary reads metadata only', async () => {

@@ -1,0 +1,276 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register real Career palette proof and every existing suite with explicit harness prerequisites.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register actual board/search navigation, responsive results, filters, loading and unchanged submission-confirmation boundaries.
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the existing service-authenticated package metadata marker without user or provider data.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The existing package marker satisfies the manifest assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: career-theme-browser
+    name: Career screens follow the portal palette
+    purpose: >-
+      Load all thirteen real HTML screens and current shared theme code in Chromium using synthetic read-only HTTP
+      data.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/browser/career-theme-proof.mjs
+    expected:
+      - Saved and live palettes reach every screen without navigation or a replacement document.
+      - Application-color opt-in, unsaved drafts and Search filters remain intact.
+      - All twelve primary-label palettes are readable; mobile pages fit and resume paper stays white.
+    prerequisites:
+      - runner:playwright
+      - browser:chromium
+      - core:shared-theme-assets
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/browser/career-theme-fixture.mjs
+      cleanup: >-
+        Close every isolated browser context and the ephemeral loopback server; refuse mutations and external
+        network requests.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: job-workspace-browser
+    name: Job Board and open jobs search
+    purpose: Exercise actual package HTML and shared CSS through isolated Chromium and synthetic local HTTP, preserving existing query and workflow controls.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/browser/career-job-workspace-proof.mjs
+    expected:
+      - Board and Open jobs search use the existing admitted tool bridge or exact standalone route without leaking unrelated query context.
+      - Mobile results precede optional filters, while desktop setup, precise query controls and application provenance remain reachable.
+      - The initial feed has a visible loading state, search failures remain errors and cancelling bulk confirmation sends no mutation.
+    prerequisites:
+      - runner:playwright
+      - browser:chromium
+      - core:shared-theme-assets
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/browser/career-theme-fixture.mjs
+      cleanup: Close every browser context and ephemeral loopback server; refuse mutations and all external traffic.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: screen-contracts
+    name: Board, Search and Resume contracts
+    purpose: Run the existing HTML-script and DOM-port guards without a browser or provider.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/board-surface.test.mjs
+        - tests/career-search-screen.test.mjs
+        - tests/career-resume-studio-bridge.test.mjs
+    expected:
+      - Board filter persistence, truthful provenance, explicit consent and opaque swipe cards remain intact.
+      - Search controls reach the query; Resume bridge edits remain reviewable before saving.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: legacy-python
+    name: Legacy Python engine and storage contracts
+    purpose: >-
+      Registered existing harness; unavailable external prerequisites remain pending and are not replaced by a
+      host-success claim.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/career-artifact-zip-limits.test.mjs
+        - tests/career-convergence-report.test.mjs
+        - tests/career-cross-process-lock.test.mjs
+        - tests/career-master-resume.test.mjs
+        - tests/career-python-provenance.test.mjs
+        - tests/career-python-storage-identity.test.mjs
+        - tests/career-remote-only.test.mjs
+        - tests/career-resume-extraction-limits.test.mjs
+        - tests/career-storage-contract.test.mjs
+        - tests/career-stories.test.mjs
+        - tests/career-targets-classify.test.mjs
+    expected:
+      - >-
+        Existing Python and SQLite fixtures preserve storage identity, extraction limits, story evidence and
+        remote-only behavior.
+    prerequisites:
+      - runner:node
+      - runner:python
+      - fixture:complete-career-engine
+      - harness:career-python-contracts
+      - core:runtime-dependencies
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Each existing harness removes its temporary files and closes its own synthetic processes or HTTP listeners.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: legacy-filesystem
+    name: Legacy isolated filesystem guards
+    purpose: >-
+      Registered existing harness; unavailable external prerequisites remain pending and are not replaced by a
+      host-success claim.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/career-async-file-transaction.test.mjs
+        - tests/career-autofill-route.test.mjs
+        - tests/career-browse-feed.test.mjs
+        - tests/career-no-sync-api.test.mjs
+        - tests/career-portal-logins-launcher.test.mjs
+        - tests/career-profile-plan-transaction.test.mjs
+        - tests/career-provenance-migration.test.mjs
+        - tests/career-readiness.test.mjs
+        - tests/career-resume-status.test.mjs
+        - tests/career-route-transactions.test.mjs
+        - tests/career-user-store-path.test.mjs
+        - tests/resume-preview.test.mjs
+    expected:
+      - Existing temporary-store, rollback, preview and upload guards retain their durable filesystem assertions.
+    prerequisites:
+      - runner:node
+      - harness:career-legacy-node
+      - fixture:complete-career-package
+      - core:runtime-dependencies
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Each existing harness removes its temporary files and closes its own synthetic processes or HTTP listeners.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: legacy-model-source
+    name: Legacy model, route-port and source guards
+    purpose: >-
+      Registered existing harness; unavailable external prerequisites remain pending and are not replaced by a
+      host-success claim.
+    level: unit
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/board-feed-plan.test.mjs
+        - tests/career-application-state.test.mjs
+        - tests/career-apply-claim-lease.test.mjs
+        - tests/career-apply-model-boundary.test.mjs
+        - tests/career-apply-run-binding.test.mjs
+        - tests/career-autofill-bookmarklet.test.mjs
+        - tests/career-board-browse-mode.test.mjs
+        - tests/career-job-guide-actions.test.mjs
+        - tests/career-postings-provenance-view.test.mjs
+        - tests/career-provenance-loader.test.mjs
+        - tests/career-resume-multipart.test.mjs
+        - tests/career-run-status.test.mjs
+        - tests/career-targets.test.mjs
+        - tests/migration-index-names.test.mjs
+        - tests/session-crypto.test.mjs
+        - lib/apply-authorization.test.mjs
+        - lib/apply-prompt.test.mjs
+        - lib/automation-gate.test.mjs
+    expected:
+      - >-
+        Existing source and synthetic-port assertions preserve authorization, readiness, migration declarations and
+        rendering contracts.
+    prerequisites:
+      - runner:node
+      - harness:career-legacy-node
+      - fixture:complete-career-package
+      - core:runtime-dependencies
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: legacy-vitest
+    name: Legacy TypeScript route-port guards
+    purpose: >-
+      Registered existing harness; unavailable external prerequisites remain pending and are not replaced by a
+      host-success claim.
+    level: unit
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/career-board-dismiss-filter.spec.ts
+        - tests/career-digest-pref-routing.spec.ts
+        - tests/career-digest.spec.ts
+        - tests/career-jobs-graph-ingestion.spec.ts
+        - tests/career-title-score.spec.ts
+    expected:
+      - Existing compiled query, digest and graph assertions use their original synthetic ports.
+    prerequisites:
+      - runner:vitest
+      - fixture:legacy-core-import-layout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: legacy-resume-http
+    name: Legacy Resume HTTP alias proof
+    purpose: >-
+      Registered existing harness; unavailable external prerequisites remain pending and are not replaced by a
+      host-success claim.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/career-hunter-resume-alias.spec.ts
+    expected:
+      - The original loopback Resume HTTP alias harness retains its owner and route assertions.
+    prerequisites:
+      - runner:vitest
+      - fixture:legacy-core-import-layout
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Each existing harness removes its temporary files and closes its own synthetic processes or HTTP listeners.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never

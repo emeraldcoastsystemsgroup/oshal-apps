@@ -1,0 +1,338 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped package test with explicit runner and fixture boundaries; retain the readiness smoke identity. The framework-coupled route suite is registered with its real prerequisite (a framework checkout) rather than hidden.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | The transport suite guards the provenance correction; the chain and simulation suites prove the rotation fleet (relays needed to hold every slot through battery swaps) and that the simulation agrees with it.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0: ground nodes and the control plane in the simulation get their own suite — the segments a static slot cuts the corridor into, the mobile relays and rotation counted without it, the refusals, the immovable member with no battery, and the commanded meeting point against the in-band bytes.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 0.2.0: the chain suite proves the postures (a perch's station time, rotation and antenna height), the control channel (reach and heartbeat air time) and the courier; the simulation suite proves a perched chain holds and the store-and-forward numbers; the route suite reads them through capabilities and a preview.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: proxy replies and the command queue (B11) — the envelope's proxy stamp under the MAC, the bounded queue held no longer than the replay window, and the relay role in memory; and the same role over real loopback HTTP between four node doubles.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: trees (B5) get their own suite — sizing a trunk and branches, the refusals, the tree's elastic rule at every relay count, retreat on a tree, a trunk loss met in the middle, a branch loss, a build from the base; the route suite runs a tree end to end.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: the formation as a Drone Ops fleet-mission draft (B6 first half) — the draft's shape, holds and refusals in plain node, and the draft through the drone package's REAL fleet-mission gate from a framework checkout.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: lattices (B9) get their own suite — the tiling at the design hop, feeders, the refusals, the assignment rule's reach from every point of the area, the tip's sweep with every metric, a loss routed around, and the feeder loss the lattice cannot close; the route suite runs a lattice end to end.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Rename the drifted framework-checkout prerequisites to the Test Lab's own vocabulary so these cases can run: node-test cases declare fixture:core-checkout (the sealed Node profile runs on the oshal image, where /app is the checkout); browser cases declare harness:oshal-core-root and core:dependencies, as create does. A case that imports core's tests/fixtures, which the image does not ship, also declares harness:core-test-fixtures and stays pending with that exact reason instead of an unknown name.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the existing metadata-only readiness probe without provider or user-data access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed drone-relay package identity satisfies its manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: engine-transports
+    name: Transport catalog and link budget
+    purpose: Prove the seven-entry catalog carries complete radio numbers with sources, the free-space intercept and the closed-form range invert each other, ESP-NOW sizes to a few hundred metres at 10 dB and LoRa to kilometres, the ok flag follows the required margin, the rows carry the vendor facts and no stronger ones (ESP-NOW encrypts at most 17 of 20 peers, long-range mode gains 4 dB, Espressif's field test is quoted, the Wi-Fi rows sit at the IEEE minimums), and the compiled engine imports no framework module.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-transports.test.js
+    expected:
+      - The 2.4 GHz intercept is 40.2 dB; the range solved for a margin gives back that margin to 1e-6 dB.
+      - ESP-NOW's design range at 10 dB lies between 330 and 360 m; LoRa's is more than ten times longer; Wi-Fi Direct's is shorter.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-chain
+    name: Chain planner
+    purpose: Prove the spec's defaults and every refusal naming its field, a 1 km ESP-NOW corridor at 0.6 sizing to five 200 m hops with four relays and two spares, infeasibility naming the relay count and the tip's data rate, a tight margin making one loss a real gap, slots on a bent corridor, elastic targets, the tip's reach under both gap policies, the move guard, the rotation fleet (per-slot station times summed into the relays needed to hold every slot through battery swaps), a perch's station time, rotation and antenna height, a control channel's reach and heartbeat air time, and a courier's load, trip and equivalent rate.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-chain.test.js
+    expected:
+      - validateSpec({}) is an ESP-NOW chain on a straight 1000 m corridor at spacing 0.6, 10 dB, six relays, retreat.
+      - planChain sizes four relays at exactly 200, 400, 600, 800 m with a design margin above 10 dB, 50 kbps and 100 ms end to end.
+      - On an eight-minute battery the farthest relay holds 123 s and the chain needs 15 relays in rotation; a 900 s battery needs 8.
+      - Perched at 3 % of hover draw the farthest relay holds 4111 s, the chain needs 5 in rotation and every perch needs 1.5 m of antenna height; a LoRa control channel reaches the tip but five nodes every 2 s occupy 82.5 % of it; a 100 MB courier over Wi-Fi Direct on 900 s amounts to about 1304 kbps.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-node-policy
+    name: On-board relay rule
+    purpose: Prove battery outranks everything, a good inner link holds, a silent inner link waits the detect window, shifts inward at most one hop, then flies home after the RTL window.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-node-policy.test.js
+    expected:
+      - Flight time at or below the flight home plus the reserve is rtl(battery) regardless of the link.
+      - Inner link silent 4 s → shift-in; after one hop → hold; 60 s → rtl(inner-link-timeout).
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-envelope
+    name: Relay envelope protocol
+    purpose: Prove routes follow the chain order both ways, an envelope signed at its source verifies at its destination and fails after any covered field changes while hop, ttl and via stamps are not covered, each node forwards to exactly the next id and the destination delivers, every drop names its reason, replay inside the window is refused, and frames fragment to an MTU and reassemble in any order.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-envelope.test.js
+    expected:
+      - base → r1 → r2 → r3 → tip forwards four times and delivers with ttl 1; a node not at the current hop, a loop, an exhausted ttl, an off-route index and a route ending elsewhere are dropped naming the reason.
+      - A 1000-byte frame fragments into four 250-byte pieces that reassemble from any order; a missing piece yields null.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-sim
+    name: Relay chain simulation
+    purpose: Prove a chain on station holds with zero outage; losing a middle relay of a 1 km ESP-NOW chain at the design margin never loses the tip, retreats the tip under `retreat` (and stays retreated with no spare) and holds it under `hold-degraded`, launches a spare once the roster is stale and restores the chain; a tight-margin chain loses the tip, shifts it inward on its own, detects the gap after the staleness window, reconnects and is restored; a formation built from the base reaches every slot; a short endurance produces proactive swaps with no outage and no forced return; below the rotation fleet relays leave on battery and at it they do not; six perched relays hold the chain for thirty minutes with no forced return; every run reports the longest outage, the buffer it costs the tip and its drain; refusals name the field; runs are deterministic.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-sim.test.js
+    expected:
+      - Fail r2 at 60 s → outage 0 s, spare launched at 65–68 s, restored 25–45 s after the launch, final hops s1 r1 r3 r4 tip at 200 m each.
+      - The tight-margin chain's outage is 5–60 s, the gap is detected at 36 s, and the verdict is restored.
+      - Six relays on an eight-minute battery force battery returns over 30 minutes with the tip still reachable; the 15 the plan asks for force none; six perched ones force none and drain about 3 % of the run.
+      - A held run buffers 0 KB; the tight chain's 7.5 s outage costs a 20 kbps tip about 19 KB, drained in about 1.4 s by the 105 kbps the two-hop chain has spare.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: engine-ground-control
+    name: Ground nodes and the control plane
+    purpose: Prove a spec takes ground nodes as slot positions and refuses a list that is not one, a position on the base or past the work point, more than sixteen, two closer than a metre and a hole in the list; the plan cuts the corridor at each ground node, fills the stretches with mobile relays and counts and rotates only those; the elastic rule gives its relays to the longest stretch and, with no ground node, returns the even spread position for position; a ground node holds its slot on no flight budget, never launches, swaps or flies home, can be failed by an event and then anchors nothing; the mobile relays close a gap on either side of it; and a control channel that reaches the tip knows a loss one heartbeat later and commands the outer segment to the meeting point, while one that stops short runs the in-band bytes exactly.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-ground-control.test.js
+    expected:
+      - One ground node at 400 m on the 1 km chain leaves three mobile relays (not four) and a rotation of five (not six), with all five hops still 200 m.
+      - Fail r2 beside it and the mobile relays close the gap around it — final hops s1 g1 r1 r3 tip at 200 m each, the ground node still at 400 m.
+      - With a LoRa control channel the tight chain reconnects at 30.5 s against 37.5 s in band (7.0 s sooner) and never has to declare the gap.
+      - A Wi-Fi Direct control channel reaches 184 m of the corridor, so the run is the 0.2.0 in-band metrics byte for byte.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: engine-tree
+    name: Trees — a trunk and branches
+    purpose: Prove a spec with two work points sizes a trunk whose last relay sits at the fork and a branch to each tip, every tip's frames crossing the trunk; the refusals name the branch point and keep ground nodes, a control channel and a courier chain-only; the tree's elastic rule keeps every hop within the allowed hop for every relay count; a relay short, one tip retreats a hop (hold-degraded holds both); a trunk loss is met in the middle and one spare restores the tree; a branch loss spares the other tip.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-tree.test.js
+    expected:
+      - A 600 m trunk and two 500 m branches size seven relays at 200, 400, 600 m (the junction) and 766.7, 933.3 m on each branch, 20.8 kbps a tip.
+      - On the tight tree, losing r2 cuts both tips at 30 s; r1 stretches out, the junction walks in, both tips are back at 41 s, one spare launches at 49.5 s and the tree is restored at 158.5 s.
+      - Losing branch 1's relay costs tip1 25.5 s and tip2 nothing.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: engine-lattice
+    name: Lattices — a survey area
+    purpose: Prove a polygon is tiled with relay slots on a square grid at the design hop, every point of the area within half a cell diagonal of a slot, the relays, rotation and shared channel counted over them, feeder slots joining an area away from the base; the refusals name the field; the assignment rule keeps the tip reachable from any point of the area with every hop within the design hop; the tip's sweep is simulated with every metric; a relay loss is routed around; a feeder loss the walk-in cannot close is lost.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-lattice.test.js
+    expected:
+      - A 600 x 400 m area 200 m east of the base tiles into 12 slots on a 206.6 m grid, 5 hops deep, every point within 146.1 m of a slot; 41.7 kbps to the tip.
+      - With every slot held, and with only the route to the tip's slot, a tip anywhere in the area is in reach with every hop within the design hop.
+      - The sweep holds for 600 s with no outage and a 14.9 dB worst margin; losing r1 costs no outage and one spare restores the lattice at 207.5 s.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: engine-fleet-draft
+    name: The formation as a Drone Ops draft
+    purpose: Prove the plan's local frame lands on the map with the drone package's metres per degree; the default chain drafts one fleet assignment per relay and the tip — one waypoint at its slot, its band's altitude, the plan's cruise speed, return to launch — with holds that end together after the farthest relay's hovering station time; fleet ids replace roster ids; ground nodes fly in no assignment; a tree drafts every tip; the refusals name the field; the module sends nothing.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-fleet-draft.test.js
+    expected:
+      - The default chain drafts r1..r4 at 40 m and the tip at 30 m, holds 223, 189, 156, 123 and 89 s ending within a second of each other, 123 s being the farthest relay's hovering station time.
+      - No home, a latitude past 80°, an unknown roster id, a repeated fleet id, an infeasible plan and a formation of more than eight drones are refused naming the field.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: fleetmission-core
+    name: The draft through the drone package's own fleet gate
+    purpose: Transpile the framework's own fleet-mission gate (src/features/drone/services/fleet-mission.ts and what it imports) with the framework's TypeScript and run the formation drafts through it — the default chain, a named formation and a tree normalise with no error and pass the pairwise separation check, the gate measures the drafted slots the plan's 200 m apart, its eight-assignment cap is the package's, and two relays on one slot are refused.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fleetmission.core.test.js
+    expected:
+      - normalizeFleetMissionDraft returns no error and validateFleetSeparation no violation for every draft; MAX_FLEET_ASSIGNMENTS equals the package's cap of eight.
+      - A draft with two relays on one slot gets exactly one separation violation from the gate.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Restore the module hooks; nothing is written.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: engine-proxy
+    name: Proxy replies and the command queue
+    purpose: Prove an envelope without a proxy stamp signs byte for byte as before; the stamp is covered by the MAC and legal only on a reply for another node; forwarding still reads the route alone; the queue refuses a hold past the replay window, holds commands only, bounded and oldest first, measured from the command's own timestamp; the relay role answers a query for a node out of reach by proxy and releases a held command on its original MAC when it hears the next hop again.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-proxy.test.js
+    expected:
+      - A proxy reply verifies with the relay's key and not the tip's; changing, stripping, adding or nulling the stamp fails verification; the payload is the tip's own heartbeat, still verifiable with the tip's key.
+      - A command signed 31 s earlier is dropped with "held 31000 ms since it was signed, past the 30000 ms the destination's replay window allows"; one released inside the window keeps its MAC and passes the tip's replay window.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: relay-loopback
+    name: Relay role over loopback HTTP
+    purpose: Drive the relay role between four node doubles (base, r1, r2, tip), each a node:http server on 127.0.0.1 with the test's clock and link switches — a command out and its reply back the reverse route, a status query answered by proxy while the tip is out of reach, a queued command delivered when the link returns, and a command held past the replay window dropped naming why.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/relay-loopback.test.js
+    expected:
+      - With the r2 to tip link cut, the base's query is answered by r2 as proxy for tip, aged 12 s, carrying the tip's heartbeat hb-1.
+      - Command c1 is queued at r2 and runs at the tip once r2 hears it again; its reply reaches the base. Command c2, held 31 s, is dropped at r2 and never runs.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Close the four loopback servers; nothing is written anywhere.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: surface-parse
+    name: Surface parse guard
+    purpose: Prove the tile's script parses as a classic script, every element id it reads exists in the page, the page loads it from the package asset route, and nothing from the API is interpolated into markup.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/surface-parse.test.js
+    expected:
+      - The script compiles under vm.Script; no id is missing; no innerHTML / insertAdjacentHTML / document.write.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: routes-http
+    name: Packaged routes over loopback HTTP
+    purpose: Drive the compiled routes with express from a framework checkout — surface and capabilities (postures, control-channel choices, heartbeat size; a perched LoRa-controlled preview), transport table and budget with refusals naming the field, the caller gate, preview without a row, create / list / read with roster / owner scoping / PATCH re-size clearing the run / bad id, a stored scenario run, 409 on an infeasible chain, the Markdown write-up, the envelope trace both ways, the Home summary, deletion, a tree end to end (preview, save, a trunk loss, a trace to the second tip, the write-up), a lattice end to end (a refusal, save, a loss routed around, the trace, the write-up) and the Drone Ops draft (200, 400, 409, 404 across owners).
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/routes.core.test.js
+    expected:
+      - 401 without a caller, 404 across owners, 400 naming the field, 409 with the plan's reasons.
+      - A command traces base → r1 … → tip and verifies at the tip; a heartbeat traces inward.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Close the loopback server and restore the module hook; the database is an in-memory double.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never

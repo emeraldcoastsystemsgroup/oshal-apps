@@ -16,13 +16,20 @@
   -----------------------------------------------------------------------------
   1   | maintainer@emeraldcoastsystemsgroup.com     | Initial — categories rail, search, purpose chips, template cards drawn from each studio's catalog
   2   | maintainer@emeraldcoastsystemsgroup.com     | Authorization-aware: a studio the person is not provisioned for renders LOCKED with the Access link, never opens (GET /api/authorization/me?app=)
+  3   | maintainer@emeraldcoastsystemsgroup.com     | Follow the portal palette and live parent changes while retaining the bundled Create skin when application colors are enabled.
+  4   | maintainer@emeraldcoastsystemsgroup.com     | Cohesive catalog workspace with a real Home return, nonduplicated templates and responsive accessible filters.
+  5   | maintainer@emeraldcoastsystemsgroup.com     | Add the 3D and print category and Scan-to-Print starter using the owning studio's fixed entry point.
+  6   | maintainer@emeraldcoastsystemsgroup.com     | Add the owned layered-image editor as one distinct Image design starter and category.
+  7   | maintainer@emeraldcoastsystemsgroup.com     | Link the original editable image template gallery with exact query context.
 -->
 <html lang="en" data-theme="create">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Create — New</title>
-<link rel="stylesheet" href="/api/create/theme.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<link rel="stylesheet" href="/api/create/theme/create.css" />
 <style>
   :root {
     --bg: var(--bg-primary, #f8f7fd);
@@ -52,49 +59,54 @@
   button { font: inherit; color: inherit; }
   button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-  .shell { display: grid; grid-template-columns: 250px 1fr; min-height: 100vh; }
-  @media (max-width: 760px) { .shell { grid-template-columns: 1fr; } }
+  .shell { display: grid; grid-template-columns: 208px minmax(0, 1fr); gap: 28px; max-width: 1380px; margin: auto; padding: 26px 28px 48px; min-height: 100vh; }
+  .workspace-head { grid-column: 1 / -1; display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 0 0 22px; border-bottom: 1px solid var(--line); }
+  .workspace-head h1 { font-size: clamp(26px, 3vw, 34px); font-weight: 750; letter-spacing: -.035em; line-height: 1.15; margin: 9px 0; }
+  .workspace-head p { color: var(--muted); font-size: 14px; margin: 0; }
+  .back { background: none; border: 0; color: var(--muted); padding: 4px 0; font-size: 12px; font-weight: 650; cursor: pointer; }
+  .back:hover { color: var(--text); text-decoration: underline; }
+  @media (max-width: 760px) { .shell { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 20px 16px 36px; } }
 
   /* ── Categories rail ─────────────────────────────────────────────────── */
-  .cats { padding: 26px 16px; border-right: 1px solid var(--line); background: var(--paper); }
-  .cats h1 { margin: 0 12px 18px; font-size: 26px; letter-spacing: -0.03em; font-weight: 800; }
-  .cat { display: flex; align-items: center; gap: 12px; width: 100%; border: 0; background: transparent; text-align: left; padding: 10px 12px; border-radius: 12px; font-weight: 600; color: var(--text); cursor: pointer; }
+  .cats { align-self: start; position: sticky; top: 20px; min-width: 0; padding: 14px 10px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); }
+  .cats h2 { margin: 0 10px 12px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .cat { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; border: 1px solid transparent; background: transparent; text-align: left; padding: 10px 9px; border-radius: 10px; font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer; }
   .cat:hover { background: var(--panel); }
-  .cat.on { background: rgba(125,42,232,.10); color: var(--accent); }
-  .cat .ic { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; flex: 0 0 auto; }
+  .cat.on { background: var(--panel); border-color: var(--line-hover); color: var(--text); }
+  .cat .ic { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; flex: 0 0 auto; color: var(--create-ink-on-tint, #2a2350); }
   .cat .ic svg { width: 16px; height: 16px; }
-  .cat .n { flex: 1; }
-  .cat .c { font-size: 11.5px; color: var(--faint); font-weight: 600; }
-  .cat.on .c { color: var(--accent); }
-  @media (max-width: 760px) { .cats { border-right: 0; border-bottom: 1px solid var(--line); padding: 16px; } .cats h1 { margin-bottom: 10px; } .catlist { display: flex; gap: 6px; overflow-x: auto; } .cat { width: auto; white-space: nowrap; } .cat .c { display: none; } }
+  .cat .n { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .cat .c { font-size: 11px; color: var(--muted); font-weight: 600; }
+  @media (max-width: 760px) { .cats { position: static; padding: 12px; } .catlist { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 145px), 1fr)); gap: 4px; } .cat { padding: 8px; } }
+  @media (max-width: 480px) { .catlist { grid-template-columns: repeat(2, minmax(0, 1fr)); } .cat .ic { display: none; } .cat .n { font-size: 12px; } }
 
   /* ── Main ────────────────────────────────────────────────────────────── */
-  main { padding: 26px 30px 60px; min-width: 0; }
-  @media (max-width: 760px) { main { padding: 16px; } }
-  .search { display: flex; align-items: center; gap: 12px; height: 54px; padding: 0 18px; border-radius: 16px; background: var(--paper); border: 2px solid rgba(125,42,232,.28); box-shadow: 0 12px 40px -22px var(--glow); margin-bottom: 18px; }
+  main { min-width: 0; }
+  .search { display: flex; align-items: center; gap: 12px; height: 50px; padding: 0 16px; border-radius: 12px; background: var(--paper); border: 1px solid var(--line-hover); margin-bottom: 16px; }
   .search:focus-within { border-color: var(--accent); }
   .search svg { color: var(--faint); flex: 0 0 auto; }
   .search input { flex: 1; border: 0; background: transparent; font-size: 16px; color: var(--text); min-width: 0; }
   .search input::placeholder { color: var(--faint); }
-  .chips { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 26px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+  .chips:empty { display: none; }
   .chips button { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--paper); border-radius: 999px; padding: 8px 15px; font-weight: 600; color: var(--text); cursor: pointer; box-shadow: var(--shadow); }
-  .chips button.on { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 3px rgba(125,42,232,.12); }
+  .chips button.on { border-color: var(--accent); color: var(--text); box-shadow: inset 0 0 0 1px var(--accent); }
   .chips .sw { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
   h2 { margin: 0 0 12px; font-size: 20px; letter-spacing: -0.02em; font-weight: 750; }
   .sec { margin-bottom: 34px; }
-  .sec .sub { color: var(--faint); font-size: 13px; margin: -6px 0 14px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 16px; }
+  .sec .sub { color: var(--muted); font-size: 12px; margin: -6px 0 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 208px), 1fr)); gap: 16px; }
 
   /* Card: a drawn preview of the actual shape, the name, what it is for, the format. */
-  .card { border: 0; padding: 0; background: transparent; text-align: left; cursor: pointer; border-radius: 18px; }
-  .card .pv { position: relative; border-radius: 18px; padding: 22px 22px 0; height: 190px; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; transition: transform .15s ease, box-shadow .15s ease; box-shadow: var(--shadow); }
-  .card:hover .pv { transform: translateY(-3px); box-shadow: var(--shadow-deep); }
-  .card .pv .badge { position: absolute; left: 12px; top: 12px; font-size: 10.5px; font-weight: 800; letter-spacing: .06em; color: var(--text); background: rgba(255,255,255,.75); border-radius: 999px; padding: 3px 9px; }
+  .card { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line); padding: 8px 8px 16px; background: var(--paper); text-align: left; cursor: pointer; border-radius: 16px; transition: box-shadow .15s ease, border-color .15s ease; }
+  .card .pv { position: relative; width: 100%; border-radius: 10px; padding: 34px 18px 0; height: 154px; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; }
+  .card:hover { border-color: var(--line-hover); box-shadow: var(--shadow); }
+  .card .pv .badge { position: absolute; left: 12px; top: 12px; font-size: 10.5px; font-weight: 800; letter-spacing: .06em; color: var(--create-ink-on-tint, #2a2350); background: rgba(255,255,255,.75); border-radius: 999px; padding: 3px 9px; }
   .card .pv .icon { position: absolute; right: 12px; top: 10px; font-size: 18px; }
-  .card .name { font-weight: 750; margin: 10px 2px 0; }
-  .card .for { color: var(--muted); font-size: 12.5px; margin: 1px 2px 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .card .name { font-weight: 750; font-size: 15px; margin: 14px 8px 5px; overflow-wrap: anywhere; }
+  .card .for { color: var(--muted); font-size: 12.5px; line-height: 1.55; margin: 0 8px; overflow-wrap: anywhere; }
   .card.hidden { display: none; }
-  .card.locked .pv { filter: saturate(.35); opacity: .75; }
+  .card.locked .pv { filter: saturate(.35); }
   .card.locked { cursor: not-allowed; }
   .card .pv .lock { position: absolute; left: 12px; bottom: 10px; font-size: 11px; font-weight: 800; color: #fff; background: rgba(23,18,54,.72); border-radius: 999px; padding: 4px 10px; }
   .card .pv .lock.unknown { background: rgba(217,119,6,.85); }
@@ -104,7 +116,7 @@
 
   /* Drawn previews: a page, a slide, a sheet — with the starter's real section titles as strips. */
   .mock { background: #fff; border-radius: 10px 10px 0 0; box-shadow: 0 10px 24px rgba(23,18,54,.14); overflow: hidden; }
-  .mock.page { width: 132px; height: 168px; padding: 14px 12px; }
+  .mock.page { width: 112px; height: 112px; padding: 14px 12px; }
   .mock.slide { width: 188px; height: 112px; padding: 12px 14px; border-radius: 8px 8px 0 0; }
   .mock.sheet { width: 188px; height: 130px; padding: 0; }
   .mock .t { height: 9px; border-radius: 3px; background: var(--accent); margin-bottom: 8px; }
@@ -117,26 +129,31 @@
   .mock.slide .bar { height: 26px; border-radius: 3px 3px 0 0; background: var(--accent); opacity: .85; align-self: flex-end; }
   .mock.sheet .hd { display: flex; background: var(--accent); }
   .mock.sheet .hd span, .mock.sheet .r span { flex: 1; font-size: 6.5px; padding: 3px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid rgba(255,255,255,.35); }
-  .mock.sheet .hd span { color: #fff; font-weight: 800; }
+  .mock.sheet .hd span { color: var(--text-on-accent, #fff); font-weight: 800; }
   .mock.sheet .r { display: flex; border-bottom: 1px solid #ece8f5; }
   .mock.sheet .r span { color: #4b4670; border-right: 1px solid #ece8f5; }
   .mock.sheet .r.tot span { font-weight: 800; color: var(--accent); }
-  .mock.photo { width: 132px; height: 150px; display: grid; place-items: center; background: linear-gradient(180deg,#fff,#f3f0fb); }
+  .mock.photo { width: 116px; height: 112px; display: grid; place-items: center; background: linear-gradient(180deg,#fff,#f3f0fb); }
   .mock.photo svg { width: 80px; height: 80px; }
-  .mock.phone { width: 76px; height: 150px; border-radius: 12px 12px 0 0; padding: 10px 8px; display: flex; flex-direction: column; justify-content: center; }
+  .mock.photo.cube { color: #225e65; }
+  .mock.phone { width: 70px; height: 112px; border-radius: 12px 12px 0 0; padding: 10px 8px; display: flex; flex-direction: column; justify-content: center; }
   .mock.phone .screen { height: 100%; border-radius: 6px; background: var(--accent); display: grid; place-items: center; }
   .mock.phone .screen svg { width: 24px; height: 24px; }
   .empty { color: var(--faint); padding: 26px; border: 1px dashed var(--line-hover); border-radius: 18px; text-align: center; }
-  #status { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 9px 14px; border-radius: 999px; font-size: 13px; box-shadow: var(--shadow-deep); opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+  #status { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); background: var(--text); color: var(--bg); padding: 9px 14px; border-radius: 12px; font-size: 13px; box-shadow: var(--shadow-deep); opacity: 0; pointer-events: none; transition: opacity .2s ease; }
   #status.show { opacity: 1; }
   @media (prefers-reduced-motion: reduce) { .card .pv { transition: none; } }
 </style>
 </head>
 <body>
 <div class="shell">
+  <header class="workspace-head">
+    <div><button type="button" class="back" id="backHome">← Create Home</button>
+    <h1>Start a new design</h1><p>Choose a template or format. Its studio takes it from here.</p></div>
+  </header>
   <nav class="cats" aria-label="Categories">
-    <h1>Create a design</h1>
-    <div class="catlist" id="cats" role="tablist"></div>
+    <h2>Browse by format</h2>
+    <div class="catlist" id="cats" role="group" aria-label="Template formats"></div>
   </nav>
   <main>
     <form class="search" id="searchForm" role="search" autocomplete="off">
@@ -155,34 +172,41 @@
 
   /* ── Which rail tile owns which kind of thing. Pinned to the manifest by the package tests. ── */
   var STUDIO = {
+    editor:   { tool: 'create-editor', app: 'create', name: 'Image editor', url: '/api/create/editor' },
     office:   { tool: 'create-office',   app: 'presentations',   name: 'AI Office',       url: '/api/presentations/sections/ui' },
     portrait: { tool: 'create-portrait', app: 'portrait-studio', name: 'Portrait Studio', url: '/api/portrait-studio/app' },
     video:    { tool: 'create-video',    app: 'video',           name: 'Video Studio',    url: '/api/video/ui' },
     vids:     { tool: 'create-vids',     app: 'vids',            name: 'Vids Studio',     url: '/api/vids/app' },
-    story:    { tool: 'create-story',    app: 'creative-studio', name: 'Stories',         url: '/api/creative-studio/review' }
+    story:    { tool: 'create-story',    app: 'creative-studio', name: 'Stories',         url: '/api/creative-studio/review' },
+    scan:     { tool: 'create-scan-to-print', app: 'scan-to-print', name: '3D Scan-to-Print', url: '/api/scan-to-print/app' }
   };
 
   /* ── Categories (the left rail). Office kinds carry the catalog's own groups once loaded. ── */
   var CATEGORIES = [
-    { id: 'foryou',   name: 'For you',        tint: 'lilac', mark: 'spark' },
+    { id: 'foryou',   name: 'All templates',  tint: 'lilac', mark: 'spark' },
+    { id: 'image',    name: 'Image designs', tint: 'lilac', mark: 'portrait' },
     { id: 'pptx',     name: 'Presentations',  tint: 'peach', mark: 'deck',  office: true },
     { id: 'docx',     name: 'Documents',      tint: 'lilac', mark: 'doc',   office: true },
     { id: 'xlsx',     name: 'Spreadsheets',   tint: 'mint',  mark: 'sheet', office: true },
     { id: 'portrait', name: 'Portraits',      tint: 'sky',   mark: 'portrait' },
     { id: 'video',    name: 'Video',          tint: 'rose',  mark: 'video' },
-    { id: 'story',    name: 'Stories',        tint: 'lemon', mark: 'film' }
+    { id: 'story',    name: 'Stories',        tint: 'lemon', mark: 'film' },
+    { id: '3d',       name: '3D & print',     tint: 'mint',  mark: 'cube' }
   ];
-  var TINT = { pptx: 'peach', docx: 'lilac', xlsx: 'mint', portrait: 'sky', video: 'rose', story: 'lemon' };
+  var TINT = { image: 'lilac', pptx: 'peach', docx: 'lilac', xlsx: 'mint', portrait: 'sky', video: 'rose', story: 'lemon', '3d': 'mint' };
   var SWATCH = { story: '#ff8a5b', explain: '#7d2ae8', meeting: '#2f9bff', sell: '#ffb020', career: '#7d2ae8', marketing: '#ff5c8a', writing: '#2f9bff', reports: '#10b981', money: '#10b981', plans: '#2f9bff', tracking: '#ffb020', sales: '#ff8a5b', portrait: '#7d2ae8', video: '#2f9bff', story2: '#ffb020' };
 
   /* ── Cards that are not Office starters: the other studios' shapes. ── */
   var OTHER = [
+    { id: 'image-templates', cat: 'image', group: 'designs', groupLabel: 'Editable designs', studio: 'editor', name: 'Image templates', desc: 'Start with an announcement, story, flyer, quote or cover. Every title, color and shape stays editable.', preview: 'design', query: 'templates=1' },
+    { id: 'image-design', cat: 'image', group: 'canvas', groupLabel: 'Blank canvas', studio: 'editor', name: 'Image design', desc: 'Arrange editable images, titles, shapes and drawing layers. Save and export your design.', preview: 'photo' },
     { id: 'headshot',  cat: 'portrait', group: 'professional', groupLabel: 'Professional', studio: 'portrait', name: 'Headshot',           desc: 'A studio portrait from one photo — for LinkedIn, a bio, a badge.', preview: 'photo' },
     { id: 'character', cat: 'portrait', group: 'character',    groupLabel: 'Character',    studio: 'portrait', name: 'Character portrait', desc: 'Your face, or your pet’s, in a scene — superhero, astronaut, vintage tintype.', preview: 'photo' },
     { id: 'group',     cat: 'portrait', group: 'group',        groupLabel: 'Group',        studio: 'portrait', name: 'Group portrait',     desc: 'Everyone from one photo, boxed and placed into a single scene together.', preview: 'photo' },
     { id: 'short',     cat: 'video',    group: 'shortform',    groupLabel: 'Short-form',   studio: 'video',    name: 'Short video',        desc: 'Reels, Shorts and TikTok from a storyboard you approve before anything renders.', preview: 'phone' },
     { id: 'clip',      cat: 'video',    group: 'render',       groupLabel: 'Render queue', studio: 'vids',     name: 'Video clip',         desc: 'A clip rendered on your own desktop worker and delivered to your Drive.', preview: 'phone' },
-    { id: 'episode',   cat: 'story',    group: 'episodes',     groupLabel: 'Episodes',     studio: 'story',    name: 'Story episode',      desc: 'A kid-safe animated episode from the rotating story library, produced on a schedule.', preview: 'phone' }
+    { id: 'episode',   cat: 'story',    group: 'episodes',     groupLabel: 'Episodes',     studio: 'story',    name: 'Story episode',      desc: 'A kid-safe animated episode from the rotating story library, produced on a schedule.', preview: 'phone' },
+    { id: 'scan-to-print', cat: '3d', group: 'objects', groupLabel: 'Objects', studio: 'scan', name: '3D scan to print', desc: 'Capture photos or upload views, review the model and prepare a 3D print.', preview: 'cube' }
   ];
 
   /* ── Access: what the signed-in person may open, from the authorization service (ADR-149) ──
@@ -219,6 +243,7 @@
       case 'portrait': return s + '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 5-7 8-7s7 2 8 7"/></svg>';
       case 'video': return s + '<rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></svg>';
       case 'film': return s + '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14M3 9h4M3 15h4M17 9h4M17 15h4"/></svg>';
+      case 'cube': return s + '<path d="m12 2 9 5v10l-9 5-9-5V7zM3 7l9 5 9-5M12 12v10"/></svg>';
       default: return s + '</svg>';
     }
   }
@@ -227,6 +252,7 @@
   var embedded = (function () { try { return window.parent && window.parent !== window; } catch (_) { return false; } })();
   function go(studio, query) {
     var s = STUDIO[studio]; if (!s) return;
+    if (s.app === 'create' && ACCESS.create !== 'open') { toast('Image editor access could not be confirmed. Refresh this page or review Access.'); return; }
     if (embedded) {
       var msg = { type: 'app-navigate', tool: s.tool };
       if (query) msg.query = query;
@@ -237,6 +263,10 @@
     window.location.assign(s.url + (query ? (s.url.indexOf('?') === -1 ? '?' : '&') + query : ''));
   }
   function officeQuery(st) { return 'kind=' + encodeURIComponent(st.kind) + '&starter=' + encodeURIComponent(st.id) + '&theme=' + encodeURIComponent(st.theme || ''); }
+  document.getElementById('backHome').addEventListener('click', function () {
+    if (embedded) window.parent.postMessage({ type: 'app-navigate', tool: 'create-home' }, window.location.origin);
+    else window.location.assign('/api/create/home');
+  });
 
   /* ── Previews drawn from the starter's real section titles ── */
   function titlesOf(outline) { return String(outline || '').split(/\n\s*\n/).map(function (b) { return (b.split('\n')[0] || '').trim(); }).filter(Boolean); }
@@ -267,6 +297,8 @@
     return slide;
   }
   function otherPreview(item) {
+    if (item.preview === 'design') { var design = el('div', 'mock slide'); design.style.background = '#231f42'; design.appendChild(svgNode('<svg viewBox="0 0 160 90" aria-hidden="true"><rect x="12" y="13" width="44" height="6" fill="#bef264"/><rect x="12" y="32" width="110" height="10" fill="#ffffff"/><rect x="12" y="49" width="86" height="10" fill="#ffffff"/><circle cx="137" cy="75" r="29" fill="#a78bfa"/></svg>')); return design; }
+    if (item.preview === 'cube') { var model = el('div', 'mock photo cube'); model.appendChild(svgNode(mark('cube'))); return model; }
     if (item.preview === 'photo') { var p = el('div', 'mock photo'); p.appendChild(svgNode('<svg viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="30" r="14" fill="#7d2ae8"/><path d="M12 76c3-18 15-24 28-24s25 6 28 24" fill="#a259ff"/></svg>')); return p; }
     var ph = el('div', 'mock phone'); var sc = el('div', 'screen'); sc.appendChild(svgNode('<svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M8 6l10 6-10 6z"/></svg>')); ph.appendChild(sc); return ph;
   }
@@ -300,7 +332,7 @@
     }
     b.appendChild(el('div', 'for', c.desc));
     b.setAttribute('aria-label', c.name + ' — ' + c.desc);
-    b.addEventListener('click', function () { go(c.studio, c.st ? officeQuery(c.st) : ''); });
+    b.addEventListener('click', function () { go(c.studio, c.st ? officeQuery(c.st) : c.other.query || ''); });
     return b;
   }
 
@@ -310,12 +342,12 @@
     catsEl.replaceChildren();
     var cards = allCards();
     CATEGORIES.forEach(function (c) {
-      var b = el('button', 'cat' + (c.id === activeCat ? ' on' : '')); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', c.id === activeCat ? 'true' : 'false');
+      var b = el('button', 'cat' + (c.id === activeCat ? ' on' : '')); b.type = 'button'; b.setAttribute('aria-pressed', c.id === activeCat ? 'true' : 'false');
       var ic = el('span', 'ic t-' + c.tint); ic.appendChild(svgNode(mark(c.mark))); b.appendChild(ic);
       b.appendChild(el('span', 'n', c.name));
       var n = c.id === 'foryou' ? cards.length : cards.filter(function (x) { return x.cat === c.id; }).length;
       b.appendChild(el('span', 'c', n));
-      b.addEventListener('click', function () { activeCat = c.id; activeGroup = 'all'; render(); });
+      b.addEventListener('click', function () { activeCat = c.id; activeGroup = 'all'; render(); catsEl.querySelector('[aria-pressed="true"]').focus({ preventScroll: true }); });
       catsEl.appendChild(b);
     });
   }
@@ -330,8 +362,9 @@
     var groups = groupsFor(activeCat); if (!groups.length) return;
     [{ id: 'all', label: 'Everything' }].concat(groups).forEach(function (g) {
       var b = el('button', g.id === activeGroup ? 'on' : ''); b.type = 'button';
+      b.setAttribute('aria-pressed', g.id === activeGroup ? 'true' : 'false');
       var sw = el('span', 'sw'); sw.style.background = g.id === 'all' ? 'var(--gradient)' : (SWATCH[g.id] || '#7d2ae8'); b.appendChild(sw); b.appendChild(el('span', null, g.label));
-      b.addEventListener('click', function () { activeGroup = g.id; render(); });
+      b.addEventListener('click', function () { activeGroup = g.id; render(); chipsEl.querySelector('[aria-pressed="true"]').focus({ preventScroll: true }); });
       chipsEl.appendChild(b);
     });
   }
@@ -349,18 +382,7 @@
       return;
     }
     if (activeCat === 'foryou') {
-      var popular = ['office-pitch', 'office-resume', 'office-budget', 'other-headshot', 'office-launch', 'office-project-plan', 'other-short', 'office-report'];
-      var pop = popular.map(function (id) { return cards.filter(function (c) { return c.id === id; })[0]; }).filter(Boolean);
-      if (pop.length) secEl.appendChild(section('Popular', 'The shapes people reach for first.', pop));
-      KINDS.forEach(function (k) {
-        var own = cards.filter(function (c) { return c.cat === k.id; });
-        if (own.length) secEl.appendChild(section(k.name + 's', 'Opens in ' + k.opens + '.', own));
-      });
-      ['portrait', 'video', 'story'].forEach(function (cat) {
-        var own = cards.filter(function (c) { return c.cat === cat; });
-        var c = CATEGORIES.filter(function (x) { return x.id === cat; })[0];
-        if (own.length) secEl.appendChild(section(c.name, '', own));
-      });
+      secEl.appendChild(section('All templates', 'Explore formats from your studios, or choose a category to narrow the list.', cards));
       return;
     }
     var k = kindOf(activeCat);

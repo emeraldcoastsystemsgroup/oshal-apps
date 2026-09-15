@@ -5,6 +5,9 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Real HTTP behaviour of the shipped compiled route: the home surface and the skin are served from the package dir captured at factory time, with no-store and the right content types; a package dir that lacks them answers 404 JSON, never a stack trace; unrelated paths fall through. Express itself is outside the claimed boundary and is replaced by the store's seam stub (plain node, no install, the AI Office destination-suite pattern); the response helpers the handlers call are implemented over Node's real ServerResponse.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | 1.1.0 — GET /new serves the New screen byte-for-byte.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | Use the catalog-compatible fixed theme namespace and verify the editor module allowlist.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | Verify exact editable-template modules and their missing-package responses.
+ * 5   | maintainer@emeraldcoastsystemsgroup.com     | Serve the Brand Kit page and its shared brand modules through the exact allowlist, with the same missing-package 404.
  *
  * Node built-ins only; ephemeral loopback listeners.
  */
@@ -78,7 +81,7 @@ test('the home surface and the skin are served byte-for-byte from the installed 
     assert.match(fresh.headers.get('content-type'), /^text\/html/);
     assert.equal(await fresh.text(), fs.readFileSync(path.join(PKG, 'tools', 'create-new.html'), 'utf8'));
 
-    const skin = await fetch(base + '/theme.css');
+    const skin = await fetch(base + '/theme/create.css');
     assert.equal(skin.status, 200);
     assert.match(skin.headers.get('content-type'), /^text\/css/);
     assert.equal(skin.headers.get('cache-control'), 'no-store');
@@ -90,11 +93,37 @@ test('the home surface and the skin are served byte-for-byte from the installed 
   });
 });
 
+test('the editor serves exact bundled modules and never arbitrary neighboring files', async () => {
+  await fixture(createCreateRoutes({ appPackageDir: PKG }), async (base) => {
+    for (const [route, relative, type] of [
+      ['/editor', 'tools/create-editor.html', 'text/html'],
+      ['/editor/model.mjs', 'tools/editor/model.mjs', 'text/javascript'],
+      ['/editor/templates.mjs', 'tools/editor/templates.mjs', 'text/javascript'],
+      ['/editor/editor-templates.mjs', 'tools/editor/editor-templates.mjs', 'text/javascript'],
+      ['/editor/editor.css', 'tools/editor/editor.css', 'text/css'],
+      ['/brand', 'tools/create-brand.html', 'text/html'],
+      ['/editor/brand-kit.mjs', 'tools/editor/brand-kit.mjs', 'text/javascript'],
+      ['/editor/brand-page.mjs', 'tools/editor/brand-page.mjs', 'text/javascript'],
+      ['/editor/brand-editor.mjs', 'tools/editor/brand-editor.mjs', 'text/javascript'],
+      ['/editor/brand.css', 'tools/editor/brand.css', 'text/css'],
+    ]) {
+      const response = await fetch(base + route);
+      assert.equal(response.status, 200);
+      assert.ok(response.headers.get('content-type').startsWith(type));
+      assert.equal(response.headers.get('cache-control'), 'no-store');
+      assert.equal(await response.text(), fs.readFileSync(path.join(PKG, relative), 'utf8'));
+    }
+    for (const route of ['/editor/README.md', '/editor/authorization.yaml', '/theme/other.css', '/editor/%2e%2e%2foshal-app.yaml']) {
+      assert.equal((await fetch(base + route)).status, 404);
+    }
+  });
+});
+
 test('a package dir without the bundled files answers 404 JSON, never a stack trace', async () => {
   const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'create-empty-'));
   try {
     await fixture(createCreateRoutes({ appPackageDir: empty }), async (base) => {
-      for (const route of ['/home', '/new', '/theme.css']) {
+      for (const route of ['/home', '/new', '/theme/create.css', '/editor/templates.mjs', '/editor/editor-templates.mjs', '/brand', '/editor/brand-kit.mjs']) {
         const r = await fetch(base + route);
         assert.equal(r.status, 404, route);
         assert.deepEqual(await r.json(), { error: 'not_found' });
@@ -114,7 +143,7 @@ test('the package dir is captured at factory time, not read per request', async 
     // A later mount of ANOTHER package moves the load-time channel; this package must not follow it.
     process.env.OSHAL_APP_PACKAGE_DIR = other;
     await fixture(handler, async (base) => {
-      const r = await fetch(base + '/theme.css');
+      const r = await fetch(base + '/theme/create.css');
       assert.equal(r.status, 200);
       assert.match(await r.text(), /\[data-theme="create"\]/);
     });

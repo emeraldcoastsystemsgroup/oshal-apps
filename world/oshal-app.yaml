@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1: register every shipped test and preserve the existing readiness smoke for versioned Test Lab discovery.
+# -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — world ("World Intelligence", ADR-061)
 #
@@ -41,7 +47,11 @@ description: >-
   sentiment graph (political + economic + outlet-kind axes), entity co-mention graph,
   and historical series. Ask the analyst "what's the press saying about X" and get a
   structured, bias-contextualized read, not a misleading average.
-version: 1.2.0
+version: 1.2.1
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+uses: [test-catalog, app-dependencies]
 status: active
 
 source:
@@ -66,9 +76,14 @@ smoke:
 # No connector allow-list: the world layer is machine-fed from public feed
 # registries + the shared swarm creds — no per-user OAuth connector involved.
 dependencies:
-  apps: []
-  tools: []
-  connectors: []
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
 
 theme: midnight
 

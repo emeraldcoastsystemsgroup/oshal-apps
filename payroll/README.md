@@ -1,3 +1,7 @@
+<!-- CHANGE LOG
+SEQ | AUTHOR | DESCRIPTION
+1 | maintainer@emeraldcoastsystemsgroup.com | Document complete package test registration and honest isolated execution boundaries (2.3.1).
+-->
 # payroll — run payroll for your team, ADP-style
 
 An installable OSHAL app package (ADR-085; design in [ADR-123](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/adr/123-payroll-app.md)).
@@ -205,3 +209,19 @@ rejected by the bank's reader-sorter or posted to the wrong account, and the ban
 toner no software can supply. Checks therefore print onto your bank's pre-encoded stock. This is the
 same rule the state tax tables follow: **a wrong table is worse than an absent one, because the
 operator cannot tell it is wrong.**
+
+## AI Test Lab registration
+
+Version 2.3.1 declares `test-catalog` and [tests/test-lab.yaml](tests/test-lab.yaml). Installation registers all 13 shipped Node test files as separate unit-suite cases, plus the existing `package-readiness` smoke case. Registration does not execute these suites.
+
+The local Lab can run 13 suites in its sealed Node sandbox. They exercise the committed compiled modules with synthetic inputs; route/store suites use explicit router, database, logger, vault or bot stubs. They do not establish real HTTP, database/RLS, browser, provider, payment or deployment acceptance.
+
+Open **AI Test Lab**, choose this application and select **Run**. Each declared suite has a 60-second limit and 256 MiB memory bound. The controller stages only eligible package code and starts a disposable, network-disabled container without host mounts or deployment credentials. Results bind the package version and staged source revision; an unavailable runner stays pending.
+
+Existing test commands remain available for a source checkout:
+
+```bash
+node --test tests/*.test.mjs
+```
+
+Payroll vectors use synthetic identities and versioned tax/calendar tables. Artifact tests create text in memory; they do not submit payroll, tax filings or bank instructions. Passing arithmetic tests do not verify a new tax year or external filing acceptance.

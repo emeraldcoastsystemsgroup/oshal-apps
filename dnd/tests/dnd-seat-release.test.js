@@ -140,7 +140,9 @@ test('release rejects unauthorized, owner, malformed, and missing targets', asyn
 
 test('Party and Lobby render host-only confirmed AI takeover controls', () => {
   const seatUi = fs.readFileSync(path.join(root, 'ui', 'table-seats.js'), 'utf8');
-  const screens = fs.readFileSync(path.join(root, 'ui', 'table-screens.js'), 'utf8');
+  // The dock lives in table-dock.js since the decomposition; the surface is both files.
+  const screens = fs.readFileSync(path.join(root, 'ui', 'table-screens.js'), 'utf8')
+    + fs.readFileSync(path.join(root, 'ui', 'table-dock.js'), 'utf8');
   assert.match(seatUi, /!campaign\.is_owner \|\| !seat \|\| seat\.me \|\| !seat\.seatKey/);
   assert.match(seatUi, /Make AI Companion/); assert.match(seatUi, /Remove waiting player/);
   assert.match(seatUi, /api\('\/campaign\/release-seat'/);

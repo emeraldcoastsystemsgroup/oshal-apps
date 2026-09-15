@@ -20,7 +20,8 @@ const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
 test('the current quest stays above history and can replay a missed opening', () => {
   const html = read('ui/table.html');
   const story = read('ui/table-story.js');
-  const screens = read('ui/table-screens.js');
+  // The dock lives in table-dock.js since the decomposition; the surface is both files.
+  const screens = read('ui/table-screens.js') + read('ui/table-dock.js');
   const css = read('ui/dnd.css');
 
   assert.match(html, /id="questThread"[\s\S]*id="questTitle"[\s\S]*id="questAnchor"/);

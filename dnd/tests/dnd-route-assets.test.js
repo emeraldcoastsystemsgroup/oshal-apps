@@ -30,7 +30,7 @@ const { createDndRoutes } = require('../routes/dnd-routes');
 const root = path.join(__dirname, '..');
 const scripts = [
   'engine.js', 'leads.js', 'table-runtime.js', 'table-voice.js', 'table-dice.js', 'table-presentation.js', 'table-turns.js', 'table-combat-narration.js', 'table-automation.js',
-  'table-outcomes.js', 'table-story.js', 'table-character-sheet.js', 'table-seats.js', 'table-playback.js', 'table-immersive.js', 'table-screens.js',
+  'table-outcomes.js', 'table-story.js', 'table-character-sheet.js', 'table-seats.js', 'table-playback.js', 'table-immersive.js', 'table-dock.js', 'table-screens.js',
 ];
 
 /** @description Invoke a public asset route and wait for its callback response. */

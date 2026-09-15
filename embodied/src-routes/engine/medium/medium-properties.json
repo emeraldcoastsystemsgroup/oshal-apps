@@ -1,0 +1,117 @@
+{
+  "schema": "oshal.medium-properties/1",
+  "adr": "ADR-160 D7 — a medium is a named record, and a force model declares what it needs",
+  "what": "ONE COMMITTED DATA ROW PER MEDIUM. D3 forbids a cross-package runtime import, so each lab implements the media it can answer for in its own language — but a lab may differ only in what it can ANSWER, never in what a medium's properties ARE. This file is the values half. It is deliberately dependency-free JSON so a cross-package drift test (ADR-160 S5) can read it beside aero-lab's Python atmosphere constants and ocean-lab's TypeScript seawater constants and fail when any of them disagree.",
+  "notWhat": "Not a solver, not an answer machine, and not a claim that this lab resolves a column. The `implementation` block on each row states exactly what THIS lab answers; `properties` is the shared half a drift test compares.",
+  "units": {
+    "gravityMps2": "m/s^2, a vector in the plant's world frame (x, y, z), z up",
+    "densityKgM3": "kg/m^3",
+    "dynamicViscosityPaS": "Pa*s — dynamic, because that is what an atmosphere model produces (mu_Pas). Kinematic viscosity is mu/rho and is DERIVED, never stored here (D7)",
+    "speedOfSoundMs": "m/s, null when the medium cannot answer — never defaulted",
+    "temperatureK": "K, null when the medium cannot answer — never defaulted",
+    "heightM": "metres above the medium's own datum, positive up. The validity coordinate."
+  },
+  "earthSurfaceGravityMps2": 9.81,
+  "earthSurfaceGravitySource": "The value this package has always written into its MJCF <option> (engine/physics/mjcf.ts G_MPS2). Standard gravity rounded to three figures. ISA's g0 = 9.80665 in aero-lab's atmosphere.py is a DIFFERENT quantity — the geopotential reference constant its pressure law is built on — not a second answer to the plant's gravity.",
+  "media": {
+    "vacuum": {
+      "id": "vacuum",
+      "label": "Vacuum (Earth surface gravity)",
+      "summary": "What this package's drone plant has always run in without saying so: gravity, mass and contact, no fluid at all.",
+      "properties": {
+        "gravityMps2": [0, 0, -9.81],
+        "densityKgM3": 0,
+        "dynamicViscosityPaS": 0,
+        "speedOfSoundMs": null,
+        "temperatureK": null
+      },
+      "implementation": {
+        "resolution": "constant",
+        "field": null,
+        "freeSurface": null,
+        "validity": {
+          "coordinate": "heightM",
+          "minM": -1000,
+          "maxM": 1000,
+          "why": "Gravity is the only property a rigid body takes from this medium, and dg/dh = -2g/R_earth = -3.09e-6 s^-2, so 9.81 holds to 3.1e-4 relative over +/-1000 m of the datum. Outside that band this row would be extrapolating a constant it has no basis for, and it refuses instead."
+        }
+      },
+      "provenance": {
+        "densityKgM3": "Zero by definition — a vacuum. ADR-160 D7: 'Vacuum is trivial: density zero, no field, no free surface'.",
+        "dynamicViscosityPaS": "Zero by definition. Kinematic viscosity mu/rho is 0/0 and is therefore UNAVAILABLE rather than zero — asking for it is medium_property_unavailable.",
+        "gravityMps2": "earthSurfaceGravityMps2 above."
+      }
+    },
+    "air": {
+      "id": "air",
+      "label": "Air (ISA sea level)",
+      "summary": "Standard-atmosphere air at the sea-level station. aero-lab resolves the whole column; this lab answers one station and says so.",
+      "properties": {
+        "gravityMps2": [0, 0, -9.81],
+        "densityKgM3": 1.225,
+        "dynamicViscosityPaS": 1.78938e-5,
+        "speedOfSoundMs": 340.2941,
+        "temperatureK": 288.15
+      },
+      "implementation": {
+        "resolution": "constant-at-reference-station",
+        "referenceHeightM": 0,
+        "field": { "model": "still", "velocityMs": [0, 0, 0], "why": "This lab models no wind. A still field is an answer, not a silent zero: its velocity and its gradient are both identically zero everywhere and it says so by name. aero-lab's WindField.sample -> WindSample (engine/aerosim/env/wind.py) is the resolving implementation; ADR-160 D7 names it as the seed shape and D3 forbids importing it across packages." },
+        "freeSurface": null,
+        "validity": {
+          "coordinate": "heightM",
+          "minM": -100,
+          "maxM": 100,
+          "why": "THIS LAB'S CHOSEN BAND, stated as a choice: a constant sea-level density is within about 1 % over the surface layer +/-100 m, and this lab does not resolve the column, so it refuses outside rather than extrapolating. The authoritative band is aero-lab's atmosphere, valid over [-5000, 47000] m and raising outside it (engine/aerosim/env/atmosphere.py ALTITUDE_MIN_M / ALTITUDE_MAX_M, and env/__init__.py's own note that it RAISES rather than clamping)."
+        }
+      },
+      "provenance": {
+        "densityKgM3": "1.2250 kg/m^3 — the sea-level entry of aero-lab's own ISA validation table, engine/aerosim/env/atmosphere.py (the (0.0, 1.2250) reference pair it checks itself against, repeated at integrate.py's reference chain).",
+        "dynamicViscosityPaS": "Sutherland's law at T = 288.15 K with aero-lab's own committed constants: mu = SUTHERLAND_C1_PA_S_PER_SQRT_K * T^1.5 / (T + SUTHERLAND_S_K) = 1.458e-6 * 288.15^1.5 / (288.15 + 110.4) = 1.7893802780775830e-05 Pa*s, carried here to six significant figures.",
+        "speedOfSoundMs": "a = sqrt(GAMMA_AIR * R_AIR_J_PER_KG_K * T) = sqrt(1.4 * (8314.32 / 28.9644) * 288.15) = 340.2941077869353 m/s, from the same module's constants. aeropolar.py writes the same number rounded as 340.29.",
+        "temperatureK": "_T0_K = 288.15, aero-lab engine/aerosim/env/atmosphere.py.",
+        "gravityMps2": "earthSurfaceGravityMps2 above — gravity is a property of the place, not of the fluid, so all three Earth-surface rows carry the same vector."
+      }
+    },
+    "seawater": {
+      "id": "seawater",
+      "label": "Seawater (coastal)",
+      "summary": "Constant-density coastal seawater. ocean-lab resolves the column and carries a free surface with wave and current fields; this lab carries NEITHER, which is why a flotation question in this medium is a refusal rather than a number.",
+      "properties": {
+        "gravityMps2": [0, 0, -9.81],
+        "densityKgM3": 1025,
+        "dynamicViscosityPaS": 0.00107625,
+        "speedOfSoundMs": null,
+        "temperatureK": null
+      },
+      "implementation": {
+        "resolution": "constant",
+        "field": { "model": "still", "velocityMs": [0, 0, 0], "why": "This lab models neither wave nor current. ocean-lab's marine and rotor-design engines carry those; D3 forbids importing them, and a still field states the absence by name instead of pretending to a sea state." },
+        "freeSurface": null,
+        "validity": {
+          "coordinate": "heightM",
+          "minM": -1000,
+          "maxM": 0,
+          "why": "Fully submerged seawater, measured down from the datum. There is no free surface in this row, so the medium has no answer at all above the datum and refuses there; 1000 m is this lab's chosen floor, below which a constant-density row with no pressure law has no business answering."
+        }
+      },
+      "provenance": {
+        "densityKgM3": "1025 kg/m^3 — ocean-lab's own committed constant SEAWATER_DENSITY_KGM3. It is declared TWICE inside that package (src-routes/engine/marine/services/power-budget.ts:32 and src-routes/engine/rotor-design/services/rotor-presets.ts:26); ADR-160 D8 names that duplication as the disease, and this row is the single value both of those must agree with. It is also the density the autonomous-explorer design study used: its published 24.1 L float displacement giving 24.7 kg of buoyancy is 0.0241 m^3 * 1025 kg/m^3 = 24.7025 kg.",
+        "dynamicViscosityPaS": "DERIVED, once, from ocean-lab's two committed constants: mu = rho * nu = 1025 kg/m^3 * 1.05e-6 m^2/s (SEAWATER_KINEMATIC_VISCOSITY_M2S, src-routes/engine/rotor-design/services/section-polar.ts:33) = 1.07625e-3 Pa*s exactly. Stored dynamic because D7 says dynamic is what a medium carries; nu comes back out as mu/rho.",
+        "speedOfSoundMs": "null — neither ocean-lab nor this lab carries one, and D7 forbids defaulting a property a medium cannot answer.",
+        "temperatureK": "null — ocean-lab's constants are labelled 'coastal temperature and salinity' without committing to a temperature, so there is nothing to carry."
+      }
+    }
+  },
+  "driftTest": {
+    "owner": "ADR-160 S5",
+    "checks": [
+      "seawater.properties.densityKgM3 == ocean-lab SEAWATER_DENSITY_KGM3 in BOTH src-routes/engine/marine/services/power-budget.ts and src-routes/engine/rotor-design/services/rotor-presets.ts",
+      "seawater.properties.dynamicViscosityPaS / seawater.properties.densityKgM3 == ocean-lab SEAWATER_KINEMATIC_VISCOSITY_M2S in src-routes/engine/rotor-design/services/section-polar.ts",
+      "air.properties.densityKgM3 == aero-lab engine/aerosim/env/atmosphere.py atmosphere(0.0).rho_kgm3",
+      "air.properties.dynamicViscosityPaS == aero-lab engine/aerosim/env/atmosphere.py atmosphere(0.0).mu_Pas",
+      "air.properties.speedOfSoundMs == aero-lab engine/aerosim/env/atmosphere.py atmosphere(0.0).a_ms",
+      "air.properties.temperatureK == aero-lab engine/aerosim/env/atmosphere.py _T0_K"
+    ]
+  }
+}

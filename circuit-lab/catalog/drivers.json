@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "about": "Shaft drivers a person can drop onto the canvas with their nameplate filled in. Every row's nameplate validates against the part contract (tests/driver-catalog.test.js). `source` says where each number came from; a number marked typical is not a measurement — replace it from the datasheet of the unit bought. Rows used by another package name it in usedBy and a read-only cross-package test keeps the shared numbers (name, mass, price) equal.",
+  "drivers": [
+    {
+      "id": "brushed-12v-generic",
+      "type": "motor",
+      "name": "Generic 12 V brushed DC motor",
+      "kind": "brushed",
+      "massG": 150,
+      "approxUsd": 8,
+      "nameplate": { "nominalVolts": 12, "stallAmps": 5, "noLoadRpm": 3000, "noLoadAmps": 0.2, "inductanceMh": 1, "rotorInertiaGcm2": 10 },
+      "source": "the lab's own default DC motor (the contract defaults): a mid-size hobby motor, typical values, not a measurement",
+      "usedBy": []
+    },
+    {
+      "id": "bl-2306-1800kv",
+      "type": "motor",
+      "name": "2306 brushless, 1700–1900 KV",
+      "kind": "brushless",
+      "kv": 1800,
+      "cells": 4,
+      "massG": 30,
+      "approxUsd": 18,
+      "nameplate": { "nominalVolts": 14.8, "stallAmps": 247, "noLoadRpm": 26640, "noLoadAmps": 1.0, "inductanceMh": 0.02, "rotorInertiaGcm2": 3 },
+      "source": "name, mass and price from the embodied parts model (DRONE_FITS['recon-mini'].motor); noLoadRpm = 1800 KV x 14.8 V (4S nominal); Ke follows from KV (60 / (2 pi KV) = 5.3 mV s/rad); the 0.06 ohm winding (stall 247 A), 1 A no-load, 20 uH and 3 g cm2 are typical 2306 values, not measured. Solved as its DC equivalent behind an ESC.",
+      "usedBy": ["embodied:recon-mini"]
+    },
+    {
+      "id": "bl-2807-1300kv",
+      "type": "motor",
+      "name": "2807 brushless, 1300 KV",
+      "kind": "brushless",
+      "kv": 1300,
+      "cells": 6,
+      "massG": 45,
+      "approxUsd": 28,
+      "nameplate": { "nominalVolts": 22.2, "stallAmps": 278, "noLoadRpm": 28860, "noLoadAmps": 1.2, "inductanceMh": 0.03, "rotorInertiaGcm2": 6 },
+      "source": "name, mass and price from the embodied parts model (DRONE_FITS['recon-3d'].motor); noLoadRpm = 1300 KV x 22.2 V (6S nominal); Ke follows from KV (7.3 mV s/rad); the 0.08 ohm winding (stall 278 A), 1.2 A no-load, 30 uH and 6 g cm2 are typical 2807 values, not measured. Solved as its DC equivalent behind an ESC.",
+      "usedBy": ["embodied:recon-3d"]
+    },
+    {
+      "id": "servo-micro-9g",
+      "type": "servo",
+      "name": "9 g micro servo (SG90 class)",
+      "kind": "servo",
+      "massG": 9,
+      "approxUsd": 3,
+      "nameplate": { "nominalVolts": 5, "stallAmps": 0.7, "runAmps": 0.2, "stallTorqueMnm": 180, "noLoadDegPerS": 500, "travelDeg": 180, "minPulseMs": 1.0, "maxPulseMs": 2.0, "idleAmps": 0.01, "rotorInertiaGcm2": 500 },
+      "source": "the class's usual sheet: 4.8–6 V, 1.8 kg cm (180 mN m) stall, 0.1–0.12 s per 60 deg (500–600 deg/s), 1–2 ms pulses at 50 Hz; stall and running currents and the reflected inertia are typical, not measured",
+      "usedBy": []
+    },
+    {
+      "id": "stepper-nema17-17hs4401",
+      "type": "stepper",
+      "name": "NEMA 17 stepper (17HS4401 class)",
+      "kind": "stepper",
+      "massG": 280,
+      "approxUsd": 12,
+      "nameplate": { "stepsPerRev": 200, "phaseOhms": 1.5, "phaseMh": 2.8, "ratedAmps": 1.7, "holdingTorqueMnm": 400, "detentTorqueMnm": 22, "rotorInertiaGcm2": 54, "dampingRatio": 0.15 },
+      "source": "the class's usual sheet: 1.8 deg, 1.7 A, 1.5 ohm, 2.8 mH, 40 N cm holding, 2.2 N cm detent, 54 g cm2 rotor; the damping ratio is the lab's modelling default, not a datasheet figure",
+      "usedBy": []
+    }
+  ]
+}

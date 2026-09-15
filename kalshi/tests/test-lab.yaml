@@ -1,0 +1,66 @@
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the existing metadata-only package smoke without user data or provider calls.
+    level: integration
+    runner: { kind: smoke, smoke: package-readiness }
+    expected: [The installed kalshi readiness marker satisfies the manifest assertions.]
+    prerequisites: []
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: safe-smoke
+  - id: briefing-delivery
+    name: Registered briefing enqueue behavior
+    purpose: Exercise the compiled public scan producer using real alert decisions and isolated task-writer ports.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/kalshi-briefing-delivery.test.js] }
+    expected:
+      - Declined or failed enqueues never complete missing tasks or mark Jarvis delivery.
+      - Accepted enqueues retain the exact recipient and registered producer session.
+      - Existing package opt-out and separate outward opt-in retain their behavior.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Each case loads a fresh compiled module and uses only in-memory dependency fixtures. }
+    limits: { timeoutMs: 30000, maxMemoryMb: 256 }
+    installation: never
+  - id: scan-config-alert-rules
+    name: Scan configuration and alert decisions
+    purpose: Run the existing compiled-module configuration, scope, freshness, deduplication and alert-rule tests.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/kalshi-scan-config.test.js] }
+    expected:
+      - Configuration layers, authority scopes and value bounds retain the declared defaults.
+      - Alert floors, first-seen rules, daily budgets and settlement summaries stay correct.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000, maxMemoryMb: 256 }
+    installation: never
+  - id: trends
+    name: Saved market trend calculations
+    purpose: Run the existing compiled-module trend calculations without framework services or provider calls.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/kalshi-trends.test.js] }
+    expected:
+      - Daily cumulative values and rolling settlement windows preserve their mathematics.
+      - Strategy grouping and days-to-verdict projections remain read-only.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000, maxMemoryMb: 256 }
+    installation: never
+  - id: settings-alerts-browser
+    name: Settings and alerts in Chromium
+    purpose: Run the existing Node browser harness over the shipped route and surface using synthetic signed sessions.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/kalshi-settings-alerts-browser.test.js] }
+    expected:
+      - Caller settings persist within the caller scope and deployment settings require an operator.
+      - Cross-user, anonymous and forged requests fail closed while saved alert results render correctly.
+    prerequisites: [runner:node-test, dependency:express, dependency:playwright, browser:chromium]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: The harness closes Chromium and its loopback HTTP server; settings and accounts exist only in fixture memory. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never

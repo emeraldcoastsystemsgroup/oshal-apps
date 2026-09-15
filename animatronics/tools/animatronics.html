@@ -1,0 +1,183 @@
+<!doctype html>
+<!--
+  Animatronics — a prop as a rig of servos with calibration and software limits, a pose library and
+  Glicksman-style scenes/scenarios, compiled by the server to a 50 Hz frame stream, rehearsed on
+  rate-limited servos with a supply budget, and streamed from this page to the motion controller
+  (ESP32 / Arduino + PCA9685) over Web Serial. A cockpit surface: its behaviour, view and link are
+  served by this package's route (/api/animatronics/assets/…); the theme is inherited from the
+  surrounding cockpit through the shared surface-theme bootstrap with local fallbacks. (.html is
+  exempt from the CHANGE LOG header.)
+-->
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Animatronics</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  :root { --an-bg: var(--bg, var(--bg-primary, #12151c)); --an-panel: var(--panel, var(--bg-card, #1b1f29)); --an-panel2: var(--panel2, var(--bg-tertiary, #232836));
+          --an-text: var(--text, var(--text-primary, #e6e9ef)); --an-muted: var(--muted, var(--text-muted, #9aa3b2)); --an-line: var(--line, var(--border-color, #2f3646));
+          --an-accent: var(--accent, #ff8c42); --an-danger: var(--danger, #e5534b); --an-ok: var(--ok, #3fb950); --an-warn: var(--warn, #d29922); }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--an-text); background: var(--an-bg); }
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--an-line); background: var(--an-panel); }
+  header h1 { font-size: 16px; margin: 0; }
+  header .spacer { flex: 1; }
+  .layout { display: grid; grid-template-columns: 220px 1fr 300px; min-height: calc(100vh - 49px); }
+  aside { border-right: 1px solid var(--an-line); padding: 12px; background: var(--an-panel); overflow: auto; }
+  aside.right { border-right: 0; border-left: 1px solid var(--an-line); }
+  main { padding: 12px 16px 40px; overflow: auto; min-width: 0; }
+  .rig-item { display: flex; justify-content: space-between; align-items: center; width: 100%; text-align: left; padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--an-line); border-radius: 8px; background: var(--an-panel2); color: var(--an-text); cursor: pointer; }
+  .rig-item.active { border-color: var(--an-accent); }
+  .rig-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--an-line); color: var(--an-muted); white-space: nowrap; }
+  .badge.ok { border-color: var(--an-ok); color: var(--an-ok); }
+  .badge.warn { border-color: var(--an-warn); color: var(--an-warn); }
+  .badge.danger { border-color: var(--an-danger); color: var(--an-danger); }
+  .badge.accent { border-color: var(--an-accent); color: var(--an-accent); }
+  section.step { border: 1px solid var(--an-line); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; background: var(--an-panel); }
+  section.step h2 { font-size: 14px; margin: 0 0 8px; }
+  section.step h2 small { color: var(--an-muted); font-weight: normal; margin-left: 8px; }
+  button, input, select, textarea { font: inherit; color: var(--an-text); }
+  button.primary { background: var(--an-accent); color: #111; border: 0; border-radius: 8px; padding: 6px 12px; cursor: pointer; font-weight: 600; }
+  button.primary:disabled { opacity: .45; cursor: default; }
+  button.ghost { background: transparent; border: 1px solid var(--an-line); border-radius: 8px; padding: 4px 9px; cursor: pointer; }
+  button.ghost:disabled { opacity: .45; cursor: default; }
+  button.link { background: none; border: 0; color: var(--an-accent); cursor: pointer; padding: 0 4px; }
+  button.link.danger { color: var(--an-danger); }
+  button.estop { background: var(--an-danger); color: #fff; border: 0; border-radius: 8px; padding: 8px 16px; font-weight: 700; letter-spacing: .04em; cursor: pointer; }
+  button.estop:disabled { opacity: .35; cursor: default; }
+  input[type=number], input[type=text], select, textarea { background: var(--an-panel2); border: 1px solid var(--an-line); border-radius: 6px; padding: 4px 8px; }
+  input[type=number] { width: 78px; }
+  textarea { width: 100%; min-height: 160px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; }
+  .muted { color: var(--an-muted); }
+  .small { font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--an-line); white-space: nowrap; }
+  th { color: var(--an-muted); font-weight: 500; }
+  td input[type=number] { width: 64px; padding: 2px 4px; }
+  svg#view { width: 100%; max-width: 640px; height: auto; aspect-ratio: 4 / 3; border-radius: 8px; border: 1px solid var(--an-line); background: var(--an-panel2); display: block; }
+  svg#view .skull { fill: var(--an-panel); stroke: var(--an-text); stroke-width: 2; }
+  svg#view .eye { fill: #fff; stroke: var(--an-text); stroke-width: 1.5; }
+  svg#view .pupil { fill: #111; }
+  svg#view .lid { fill: var(--an-panel); stroke: none; }
+  svg#view .jaw { fill: none; stroke: var(--an-text); stroke-width: 2; }
+  svg#view .mouth { fill: #111; }
+  svg#view .bartrack { fill: var(--an-panel2); stroke: var(--an-line); }
+  svg#view .bar { fill: var(--an-accent); }
+  svg#view .barlabel { fill: var(--an-muted); font-size: 11px; font-family: ui-monospace, monospace; }
+  .timeline { display: flex; gap: 10px; align-items: center; margin-top: 8px; max-width: 640px; }
+  .timeline input[type=range] { flex: 1; }
+  .jog-row { display: grid; grid-template-columns: 130px 1fr 70px; gap: 8px; align-items: center; margin: 4px 0; }
+  .jog-row input[type=range] { width: 100%; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { display: inline-flex; gap: 4px; align-items: center; border: 1px solid var(--an-line); border-radius: 999px; padding: 2px 6px 2px 10px; background: var(--an-panel2); font-size: 12px; }
+  .chip button { padding: 0 4px; }
+  #lookpad { position: relative; width: 240px; height: 140px; border: 1px solid var(--an-line); border-radius: 8px; background: var(--an-panel2); cursor: crosshair; }
+  #lookpad .mark { position: absolute; width: 10px; height: 10px; margin: -5px; border-radius: 50%; background: var(--an-accent); pointer-events: none; }
+  .verdict { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--an-line); margin-bottom: 8px; }
+  .verdict.ok { border-color: var(--an-ok); }
+  .verdict.bad { border-color: var(--an-danger); }
+  ul#runs { list-style: none; margin: 0; padding: 0; font-size: 12px; }
+  ul#runs li { padding: 3px 0; border-bottom: 1px solid var(--an-line); display: flex; gap: 8px; }
+  .toast { position: fixed; right: 16px; bottom: 16px; padding: 10px 14px; border-radius: 8px; background: var(--an-panel2); border: 1px solid var(--an-line); max-width: 420px; z-index: 5; }
+  .toast.error { border-color: var(--an-danger); }
+  .toast.ok { border-color: var(--an-ok); }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 12px; }
+  .kv b { color: var(--an-muted); font-weight: 500; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Animatronics</h1>
+  <span id="armed-pill" class="badge">disarmed</span>
+  <span id="link-pill" class="badge">controller: not connected</span>
+  <span class="spacer"></span>
+  <button id="release" class="ghost" title="Release the controller's e-stop latch (the rig still has to be armed again)" disabled>Release</button>
+  <button id="estop" class="estop" title="Outputs off on the controller, rig disarmed on the server" disabled>E-STOP</button>
+</header>
+<div class="layout">
+  <aside>
+    <div class="row"><select id="template-select"></select><button id="new-rig" class="primary">New rig</button></div>
+    <div id="rigs"></div>
+    <p class="muted small">A rig is servos with calibration and software limits, grouped into mechanisms. Start from a template; change the calibration once the mechanism is on the bench.</p>
+  </aside>
+  <main>
+    <div id="empty" class="muted">Create a rig from a template, or pick one on the left.</div>
+    <div id="editor" hidden>
+      <section class="step">
+        <h2>Rig view <small id="view-hint">the drawing follows the rehearsal — what the servos were asked to do</small></h2>
+        <svg id="view" viewBox="0 0 480 360" role="img" aria-label="Rig view"></svg>
+        <div class="timeline"><input id="timeline" type="range" min="0" max="0" value="0" /><span id="time-label" class="small muted">—</span><button id="replay" class="ghost" disabled>Replay</button><span id="stream-state" class="badge">idle</span></div>
+      </section>
+      <section class="step">
+        <h2>Rig <small>calibration and limits — saving a rig change disarms it</small></h2>
+        <div class="row"><input id="rig-title" type="text" style="width:260px" /><button id="save-title" class="ghost">Rename</button><span class="spacer"></span><button id="delete-rig" class="link danger">Delete rig</button></div>
+        <div class="row small">
+          <span class="muted">Supply</span><select id="supply-source"><option value="bench">bench</option><option value="wall">wall</option><option value="battery">battery</option><option value="usb">usb</option></select>
+          <input id="supply-volts" type="number" step="0.1" /> V <input id="supply-amps" type="number" step="0.1" /> A
+          <span class="muted">Controller</span><select id="controller-board"></select><select id="controller-transport"><option value="web-serial">web-serial</option><option value="wifi-tcp">wifi-tcp</option></select><input id="controller-baud" type="number" step="1" /> baud
+        </div>
+        <div style="overflow:auto"><table id="channels"><thead><tr><th>channel</th><th>out</th><th>servo</th><th>centre µs</th><th>µs/°</th><th>rev</th><th>min °</th><th>max °</th><th>neutral °</th><th>min µs</th><th>max µs</th><th>°/s</th></tr></thead><tbody></tbody></table></div>
+        <div class="row"><button id="save-rig" class="primary">Save calibration</button><span id="axes-label" class="muted small"></span></div>
+      </section>
+      <section class="step">
+        <h2>Jog <small id="jog-hint">sliders move the drawing; arm with the controller connected to move the prop</small></h2>
+        <div id="jog"></div>
+        <div class="row"><button id="capture-pose" class="ghost">Capture as pose…</button><button id="jog-neutral" class="ghost">Neutral</button></div>
+      </section>
+      <section class="step">
+        <h2>Poses <small>view = rehearse the move here · ▶ = play on the prop</small></h2>
+        <div id="poses" class="chips"></div>
+      </section>
+      <section class="step">
+        <h2>Scenarios <small>a timed script of scenes — the Glicksman shape</small></h2>
+        <div class="row"><select id="scenario-select"></select><button id="new-scenario" class="ghost">New…</button><button id="delete-scenario" class="link danger">Delete</button><span class="spacer"></span><button id="rehearse" class="ghost">Rehearse</button><button id="play" class="primary" disabled>▶ Play</button></div>
+        <textarea id="scenario-json" spellcheck="false"></textarea>
+        <div class="row"><button id="save-scenario" class="ghost">Save scenario</button><span class="muted small">steps: move {pose | axes, ms, ease} · hold {ms} · together {steps} · run {scenario} · repeat {times, steps}</span></div>
+      </section>
+      <section class="step">
+        <h2>Look at <small>click a bearing: eyes lead, neck follows; the residual is what neither can reach</small></h2>
+        <div class="row"><div id="lookpad"><div class="mark" style="left:50%;top:50%"></div></div><div id="look-readout" class="small muted">azimuth ±60°, elevation ±30° across the pad</div></div>
+      </section>
+      <section class="step">
+        <h2>Rehearsal <small>rate-limited servos and the supply budget, before any pulse</small></h2>
+        <div id="verdict" class="verdict muted">No rehearsal yet.</div>
+        <div style="overflow:auto"><table id="report-channels"><thead><tr><th>channel</th><th>asked °/s</th><th>rated °/s</th><th>lag °</th><th>saturated frames</th><th>settled</th><th>travel °</th></tr></thead><tbody></tbody></table></div>
+        <div id="power" class="small" style="margin-top:8px"></div>
+      </section>
+      <section class="step">
+        <h2>Command log</h2>
+        <ul id="runs"></ul>
+      </section>
+    </div>
+  </main>
+  <aside class="right">
+    <section class="step">
+      <h2>Controller</h2>
+      <div class="row"><button id="connect" class="primary">Connect (Web Serial)</button><button id="disconnect" class="ghost" disabled>Disconnect</button></div>
+      <p id="serial-support" class="muted small"></p>
+      <div id="link-info" class="kv"></div>
+      <div class="row" style="margin-top:10px"><button id="arm" class="primary" disabled>Arm rig…</button><button id="disarm" class="ghost" disabled>Disarm</button></div>
+      <p class="muted small">Arming sends hello, every channel's clamps and the neutral frame. Play, look-at and jog stream frames the server compiled. E-STOP turns outputs off on the controller first, then disarms on the server.</p>
+    </section>
+    <section class="step">
+      <h2>Supply budget</h2>
+      <div id="budget" class="kv muted">—</div>
+    </section>
+    <section class="step">
+      <h2>Talk</h2>
+      <p class="muted small">"Make it glance left and blink", "why does the jaw lag", "add a SURPRISED scenario". The director in the chat rail edits the same libraries through route-backed tools and rehearses every change; it cannot arm or play.</p>
+    </section>
+  </aside>
+</div>
+<div id="toast" class="toast" hidden></div>
+<script src="/api/animatronics/assets/protocol.js"></script>
+<script src="/api/animatronics/assets/animatronics-serial.js"></script>
+<script src="/api/animatronics/assets/animatronics-view.js"></script>
+<script src="/api/animatronics/assets/animatronics.js"></script>
+</body>
+</html>

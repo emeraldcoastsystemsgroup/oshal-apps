@@ -32,8 +32,9 @@
   2 | maintainer@emeraldcoastsystemsgroup.com | Require an explicit pull-more action before enqueueing drafts, render owner-scoped durable apply state, and state final-submit consent accurately.
   3 | maintainer@emeraldcoastsystemsgroup.com | Join the canonical surface theme rail (surface-themes.css + surface-theme.js) and derive every palette alias from framework tokens. The surface hardcoded a dark palette plus a prefers-color-scheme override, so it ignored the operator's chosen cockpit theme and rendered near-black on a light theme.
   4 | maintainer@emeraldcoastsystemsgroup.com | Paint the swipe deck's cards on the document's opaque ground. --card/--card2 are glass tokens and the deck stacks the next role under the lead one at the same inset, so the operator could read the next opportunity straight through the card they were about to swipe.
+  5 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
 -->
-<html lang="en" data-theme="midnight">
+<html lang="en" data-theme="midnight" data-career-surface="mobile">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
@@ -43,7 +44,7 @@
 <script src="/shared/ui/js/surface-theme.js"></script>
 <style>
 /* Every palette alias DERIVES from a framework token carried by surface-themes.css above, so all
-   eleven cockpit themes follow. The old prefers-color-scheme block is gone on purpose: the OS
+   supported cockpit themes follow. The old prefers-color-scheme block is gone on purpose: the OS
    setting is not the operator's choice — the cockpit theme is, and surface-theme.js applies it. */
 :root{
   --bg:var(--bg-primary); --bg2:var(--bg-secondary); --card:var(--bg-card); --card2:var(--bg-card-hover);
@@ -95,7 +96,7 @@ main{flex:1 1 auto;position:relative;overflow:hidden}
    straight through the one they are about to swipe. The glass gradient stays — it is what makes
    the card look like the rest of the cockpit — but it is now painted ON an opaque ground: the
    SAME token the document uses for its own ground (see `html{background:var(--bg)}` above), so
-   a card is exactly as opaque as the page in all eleven themes and no theme can regress it. */
+   a card is exactly as opaque as the page in all supported themes and no theme can regress it. */
 .jobcard{
   position:absolute;inset:0;
   background:linear-gradient(160deg,var(--card),var(--card2)),var(--bg);
@@ -221,6 +222,7 @@ nav button .badge{position:absolute;top:4px;left:calc(50% + 8px);min-width:16px;
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
 </head>
 <body>
 <div class="app">

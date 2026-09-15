@@ -21,14 +21,22 @@
   2   | maintainer@emeraldcoastsystemsgroup.com     | Unwrap the profile envelope ({ profile: {...} }) — the studios row rendered its empty state against the live api
   3   | maintainer@emeraldcoastsystemsgroup.com     | Starters open their studio on a purpose (app-navigate + query: kind=pptx|docx|xlsx); See every template → the New screen
   4   | maintainer@emeraldcoastsystemsgroup.com     | Authorization-aware: access asked first (GET /api/authorization/me?app=); a locked studio never opens and its probes are never asked
+  5   | maintainer@emeraldcoastsystemsgroup.com     | Follow the portal palette and live parent changes while retaining the bundled Create skin when application colors are enabled.
+  6   | maintainer@emeraldcoastsystemsgroup.com     | Compact recent-first workspace, responsive starter grid, keyboard section focus and search handoff parity.
+  7   | maintainer@emeraldcoastsystemsgroup.com     | Add 3D Scan-to-Print to studios, quick starts and owner-scoped summary discovery through existing access checks.
+  8   | maintainer@emeraldcoastsystemsgroup.com     | Open owned editable images with saved-project context and omit launcher aliases from studio cards.
+  9   | maintainer@emeraldcoastsystemsgroup.com     | Forward admitted image artifact handoffs to the editor while keeping ordinary Home visits unchanged.
+  10  | maintainer@emeraldcoastsystemsgroup.com     | Your brand band: the saved brand kit's swatches, fonts and logo (or a setup prompt), read only after Create access is open.
 -->
 <html lang="en" data-theme="create">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Create</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
 <!-- The package skin: the SAME tokens the cockpit wears while this app is focused. -->
-<link rel="stylesheet" href="/api/create/theme.css" />
+<link rel="stylesheet" href="/api/create/theme/create.css" />
 <style>
   /* Short alias names, each DERIVED from the framework tokens the skin defines. The hex after the
      comma is a last-resort fallback for a standalone open before the skin route answers. */
@@ -47,7 +55,7 @@
     --glow: var(--accent-glow, rgba(125,42,232,.22));
     --ok: var(--status-success, #0f9d58);
     --warn: var(--status-warning, #d97706);
-    --hero: var(--create-hero, linear-gradient(120deg,#e9e2ff 0%,#d9f1ff 48%,#dcfbf1 100%));
+    --hero: var(--create-hero, linear-gradient(120deg,var(--bg-tertiary),var(--bg-secondary)));
     --peach: var(--create-tint-peach, #ffe6d9);
     --lilac: var(--create-tint-lilac, #ebe2ff);
     --sky: var(--create-tint-sky, #dcefff);
@@ -65,46 +73,54 @@
   a { color: var(--accent); }
   button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-  main { max-width: 1240px; margin: 0 auto; padding: 0 28px 64px; }
+  main { max-width: 1240px; margin: 0 auto; padding: 0 28px 48px; }
   @media (max-width: 720px) { main { padding: 0 16px 48px; } }
 
   /* ── Hero ─────────────────────────────────────────────────────────────── */
-  .hero { position: relative; margin: 18px 0 30px; padding: 54px 24px 30px; border-radius: 28px; background: var(--hero); overflow: hidden; text-align: center; }
-  .hero::before { content: ""; position: absolute; inset: 0; background: radial-gradient(600px 240px at 50% 0%, rgba(255,255,255,.55), transparent 70%); pointer-events: none; }
+  .hero { position: relative; margin: 24px 0; padding: 26px; border: 1px solid var(--line); border-radius: 22px; background: var(--hero); }
+  .hero::before { content: ""; position: absolute; inset: 0; background: var(--glass-highlight); pointer-events: none; }
   .hero > * { position: relative; }
-  .hero h1 { margin: 0 0 18px; font-size: clamp(30px, 4.6vw, 52px); line-height: 1.08; letter-spacing: -0.03em; font-weight: 800; background: var(--gradient); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-  .seg { display: inline-flex; gap: 6px; padding: 5px; border-radius: 999px; background: rgba(255,255,255,.65); border: 1px solid rgba(255,255,255,.8); margin-bottom: 20px; }
-  .seg button { border: 0; background: transparent; border-radius: 999px; padding: 8px 16px; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .hero-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 20px; }
+  .hero-heading > div { min-width: 0; }
+  .eyebrow { color: var(--muted); font-size: 11px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; margin: 0 0 7px; }
+  .hero h1 { margin: 0; font-size: clamp(25px, 3vw, 34px); line-height: 1.15; letter-spacing: -.035em; font-weight: 750; }
+  .intro { color: var(--muted); font-size: 14px; margin: 9px 0 0; }
+  .hero-heading .btn { flex: 0 0 auto; min-height: 44px; }
+  .seg { display: flex; flex-wrap: wrap; gap: 5px; padding: 4px; border-radius: 12px; background: var(--panel); width: fit-content; margin-bottom: 22px; }
+  .seg button { border: 0; background: transparent; border-radius: 9px; padding: 9px 14px; font-weight: 600; color: var(--muted); cursor: pointer; }
   .seg button.on { background: var(--paper); color: var(--text); box-shadow: var(--shadow); }
-  .search { max-width: 860px; margin: 0 auto 16px; display: flex; align-items: center; gap: 12px; padding: 0 18px; height: 60px; border-radius: 18px; background: var(--paper); border: 2px solid rgba(125,42,232,.35); box-shadow: 0 12px 40px -18px var(--glow); }
+  .search { margin: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; height: 50px; border-radius: 12px; background: var(--paper); border: 1px solid var(--line-hover); }
   .search:focus-within { border-color: var(--accent); }
   .search svg { flex: 0 0 auto; color: var(--faint); }
-  .search input { flex: 1; border: 0; background: transparent; font-size: 17px; color: var(--text); min-width: 0; }
+  .search input { flex: 1; border: 0; background: transparent; font-size: 15px; color: var(--text); min-width: 0; }
   .search input::placeholder { color: var(--faint); }
   .search .clear { border: 0; background: var(--panel); border-radius: 999px; width: 28px; height: 28px; cursor: pointer; color: var(--muted); display: none; }
   .search.has-q .clear { display: inline-flex; align-items: center; justify-content: center; }
-  .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
-  .chips button { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--paper); border-radius: 999px; padding: 9px 16px; font-weight: 600; color: var(--text); cursor: pointer; box-shadow: var(--shadow); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .chips button { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--paper); border-radius: 999px; padding: 8px 12px; font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer; }
   .chips button .dot { width: 18px; height: 18px; border-radius: 6px; display: inline-block; }
-  .chips button.on { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(125,42,232,.12); }
+  .chips button.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 
   /* ── Sections ─────────────────────────────────────────────────────────── */
-  section { margin: 0 0 40px; }
-  .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-  h2 { margin: 0; font-size: 24px; letter-spacing: -0.02em; font-weight: 750; }
-  .sec-head .note { color: var(--faint); font-size: 13px; }
+  section { margin: 0 0 30px; scroll-margin-top: 20px; }
+  section:focus { outline: none; }
+  section:focus-visible { outline: 2px solid var(--accent); outline-offset: 6px; border-radius: 12px; }
+  .sec-head { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; margin-bottom: 14px; }
+  h2 { margin: 0; font-size: 20px; letter-spacing: -0.02em; font-weight: 750; }
+  .sec-head .note { color: var(--muted); font-size: 12px; }
+  #filterStatus { color: var(--muted); font-size: 13px; margin: -8px 0 20px; }
   .link { border: 0; background: none; color: var(--accent); font-weight: 700; cursor: pointer; padding: 0; }
   .link:hover { text-decoration: underline; }
   .empty { color: var(--faint); padding: 26px; border: 1px dashed var(--line-hover); border-radius: 18px; text-align: center; }
 
-  /* Starters: a scrolling row of pastel cards with a floating mini-mock. */
-  .tiles { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 1fr); gap: 14px; overflow-x: auto; padding: 6px 2px 14px; scroll-snap-type: x proximity; scrollbar-width: thin; }
-  .tile { position: relative; scroll-snap-align: start; text-align: left; border: 0; border-radius: 20px; padding: 18px 16px 16px; min-height: 124px; cursor: pointer; color: var(--ink-on-tint); display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; box-shadow: var(--shadow); transition: transform .15s ease, box-shadow .15s ease; overflow: hidden; }
+  /* A wrapping grid keeps every starter reachable without a second horizontal rail. */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 12px; }
+  .tile { position: relative; min-width: 0; text-align: left; border: 1px solid transparent; border-radius: 16px; padding: 82px 14px 14px; min-height: 140px; cursor: pointer; color: var(--ink-on-tint); display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; transition: transform .15s ease, box-shadow .15s ease; overflow: hidden; }
   .tile:hover { transform: translateY(-3px); box-shadow: var(--shadow-deep); }
   .tile .art { position: absolute; right: 12px; top: 12px; width: 88px; height: 66px; filter: drop-shadow(0 8px 14px rgba(23,18,54,.16)); transition: transform .2s ease; }
   .tile:hover .art { transform: translateY(-3px) rotate(-3deg); }
-  .tile b { font-size: 16px; font-weight: 750; letter-spacing: -0.01em; }
-  .tile span { font-size: 12px; opacity: .72; }
+  .tile b { font-size: 14px; font-weight: 750; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+  .tile span { font-size: 12px; }
   .tile.hidden { display: none; }
   .tile.locked { cursor: not-allowed; filter: saturate(.35); opacity: .8; }
   .tile .lock { position: absolute; left: 12px; top: 12px; font-size: 10.5px; font-weight: 800; color: #fff; background: rgba(23,18,54,.72); border-radius: 999px; padding: 3px 9px; }
@@ -114,8 +130,9 @@
   .t-mint { background: var(--mint); } .t-lemon { background: var(--lemon); } .t-rose { background: var(--rose); }
 
   /* Continue creating + studios: card grids. */
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
-  .card { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; padding: 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px; min-width: 0; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 14px; }
+  .card { background: var(--paper); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 8px; min-width: 0; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+  #recentGrid .card { border-top: 3px solid var(--accent); }
   .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-deep); border-color: var(--line-hover); }
   .card.hidden { display: none; }
   .badge { display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
@@ -124,11 +141,12 @@
   .card .detail { color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .card .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; }
   .card .when { color: var(--faint); font-size: 12px; }
-  .btn { border: 0; border-radius: 12px; padding: 9px 14px; font-weight: 700; cursor: pointer; background: var(--accent); color: #fff; transition: background .12s ease, transform .12s ease; }
+  .btn { border: 0; border-radius: 12px; padding: 9px 14px; font-weight: 700; cursor: pointer; background: var(--accent); color: var(--text-on-accent, #fff); transition: background .12s ease, transform .12s ease; }
   .btn:hover { background: var(--accent-hover); transform: translateY(-1px); }
   .btn.ghost { background: var(--panel); color: var(--text); }
   .studio { flex-direction: row; align-items: center; gap: 14px; cursor: pointer; text-align: left; }
-  .studio .mark { flex: 0 0 auto; width: 54px; height: 54px; border-radius: 16px; display: grid; place-items: center; }
+  .studio > div { min-width: 0; overflow-wrap: anywhere; }
+  .studio .mark { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; }
   .studio .mark svg { width: 30px; height: 30px; }
   .studio .name { font-weight: 750; font-size: 15.5px; }
   .studio .blurb { color: var(--muted); font-size: 12.5px; }
@@ -136,31 +154,64 @@
 
   /* This week: metric pills. */
   .metrics { display: flex; flex-wrap: wrap; gap: 10px; }
-  .metric { display: inline-flex; align-items: center; gap: 10px; background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; box-shadow: var(--shadow); }
+  .metric { display: inline-flex; flex-wrap: wrap; max-width: 100%; overflow-wrap: anywhere; align-items: center; gap: 10px; background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
   .metric .sw { width: 10px; height: 10px; border-radius: 3px; }
   .metric strong { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; }
   .metric span { color: var(--muted); font-size: 12.5px; }
 
   footer { color: var(--faint); font-size: 12px; text-align: center; padding-top: 12px; border-top: 1px solid var(--line); }
-  #status { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 9px 14px; border-radius: 999px; font-size: 13px; box-shadow: var(--shadow-deep); opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+  #status { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); background: var(--text); color: var(--bg); padding: 9px 14px; border-radius: 12px; font-size: 13px; box-shadow: var(--shadow-deep); opacity: 0; pointer-events: none; transition: opacity .2s ease; }
   #status.show { opacity: 1; }
+  @media (max-width: 600px) { .hero { margin-top: 16px; padding: 20px; } .hero-heading { flex-direction: column; align-items: flex-start; gap: 16px; } .hero-heading .btn { width: 100%; } .hero h1 { font-size: 27px; } }
+  /* ── Your brand: the kit every studio reads ──────────────────────────────── */
+  .brand-band[hidden] { display: none; }
+  .brand-band { display: flex; align-items: center; gap: 18px; margin: 0 0 24px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); }
+  .brand-band .logo { flex: 0 0 auto; width: 64px; height: 64px; border-radius: 14px; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--line); }
+  .brand-band .logo img { max-width: 52px; max-height: 52px; object-fit: contain; }
+  .brand-band .logo.empty { background: var(--gradient); color: #fff; font-weight: 800; font-size: 22px; }
+  .brand-band .copy { flex: 1; min-width: 0; }
+  .brand-band h2 { font-size: 16px; }
+  .brand-band p { margin: 3px 0 0; color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }
+  .brand-band .sws { display: flex; gap: 6px; margin-top: 8px; }
+  .brand-band .sws span { width: 22px; height: 22px; border-radius: 7px; border: 1px solid var(--line); }
+  @media (max-width: 600px) { .brand-band { flex-wrap: wrap; } .brand-band .btn { width: 100%; } }
   @media (prefers-reduced-motion: reduce) { .tile, .card, .btn, .tile .art { transition: none; } }
 </style>
 </head>
 <body>
 <main>
   <section class="hero" aria-labelledby="heroTitle">
-    <h1 id="heroTitle">What will you create today?</h1>
-    <div class="seg" role="tablist" aria-label="Sections">
-      <button type="button" role="tab" class="on" data-jump="starters" aria-selected="true">For you</button>
-      <button type="button" role="tab" data-jump="recent" aria-selected="false">Recent</button>
-      <button type="button" role="tab" data-jump="studios" aria-selected="false">Studios</button>
+    <div class="hero-heading">
+      <div><p class="eyebrow">Create / Home</p><h1 id="heroTitle">Your creative workspace</h1>
+      <p class="intro">Pick up a project or make something new.</p></div>
+      <button type="button" class="btn" id="seeAll">Browse templates <span aria-hidden="true">↗</span></button>
     </div>
     <form class="search" id="searchForm" role="search" autocomplete="off">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
       <input id="q" type="search" placeholder="Search starters, studios and your recent work" aria-label="Search starters, studios and your recent work" />
       <button type="button" class="clear" id="clearQ" aria-label="Clear search">×</button>
     </form>
+  </section>
+
+  <section class="brand-band" id="brandBand" aria-labelledby="brandTitle" hidden>
+    <div class="logo empty" id="brandLogo" aria-hidden="true">B</div>
+    <div class="copy"><h2 id="brandTitle">Your brand</h2><p id="brandLine">Set your colors, fonts and logo once. Every studio uses them.</p><div class="sws" id="brandSws"></div></div>
+    <button type="button" class="btn ghost" id="brandOpen">Set up brand kit</button>
+  </section>
+  <nav class="seg" aria-label="On this page">
+    <button type="button" class="on" data-jump="recent" aria-pressed="true">Recent work</button>
+    <button type="button" data-jump="starters" aria-pressed="false">Quick start</button>
+    <button type="button" data-jump="studios" aria-pressed="false">Studios</button>
+  </nav>
+  <p id="filterStatus" role="status" hidden></p>
+
+  <section id="recent" aria-labelledby="recentTitle" tabindex="-1">
+    <div class="sec-head"><h2 id="recentTitle">Continue creating</h2><span class="note" id="recentNote">Checking your studios…</span></div>
+    <div class="grid" id="recentGrid" aria-live="polite"></div>
+  </section>
+
+  <section id="starters" aria-labelledby="startersTitle" tabindex="-1">
+    <div class="sec-head"><h2 id="startersTitle">Quick start</h2><span class="note">Choose a format to open its studio.</span></div>
     <div class="chips" id="chips" role="group" aria-label="Filter starters">
       <button type="button" data-cat="all" class="on"><span class="dot" style="background:var(--gradient)"></span>Everything</button>
       <button type="button" data-cat="documents"><span class="dot" style="background:#ff8a5b"></span>Documents</button>
@@ -168,20 +219,12 @@
       <button type="button" data-cat="video"><span class="dot" style="background:#2f9bff"></span>Video</button>
       <button type="button" data-cat="story"><span class="dot" style="background:#ffb020"></span>Stories</button>
       <button type="button" data-cat="training"><span class="dot" style="background:#10b981"></span>Training</button>
+      <button type="button" data-cat="3d"><span class="dot" style="background:#00b8c4"></span>3D &amp; print</button>
     </div>
-  </section>
-
-  <section id="starters" aria-labelledby="startersTitle">
-    <div class="sec-head"><h2 id="startersTitle">Start creating</h2><span class="note">Pick a shape — the studio opens ready for it. <button type="button" class="link" id="seeAll">See every template →</button></span></div>
     <div class="tiles" id="starterTiles"></div>
   </section>
 
-  <section id="recent" aria-labelledby="recentTitle">
-    <div class="sec-head"><h2 id="recentTitle">Continue creating</h2><span class="note" id="recentNote">Checking your studios…</span></div>
-    <div class="grid" id="recentGrid" aria-live="polite"></div>
-  </section>
-
-  <section id="studios" aria-labelledby="studiosTitle">
+  <section id="studios" aria-labelledby="studiosTitle" tabindex="-1">
     <div class="sec-head"><h2 id="studiosTitle">Your studios</h2><span class="note">Everything installed, one rail.</span></div>
     <div class="grid" id="studioGrid"></div>
   </section>
@@ -205,18 +248,22 @@
      iframeUrl wins whenever it answers). The routes test pins every entry against the
      manifest so this list can never drift from the rail. */
   var STUDIOS = [
+    { tool: 'create-editor', app: 'create', name: 'Image editor', swatch: '#7c3aed', tint: 'lilac', art: 'portrait', url: '/api/create/editor', blurb: 'Layer images, text and shapes. Save, reopen and export your design.' },
     { tool: 'create-office',   app: 'presentations',   name: 'AI Office',       swatch: '#ff8a5b', tint: 'peach', art: 'deck',      url: '/api/presentations/sections/ui', blurb: 'Decks, documents and live workbooks from one outline.' },
     { tool: 'create-portrait', app: 'portrait-studio', name: 'Portrait Studio', swatch: '#7d2ae8', tint: 'lilac', art: 'portrait',  url: '/api/portrait-studio/app',      blurb: 'Headshots, characters and group scenes from a photo.' },
     { tool: 'create-video',    app: 'video',           name: 'Video Studio',    swatch: '#2f9bff', tint: 'sky',   art: 'video',     url: '/api/video/ui',                 blurb: 'Short-form video from a storyboard.' },
     { tool: 'create-lora',     app: 'lora',            name: 'LoRA Studio',     swatch: '#10b981', tint: 'mint',  art: 'nodes',     url: '/api/lora/ui',                  blurb: 'Train and score your own characters.' },
     { tool: 'create-vids',     app: 'vids',            name: 'Vids Studio',     swatch: '#00b8c4', tint: 'sky',   art: 'clip',      url: '/api/vids/app',                 blurb: 'The render queue for clips and episodes.' },
-    { tool: 'create-story',    app: 'creative-studio', name: 'Stories',         swatch: '#ffb020', tint: 'lemon', art: 'film',      url: '/api/creative-studio/review',   blurb: 'Kid-safe story episodes, produced on a schedule.' }
+    { tool: 'create-story',    app: 'creative-studio', name: 'Stories',         swatch: '#ffb020', tint: 'lemon', art: 'film',      url: '/api/creative-studio/review',   blurb: 'Kid-safe story episodes, produced on a schedule.' },
+    { tool: 'create-scan-to-print', app: 'scan-to-print', name: '3D Scan-to-Print', swatch: '#00b8c4', tint: 'mint', art: 'cube', url: '/api/scan-to-print/app', blurb: 'Capture an object, review its 3D model and prepare a print.' }
   ];
   var byTool = {}; STUDIOS.forEach(function (s) { byTool[s.tool] = s; });
   byTool['create-new'] = { tool: 'create-new', name: 'Create', url: '/api/create/new' };
+  byTool['create-brand'] = { tool: 'create-brand', name: 'Brand Kit', url: '/api/create/brand' };
 
   /* ── Starters: the shapes you can begin with, each opening its studio ─────── */
   var STARTERS = [
+    { id: 'image-design', label: 'Image design', hint: 'Editable layers', cat: 'images', tool: 'create-editor', tint: 'lilac', art: 'portrait' },
     { id: 'deck',      label: 'Presentation',       hint: 'Themed deck',          cat: 'documents', tool: 'create-office',   tint: 'peach', art: 'deck',      query: 'kind=pptx' },
     { id: 'doc',       label: 'Document',           hint: 'Word document',        cat: 'documents', tool: 'create-office',   tint: 'lilac', art: 'doc',       query: 'kind=docx' },
     { id: 'sheet',     label: 'Spreadsheet',        hint: 'Live workbook',        cat: 'documents', tool: 'create-office',   tint: 'mint',  art: 'sheet',     query: 'kind=xlsx' },
@@ -226,7 +273,8 @@
     { id: 'short',     label: 'Short video',        hint: 'Reels, Shorts, TikTok', cat: 'video',    tool: 'create-video',    tint: 'lilac', art: 'video' },
     { id: 'clip',      label: 'Video clip',         hint: 'Rendered on the node', cat: 'video',     tool: 'create-vids',     tint: 'sky',   art: 'clip' },
     { id: 'episode',   label: 'Story episode',      hint: 'Kid-safe animation',   cat: 'story',     tool: 'create-story',    tint: 'peach', art: 'film' },
-    { id: 'lora',      label: 'LoRA character',     hint: 'Train your own look',  cat: 'training',  tool: 'create-lora',     tint: 'mint',  art: 'nodes' }
+    { id: 'lora',      label: 'LoRA character',     hint: 'Train your own look',  cat: 'training',  tool: 'create-lora',     tint: 'mint',  art: 'nodes' },
+    { id: 'scan-to-print', label: '3D scan to print', hint: 'Photos to a 3D model', cat: '3d', tool: 'create-scan-to-print', tint: 'mint', art: 'cube' }
   ];
 
   /* ── Tiny illustrations (static markup, no user data) ────────────────────── */
@@ -244,6 +292,7 @@
       case 'clip': return s + paper + '<rect x="18" y="14" width="52" height="30" rx="5" fill="#2f9bff"/><path d="M40 22l12 7-12 7z" fill="#fff"/><rect x="18" y="50" width="52" height="4" rx="2" fill="#d9d3ee"/><rect x="18" y="50" width="30" height="4" rx="2" fill="#00c4cc"/></svg>';
       case 'film': return s + '<rect x="8" y="12" width="72" height="42" rx="6" fill="#fff"/><path d="M8 20h72M8 46h72" stroke="#d9d3ee" stroke-width="2"/><rect x="14" y="14" width="5" height="4" rx="1" fill="#ffb020"/><rect x="26" y="14" width="5" height="4" rx="1" fill="#ffb020"/><rect x="38" y="14" width="5" height="4" rx="1" fill="#ffb020"/><rect x="50" y="14" width="5" height="4" rx="1" fill="#ffb020"/><rect x="62" y="14" width="5" height="4" rx="1" fill="#ffb020"/><rect x="14" y="48" width="5" height="4" rx="1" fill="#ffb020"/><rect x="26" y="48" width="5" height="4" rx="1" fill="#ffb020"/><rect x="38" y="48" width="5" height="4" rx="1" fill="#ffb020"/><rect x="50" y="48" width="5" height="4" rx="1" fill="#ffb020"/><rect x="62" y="48" width="5" height="4" rx="1" fill="#ffb020"/><rect x="16" y="24" width="24" height="18" rx="3" fill="#ff8a5b"/><rect x="46" y="24" width="26" height="18" rx="3" fill="#7d2ae8"/></svg>';
       case 'nodes': return s + paper + '<path d="M26 44L44 20L62 44M26 44h36M44 20v24" stroke="#10b981" stroke-width="2.5"/><circle cx="26" cy="44" r="6" fill="#7d2ae8"/><circle cx="62" cy="44" r="6" fill="#00c4cc"/><circle cx="44" cy="20" r="6" fill="#ff8a5b"/><circle cx="44" cy="44" r="4" fill="#10b981"/></svg>';
+      case 'cube': return s + '<path d="M44 6 70 20v28L44 62 18 48V20z" fill="#fff"/><path d="m44 6 26 14-26 14-26-14z" fill="#b9efe2"/><path d="M44 34v28l26-14V20z" fill="#00b8c4"/><path d="M18 20 44 34 70 20M44 34v28" fill="none" stroke="#087f82" stroke-width="2"/></svg>';
       default: return s + paper + '</svg>';
     }
   }
@@ -279,6 +328,7 @@
   var ACCESS = {};        // app → 'open' | 'locked' | 'unknown'
   function go(tool, query) {
     var studio = byTool[tool];
+    if (studio && studio.app === 'create' && ACCESS.create !== 'open') { toast('Image editor access could not be confirmed. Refresh this page or review Access.'); return; }
     if (studio && studio.app && ACCESS[studio.app] === 'locked') { toast(studio.name + ' is not assigned to you — an administrator grants it in Access.'); return; }
     if (embedded) {
       var msg = { type: 'app-navigate', tool: tool };
@@ -289,6 +339,23 @@
     }
     var url = surfaceUrls[tool] || (studio && studio.url) || (tool === 'create-new' ? '/api/create/new' : '');
     if (url) window.location.assign(url + (query ? (url.indexOf('?') === -1 ? '?' : '&') + query : ''));
+  }
+
+  /* Open-mode artifact exchange lands on Home; only its admitted editor receives the handle. */
+  function parentArtifacts() {
+    try {
+      return embedded && window.parent.location.origin === window.location.origin
+        ? new URLSearchParams(window.parent.location.search).getAll('artifact') : [];
+    } catch (_) { return []; /* A cross-origin parent contributes no readable handoff context. */ }
+  }
+  function openIncomingArtifact() {
+    var refs = new URLSearchParams(window.location.search).getAll('artifact');
+    if (!refs.length) return;
+    var ref = refs[0];
+    if (!/^art_[A-Za-z0-9_-]{8,64}$/.test(ref) || refs.concat(parentArtifacts()).some(function (value) { return value !== ref; })) {
+      toast('Choose one valid image file.'); return;
+    }
+    go('create-editor', 'artifact=' + encodeURIComponent(ref));
   }
 
   /* ── Starters ─────────────────────────────────────────────────────────────── */
@@ -321,7 +388,7 @@
   function applyFilters() {
     var q = query.trim().toLowerCase();
     form.classList.toggle('has-q', q.length > 0);
-    var shownStarters = 0;
+    var shownStarters = 0, matches = 0;
     Array.prototype.forEach.call(tilesEl.children, function (t) {
       var ok = (activeCat === 'all' || t.dataset.cat === activeCat) && (!q || t.dataset.q.indexOf(q) !== -1);
       t.classList.toggle('hidden', !ok); if (ok) shownStarters++;
@@ -329,15 +396,19 @@
     ['recentGrid', 'studioGrid'].forEach(function (id) {
       Array.prototype.forEach.call(document.getElementById(id).children, function (c) {
         if (!c.dataset.q) return;
-        c.classList.toggle('hidden', !!q && c.dataset.q.indexOf(q) === -1);
+        var visible = !q || c.dataset.q.indexOf(q) !== -1;
+        c.classList.toggle('hidden', !visible); if (visible) matches++;
       });
     });
+    var count = shownStarters + matches, status = document.getElementById('filterStatus');
+    status.hidden = !q;
+    status.textContent = count ? count + ' matches in your workspace' : 'No matches. Try another search or clear it to see your workspace.';
     return shownStarters;
   }
   document.getElementById('chips').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-cat]'); if (!b) return;
     activeCat = b.dataset.cat;
-    Array.prototype.forEach.call(this.children, function (c) { c.classList.toggle('on', c === b); });
+    Array.prototype.forEach.call(this.children, function (c) { c.classList.toggle('on', c === b); c.setAttribute('aria-pressed', c === b ? 'true' : 'false'); });
     applyFilters();
   });
   qEl.addEventListener('input', function () { query = qEl.value; applyFilters(); });
@@ -345,15 +416,15 @@
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     var first = tilesEl.querySelector('.tile:not(.hidden)');
-    if (first) go(first.dataset.tool);
+    if (first) first.click();
   });
 
-  /* ── Section tabs ─────────────────────────────────────────────────────────── */
+  /* Section shortcuts scroll and transfer keyboard focus; all sections remain visible. */
   document.querySelector('.seg').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-jump]'); if (!b) return;
-    Array.prototype.forEach.call(this.children, function (c) { c.classList.toggle('on', c === b); c.setAttribute('aria-selected', c === b ? 'true' : 'false'); });
+    Array.prototype.forEach.call(this.children, function (c) { c.classList.toggle('on', c === b); c.setAttribute('aria-pressed', c === b ? 'true' : 'false'); });
     var target = document.getElementById(b.dataset.jump);
-    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (target) { target.focus({ preventScroll: true }); target.scrollIntoView({ behavior: 'instant', block: 'start' }); }
   });
 
   /* ── Studios: from this app's OWN cockpit profile, so the cards are the rail ── */
@@ -363,7 +434,7 @@
     var rendered = 0;
     items.forEach(function (it) {
       var tool = String(it.id || '').replace(/^tool-/, '');
-      var s = byTool[tool]; if (!s) return;
+      var s = byTool[tool]; if (!s || !s.app) return;
       var locked = ACCESS[s.app] === 'locked', unknown = !ACCESS[s.app] || ACCESS[s.app] === 'unknown';
       var c = el('button', 'card studio' + (locked ? ' locked' : '')); c.type = 'button'; c.dataset.q = (s.name + ' ' + s.blurb).toLowerCase();
       var mark = el('div', 'mark t-' + s.tint); mark.appendChild(svgNode(art(s.art))); c.appendChild(mark);
@@ -415,7 +486,10 @@
     c.appendChild(el('div', 'title', item.text));
     var d = stripWhen(item.detail); if (d) c.appendChild(el('div', 'detail', d));
     var row = el('div', 'row'); row.appendChild(el('span', 'when', whenText(item.detail)));
-    var open = el('button', 'btn', 'Open'); open.type = 'button'; open.addEventListener('click', function () { go(studio.tool); }); row.appendChild(open);
+    var open = el('button', 'btn', 'Open'); open.type = 'button'; open.addEventListener('click', function () {
+      var action = studio.app === 'create' && item.actions.find(function (a) { return a && a.tool === 'create-editor' && /^project=[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(a.query || ''); });
+      go(studio.tool, action ? action.query : '');
+    }); row.appendChild(open);
     c.appendChild(row); return c;
   }
   function metricPill(studio, m) {
@@ -426,6 +500,7 @@
     recentGrid.replaceChildren(); metricsEl.replaceChildren();
     var cards = [], pills = [], cantCheck = [];
     return Promise.all(STUDIOS.map(function (studio) {
+      if (studio.app === 'create' && ACCESS.create !== 'open') { if (ACCESS.create !== 'locked') cantCheck.push(studio.name); return Promise.resolve(); }
       if (ACCESS[studio.app] === 'locked') return Promise.resolve();   // not provisioned: nothing to ask, nothing to show
       return fetchJson('/api/' + studio.app + '/home-summary').then(function (data) {
         (Array.isArray(data.items) ? data.items : []).forEach(function (it) {
@@ -438,7 +513,7 @@
     })).then(function () {
       cards.sort(function (a, b) { return b.t - a.t; });
       cards.slice(0, 12).forEach(function (c) { recentGrid.appendChild(recordCard(c.studio, c.item)); });
-      if (!cards.length) recentGrid.appendChild(el('div', 'empty', 'Nothing in progress yet — pick a starter above and your work shows up here.'));
+      if (!cards.length) recentGrid.appendChild(el('div', 'empty', 'No saved work to show yet. Browse templates or choose a quick start below.'));
       recentNote.textContent = cards.length ? cards.length + ' recent piece' + (cards.length === 1 ? '' : 's') + ' across your studios' : '';
       pills.forEach(function (p) { metricsEl.appendChild(metricPill(p.studio, p.m)); });
       if (!pills.length) metricsEl.appendChild(el('div', 'empty', 'No counts yet.'));
@@ -447,10 +522,31 @@
     });
   }
 
+  /* ── Your brand: read in the viewer's session once Create is open; any refusal hides the band ── */
+  function loadBrandCard() {
+    if (ACCESS.create !== 'open') return;
+    var band = document.getElementById('brandBand');
+    fetchJson('/api/create/brand-kit', 4000).then(function (data) {
+      var kit = data && data.kit, logo = document.getElementById('brandLogo'), sws = document.getElementById('brandSws');
+      document.getElementById('brandOpen').textContent = kit ? 'Edit brand kit' : 'Set up brand kit';
+      if (kit) {
+        document.getElementById('brandTitle').textContent = kit.name || 'Your brand';
+        document.getElementById('brandLine').textContent = kit.fonts.heading + ' headings · ' + kit.fonts.body + ' text' + (data.words ? ' · ' + data.words.phrase : '');
+        sws.replaceChildren();
+        ['primary', 'secondary', 'accent', 'dark', 'light'].forEach(function (role) { var sw = el('span'); sw.style.background = kit.colors[role]; sw.title = role + ' ' + kit.colors[role]; sws.appendChild(sw); });
+        if (kit.logo) { logo.replaceChildren(); var img = el('img'); img.src = kit.logo.src; img.alt = ''; logo.appendChild(img); logo.classList.remove('empty'); logo.style.background = kit.colors.light; }
+      }
+      band.hidden = false;
+    }).catch(function () { band.hidden = true; });
+  }
+  document.getElementById('brandOpen').addEventListener('click', function () { go('create-brand'); });
+
   Promise.all(STUDIOS.map(function (s) { return accessFor(s.app).then(function (state) { ACCESS[s.app] = state; }); })).then(function () {
     applyAccessToStarters();
+    openIncomingArtifact();
     loadProfile();
     loadSummaries();
+    loadBrandCard();
   });
 })();
 </script>

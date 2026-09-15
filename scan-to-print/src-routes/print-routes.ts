@@ -13,6 +13,7 @@
  *                     |                             | a slicer command; otherwise the route says so and offers the
  *                     |                             | STL upload for hosts that accept one. Every attempt, success
  *                     |                             | or failure, becomes a submission row with the host's answer.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Hold current output through slicing and upload, refuse stale/nonprintable models, and discard failed slicer output.
  */
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
@@ -22,11 +23,12 @@ import { promisify } from 'node:util';
 import { createChildLogger } from '@/shared/logger';
 import { decryptField, encryptField, isEncrypted } from '@/features/personal-data';
 import { confirmationRequiredPayload, hasExplicitWriteConfirmation } from '@/shared/security/explicit-write-confirmation';
-import { deletePrinter, getJob, getPrinterWithKey, insertPrinter, insertSubmission, listPrinters, listSubmissions, type JobRow, type QueryablePool } from './job-store';
+import { deletePrinter, getPrinterWithKey, insertPrinter, insertSubmission, listPrinters, listSubmissions, type JobRow, type QueryablePool } from './job-store';
 import { artifactPath, jobDir, requireUuid } from './data-dir';
 import { type FetchLike, type PrinterKind, PRINTER_KINDS, adapterFor, hostAccepts, validatePrinterBaseUrl } from './engine/print/printer-adapters';
 import { type ExecFileLike, resolveSlicerConfig, sliceStl } from './engine/print/slicer';
 import { sanitizeSolidName } from './engine/geometry/export-stl';
+import { type JobRequest, requireCurrentOutput, withCurrentJob } from './job-outputs';
 
 const logger = createChildLogger({ module: 'scan-to-print-print-routes' });
 const execFile = promisify(execFileCb);
@@ -84,23 +86,27 @@ async function resolvePrintFile(deps: PrintRouteDeps, dir: string, fileKind: 'st
   if (!config) {
     return { ok: false, status: 409, body: { error: 'needs_gcode', message: 'No slicer is configured on this swarm (SCAN_TO_PRINT_SLICER_CMD). Download the STL and slice it, or send the STL to an OctoPrint host that slices.' } };
   }
-  const result = await sliceStl(config, stl, gcode, deps.execFile ?? ((f, a, o) => execFile(f, a, o)), (p) => fs.existsSync(p));
-  if (!result.ok) return { ok: false, status: 502, body: { error: 'slicer_failed', message: result.error, stderr: result.stderr } };
+  let completed = false;
+  try {
+    const result = await sliceStl(config, stl, gcode, deps.execFile ?? ((f, a, o) => execFile(f, a, o)), (p) => fs.existsSync(p));
+    if (!result.ok) return { ok: false, status: 502, body: { error: 'slicer_failed', message: result.error, stderr: result.stderr } };
+    completed = true;
+  } finally { if (!completed) fs.rmSync(gcode, { force: true }); }
   return { ok: true, path: gcode };
 }
 
-/** @description The router. */
-export function createPrintRoutes(deps: PrintRouteDeps): Router {
-  const router = Router();
-  const fetchImpl: FetchLike = deps.fetchImpl ?? ((url, init) => fetch(url, init));
-
+/** @description Register guard routes with their existing caller and confirmation contracts. */
+function registerGuard(router: Router, deps: PrintRouteDeps): void {
   router.use((req: PrintRequest, res: Response, next: NextFunction) => {
     const sub = deps.callerSub(req);
     if (!sub) { res.status(401).json({ error: 'unauthenticated' }); return; }
     req.scanSub = sub;
     next();
   });
+}
 
+/** @description Register printers routes with their existing caller and confirmation contracts. */
+function registerPrinters(router: Router, deps: PrintRouteDeps): void {
   router.get('/printers', async (req: PrintRequest, res: Response) => {
     try {
       res.json({ printers: await listPrinters(deps.pool, req.scanSub as string), kinds: PRINTER_KINDS, slicerConfigured: resolveSlicerConfig(deps.env) !== null });
@@ -131,7 +137,10 @@ export function createPrintRoutes(deps: PrintRouteDeps): Router {
       logger.error({ err: error }, 'Delete printer failed'); res.status(500).json({ error: 'delete_failed' });
     }
   });
+}
 
+/** @description Register status routes with their existing caller and confirmation contracts. */
+function registerStatus(router: Router, deps: PrintRouteDeps, fetchImpl: FetchLike): void {
   router.post('/printers/:printerId/status', async (req: PrintRequest, res: Response) => {
     try {
       const loaded = await loadProfile(deps, req.scanSub as string, requireUuid(req.params.printerId));
@@ -143,7 +152,10 @@ export function createPrintRoutes(deps: PrintRouteDeps): Router {
       logger.error({ err: error }, 'Printer status failed'); res.status(500).json({ error: 'status_failed' });
     }
   });
+}
 
+/** @description Register history routes with their existing caller and confirmation contracts. */
+function registerHistory(router: Router, deps: PrintRouteDeps): void {
   router.get('/jobs/:jobId/submissions', async (req: PrintRequest, res: Response) => {
     try {
       const jobId = requireUuid(req.params.jobId);
@@ -153,15 +165,18 @@ export function createPrintRoutes(deps: PrintRouteDeps): Router {
       logger.error({ err: error }, 'List submissions failed'); res.status(500).json({ error: 'list_failed' });
     }
   });
+}
 
-  router.post('/jobs/:jobId/print', async (req: PrintRequest, res: Response) => {
+/** @description Register print routes with their existing caller and confirmation contracts. */
+function registerPrint(router: Router, deps: PrintRouteDeps, fetchImpl: FetchLike): void {
+  router.post('/jobs/:jobId/print', withCurrentJob(deps, async (req: JobRequest, res: Response) => {
     const sub = req.scanSub as string;
     const body = (req.body ?? {}) as Record<string, unknown>;
     if (!hasExplicitWriteConfirmation(body)) { res.status(428).json(confirmationRequiredPayload('scan-to-print.print', 'Sending a job to a printer')); return; }
     let job: JobRow | null = null;
     try {
-      job = await getJob(deps.pool, sub, requireUuid(req.params.jobId));
-      if (!job) { res.status(404).json({ error: 'job_not_found' }); return; }
+      job = req.scanJob as JobRow;
+      if (!requireCurrentOutput(job, res, true)) return;
       const loaded = await loadProfile(deps, sub, requireUuid(body.printerId));
       if (!loaded) { res.status(404).json({ error: 'printer_not_found' }); return; }
       const fileKind = body.fileKind === 'stl' ? 'stl' : 'gcode';
@@ -181,7 +196,17 @@ export function createPrintRoutes(deps: PrintRouteDeps): Router {
       if (error instanceof RangeError) { res.status(400).json({ error: 'invalid_request', message: error.message }); return; }
       logger.error({ err: error, jobId: job?.job_id }, 'Print submission failed'); res.status(500).json({ error: 'print_failed' });
     }
-  });
+  }));
+}
 
+/** @description Compose printer management and guarded current-model submission. */
+export function createPrintRoutes(deps: PrintRouteDeps): Router {
+  const router = Router();
+  const fetchImpl: FetchLike = deps.fetchImpl ?? ((url, init) => fetch(url, init));
+  registerGuard(router, deps);
+  registerPrinters(router, deps);
+  registerStatus(router, deps, fetchImpl);
+  registerHistory(router, deps);
+  registerPrint(router, deps, fetchImpl);
   return router;
 }

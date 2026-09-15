@@ -3,7 +3,23 @@
 Open work on the packaged portrait app. Every entry has a done-when so scope does not have to be
 guessed later.
 
-**Posture:** the package ships and runs (v1.5.0 — group mode + catalog v2). Camera capture landed — Step 1 now takes a photo
+**Posture:** version 1.14.1 repairs named-role entry without changing the authorization
+catalog. The obsolete subject-only default-deny declaration from before the named
+permission migration prevented a current manager from opening the app or seeing
+its Test Lab cases. The real outer-mounter regression now proves manager entry and
+unassigned, wrong-issuer and revoked refusal without legacy grants. Source verification
+and native installation acceptance are recorded separately. On 2026-09-12, installed
+1.14.1 exposed all eleven current Lab cases and its selected local-cascade recipe
+passed 4/4 with verified cleanup. That checkpoint's native image-picker attempt
+was blocked by a Windows prompt. A later check on core `dd7bcaa4` completed the
+real picker → Group → Find faces flow with the licensed local photo: the bundled
+fallback produced one editable face box and preserved Daylight. No portrait was
+generated. The three-engine isolated browser proof remains separate. See the
+[dated installed acceptance](../TEST-LAB-ADOPTION.md#portrait-studio-follow-up-2026-09-12).
+
+Version 1.14.0 adds bundled local face detection (D below), following the delivered
+1.13.0 application permissions. Earlier entries retain their original acceptance context.
+Camera capture landed — Step 1 now takes a photo
 from a file, a live in-page camera, or the OS camera app, all through one validation rule and one
 crop stage (see [README.md](README.md)). What is left is the Drive source and one honest gap in how
 the camera work is guarded.
@@ -17,21 +33,25 @@ the lens, the frame box — and mutation-testing confirms it goes red when those
 not cover the *wiring*: that the surface actually calls those functions, opens the modal, and stops
 the tracks.
 
-The wiring proof exists and passes — `tests/browser/camera-proof.js`, a real Chromium with a fake
-camera device, 23/23: live preview → snap → crop stage → generate enabled, retake offered, tracks
-`live` → `ended` on close, plus the desktop-hidden-button and phone-camera-app fallbacks. It is
-**run by hand**, because it needs Playwright and the package runner is deliberately zero-dependency:
+**CLOSED 2026-09-14.** The wiring proof is now a `node:test` suite — `tests/browser/camera-proof.js`,
+real Chromium over Chromium's own fake capture device — registered as Test Lab case `camera-browser`
+and runnable unattended:
 
 ```
-node portrait-studio/tests/browser/camera-proof.js --playwright <framework-checkout>/node_modules/playwright
+OSHAL_CORE_ROOT=<framework-checkout> node --test portrait-studio/tests/browser/camera-proof.js
 ```
 
-So a refactor that leaves `PortraitCapture` correct but unwired would still ship green through the
-automated gate. That is the residual gap, stated rather than papered over.
+Four test points, all asserting: live capture chosen with decoded mirrored frames; snap → crop stage
+→ generate enabled → retake offered, and the tracks go `live` → `ended` when the modal closes; the
+desktop hidden-button fallback with its reason; and the phone camera-app hand-off with the front lens,
+flipping to the rear in character mode. Playwright and the shared picker asset resolve from
+`OSHAL_CORE_ROOT` instead of two hand-typed CLI arguments, and a missing input fails the file loudly
+rather than skipping. So a refactor that leaves `PortraitCapture` correct but unwired now goes red.
 
-**Done when:** the store gate itself runs a browser-level capture check (not a skip), or the choice
-to keep the runner dependency-free is accepted deliberately — with the command above kept in the
-release checklist rather than living only in this file.
+The one part still outside the gate is a **physical** camera — real device enumeration, a human
+answering the OS permission prompt, real lens and exposure behaviour. That needs hardware and a
+person, is not registered as a Lab case, and is written up under README "Proving the camera on real
+hardware".
 
 ---
 
@@ -78,15 +98,59 @@ package either adopts it or records why it opts out.
 
 ---
 
-## D. Auto-find faces everywhere, not just where `FaceDetector` exists
+## D. Bundled local face finding — implemented in 1.14.0
 
-Group mode's **✨ Find faces** rides the Shape Detection API, which today ships in Chrome on
-Android and sits behind a flag on desktop. Everywhere else the button never renders and every box
-is placed by hand — honest, and a click per face is fast, but a six-face group shot is six clicks
-the browser could have done.
+Group mode's **Find faces** now uses a bundled MIT frontal-face model in a local Worker when
+the native API is absent or fails. Actual Chromium, Firefox and WebKit tests run the real
+detector over a [public-domain photo](tests/fixtures/README.md); no external source or image
+upload is used. WebKit is the automated Safari-engine proof, not a claim that every physical
+Safari/device combination was tested. Manual boxes and the existing detector-to-box helper
+remain intact. Finding may be cancelled; later photos, mode changes, edits and permission
+refreshes invalidate a pending result.
 
-**Done when:** a bundled, dependency-free face detector (a small model the surface loads from the
-package, not a CDN — the CSP is `'self'`) places the boxes on desktop Chrome, Firefox and Safari
-without flags; `tests/capture.spec.js` covers the detector-to-box path it feeds
-(`detectionsToBoxes`) unchanged; and the by-hand path stays exactly as it is for when detection
-misses a face.
+**Verification:** `tests/face-cascade.test.js` checks the lossless upstream model hash and input
+bounds; `tests/face-browser.spec.ts` proves actual worker detection, no-face and failure fallback,
+manual-edit continuity and exact current asset permission checks. Both are registered in
+`tests/test-lab.yaml`; browser prerequisites remain explicit. The existing
+`tests/capture.spec.js`, camera browser and authorization proofs remain regression guards.
+See [model provenance and quality limits](tools/face-model/README.md). No recognition,
+provider changes or generated-image behavior is introduced.
+
+---
+
+## E. The Home summary reads a different identity rail than its six siblings (2026-09-14)
+
+**Context:** the shared store gate `scripts/media-home.test.cjs` drives every packaged Home
+summary through one harness and has failed three portrait-studio cases on every run of
+`feat/package-test-catalog-pilots` (`401 !== 200`). The cause is not the assertions. Six apps
+(brand-graphics, creative-studio, daily-trade-recap, lora, print-ingest, storage) resolve the
+caller as `req.oidc.user.sub` plus `req.oidc.isAuthenticated()`. portrait-studio
+`routes/home-summary.js:21` instead resolves it from the ADR-149 authorization rail:
+`ctx.authorization?.currentActor()`, refusing when there is no `sub` or the actor is not active.
+The harness builds each route with `createHomeSummaryRoutes({ pool })` and supplies identity only
+on the request as `oidc`, so no authorization context exists and portrait-studio refuses before it
+reads anything.
+
+**This is a harness gap, not a proven live defect.** On the box the framework supplies
+`ctx.authorization`, so `currentActor()` has something to resolve. Nobody has confirmed the live
+tile either way, and that confirmation is the first step below - do not "fix" this by weakening the
+refusal.
+
+**Who decides:** the package owner, because the two repairs are not equivalent. Making
+portrait-studio read `req.oidc` aligns it with its siblings but steps it back off the authorization
+rail the rest of the package moved to in 1.13.0/1.14.1. Teaching the harness to build an
+authorization context keeps the rail and makes the gate able to cover any future package that
+adopts it. The second is the better shape if the rail is intended; the first is correct only if the
+migration of this route was unintentional.
+
+**Done when:**
+- The live tile is checked first on an installed box as a signed-in user, and the result is recorded
+  here - whether it returns data or 401 decides which repair is right.
+- Whichever rail is chosen, `media-home.test.cjs` exercises portrait-studio through the SAME
+  identity path the running route uses, and the three cases (bounded owner SELECTs, unavailable
+  sources without inventing zero, partial-failure isolation) pass without relaxing the 401 case that
+  already passes.
+- If the authorization rail is kept, the harness gains a real authorization context rather than a
+  stub that returns a fixed actor, so a package that fails closed on an inactive actor still fails
+  closed in the gate.
+- The store gate goes green for this job without any assertion being deleted.

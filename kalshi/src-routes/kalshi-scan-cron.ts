@@ -24,9 +24,10 @@
  *
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                                      | DESCRIPTION
+ * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-30 03:50:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial — the snapshot-clocked poller (single-flighted scanNow, boot catch-up, cadence from the manifest/settings config), the per-user alert fan-out (first-seen dedup, strength/edge floor, rolling daily budget), the Jarvis feed notification, and the opt-in outward channel via the preference center.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Respect the core briefing enqueue decision before finishing or recording Jarvis delivery.
  *
  * @module kalshi-scan-cron
  */
@@ -247,7 +248,7 @@ async function alertUser(ctx: AppContext, userSub: string, payload: ScanPayload)
 async function notifyJarvis(ctx: AppContext, userSub: string, title: string, body: string): Promise<boolean> {
   const id = `kalshi-scan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   try {
-    await saveTaskPending(ctx.pool, id, userSub, 'kalshi-alerts', title, 'simple');
+    if (!await saveTaskPending(ctx.pool, id, userSub, 'kalshi-alerts', title, 'simple')) return false;
     await finishTask(ctx.pool, id, true, body);
     return true;
   } catch (err) {

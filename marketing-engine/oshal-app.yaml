@@ -17,6 +17,16 @@
 #     Home summary footnote now fits the core 120-char item cap. Guarded by
 #     tests/marketing-manifest.test.mjs and tests/home-summary.test.mjs.
 
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped test suite with explicit sealed-runner prerequisites; preserve readiness smoke (0.4.2).
+# 4 | maintainer@emeraldcoastsystemsgroup.com   | 0.5.0, marketing suite P0: three per-user
+#     readiness probes (first campaign, an armed channel, a configured sender) behind a new
+#     session-authenticated route, so the Marketing Suite group's setup dashboard reads this app's
+#     own store instead of guessing. "Armed" means enabled AND a daily cap of at least one — a cap
+#     of zero means never, and an enabled channel with cap 0 is the trap the probe surfaces.
+#     marketing-routes.ts (974 code lines, over the 800-line plan threshold) split verbatim into
+#     support/bots/publish/campaigns/measure modules; the mount, factory and all 20 routes are
+#     unchanged, guarded by a route-table parity check.
+
 name: marketing-engine
 displayName: Marketing Engine
 description: >-
@@ -24,7 +34,7 @@ description: >-
   intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic
   metrics scorecard, experiment registry, budget proposals a human approves, and weekly review
   tickets worked by inline concierge bots only after human approval.
-version: 0.4.1
+version: 0.5.0
 status: active
 suite: ai-productivity
 theme: midnight
@@ -37,24 +47,31 @@ source:
   ref: main
 
 uses:
+  - test-catalog
   - notifications
+  - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
 
 dependencies:
-  apps: []
-  tools: []
-  # The complete connector allow-list this app's surfaces may offer (ADR-133).
-  # twitter + meta-business are offered for account connection and measurement context only —
-  # publishing to X/Facebook stays on the Switchboard desk; no marketing-engine code path posts there.
-  connectors:
-    - linkedin
-    - mastodon
-    - bluesky
-    - resend
-    - google
-    - google-search-console
-    - posthog
-    - twitter
-    - meta-business
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    # The complete connector allow-list this app's surfaces may offer (ADR-133).
+    # twitter + meta-business are offered for account connection and measurement context only —
+    # publishing to X/Facebook stays on the Switchboard desk; no marketing-engine code path posts there.
+    connectors:
+      - linkedin
+      - mastodon
+      - bluesky
+      - resend
+      - google
+      - google-search-console
+      - posthog
+      - twitter
+      - meta-business
 
 guestTier: blocked
 
@@ -200,12 +217,36 @@ routes:
     mountPath: /api/marketing-ops
     auth: service
     requiresContext: true
+  - module: routes/marketing-readiness.js
+    factory: createMarketingReadinessRoutes
+    mountPath: /api/marketing-engine/readiness
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/marketing-engine/_smoke
     auth: service
     requiresContext: true
     requiresAi: false
+
+# Per-user setup probes the Marketing Suite group's setup dashboard reads (ADR-141). Session-
+# authenticated siblings of smoke:, answered from THIS package's own owner-scoped store — a group
+# step is done only when this app says so. Read-only; they arm nothing.
+readiness:
+  - name: campaign
+    path: /api/marketing-engine/readiness
+    readyPointer: /campaign/ready
+    detailPointer: /campaign/detail
+  - name: channels
+    path: /api/marketing-engine/readiness
+    readyPointer: /channels/ready
+    detailPointer: /channels/detail
+  - name: sender
+    path: /api/marketing-engine/readiness
+    readyPointer: /sender/ready
+    detailPointer: /sender/detail
 
 smoke:
   - name: package-readiness
@@ -296,3 +337,7 @@ summary:
   tilesPointer: /tiles
   metricsPointer: /metrics
   itemsPointer: /items
+
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml

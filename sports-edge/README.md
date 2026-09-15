@@ -310,6 +310,42 @@ There is no route that changes your lineup on ESPN. It advises; you set it.
 
 ## Status
 
+### Coach coverage and package tests (0.7.1)
+
+For each followed team due for its six-hour World refresh, the public ESPN roster response supplies
+the current head coach through its top-level `coach` array. The stored team ID and abbreviation
+must match the response; the coach query uses ESPN's team label. Conflicting stored IDs for the
+same team omit coach discovery until corrected. An explicit head-coach entry
+or a single unlabelled coach is accepted; missing names, assistants alone and ambiguous staff
+produce no person subject. A changed coach is picked up on the next team cycle, with the previous
+coach's archive retained. Team, injury and coach subjects share the existing World service, feed
+set, persistent cooldown and twelve-subject pass budget. No coach read occurs when World is off.
+
+Public provider responses checked on 2026-09-11 confirm this envelope for the
+[NFL roster](https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/12/roster) and
+[NBA roster](https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/2/roster).
+The earlier backlog assumption that the bare team endpoint contains `coaches` was stale.
+College football uses the existing league mapping and the same defensive roster reader; its
+public response could not be independently retrieved during this check. Missing or changed
+staff data in any league produces no coach subject. These undocumented endpoints are not a
+provider schema guarantee, and no coach names are embedded in the implementation or fixtures.
+
+This remains a deployment-wide public news archive. It does not change the ownership of followed
+teams, use private ESPN Fantasy cookies, or turn archived news into a model adjustment. That last
+step still needs the measurement described in [backlog A](BACKLOG.md#a-the-archived-wires-are-written-but-never-read).
+
+The AI Test Lab registers all eleven shipped test suites and the unchanged `package-readiness`
+smoke through [tests/test-lab.yaml](tests/test-lab.yaml). The Node suites use packaged source and
+synthetic data only. The eleven-case coach unit suite runs the actual compiled refresh, provider client
+and store calls with fixture HTTP, World and persistence boundaries; it covers missing/changed
+coaches, restart cooldown, team identity, conflicting follows, followed-owner isolation and bounded work. It does not
+call live providers, classify news with a model, or place an order. The surface suite parses HTML
+and checks route contracts; it is not a browser acceptance test.
+
+Run the package suites with `node --test sports-edge/tests/*.test.js` from the store root, or use
+the installed Test Lab's isolated Node runner. Local registration alone does not imply execution,
+and the readiness smoke remains separate from these offline assertions.
+
 Phase 1 odds maker, complete and proven against live data. Fantasy (0.2.0) is built and its models
 are guarded, but its private-league path has NOT been exercised end to end against a real league
 yet — the first real test is the operator pasting his cookies, and until then the league reads are

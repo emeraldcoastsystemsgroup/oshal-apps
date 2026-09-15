@@ -15,9 +15,36 @@
  *                     |                             | and a 96³ visual hull takes well under a second — so the
  *                     |                             | person gets the report in the same response and nothing runs
  *                     |                             | detached under a borrowed identity.
- * 2 | maintainer@emeraldcoastsystemsgroup.com   | Persist the `contours` artifact on every reconstruction (the
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Retire old outputs before input changes or rebuilds, guard same-job operations, and expose only current artifacts.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Persist validated effective build settings so request overrides and later no-op comparisons describe the same output.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Bind multipart completion to the verified request context so post-upload freshness lookups retain current database and authorization identity.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Persist the `contours` artifact on every reconstruction (the
  *                     |                             | front / top / right outlines in world mm — CAD Studio's bridge)
  *                     |                             | and serve it as JSON beside the other artifacts.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Retain verified upload identity and current-output guards when merging the CAD contour bridge.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | Expose `sealBase` on the point-cloud lane (BACKLOG B7) so a
+ *                     |                             | one-sided phone LiDAR scan can close, and carry `sealedBase`
+ *                     |                             | into the response and the report. The flag is parsed strictly —
+ *                     |                             | an unrecognised spelling is refused, not read as false — because
+ *                     |                             | silently declining to seal would report an assumed base as a
+ *                     |                             | measured one.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com   | `POST /jobs/:id/depth` (BACKLOG B1/B8): a device range image (a
+ *                     |                             | 16-bit PNG or float32 raw, plus the header that places it in the
+ *                     |                             | world frame) refines the job's CURRENT photo hull in the same
+ *                     |                             | request, so the report's lane reads `depth` and lists the
+ *                     |                             | silhouette and the depth views. One range image per build, like
+ *                     |                             | the point cloud; `source_kind` stays the hull's own source
+ *                     |                             | (photos or video), which the migration's CHECK allows.
+ *                     |                             | `GET /jobs/:id/frame-suggestions` (BACKLOG B12) ranks a video's
+ *                     |                             | frames per unassigned view from the silhouette statistics already
+ *                     |                             | stored at ingest; it only proposes, the person assigns.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com   | Orientation cube (BACKLOG B9): a photo upload reads the face
+ *                     |                             | marker and assigns the view when exactly one known marker is
+ *                     |                             | visible and no other photo already holds that view; anything
+ *                     |                             | else stays for the person, and the image row keeps the reason.
+ *                     |                             | Video frames are NOT auto-assigned: a turntable clip shows one
+ *                     |                             | face marker, slightly turned, in several frames, and the first
+ *                     |                             | would win by upload order rather than by being square-on.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -30,20 +57,30 @@ const multer_1 = __importDefault(require("multer"));
 const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
 const node_crypto_1 = require("node:crypto");
+const node_async_hooks_1 = require("node:async_hooks");
 const logger_1 = require("@/shared/logger");
 const job_store_1 = require("./job-store");
 const data_dir_1 = require("./data-dir");
 const image_ingest_1 = require("./image-ingest");
 const silhouette_1 = require("./engine/raster/silhouette");
+const face_marker_1 = require("./engine/raster/face-marker");
 const views_1 = require("./engine/grid/views");
 const point_cloud_1 = require("./engine/grid/point-cloud");
 const pipeline_1 = require("./engine/pipeline");
+const depth_decode_1 = require("./engine/grid/depth-decode");
+const frame_suggest_1 = require("./engine/grid/frame-suggest");
+const job_outputs_1 = require("./job-outputs");
 const contour_export_1 = require("./engine/drawing/contour-export");
 const logger = (0, logger_1.createChildLogger)({ module: 'scan-to-print-job-routes' });
 /** @description Upload and count ceilings the surface pre-validates against. */
 exports.UPLOAD_LIMITS = Object.freeze({
     imageBytes: 25 * 1024 * 1024, imagesPerRequest: 12, imagesPerJob: 24, videoBytes: 300 * 1024 * 1024, plyBytes: 200 * 1024 * 1024,
+    depthBytes: depth_decode_1.DEPTH_UPLOAD_LIMITS.maxPixels * 4,
 });
+/** @description The file names the frame extractor writes; only these form a video sequence. */
+const VIDEO_FRAME_NAME = /^frame-(\d{3})\.png$/;
+/** @description Candidate views for frame suggestion, the three a solid needs first. */
+const SUGGESTION_ORDER = ['front', 'right', 'top', 'back', 'left', 'bottom'];
 /** @description Known-dimension body validation. */
 function parseKnownDimensions(raw) {
     if (!Array.isArray(raw) || raw.length === 0 || raw.length > 3)
@@ -75,9 +112,41 @@ function parseSettings(raw) {
     }
     return out;
 }
-/** @description Which artifacts exist on disk for a job. */
-function artifactPresence(dir) {
-    return Object.fromEntries(Object.keys(data_dir_1.ARTIFACT_FILES).map((k) => [k, node_fs_1.default.existsSync((0, data_dir_1.artifactPath)(dir, k))]));
+/** @description Compare canonical geometry settings; labels also appear in the drawing and report. */
+function changesOutput(job, patch) {
+    const dimensions = (value) => JSON.stringify([...value].sort((a, b) => a.axis.localeCompare(b.axis)));
+    const settings = (value) => JSON.stringify({ resolution: pipeline_1.RECONSTRUCTION_LIMITS.resolution.default,
+        smoothIterations: pipeline_1.RECONSTRUCTION_LIMITS.smoothIterations.default, ...parseSettings(value) });
+    return patch.title !== undefined && patch.title !== job.title
+        || patch.known_dimensions !== undefined && dimensions(patch.known_dimensions) !== dimensions(job.known_dimensions)
+        || patch.settings !== undefined && settings(patch.settings) !== settings(job.settings);
+}
+/** @description Persist the exact validated settings used by this guarded build, including request overrides. */
+async function persistBuildSettings(deps, sub, job, raw) {
+    const settings = { ...parseSettings(job.settings), ...parseSettings(raw) };
+    if (!await (0, job_store_1.updateJob)(deps.pool, sub, job.job_id, { settings }))
+        throw new Error('Job disappeared before build settings were saved');
+    return settings;
+}
+/**
+ * @description Read an optional boolean flag from a multipart body, where every field arrives as a
+ * string. An unrecognised spelling is refused rather than silently read as false: a caller who
+ * wrote `sealBase=yes` asked for the seal and must not be told the base was measured.
+ * @param raw - The body field.
+ * @param label - Field name for the refusal message.
+ * @returns The flag; `false` when absent.
+ * @throws RangeError when the value is neither a boolean nor `true`/`false`/`1`/`0`.
+ */
+function readFlag(raw, label) {
+    if (raw === undefined || raw === null || raw === '')
+        return false;
+    if (typeof raw === 'boolean')
+        return raw;
+    if (raw === 'true' || raw === '1')
+        return true;
+    if (raw === 'false' || raw === '0')
+        return false;
+    throw new RangeError(`${label} must be true or false`);
 }
 /** @description Persist one result's artifacts and the job report. */
 async function saveResult(deps, sub, job, dir, result, sourceKind) {
@@ -93,30 +162,50 @@ async function saveResult(deps, sub, job, dir, result, sourceKind) {
         state: 'reconstructed', report: artifacts.report, failure_reason: null, source_kind: sourceKind,
     });
     logger.info({ jobId: job.job_id, lane: result.report.lane, triangles: result.report.triangleCount, printable: result.report.printable }, 'Reconstruction saved');
-    return updated ?? job;
+    if (!updated)
+        throw new Error('Job disappeared before reconstruction publication');
+    return updated;
 }
-/** @description Ingest one decoded photo: silhouette, files, row. */
-async function ingestImage(deps, sub, jobId, dir, fileName, bytes) {
+/** @description Decide a photo's view from its face marker; a view another photo already holds is left to the person. */
+function decideMarker(scan, taken) {
+    const view = scan.view && !taken.has(scan.view) ? scan.view : null;
+    const reason = scan.view && !view ? `The ${scan.view} face marker is visible, but another photo already holds the ${scan.view} view; assign this photo's view by hand.` : scan.reason;
+    return { view, summary: { view, reason, unknown: scan.unknown, found: scan.markers.map((m) => ({ view: m.view, rotationDeg: m.rotationDeg, bitErrors: m.bitErrors })) } };
+}
+/**
+ * @description Ingest one decoded photo: silhouette, files, row. With `markers`, the photo's
+ * orientation-cube marker is read too, and a decided view is assigned and added to `taken`.
+ */
+async function ingestImage(deps, sub, jobId, dir, fileName, bytes, markers) {
     const { raster, png } = await (0, image_ingest_1.decodeToRaster)(bytes);
     const silhouette = (0, silhouette_1.extractSilhouette)(raster);
+    const decision = markers ? decideMarker((0, face_marker_1.detectFaceMarkers)(raster), markers.taken) : null;
     const imageId = (0, node_crypto_1.randomUUID)();
     (0, data_dir_1.ensureDir)(node_path_1.default.join(dir, 'images'));
     (0, data_dir_1.ensureDir)(node_path_1.default.join(dir, 'masks'));
     node_fs_1.default.writeFileSync((0, data_dir_1.imagePath)(dir, imageId, 'source'), png);
     node_fs_1.default.writeFileSync((0, data_dir_1.imagePath)(dir, imageId, 'mask'), await (0, image_ingest_1.maskToPng)(silhouette.mask));
-    const row = await deps.pool.query('INSERT INTO scan_print_image (image_id, owner_sub, job_id, file_name, width, height, silhouette) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb) RETURNING image_id, job_id, file_name, view, width, height, silhouette, created_at', [imageId, sub, jobId, fileName, raster.width, raster.height, JSON.stringify({ threshold: silhouette.threshold, background: silhouette.background, stats: silhouette.stats, warnings: silhouette.warnings })]);
-    return row.rows[0];
+    const stored = { threshold: silhouette.threshold, background: silhouette.background, stats: silhouette.stats, warnings: silhouette.warnings, ...(decision ? { marker: decision.summary } : {}) };
+    const row = await deps.pool.query('INSERT INTO scan_print_image (image_id, owner_sub, job_id, file_name, width, height, silhouette) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb) RETURNING image_id, job_id, file_name, view, width, height, silhouette, created_at', [imageId, sub, jobId, fileName, raster.width, raster.height, JSON.stringify(stored)]);
+    const inserted = row.rows[0];
+    if (!decision?.view || !markers)
+        return inserted;
+    const assigned = await (0, job_store_1.assignView)(deps.pool, sub, jobId, imageId, decision.view);
+    markers.taken.add(decision.view);
+    return assigned ?? inserted;
 }
 /** @description Load the assigned views' masks from disk. */
 async function loadSilhouettes(dir, images) {
     const assigned = images.filter((img) => img.view !== null);
     return Promise.all(assigned.map(async (img) => ({ view: img.view, mask: await (0, image_ingest_1.pngToMask)(node_fs_1.default.readFileSync((0, data_dir_1.imagePath)(dir, img.image_id, 'mask'))) })));
 }
-/** @description The router. See the module change log for the contract. */
-function createJobRoutes(deps) {
-    const router = (0, express_1.Router)();
-    const memoryUpload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage(), limits: { fileSize: exports.UPLOAD_LIMITS.imageBytes, files: exports.UPLOAD_LIMITS.imagesPerRequest } });
-    const diskUpload = (limit) => (0, multer_1.default)({
+/** @description Preserve the verified async context, including errors, across multipart completion. */
+function preserveUploadContext(upload) {
+    return (req, res, next) => upload(req, res, node_async_hooks_1.AsyncResource.bind(next));
+}
+/** @description Bound file uploads before entering the guarded job operation. */
+function diskUpload(deps, limit) {
+    return (0, multer_1.default)({
         storage: multer_1.default.diskStorage({
             destination: (req, _file, cb) => {
                 const r = req;
@@ -131,7 +220,9 @@ function createJobRoutes(deps) {
         }),
         limits: { fileSize: limit, files: 1 },
     });
-    // ── Guards: caller, then job ownership ─────────────────────────────────────
+}
+/** @description Register guards routes with their existing owner and response contracts. */
+function registerGuards(router, deps) {
     router.use((req, res, next) => {
         const sub = deps.callerSub(req);
         if (!sub) {
@@ -161,6 +252,9 @@ function createJobRoutes(deps) {
             res.status(500).json({ error: 'job_lookup_failed' });
         }
     });
+}
+/** @description Register collection routes with their existing owner and response contracts. */
+function registerCollection(router, deps) {
     router.get('/jobs', async (req, res) => {
         try {
             res.json({ jobs: await (0, job_store_1.listJobs)(deps.pool, req.scanSub) });
@@ -186,18 +280,21 @@ function createJobRoutes(deps) {
             res.status(500).json({ error: 'create_failed' });
         }
     });
-    router.get('/jobs/:jobId', async (req, res) => {
+}
+/** @description Register detail routes with their existing owner and response contracts. */
+function registerDetail(router, deps) {
+    router.get('/jobs/:jobId', (0, job_outputs_1.withCurrentJob)(deps, async (req, res) => {
         const job = req.scanJob;
         try {
             const dir = (0, data_dir_1.jobDir)(deps.dataRoot, req.scanSub, job.job_id);
-            res.json({ job, images: await (0, job_store_1.listImages)(deps.pool, req.scanSub, job.job_id), artifacts: artifactPresence(dir), views: views_1.VIEW_NAMES });
+            res.json({ job, images: await (0, job_store_1.listImages)(deps.pool, req.scanSub, job.job_id), artifacts: (0, job_outputs_1.artifactPresence)(dir, job), views: views_1.VIEW_NAMES });
         }
         catch (error) {
             logger.error({ err: error, jobId: job.job_id }, 'Job detail failed');
             res.status(500).json({ error: 'detail_failed' });
         }
-    });
-    router.patch('/jobs/:jobId', async (req, res) => {
+    }, 'read'));
+    router.patch('/jobs/:jobId', (0, job_outputs_1.withCurrentJob)(deps, async (req, res) => {
         const job = req.scanJob;
         const body = (req.body ?? {});
         try {
@@ -212,6 +309,8 @@ function createJobRoutes(deps) {
                 patch.known_dimensions = parseKnownDimensions(body.knownDimensions);
             if (body.settings !== undefined)
                 patch.settings = parseSettings(body.settings);
+            if (changesOutput(job, patch))
+                await (0, job_outputs_1.retireOutput)(deps, req.scanSub, job);
             res.json({ job: await (0, job_store_1.updateJob)(deps.pool, req.scanSub, job.job_id, patch) });
         }
         catch (error) {
@@ -222,8 +321,8 @@ function createJobRoutes(deps) {
             logger.error({ err: error, jobId: job.job_id }, 'Patch job failed');
             res.status(500).json({ error: 'patch_failed' });
         }
-    });
-    router.delete('/jobs/:jobId', async (req, res) => {
+    }));
+    router.delete('/jobs/:jobId', (0, job_outputs_1.withCurrentJob)(deps, async (req, res) => {
         const job = req.scanJob;
         try {
             await (0, job_store_1.deleteJob)(deps.pool, req.scanSub, job.job_id);
@@ -234,8 +333,12 @@ function createJobRoutes(deps) {
             logger.error({ err: error, jobId: job.job_id }, 'Delete job failed');
             res.status(500).json({ error: 'delete_failed' });
         }
-    });
-    router.post('/jobs/:jobId/images', memoryUpload.array('images', exports.UPLOAD_LIMITS.imagesPerRequest), async (req, res) => {
+    }));
+}
+/** @description Register photos routes with their existing owner and response contracts. */
+function registerPhotos(router, deps) {
+    const memoryUpload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage(), limits: { fileSize: exports.UPLOAD_LIMITS.imageBytes, files: exports.UPLOAD_LIMITS.imagesPerRequest } });
+    router.post('/jobs/:jobId/images', preserveUploadContext(memoryUpload.array('images', exports.UPLOAD_LIMITS.imagesPerRequest)), (0, job_outputs_1.withCurrentJob)(deps, async (req, res) => {
         const job = req.scanJob;
         const files = req.files ?? [];
         if (files.length === 0) {
@@ -248,19 +351,24 @@ function createJobRoutes(deps) {
                 res.status(409).json({ error: 'too_many_images', limit: exports.UPLOAD_LIMITS.imagesPerJob });
                 return;
             }
+            await (0, job_outputs_1.retireOutput)(deps, req.scanSub, job);
             const dir = (0, data_dir_1.jobDir)(deps.dataRoot, req.scanSub, job.job_id);
+            const taken = new Set(existing.map((img) => img.view).filter((v) => v !== null));
             const images = [];
             for (const file of files)
-                images.push(await ingestImage(deps, req.scanSub, job.job_id, dir, file.originalname.slice(0, 200), file.buffer));
+                images.push(await ingestImage(deps, req.scanSub, job.job_id, dir, file.originalname.slice(0, 200), file.buffer, { taken }));
             await (0, job_store_1.updateJob)(deps.pool, req.scanSub, job.job_id, { state: 'capturing' });
-            res.status(201).json({ images });
+            res.status(201).json({ images, viewsFromMarkers: images.filter((img) => img.view !== null).length });
         }
         catch (error) {
             logger.error({ err: error, jobId: job.job_id }, 'Image ingest failed');
             res.status(422).json({ error: 'image_ingest_failed', message: error instanceof Error ? error.message : String(error) });
         }
-    });
-    router.post('/jobs/:jobId/video', diskUpload(exports.UPLOAD_LIMITS.videoBytes).single('video'), async (req, res) => {
+    }));
+}
+/** @description Register video routes with their existing owner and response contracts. */
+function registerVideo(router, deps) {
+    router.post('/jobs/:jobId/video', preserveUploadContext(diskUpload(deps, exports.UPLOAD_LIMITS.videoBytes).single('video')), (0, job_outputs_1.withCurrentJob)(deps, async (req, res) => {
         const job = req.scanJob;
         const file = req.file;
         if (!file) {
@@ -276,6 +384,7 @@ function createJobRoutes(deps) {
                 res.status(409).json({ error: 'too_many_images', limit: exports.UPLOAD_LIMITS.imagesPerJob });
                 return;
             }
+            await (0, job_outputs_1.retireOutput)(deps, req.scanSub, job);
             const frames = await (0, image_ingest_1.extractFrames)(file.path, node_path_1.default.join(dir, 'frames', (0, node_crypto_1.randomUUID)()), { ...config, maxFrames: Math.min(config.maxFrames, room) }, deps.execFile);
             const images = [];
             for (const frame of frames)
@@ -290,8 +399,11 @@ function createJobRoutes(deps) {
         finally {
             node_fs_1.default.rmSync(file.path, { force: true });
         }
-    });
-    router.patch('/jobs/:jobId/images/:imageId', async (req, res) => {
+    }));
+}
+/** @description Register imagemutations routes with their existing owner and response contracts. */
+function registerImageMutations(router, deps) {
+    router.patch('/jobs/:jobId/images/:imageId', (0, job_outputs_1.withCurrentJob)(deps, async (req, res) => {
         const job = req.scanJob;
         const view = (req.body ?? {}).view;
         if (view !== null && !(0, views_1.isViewName)(view)) {
@@ -299,7 +411,15 @@ function createJobRoutes(deps) {
             return;
         }
         try {
-            const image = await (0, job_store_1.assignView)(deps.pool, req.scanSub, job.job_id, (0, data_dir_1.requireUuid)(req.params.imageId), view);
+            const imageId = (0, data_dir_1.requireUuid)(req.params.imageId);
+            const original = (await (0, job_store_1.listImages)(deps.pool, req.scanSub, job.job_id)).find(image => image.image_id === imageId);
+            if (!original) {
+                res.status(404).json({ error: 'image_not_found' });
+                return;
+            }
+            if (original.view !== view)
+                await (0, job_outputs_1.retireOutput)(deps, req.scanSub, job);
+            const image = await (0, job_store_1.assignView)(deps.pool, req.scanSub, job.job_id, imageId, view);
             if (!image) {
                 res.status(404).json({ error: 'image_not_found' });
                 return;
@@ -314,11 +434,17 @@ function createJobRoutes(deps) {
             logger.error({ err: error, jobId: job.job_id }, 'Assign view failed');
             res.status(500).json({ error: 'assign_failed' });
         }
-    });
-    router.delete('/jobs/:jobId/images/:imageId', async (req, res) => {
+    }));
+    router.delete('/jobs/:jobId/images/:imageId', (0, job_outputs_1.withCurrentJob)(deps, async (req, res) => {
         const job = req.scanJob;
         try {
             const imageId = (0, data_dir_1.requireUuid)(req.params.imageId);
+            const exists = (await (0, job_store_1.listImages)(deps.pool, req.scanSub, job.job_id)).some(image => image.image_id === imageId);
+            if (!exists) {
+                res.status(404).json({ error: 'image_not_found' });
+                return;
+            }
+            await (0, job_outputs_1.retireOutput)(deps, req.scanSub, job);
             const removed = await (0, job_store_1.deleteImage)(deps.pool, req.scanSub, job.job_id, imageId);
             if (!removed) {
                 res.status(404).json({ error: 'image_not_found' });
@@ -337,8 +463,11 @@ function createJobRoutes(deps) {
             logger.error({ err: error, jobId: job.job_id }, 'Delete image failed');
             res.status(500).json({ error: 'delete_failed' });
         }
-    });
-    router.get('/jobs/:jobId/images/:imageId/file', async (req, res) => {
+    }));
+}
+/** @description Register imageread routes with their existing owner and response contracts. */
+function registerImageRead(router, deps) {
+    router.get('/jobs/:jobId/images/:imageId/file', (0, job_outputs_1.withCurrentJob)(deps, async (req, res) => {
         const job = req.scanJob;
         try {
             const imageId = (0, data_dir_1.requireUuid)(req.params.imageId);
@@ -364,13 +493,17 @@ function createJobRoutes(deps) {
             logger.error({ err: error, jobId: job.job_id }, 'Image file failed');
             res.status(500).json({ error: 'file_failed' });
         }
-    });
-    router.post('/jobs/:jobId/reconstruct', async (req, res) => {
+    }, 'read'));
+}
+/** @description Register reconstruction routes with their existing owner and response contracts. */
+function registerReconstruction(router, deps) {
+    router.post('/jobs/:jobId/reconstruct', (0, job_outputs_1.withCurrentJob)(deps, async (req, res) => {
         const job = req.scanJob;
         const sub = req.scanSub;
         const dir = (0, data_dir_1.jobDir)(deps.dataRoot, sub, job.job_id);
         try {
-            const settings = { ...parseSettings(job.settings), ...parseSettings(req.body) };
+            await (0, job_outputs_1.retireOutput)(deps, sub, job);
+            const settings = await persistBuildSettings(deps, sub, job, req.body);
             const silhouettes = await loadSilhouettes(dir, await (0, job_store_1.listImages)(deps.pool, sub, job.job_id));
             if (silhouettes.length === 0) {
                 res.status(409).json({ error: 'no_views_assigned', message: 'Assign at least one photo to a view (front, top, right …) before reconstructing.' });
@@ -385,15 +518,19 @@ function createJobRoutes(deps) {
         catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             if (error instanceof RangeError) {
-                await (0, job_store_1.updateJob)(deps.pool, sub, job.job_id, { state: 'failed', failure_reason: message }).catch(() => null);
+                await (0, job_store_1.updateJob)(deps.pool, sub, job.job_id, { state: 'failed', report: null, failure_reason: message }).catch(() => null);
                 res.status(422).json({ error: 'reconstruction_refused', message });
                 return;
             }
             logger.error({ err: error, jobId: job.job_id }, 'Reconstruction failed');
+            await (0, job_store_1.updateJob)(deps.pool, sub, job.job_id, { state: 'failed', report: null, failure_reason: 'Reconstruction failed. Reconstruct before using outputs.' }).catch(() => null);
             res.status(500).json({ error: 'reconstruction_failed' });
         }
-    });
-    router.post('/jobs/:jobId/pointcloud', diskUpload(exports.UPLOAD_LIMITS.plyBytes).single('model'), async (req, res) => {
+    }));
+}
+/** @description Register pointcloud routes with their existing owner and response contracts. */
+function registerPointCloud(router, deps) {
+    router.post('/jobs/:jobId/pointcloud', preserveUploadContext(diskUpload(deps, exports.UPLOAD_LIMITS.plyBytes).single('model')), (0, job_outputs_1.withCurrentJob)(deps, async (req, res) => {
         const job = req.scanJob;
         const sub = req.scanSub;
         const file = req.file;
@@ -403,45 +540,53 @@ function createJobRoutes(deps) {
         }
         const dir = (0, data_dir_1.jobDir)(deps.dataRoot, sub, job.job_id);
         try {
+            await (0, job_outputs_1.retireOutput)(deps, sub, job);
             const body = (req.body ?? {});
             const voxelMm = Number(body.voxelMm ?? 1);
             const unitScale = Number(body.unitScale ?? 1);
             const up = body.up === 'y' ? 'y' : 'z';
+            const sealBase = readFlag(body.sealBase, 'sealBase');
             if (!(voxelMm > 0) || !(unitScale > 0))
                 throw new RangeError('voxelMm and unitScale must be positive numbers');
-            const settings = { ...parseSettings(job.settings), ...parseSettings(body) };
+            const settings = await persistBuildSettings(deps, sub, job, body);
             const cloud = (0, point_cloud_1.parsePly)(new Uint8Array(node_fs_1.default.readFileSync(file.path)));
             const vox = (0, point_cloud_1.voxelizePointCloud)(cloud, { voxelMm, unitScale, up });
-            const fill = (0, point_cloud_1.fillSolidFromSurface)(vox.grid, 1);
+            const fill = (0, point_cloud_1.fillSolidFromSurface)(vox.grid, 1, { sealBase });
             const warnings = fill.closed ? [] : ['The scanned surface did not close at this voxel size: the interior was NOT filled. Increase voxelMm or capture the missing side.'];
             const result = (0, pipeline_1.finishFromGrid)(vox.grid, vox.sizeMm, {
-                lane: 'pointcloud', viewsUsed: [], sources: { x: 'known', y: 'known', z: 'known' }, warnings,
-                method: `Point cloud (${cloud.count} points, ${vox.pointCount} in grid), voxel ${voxelMm} mm, ${up === 'y' ? 'Y-up' : 'Z-up'} ×${unitScale}`,
+                lane: 'pointcloud', viewsUsed: [], sources: { x: 'known', y: 'known', z: 'known' }, warnings, sealedBase: fill.sealedBase,
+                method: `Point cloud (${cloud.count} points, ${vox.pointCount} in grid), voxel ${voxelMm} mm, ${up === 'y' ? 'Y-up' : 'Z-up'} ×${unitScale}${fill.sealedBase ? ', base sealed' : ''}`,
             }, { ...settings, partName: job.title });
             const updated = await saveResult(deps, sub, job, dir, result, 'pointcloud');
-            res.json({ job: updated, report: result.report, closed: fill.closed, interiorFilled: fill.interiorFilled });
+            res.json({ job: updated, report: result.report, closed: fill.closed, interiorFilled: fill.interiorFilled, sealedBase: fill.sealedBase });
         }
         catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             if (error instanceof RangeError) {
-                await (0, job_store_1.updateJob)(deps.pool, sub, job.job_id, { state: 'failed', failure_reason: message }).catch(() => null);
+                await (0, job_store_1.updateJob)(deps.pool, sub, job.job_id, { state: 'failed', report: null, failure_reason: message }).catch(() => null);
                 res.status(422).json({ error: 'pointcloud_refused', message });
                 return;
             }
+            await (0, job_store_1.updateJob)(deps.pool, sub, job.job_id, { state: 'failed', report: null, failure_reason: 'Point cloud reconstruction failed. Reconstruct before using outputs.' }).catch(() => null);
             logger.error({ err: error, jobId: job.job_id }, 'Point cloud lane failed');
             res.status(500).json({ error: 'pointcloud_failed' });
         }
         finally {
             node_fs_1.default.rmSync(file.path, { force: true });
         }
-    });
-    router.get('/jobs/:jobId/artifacts/:key', (req, res) => {
+    }));
+}
+/** @description Register artifacts routes with their existing owner and response contracts. */
+function registerArtifacts(router, deps) {
+    router.get('/jobs/:jobId/artifacts/:key', (0, job_outputs_1.withCurrentJob)(deps, (req, res) => {
         const job = req.scanJob;
         const key = req.params.key;
         if (!(key in data_dir_1.ARTIFACT_FILES)) {
             res.status(400).json({ error: 'unknown_artifact', keys: Object.keys(data_dir_1.ARTIFACT_FILES) });
             return;
         }
+        if (!(0, job_outputs_1.requireCurrentOutput)(job, res, key === 'gcode'))
+            return;
         const file = (0, data_dir_1.artifactPath)((0, data_dir_1.jobDir)(deps.dataRoot, req.scanSub, job.job_id), key);
         if (!node_fs_1.default.existsSync(file)) {
             res.status(404).json({ error: 'artifact_not_found' });
@@ -452,7 +597,119 @@ function createJobRoutes(deps) {
         if (req.query.download !== undefined)
             res.setHeader('Content-Disposition', `attachment; filename="${job.title.replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 60) || 'part'}.${key === 'report' || key === 'contours' ? 'json' : key}"`);
         res.type(types[key]).send(node_fs_1.default.readFileSync(file));
+    }, 'read'));
+}
+/** @description Decode an uploaded range image per its declared format into a map in the world frame. */
+async function decodeDepthUpload(bytes, body) {
+    if (body.format === 'png16') {
+        const png = await (0, image_ingest_1.decodePng16)(bytes);
+        return (0, depth_decode_1.depthMapFromUint16)(png.values, (0, depth_decode_1.parseDepthHeader)(body, { width: png.width, height: png.height }));
+    }
+    return (0, depth_decode_1.depthMapFromFloat32)(new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength), (0, depth_decode_1.parseDepthHeader)(body));
+}
+/** @description Register the depth route: one range image refines the job's current photo hull. */
+function registerDepth(router, deps) {
+    router.post('/jobs/:jobId/depth', preserveUploadContext(diskUpload(deps, exports.UPLOAD_LIMITS.depthBytes).single('depth')), (0, job_outputs_1.withCurrentJob)(deps, async (req, res) => {
+        const job = req.scanJob;
+        const sub = req.scanSub;
+        const file = req.file;
+        if (!file) {
+            res.status(400).json({ error: 'no_depth' });
+            return;
+        }
+        const dir = (0, data_dir_1.jobDir)(deps.dataRoot, sub, job.job_id);
+        try {
+            await (0, job_outputs_1.retireOutput)(deps, sub, job);
+            const body = (req.body ?? {});
+            const map = await decodeDepthUpload(node_fs_1.default.readFileSync(file.path), body);
+            const settings = await persistBuildSettings(deps, sub, job, body);
+            const silhouettes = await loadSilhouettes(dir, await (0, job_store_1.listImages)(deps.pool, sub, job.job_id));
+            if (silhouettes.length === 0) {
+                res.status(409).json({ error: 'no_views_assigned', message: 'A range image refines the photo hull: assign at least one photo to a view first.' });
+                return;
+            }
+            const started = Date.now();
+            const result = (0, pipeline_1.reconstructHullWithDepth)(silhouettes, parseKnownDimensions(job.known_dimensions), [map], { ...settings, partName: job.title });
+            const updated = await saveResult(deps, sub, job, dir, result, job.source_kind === 'video' ? 'video' : 'photos');
+            res.json({ job: updated, report: result.report, durationMs: Date.now() - started });
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (error instanceof RangeError) {
+                await (0, job_store_1.updateJob)(deps.pool, sub, job.job_id, { state: 'failed', report: null, failure_reason: message }).catch(() => null);
+                res.status(422).json({ error: 'depth_refused', message });
+                return;
+            }
+            await (0, job_store_1.updateJob)(deps.pool, sub, job.job_id, { state: 'failed', report: null, failure_reason: 'Depth reconstruction failed. Reconstruct before using outputs.' }).catch(() => null);
+            logger.error({ err: error, jobId: job.job_id }, 'Depth lane failed');
+            res.status(500).json({ error: 'depth_failed' });
+        }
+        finally {
+            node_fs_1.default.rmSync(file.path, { force: true });
+        }
+    }));
+}
+/**
+ * @description The job's video frames as one sample per frame, in capture order. A new clip starts
+ * wherever the extractor's frame number stops increasing, and neighbours never cross a clip.
+ */
+function videoFrameSamples(images) {
+    const frames = images.filter((img) => VIDEO_FRAME_NAME.test(img.file_name));
+    let clip = 0;
+    let previous = Infinity;
+    return frames.map((img) => {
+        const number = Number(VIDEO_FRAME_NAME.exec(img.file_name)[1]);
+        if (number <= previous && previous !== Infinity)
+            clip += 1;
+        previous = number;
+        const stats = (img.silhouette ?? {}).stats ?? {};
+        return { id: img.image_id, pixels: Number.isInteger(stats.pixels) ? stats.pixels : 0, bbox: stats.bbox ?? null, sequence: clip };
     });
+}
+/** @description Register the frame-suggestion route: proposals for each view not yet assigned. */
+function registerFrameSuggestions(router, deps) {
+    router.get('/jobs/:jobId/frame-suggestions', (0, job_outputs_1.withCurrentJob)(deps, async (req, res) => {
+        const job = req.scanJob;
+        try {
+            const images = await (0, job_store_1.listImages)(deps.pool, req.scanSub, job.job_id);
+            const frames = videoFrameSamples(images);
+            if (frames.length === 0) {
+                res.status(409).json({ error: 'no_video_frames', message: 'Upload a video first: suggestions rank its frames.' });
+                return;
+            }
+            const assigned = images.filter((img) => img.view !== null);
+            const views = SUGGESTION_ORDER.filter((view) => !assigned.some((img) => img.view === view));
+            const known = Array.isArray(job.known_dimensions) && job.known_dimensions.length > 0 ? parseKnownDimensions(job.known_dimensions) : [];
+            const names = new Map(images.map((img) => [img.image_id, img.file_name]));
+            const out = views.length === 0 ? [] : (0, frame_suggest_1.suggestSquareOnFrames)(frames, [...views], known, { exclude: assigned.map((img) => img.image_id) });
+            res.json({
+                frames: frames.length,
+                suggestions: out.filter((s) => s.best).map((s) => ({ view: s.view, imageId: s.best?.id, fileName: names.get(s.best?.id), score: s.best?.score, skew: s.best?.skew, turn: s.best?.turn })),
+                unmatched: out.filter((s) => !s.best).map((s) => s.view),
+                proportionsKnown: known.length,
+            });
+        }
+        catch (error) {
+            logger.error({ err: error, jobId: job.job_id }, 'Frame suggestion failed');
+            res.status(500).json({ error: 'suggestion_failed' });
+        }
+    }, 'read'));
+}
+/** @description Compose bounded handlers; all same-job writes and output reads share the single-API guard. */
+function createJobRoutes(deps) {
+    const router = (0, express_1.Router)();
+    registerGuards(router, deps);
+    registerCollection(router, deps);
+    registerDetail(router, deps);
+    registerPhotos(router, deps);
+    registerVideo(router, deps);
+    registerImageMutations(router, deps);
+    registerImageRead(router, deps);
+    registerReconstruction(router, deps);
+    registerPointCloud(router, deps);
+    registerDepth(router, deps);
+    registerFrameSuggestions(router, deps);
+    registerArtifacts(router, deps);
     return router;
 }
 //# sourceMappingURL=job-routes.js.map

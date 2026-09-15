@@ -66,3 +66,15 @@ node scripts/oshal-app.js install presentations
 No migrations — `oshal_presentations` is lazy DDL carried by the packaged route
 (CREATE + owner RLS at the chokepoint). The table stays in place across
 install/toggle; uninstall never touches data.
+
+## Test Lab catalog (2.11.2)
+
+[tests/test-lab.yaml](tests/test-lab.yaml) registers every shipped test and preserves the existing `package-readiness` smoke ID. Registration does not execute tests. An authorized operator can run the supported Node suites from the AI Test Lab against a sealed package snapshot; versioned results record the source revision and sandbox cleanup.
+
+| Test entry | Level | Execution boundary |
+| --- | --- | --- |
+| `tests/presentations-surface-parse.test.js` | unit | Isolated Node runner; synthetic data only |
+| `tests/presentations-starters.test.js` | unit | Isolated Node runner; synthetic data only |
+| `tests/presentations-destination.test.mjs` | unit | Isolated Node runner; synthetic data only |
+
+These tests do not contact accounts, providers or live business records. Surface syntax and stubbed-handler assertions do not claim browser or connector acceptance. Package readiness remains a separate metadata-only probe.

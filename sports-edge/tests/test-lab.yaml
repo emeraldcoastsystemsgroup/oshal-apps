@@ -1,0 +1,254 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register all package behavior suites and the new fixture-only coach refresh proof, preserving the readiness smoke.
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify existing service-authenticated metadata readiness without provider or user-data access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed Sports Edge identity satisfies its existing smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: sports-coach
+    name: Coach discovery and ingestion
+    purpose: >-
+      Run the actual compiled refresh and public ESPN client with synthetic transport, World service and
+      persistence boundaries.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sports-coach.test.js
+    expected:
+      - Missing or ambiguous staff produces no person subject.
+      - Current coach changes follow the team cooldown and preserve prior history.
+      - Follow ownership, fixed provider URLs, credential isolation and the pass budget remain intact.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/sports-coach-fixture.js
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: sports-espn
+    name: ESPN payload normalization
+    purpose: Exercise fixed public read parsers and retry behavior with synthetic HTTP responses.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sports-espn.test.js
+    expected:
+      - Odds are attributed to the correct team.
+      - Transient reads retry while final failures remain visible.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: sports-world
+    name: World subject contracts
+    purpose: Verify stable subject IDs and shared-feed ingestion using in-memory outcomes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sports-world.test.js
+    expected:
+      - Entities remain stable and disambiguated.
+      - Persistent timestamps determine cooldown; failed ingestion is reported.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: sports-odds
+    name: Odds arithmetic
+    purpose: Verify probability, price, edge and zero-stake arithmetic.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sports-odds.test.js
+    expected:
+      - Odds conversions and model probabilities preserve their numerical contracts.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: sports-ratings
+    name: Team ratings
+    purpose: Measure Elo, power ratings and season carry-over against synthetic games.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sports-ratings.test.js
+    expected:
+      - Ratings are finite, correctly attributed and preserve season carry-over.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: sports-ensemble
+    name: Game ensemble
+    purpose: Test deterministic model contributions and injury/unit adjustments.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sports-ensemble.test.js
+    expected:
+      - Unavailable model data does not become a vote.
+      - Production-weighted injuries and unit matchups are bounded.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: sports-ledger
+    name: Forward-test ledger
+    purpose: Grade synthetic pregame predictions without placing orders.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sports-ledger.test.js
+    expected:
+      - Settled outcomes retain calibration and closing-line evidence.
+      - Unproven strategies cannot claim a staking gate pass.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: sports-line-history
+    name: Observed line movement
+    purpose: Exercise movement calculations and actual capture-store calls with an in-memory query fixture.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sports-line-history.test.js
+    expected:
+      - Only changed prices are captured.
+      - The first observed price is never presented as a proven opening line.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: sports-fantasy
+    name: Fantasy scoring
+    purpose: Apply synthetic league rules, roster availability and fixture-only credential transport.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sports-fantasy.test.js
+    expected:
+      - Each league scores its own raw projection rows.
+      - Unavailable players are excluded and private cookie data stays in the transport.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: sports-fantasy-winprob
+    name: Fantasy matchup optimization
+    purpose: Optimize synthetic lineups against the actual fixture opponent.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sports-fantasy-winprob.test.js
+    expected:
+      - Lineups maximize matchup win probability with legal positions.
+      - Opponent identity and scoring distributions remain consistent.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: sports-surface
+    name: Surface syntax and routes
+    purpose: Parse packaged HTML and compiled route text without launching a browser.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sports-surface.test.js
+    expected:
+      - Classic scripts parse and page endpoints exist.
+      - The surface preserves its credential warning and never collects ESPN cookies.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never

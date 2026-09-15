@@ -30,6 +30,9 @@
 # 25 | maintainer@emeraldcoastsystemsgroup.com     | Run the sports-edge package's suites: the app's only dangerous power is a confident line, and its two worst bugs shipped GREEN through 74 unit tests — a seeded Elo call with an empty tape silently discarded every carried-over rating, and a model with no games voted a zero that averaged a real signal most of the way to nothing. The guards that matter are therefore the invariants those bugs violated: strength models AVERAGED while context is ADDED, a dataless model abstaining instead of voting, a seed materialising without games, a spread graded against the price TAKEN, and the staking gate refusing to promote on one bar. Same dependency-free plain-node contract, against the COMPILED modules. GLOB: tests/*.test.js is correct here (all five suites are .test.js).
 
 # 26 | Codex | Run compiled Home extractor session/owner/read-only/failure boundaries for Feeds, Email and Switchboard.
+# 27 | maintainer@emeraldcoastsystemsgroup.com     | Narrow the spaces glob to tests/spaces-*.test.js: the new upload-identity.core.test.js drives the compiled router over real HTTP with express + multer resolved from a framework checkout (OSHAL_CORE_DIR), which this bare-checkout job does not have — same *.core.test.js convention as cad-studio and circuit-lab. Run locally with the framework checkout present.
+# 28 | maintainer@emeraldcoastsystemsgroup.com     | Run the animatronics package's dependency-free suites (engine, protocol, prop-kind seam, Web Serial link) with the house one-glob contract; routes.core and surface.core stay local with the framework checkout.
+# 29 | maintainer@emeraldcoastsystemsgroup.com     | Keep the scan-to-print core suite out of this bare-checkout job by NAME rather than by widening the glob. `tests/*-*.test.js` matched upload-identity.core.test.js only because that filename carried a hyphen, and that suite resolves express, multer and request-identity.ts from a framework checkout (OSHAL_CORE_DIR) this job does not have. The house contract is one glob per package (check-store-test-discovery.mjs enforces it), and every other package on tests/*-*.test.js already keeps its core suites hyphen-free - cad-studio and animatronics use routes.core.test.js, and a hyphenated one uses .core.spec.mjs. scan-to-print now matches: the file is identity.core.test.js beside routes.core.test.js and freshness.core.test.js. Glob unchanged.
 name: store-ci
 on:
   pull_request:
@@ -293,7 +296,7 @@ jobs:
       # cockpit-versus-full-screen stylesheet split.
       - name: Run Spaces source-of-truth suites
         working-directory: spaces
-        run: node --test "tests/*.test.js"
+        run: node --test "tests/spaces-*.test.js"
 
   payroll:
     name: payroll package suites
@@ -524,6 +527,47 @@ jobs:
         working-directory: scan-to-print
         run: node --test "tests/*-*.test.js"
 
+  drone-relay:
+    name: drone-relay package suites
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # The deterministic engine (the transport catalog and link budget, the chain planner, the
+      # on-board relay rule, the envelope protocol, the tick simulation) and the surface parse guard
+      # are pure JS with no framework import, so they run under plain node with no install — every
+      # hyphenated suite (engine-*, surface-*) against the COMPILED modules. The framework-coupled
+      # route suite (routes.core, express) is registered in tests/test-lab.yaml with its checkout
+      # prerequisite and runs locally, not here.
+      - name: Run drone-relay engine and surface suites
+        working-directory: drone-relay
+        run: node --test "tests/*-*.test.js"
+
+  embodied:
+    name: embodied package suites
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # The simulation engine (arm kinematics, the base's stability budget, the drone's fence and
+      # camera, the navigation grid, the capability-manifest validator, and the plan → rehearse →
+      # execute → take-command / e-stop machine) is pure JS with no framework import, so it runs
+      # under plain node with no install — every engine-* suite against the COMPILED modules. The
+      # app's only dangerous power is commanding a kinetic machine, so the guards that matter are
+      # the refusals: a path into furniture, an unreachable or colliding arm pose, a load the tip
+      # budget cannot carry, a drone outside its fence, and any motion while the e-stop is latched.
+      # The framework-coupled route suite (routes.core, express over loopback HTTP) is registered
+      # in tests/test-lab.yaml with its checkout prerequisite and runs locally, not here.
+      - name: Run embodied engine suites
+        working-directory: embodied
+        run: node --test "tests/engine-*.test.js"
+
   cad-studio:
     name: cad-studio package suites
     needs: [test-discovery, catalog-parity]
@@ -540,4 +584,41 @@ jobs:
       # registered in tests/test-lab.yaml with their prerequisites and run locally, not here.
       - name: Run cad-studio contract and transport suites
         working-directory: cad-studio
+        run: node --test "tests/*-*.test.js"
+
+  circuit-lab:
+    name: circuit-lab package suites
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # The part contract (checked against the worker's Python library and the bridge's build
+      # hash with the runner's python3) and the engine transport against a fake bridge are plain
+      # node with no framework import — every hyphenated suite (contract-*, engine-*). The
+      # framework-coupled route suite (routes.core) and the real-solver Python suite are
+      # registered in tests/test-lab.yaml with their prerequisites and run locally, not here.
+      - name: Run circuit-lab contract and transport suites
+        working-directory: circuit-lab
+        run: node --test "tests/*-*.test.js"
+
+  animatronics:
+    name: animatronics package suites
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # The rig / pose / scenario contract, the compiler and servo rehearsal, the supply budget,
+      # look-at, the controller protocol, the prop-kind seam (read-only import of embodied's
+      # compiled manifest, in this same checkout) and the Web Serial link against a fake port are
+      # plain node with no framework import — every hyphenated suite (engine-*, surface-*). The
+      # framework-coupled route and browser suites (routes.core, surface.core) are registered in
+      # tests/test-lab.yaml with their prerequisites and run locally, not here.
+      - name: Run animatronics engine, protocol and surface suites
+        working-directory: animatronics
         run: node --test "tests/*-*.test.js"

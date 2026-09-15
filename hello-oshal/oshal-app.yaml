@@ -14,9 +14,14 @@ name: hello-oshal
 suite: ai-engineering   # ADR-097: primary catalog shelf (tools keep their own category:)
 displayName: Hello OSHAL
 description: The minimal working OSHAL app package — one JSON route, one themed ribbon surface.
-version: 1.1.0
+version: 1.2.0
 status: active
 scope: person
+
+uses: [test-catalog, app-dependencies]
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 
 source:
   type: git-subdir
@@ -39,9 +44,14 @@ smoke:
 
 # No bots, no migrations, no dependencies — the smallest possible package.
 dependencies:
-  apps: []
-  tools: []
-  connectors: []
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
 
 # ADR-085 §5: RAG collections this app owns — surfaced in uninstall-impact and
 # deleted at uninstall only under the operator's explicit ?dropData=true.

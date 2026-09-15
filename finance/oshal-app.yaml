@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1: register every shipped test and preserve the existing readiness smoke for versioned Test Lab discovery.
+# -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — finance ("Finance")
 # Carved out of OSHAL core 2026-07-17 (ADR-085 Wave 1 carve #5 — the FINALE).
@@ -37,7 +43,10 @@ description: >-
   Link your banks and brokerages (via Plaid — OSHAL never sees your bank password)
   and see everything in one place: net worth, accounts, holdings, and spending, with
   a plain-English brief. Read-only — nothing is traded or moved. No crypto.
-version: 1.2.0
+version: 1.2.1
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 status: active
 
 # Neutral steel-glass skin (cockpit built-in — see COCKPIT_THEMES in theme-manager.js).
@@ -68,13 +77,20 @@ smoke:
 # Plaid links on the app's own surface (not the connector hub) → empty connector
 # allow-list is correct; no app/tool deps.
 dependencies:
-  apps: []
-  tools: []
-  connectors: []
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
 
 # Kernel skills this app CALLS (ADR-090 uses: contract, fail-closed at load).
 uses:
+  - test-catalog
   - payments
+  - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
 
 ticketType: finance-brief
 

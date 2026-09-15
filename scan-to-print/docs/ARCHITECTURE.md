@@ -79,15 +79,34 @@ when views disagree about the object's proportions by more than 10 %.
 Same raster → byte-identical mask (asserted). Warnings are produced from the mask alone: no
 object, low contrast, very small, fills the frame, touches the edge.
 
+**View assignment from the orientation cube** (`raster/face-marker.ts`): a paper cube with one
+marker per face stands beside the object. The detector is deterministic and uses no model: Otsu
+on darkness, 4-connected components, and a (4 + 2)-cell grid read on each square, black-bordered
+candidate. The 16 data cells are matched against six fixed codes under four rotations; any two
+faces differ in at least 6 cells, and one wrong cell is tolerated. Exactly one known marker assigns
+a photo's view on upload. The cube is never part of the silhouette: it is a smaller, separate
+component, and only the largest component is kept.
+
 ## 5. Registration and carving (`grid/silhouette-carver.ts`)
 
 - Input: one mask per supplied view + 1–3 **known dimensions** (ruler measurements).
-- Each mask's bounding box gives pixel extents along the view's `u`/`v` world axes. Extents
-  propagate: a view that knows one axis in mm yields the other from the pixel ratio, until nothing
-  new resolves. An axis no view can see is **assumed** equal to the first known dimension and
-  flagged on the report, the drawing and the UI.
-- Per view: mm-per-pixel = mean of the two axis estimates (a >10 % disagreement warns); the mask's
-  bounding-box centre is pinned to the object's bounding-box centre `(0, 0, H/2)`.
+- Each mask's bounding box gives pixel extents along the view's `u`/`v` world axes. Every view
+  contributes two equations, `log extent(axis) = log mmPerPx(view) + log pixels`, and all of them
+  are solved in ONE least-squares fit, linear in log space, with the known dimensions held exact.
+  The normal equations are solved directly by Gaussian elimination, with no iteration. An axis no
+  view connects to a measurement is **assumed** equal to the first known dimension and flagged on
+  the report, the drawing and the UI.
+- Per view: mm-per-pixel is the fitted scale (the geometric mean of that view's two estimates
+  against the fit). Each view reports a residual `{ u, v, disagreement }`; past 10 % it warns,
+  worst first. Three views that close one loop share its misfit equally; a fourth view closing a
+  second loop makes the skewed one carry the largest residual. Least squares averages, so it
+  names the worst view without isolating it. The fit is rounded to 12 significant digits, so
+  roundoff never moves a voxel boundary.
+- The mask's bounding-box centre is pinned to the object's bounding-box centre `(0, 0, H/2)`.
+- Optional **symmetry** (`symmetry: 'x' | 'y'`): after carving, the grid is unioned with its mirror
+  about world X = 0 (or Y = 0), the footprint centre. That is an exact index flip, and it only adds
+  material. The report records `mirrored` with the volume copied rather than seen, and the drawing
+  says so.
 - Carve: a voxel survives only if its **centre** projects onto the object in **every** supplied
   view. Result: the **visual hull**.
 - Voxel edge = largest extent / `resolution` (default 96, max 198; the grid ceiling is 200³).
@@ -120,10 +139,18 @@ cylinder, renders its top-view depth, carves the SOLID cylinder with it and asse
 equals the hollow grid **to the voxel**. No hardware is in the loop, and no claim is made that
 hardware has been.
 
-**To attach a real sensor:** produce this struct from the device (an orthographic re-projection of
-its range image into one canonical view, with its plane at a known world coordinate) and call
-`refineWithDepth`. That is the whole integration. Perspective range images need a pre-step
-(project to the view plane) that is not written yet — see BACKLOG.
+**Attaching a real sensor:** `POST /jobs/:id/depth` takes a range image as a 16-bit PNG
+(`0` = no return) or float32 raw (`NaN` = no return), plus the header that places it: view,
+mmPerPx, centre pixel, plane, depthScale (`grid/depth-decode.ts`). It refines the job's CURRENT
+photo hull (`reconstructHullWithDepth`): the same grid the photo lane builds, carved again by the
+range image. A sensor plane inside the part is refused. One range image per build.
+
+**Perspective range images** (phone depth cameras) are re-projected first by
+`reprojectToCanonicalView` (`grid/depth-reproject.ts`). It takes pinhole intrinsics and a
+camera-to-world pose, picks the canonical view nearest the optical axis, and keeps the shallowest
+return per pixel. A re-projected return certifies its whole column as free, which is exact only
+when the ray runs down the column. Samples leaning more than `maxLeanDeg` (default 45°) are
+dropped and counted. `renderPerspectiveDepth` is its simulator.
 
 ## 7. Point-cloud lane (`grid/point-cloud.ts`)
 
@@ -136,6 +163,11 @@ its range image into one canonical view, with its plane at a known world coordin
   from the grid corner; whatever the flood cannot reach is interior and becomes solid.
 - A gap wider than the closing radius **leaks**: the flood reaches the inside, nothing fills, and
   `closed: false` is reported (never silently an empty shell).
+- `sealBase` is the one assertion the caller may add: the object rested on a flat plane and its
+  underside was never scanned. The holes in the **lowest occupied layer** are capped before the
+  flood — that layer only, so a gap in a wall or a missing lid still leaks. The result carries
+  `sealedBase`, the report repeats it, and the base face is documented as an assumption rather
+  than a measurement.
 
 iPhone / iPad Pro LiDAR: export `.ply` from Scaniverse or Polycam (metres, Y-up), import with
 `unitScale = 1000`, `up = y`. The kernel's Spaces app handles room-scale scans; this lane is for
@@ -171,6 +203,15 @@ volume unsmoothed, within 1 % smoothed; χ = 2.
   concierge all read. `printable` = watertight ∧ consistent winding ∧ outward ∧ no degenerate
   facets. `eulerCharacteristic` is reported separately (2 = one solid; 2n = n shells; 0 = a
   handle).
+- **Print checks** (`grid/print-checks.ts` → `report.printChecks`): what topology cannot see.
+  - Thinnest wall: twice the smallest inscribed sphere on the medial ridge of an exact Euclidean
+    distance transform. It must clear `perimeters × nozzle`.
+  - Steepest overhang: the outward normal averaged over a sphere of voxels, with the bed solid. It
+    must stay under `atan(nozzle / layerHeight)`. On voxelised ramps it reads within 1° shallow and
+    6° steep, and the spec asserts that band.
+
+  Both limits are derived from the machine inputs. A failing check is written onto the drawing
+  notes; `printable` stays topological.
 
 ## 10. Printer boundary (`print/`)
 
@@ -196,8 +237,12 @@ STL, OBJ and SVG; `routes.core.test.js` asserts the same over HTTP after a re-ru
 - Orthographic assumption: tilted or close-up photos skew proportions (reported, not corrected).
 - Silhouette registration keys on the bounding box: an object whose silhouette extremes belong to
   different features in different views registers slightly off.
-- Depth input is orthographic in a canonical view; perspective range images need a projection
-  pre-step.
+- Depth input is orthographic in a canonical view. Perspective images are re-projected
+  (`reprojectToCanonicalView`), and under the lean limit a surface hidden from the camera but
+  inside a certified column is still carved; the error grows with lean × depth. The depth route
+  takes one range image per build and does not store it as a job input.
 - Point-cloud interior fill cannot cross a gap wider than one voxel (reported as `closed: false`).
+- A sealed base is an assumption about the capture, not a measured surface; nothing below the
+  lowest scanned layer is known.
 - Surface nets can produce a non-manifold vertex on a 2×2×2 checkerboard configuration; the edge
   census still passes and slicers accept it.

@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped test suite with explicit sealed-runner prerequisites; preserve readiness smoke (2.3.1).
+# -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — payroll ("Payroll")
 #
@@ -40,7 +46,7 @@ description: >-
   dollar, and every tax constant cites the primary IRS/SSA document it was
   verified against. oshal computes and produces; your bank and the agencies
   execute. It transmits nothing.
-version: 2.3.0
+version: 2.3.1
 status: active
 
 theme: ocean
@@ -68,12 +74,19 @@ smoke:
 # import is invisible to the prune guard: the first carve that drops the skill
 # would break this app at MOUNT time, not at compile time.
 uses:
+  - test-catalog
   - memory         # @/features/personal-data vault crypto — SSN/bank encryption at rest
+  - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
 
 dependencies:
-  apps: []
-  tools: []
-  connectors: []
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
 
 # Payroll data is employee PII + compensation — guests never reach it.
 guestTier: blocked
@@ -146,3 +159,7 @@ integrations:
       targetAction: prepare-brief
       contextType: research-brief
       version: 1
+
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml

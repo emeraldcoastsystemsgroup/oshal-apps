@@ -56,6 +56,9 @@ by size and sha256; the bytes go to the engine only at rebuild time.
 | `boss` | `diameter`, `height` | `axis (z)`, `x`, `y`, `z`, `from (0)` | cylinder union from `from` along the axis |
 | `box-add` / `box-cut` | `size [sx,sy,sz]` | `center [x,y,z]` | box union / subtraction |
 | `sketch-extrude` | `points`, `height` | `plane (XY)`, `offset (0)`, `mode (add\|cut)` | closed polyline on a plane extruded; union or cut |
+| `revolve` | `points` | `plane (XZ)`, `axis` (one of the plane's two axes; default its second), `degrees (360)`, `mode (add\|cut)` | closed profile revolved about a world axis through the origin; union or cut |
+| `sweep` | `points`, `path` | `plane (XY)`, `pathPlane (XZ)`, `mode (add\|cut)` | closed profile swept along an open path polyline starting at the origin; right-corner mitres; union or cut |
+| `loft` | `sections [{points, offset}…]` (2..32, distinct offsets) | `plane (XY)`, `ruled (true)`, `mode (add\|cut)` | solid through closed sketches on parallel planes offset along the plane normal; union or cut |
 | `fillet` | `radius` | `edges (all)` | round the selected edges |
 | `chamfer` | `length` | `edges (all)` | bevel the selected edges |
 | `shell` | `thickness` | `openFace (none)` | hollow to a wall thickness, optionally opening one face |
@@ -65,12 +68,18 @@ by size and sha256; the bytes go to the engine only at rebuild time.
 | `rotate` | `degrees` | `axis (z)` | rotate about an origin axis, then re-seat |
 | `translate` | — | `dx`, `dy`, `dz` | move |
 
+Sketch planes and their axes (`PLANE_AXES`, published as `planeAxes`): a profile on `XY` has
+u = X, v = Y (normal +Z); on `XZ` u = X, v = Z (normal −Y); on `YZ` u = Y, v = Z (normal +X). A
+`revolve` axis must be one of its plane's two axes — the contract refuses any other with
+`params.axis`. A `sweep` profile is used where it is drawn, so draw it around the origin: the path
+starts there. A `loft` section with no `offset` sits on the plane itself.
+
 Edge selectors: `all`, `vertical` (∥ Z), `horizontal` (⊥ Z), `top` (> Z), `bottom` (< Z),
 `parallel-x`, `parallel-y`, `parallel-z`. Face selectors (shell): `none`, `top`, `bottom`,
 `front`, `back`, `left`, `right`.
 
 Limits (`LIMITS` in both implementations): 200 features per model, 2000 points per outline,
-dimensions 0.01..2000 mm. Unknown parameters are **refused** — a typo must never be a silent
+dimensions 0.01..2000 mm, 32 loft sections. Unknown parameters are **refused** — a typo must never be a silent
 no-op for an agent that believes it edited the model.
 
 ## 5. Rebuild semantics
@@ -79,7 +88,12 @@ no-op for an agent that believes it edited the model.
    the contract catches it first).
 2. For each enabled feature in order: run it; if the kernel throws or returns an empty / invalid
    solid, record `{ok:false, error}` for that feature and **keep the previous solid**. A
-   disabled feature records `{ok:true, skipped:true}`.
+   disabled feature records `{ok:true, skipped:true}`. A feature that returns after the
+   per-feature budget (`settings.featureBudgetMs`, default 60 000 ms, 1..600 000) is refused the
+   same way with `code: "budget_exceeded"` and its measured `ms`: its result is discarded and the
+   next feature still runs. The budget is read when the feature returns — one OCCT call holds the
+   worker's interpreter, so a boolean is not interrupted mid-call; the request wall clock and
+   **cancel** (below) are what stop one.
 3. Report: extents (min/max/size), volume, surface area, mass at `densityGcm3` (default 1.24,
    PLA), centre of mass, faces / edges / vertices, validity.
 4. Exports: STEP (AP214 via OCCT; the `FILE_NAME` header and the per-session product counter are
@@ -88,6 +102,15 @@ no-op for an agent that believes it edited the model.
 5. The api writes the exports into `<data root>/<sha(sub)>/<modelId>/<revision>/` and inserts
    the revision row. On any engine failure the model is marked `failed` with the reason and the
    last built revision stays current and downloadable.
+6. **Cancel** — `POST /api/cad-studio/models/:id/cancel`, owner-scoped (another subject gets
+   404). A queued rebuild is dropped before it reaches the engine. The running one is stopped by
+   closing the engine connection (the bridge kills that worker), and every other caller's queued
+   request is sent again on a fresh connection. The request that triggered the rebuild answers
+   409 with `build.code: "cancelled"`; the part is recorded `failed` with `cancelled: …` and stays
+   at its last good revision, whose artifacts keep serving. The reply is
+   `{cancelled, stage: "inflight" | "queued" | null, lastGoodRevision, model}` and is sent only
+   after that record is written. The studio offers **Stop rebuild** while the selected part has a
+   rebuild in flight. There is no concierge tool for it.
 
 Measured on the reference box (spike, 2026-09-12, this kernel image): base + two features
 ≈ 0.5 s, STEP 0.64 s, STL 0.1 s, four SVG views 0.42 s — under 2 s per rebuild.
@@ -99,11 +122,14 @@ Measured on the reference box (spike, 2026-09-12, this kernel image): base + two
   killed when the connection closes. The first line is `{"bridge": {protocol, buildHash, python}}`.
 - `src-routes/engine-client.ts` holds one persistent connection per api process, serialises
   requests, verifies the hello, applies a per-request wall clock (kill = close the socket), and
-  reconnects on the next request. A stale container (a different build hash than this package's
+  reconnects on the next request. A request can carry a tag (owner + model); `cancel(tag)`
+  removes a queued one, or closes the connection when it is the one in flight. A stale container (a different build hash than this package's
   `engine/` tree) is `capability_unavailable` with the exact install command; so is a container
   that is not running or not answering.
 - `engine-build-hash.ts` and the bridge's `build_hash()` hash the same four files with the same
-  framing; `contract-features.test.js` runs both and asserts equality.
+  framing; `contract-features.test.js` runs both and asserts equality. The same spec reads the
+  worker's `FEATURES` registry and `PLANE_AXES` from `cad_worker.py`'s source and requires them to
+  equal the contract's, so a feature type added on one side only fails without a kernel.
 
 ## 7. How the swarm drives it (the "CAD MCP")
 
@@ -119,7 +145,7 @@ the concierge appears without a reload.
 
 ## 8. What it does not do (stated, not hidden)
 
-- No sketch constraints, no assemblies, no threads, no text, no lofts / sweeps / revolves yet
-  (BACKLOG). Fillets on a mesh base are the kernel's call and often refused — the report says so.
+- No sketch constraints, no assemblies, no threads, no text yet (BACKLOG). Sweeps are along
+  polylines only (no arcs or splines in a path). Fillets on a mesh base are the kernel's call and often refused — the report says so.
 - The STEP is the model; the STL is a tessellation of it at the set tolerance.
 - Printing is Scan to Print's job behind its confirmation; this package produces files.

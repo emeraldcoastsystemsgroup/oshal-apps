@@ -9,6 +9,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Keep request-scoped provider credentials out of application subprocesses and ambient child environments.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Add the dependency-free D&D owner/RLS contract to the mandatory migration security family.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Add the APP-02 audit profile, catalog binding, staged policy, and real-record mutation suite to the blocking contract family.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Add run-framework-coupled-tests.test.mjs to the SEC-06 contract group and raise its floor to 5. The framework-coupled runner now gates every package's core suite, and a gate whose own test no gate runs is not a gate.
  */
 
 import { existsSync, readdirSync } from 'node:fs';
@@ -47,11 +48,12 @@ export function main(root = process.cwd()) {
     join(resolvedRoot, 'scripts', 'security', 'package-audit.test.mjs'),
     join(resolvedRoot, 'scripts', 'security', 'security-ci-contract.test.mjs'),
     join(resolvedRoot, 'scripts', 'security', 'rebuild-store-routes.test.mjs'),
+    join(resolvedRoot, 'scripts', 'security', 'run-framework-coupled-tests.test.mjs'),
   ];
   runGroup(resolvedRoot, 'Little Monsters authorization', littleMonsters, 7);
   runGroup(resolvedRoot, 'Career migration/RLS', careerMigrations, 3);
   runGroup(resolvedRoot, 'D&D owner/RLS', dndOwnerRls, 1);
-  runGroup(resolvedRoot, 'SEC-06 workflow contract', contract, 4);
+  runGroup(resolvedRoot, 'SEC-06 workflow contract', contract, 5);
 }
 
 if (resolve(process.argv[1] ?? '') === fileURLToPath(import.meta.url)) {

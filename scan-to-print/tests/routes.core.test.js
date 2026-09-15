@@ -3,9 +3,11 @@
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 3   | maintainer@emeraldcoastsystemsgroup.com     | The contours artifact serves as JSON with the three outlines and the extents.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | The contours artifact serves as JSON with the three outlines and the extents through the retained isolated fixture.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | Reuse the isolated HTTP fixture without changing the seven original route assertions.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The camera module is served beside the viewer from the fixed asset list.
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The packaged routes over real loopback HTTP with express, multer and sharp resolved from the framework checkout (OSHAL_CORE_DIR): the surface and assets serve, the caller gate 401s, jobs are owner-scoped (a second subject gets 404), three synthetic photos upload → silhouettes → views → ruler → reconstruct → STL/OBJ/SVG/report download with byte-identical re-runs, refusals are 4xx with reasons, printers store only ciphertext and never echo a key, printing needs confirm:true (428), G-code needs a slicer (409) unless one is configured (fake execFile), STL goes to an OctoPrint double and never to Moonraker, a point-cloud upload closes and fills, and deleting a job removes its files. The database is a SQL-dispatching in-memory double — the owner RLS boundary itself is proven by the migration's policy text and the live installer, not here.
+ * 5   | maintainer@emeraldcoastsystemsgroup.com     | The point-cloud route's base seal (BACKLOG B7) over the same loopback fixture: the same no-underside capture leaks with the flag off and closes to 72000 mm3 with it on, the response and the report both record the seal and the report carries the assumption warning, and an unreadable flag value is refused 422 rather than quietly read as off.
  *
  * FRAMEWORK-COUPLED: needs a core checkout for express/multer/sharp. Not part of the store-CI
  * wildcard; run locally: OSHAL_CORE_DIR=C:/Projects/oshal node --test tests/routes.core.test.js
@@ -14,157 +16,16 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
-const Module = require('node:module');
-const { randomUUID } = require('node:crypto');
-
-const CORE = process.env.OSHAL_CORE_DIR || 'C:/Projects/oshal';
-assert.ok(fs.existsSync(path.join(CORE, 'node_modules', 'express')), `OSHAL_CORE_DIR must point at a framework checkout with node_modules (got ${CORE})`);
-const coreRequire = Module.createRequire(path.join(CORE, 'package.json'));
-const PKG = path.resolve(__dirname, '..');
-
-// ── Framework doubles: exactly the four @/ modules the package imports ────────
-const logger = { debug() {}, info() {}, warn() {}, error() {} };
-const STUBS = {
-  '@/shared/logger': { createChildLogger: () => logger },
-  '@/features/personal-data': {
-    isEncrypted: (v) => typeof v === 'string' && v.startsWith('enc:v1:'),
-    encryptField: (sub, plain) => (plain === null || plain === undefined ? null : `enc:v1:${Buffer.from(`${sub}|${plain}`).toString('base64')}`),
-    decryptField: (sub, stored) => {
-      if (!stored || !stored.startsWith('enc:v1:')) return stored ?? null;
-      const [owner, ...rest] = Buffer.from(stored.slice(7), 'base64').toString().split('|');
-      return owner === sub ? rest.join('|') : null;
-    },
-  },
-  '@/shared/security/explicit-write-confirmation': {
-    hasExplicitWriteConfirmation: (body) => !!body && typeof body === 'object' && body.confirm === true,
-    confirmationRequiredPayload: (guard, action) => ({ error: 'confirmation_required', guard, message: `${action} requires confirm: true. No write was attempted.` }),
-  },
-};
-const originalLoad = Module._load;
-Module._load = function patched(request, parent, isMain) {
-  if (STUBS[request]) return STUBS[request];
-  if (request.startsWith('@/')) throw new Error(`Unexpected framework import: ${request}`);
-  if (!request.startsWith('.') && !path.isAbsolute(request) && !request.startsWith('node:') && !Module.builtinModules.includes(request)) {
-    return originalLoad.call(this, coreRequire.resolve(request), parent, isMain);
-  }
-  return originalLoad.call(this, request, parent, isMain);
-};
-
-const express = coreRequire('express');
-const sharp = coreRequire('sharp');
-const { createScanToPrintRoutes } = require(path.join(PKG, 'routes', 'scan-to-print-routes.js'));
-
-// ── An in-memory database that answers exactly the package's SQL ─────────────
-function fakePool() {
-  const tables = { scan_print_job: [], scan_print_image: [], scan_print_printer: [], scan_print_submission: [] };
-  const now = () => new Date().toISOString();
-  const cols = (list) => list.split(',').map((c) => c.trim());
-  const pick = (row, names) => Object.fromEntries(names.map((n) => [n, row[n] ?? null]));
-  return {
-    tables,
-    async query(sql, params = []) {
-      const text = typeof sql === 'string' ? sql : sql.text;
-      const p = typeof sql === 'string' ? params : sql.values;
-      const table = /(?:FROM|INTO|UPDATE)\s+(scan_print_\w+)/.exec(text)[1];
-      const rows = tables[table];
-      const returning = /RETURNING\s+([\s\S]+)$/.exec(text.trim());
-      if (/^INSERT/.test(text)) {
-        const names = cols(/\(([^)]+)\)\s+VALUES/.exec(text)[1]);
-        const row = { created_at: now(), updated_at: now() };
-        names.forEach((n, i) => { row[n] = /::jsonb/.test(text) && typeof p[i] === 'string' && (n === 'silhouette' || n === 'remote_response') ? JSON.parse(p[i]) : p[i]; });
-        const idCol = { scan_print_job: 'job_id', scan_print_image: 'image_id', scan_print_printer: 'printer_id', scan_print_submission: 'submission_id' }[table];
-        if (!row[idCol]) row[idCol] = randomUUID();
-        if (table === 'scan_print_job') Object.assign(row, { state: 'capturing', known_dimensions: [], settings: {}, report: null, failure_reason: null });
-        if (table === 'scan_print_image') row.view = null;
-        rows.push(row);
-        return { rows: [pick(row, cols(returning[1]))], rowCount: 1 };
-      }
-      const where = /WHERE\s+([\s\S]+?)(?:\s+ORDER BY|\s+LIMIT|\s+RETURNING|$)/.exec(text)[1];
-      const conds = where.split(/\s+AND\s+/).map((c) => c.trim());
-      const matches = (row) => conds.every((c) => {
-        const m = /^(\w+)\s*(=|<>)\s*\$(\d+)$/.exec(c);
-        if (!m) throw new Error(`fake pool cannot evaluate: ${c}`);
-        const value = p[Number(m[3]) - 1];
-        return m[2] === '=' ? row[m[1]] === value : row[m[1]] !== value;
-      });
-      if (/^SELECT/.test(text)) {
-        const selected = rows.filter(matches);
-        const names = cols(/^SELECT\s+([\s\S]+?)\s+FROM/.exec(text)[1]);
-        return { rows: selected.map((r) => pick(r, names)), rowCount: selected.length };
-      }
-      if (/^DELETE/.test(text)) {
-        const keep = rows.filter((r) => !matches(r));
-        const removed = rows.length - keep.length;
-        tables[table] = keep;
-        if (table === 'scan_print_job') { tables.scan_print_image = tables.scan_print_image.filter((r) => keep.some((j) => j.job_id === r.job_id)); }
-        return { rows: [], rowCount: removed };
-      }
-      if (/^UPDATE scan_print_image SET view = NULL/.test(text)) { rows.filter(matches).forEach((r) => { r.view = null; }); return { rows: [], rowCount: 0 }; }
-      if (/^UPDATE scan_print_image SET view = \$4/.test(text)) {
-        const hit = rows.filter(matches);
-        hit.forEach((r) => { r.view = p[3]; });
-        return { rows: hit.map((r) => pick(r, cols(returning[1]))), rowCount: hit.length };
-      }
-      if (/^UPDATE scan_print_job/.test(text)) {
-        const hit = rows.filter(matches);
-        hit.forEach((r) => {
-          if (p[2] !== null) r.title = p[2];
-          if (p[3] !== null) r.known_dimensions = JSON.parse(p[3]);
-          if (p[4] !== null) r.settings = JSON.parse(p[4]);
-          if (p[5] !== null) r.state = p[5];
-          if (p[6]) r.report = p[7] === null ? null : JSON.parse(p[7]);
-          if (p[8]) r.failure_reason = p[9];
-          if (p[10] !== null) r.source_kind = p[10];
-          r.updated_at = now();
-        });
-        return { rows: hit.map((r) => pick(r, cols(returning[1]))), rowCount: hit.length };
-      }
-      throw new Error(`fake pool cannot run: ${text.slice(0, 80)}`);
-    },
-  };
-}
-
-// ── Test server ──────────────────────────────────────────────────────────────
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-to-print-'));
-const pool = fakePool();
-const fetchCalls = [];
-let printerAnswer = { status: 201, body: { done: true } };
-const fakeFetch = async (url, init) => { fetchCalls.push({ url, init }); return { status: printerAnswer.status, text: async () => JSON.stringify(printerAnswer.body) }; };
-const env = { SCAN_TO_PRINT_SLICER_CMD: '' };
-const fakeExecFile = async (file, args) => { const out = args[args.length - 1]; fs.writeFileSync(out, 'G28\nG1 X10\n'); return { stdout: file, stderr: '' }; };
-let currentSub = 'alice';
-const app = express();
-app.use(express.json());
-app.use((req, _res, next) => { if (currentSub) req.oidc = { user: { sub: currentSub }, isAuthenticated: () => true }; next(); });
-app.use('/api/scan-to-print', createScanToPrintRoutes({ pool, appPackageDir: PKG }, { dataRoot: tmp, env, fetchImpl: fakeFetch, execFile: fakeExecFile }));
-let server; let base;
-test.before(async () => { await new Promise((r) => { server = app.listen(0, '127.0.0.1', r); }); base = `http://127.0.0.1:${server.address().port}/api/scan-to-print`; });
-test.after(async () => { await new Promise((r) => server.close(r)); fs.rmSync(tmp, { recursive: true, force: true }); Module._load = originalLoad; });
-
-const call = async (p, init = {}) => {
-  const res = await fetch(base + p, init);
-  const text = await res.text();
-  let body = null; try { body = text ? JSON.parse(text) : null; } catch (_) { body = text; }
-  return { status: res.status, body, headers: res.headers, text };
-};
-const json = (method, body) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-
-/** A synthetic photo: blue rectangle (uMm × vMm at 2 px/mm) on a beige 200×200 background. */
-async function photo(uMm, vMm) {
-  const w = 200, h = 200, data = Buffer.alloc(w * h * 3);
-  for (let y = 0; y < h; y += 1) for (let x = 0; x < w; x += 1) {
-    const inside = Math.abs(x + 0.5 - w / 2) < uMm && Math.abs(y + 0.5 - h / 2) < vMm;
-    data.set(inside ? [40, 70, 160] : [214, 200, 176], (y * w + x) * 3);
-  }
-  return sharp(data, { raw: { width: w, height: h, channels: 3 } }).png().toBuffer();
-}
-async function uploadPhotos(jobId, files) {
-  const form = new FormData();
-  for (const [name, buf] of files) form.append('images', new Blob([buf], { type: 'image/png' }), name);
-  return call(`/jobs/${jobId}/images`, { method: 'POST', body: form });
-}
+const { startFixture, json, photo } = require('./routes-core.fixture.js');
+let fixture, pool, env, tmp, base, fetchCalls;
+test.before(async () => {
+  fixture = await startFixture();
+  ({ pool, env, tmp, base, fetchCalls } = fixture);
+});
+test.after(async () => fixture.close());
+const call = (...args) => fixture.call(...args);
+const uploadPhotos = (...args) => fixture.uploadPhotos(...args);
 
 test('surface, assets and capabilities serve; the caller gate answers 401', async () => {
   const page = await call('/app');
@@ -181,10 +42,10 @@ test('surface, assets and capabilities serve; the caller gate answers 401', asyn
   assert.deepEqual(caps.body.views, ['front', 'back', 'left', 'right', 'top', 'bottom']);
   assert.equal(caps.body.limits.resolution.default, 96);
   assert.equal(caps.body.printers.slicerConfigured, false);
-  currentSub = null;
+  fixture.control.sub = null;
   assert.equal((await call('/jobs')).status, 401);
   assert.equal((await call('/printers')).status, 401);
-  currentSub = 'alice';
+  fixture.control.sub = 'alice';
 });
 
 let jobId;
@@ -194,10 +55,10 @@ test('jobs are created, listed and owner-scoped', async () => {
   jobId = created.body.job.job_id;
   assert.equal((await call('/jobs')).body.jobs.length, 1);
   assert.equal((await call('/jobs', json('POST', { title: '   ' }))).status, 400);
-  currentSub = 'mallory';
+  fixture.control.sub = 'mallory';
   assert.equal((await call(`/jobs/${jobId}`)).status, 404);
   assert.equal((await call('/jobs')).body.jobs.length, 0);
-  currentSub = 'alice';
+  fixture.control.sub = 'alice';
   assert.equal((await call('/jobs/not-a-uuid')).status, 400);
 });
 
@@ -260,14 +121,14 @@ test('printers store ciphertext only and never echo the key; status probes the h
   const listed = await call('/printers');
   assert.equal(listed.body.printers.length, 1);
   assert.ok(!('api_key_ciphertext' in listed.body.printers[0]));
-  printerAnswer = { status: 200, body: { state: 'Operational' } };
+  fixture.control.printerAnswer = { status: 200, body: { state: 'Operational' } };
   const status = await call(`/printers/${printerId}/status`, { method: 'POST' });
   assert.equal(status.status, 200);
   assert.equal(status.body.status.state, 'operational');
   assert.equal(fetchCalls.at(-1).init.headers['X-Api-Key'], 'SECRET-KEY');
-  currentSub = 'mallory';
+  fixture.control.sub = 'mallory';
   assert.equal((await call(`/printers/${printerId}/status`, { method: 'POST' })).status, 404);
-  currentSub = 'alice';
+  fixture.control.sub = 'alice';
 });
 
 test('printing needs confirm, G-code needs a slicer, STL goes only where a host accepts it', async () => {
@@ -277,7 +138,7 @@ test('printing needs confirm, G-code needs a slicer, STL goes only where a host 
   const noSlicer = await call(`/jobs/${jobId}/print`, json('POST', { printerId, fileKind: 'gcode', confirm: true }));
   assert.equal(noSlicer.status, 409);
   assert.equal(noSlicer.body.error, 'needs_gcode');
-  printerAnswer = { status: 201, body: { done: true } };
+  fixture.control.printerAnswer = { status: 201, body: { done: true } };
   const stl = await call(`/jobs/${jobId}/print`, json('POST', { printerId, fileKind: 'stl', startPrint: true, confirm: true }));
   assert.equal(stl.status, 201, JSON.stringify(stl.body));
   assert.equal(stl.body.submission.state, 'uploaded', 'an STL is never auto-started');
@@ -287,14 +148,14 @@ test('printing needs confirm, G-code needs a slicer, STL goes only where a host 
   assert.equal(stlToMoon.status, 409);
   assert.equal(stlToMoon.body.error, 'unsupported_file');
   env.SCAN_TO_PRINT_SLICER_CMD = 'fake-slicer --export {input} {output}';
-  printerAnswer = { status: 201, body: { item: {}, print_started: true } };
+  fixture.control.printerAnswer = { status: 201, body: { item: {}, print_started: true } };
   const gcode = await call(`/jobs/${jobId}/print`, json('POST', { printerId: moon.body.printer.printer_id, fileKind: 'gcode', startPrint: true, confirm: true }));
   assert.equal(gcode.status, 201, JSON.stringify(gcode.body));
   assert.equal(gcode.body.submission.state, 'printing');
   assert.equal(fetchCalls.at(-1).url, 'http://klipper.lan/server/files/upload');
   const subs = await call(`/jobs/${jobId}/submissions`);
   assert.equal(subs.body.submissions.length, 2);
-  printerAnswer = { status: 500, body: { error: 'boom' } };
+  fixture.control.printerAnswer = { status: 500, body: { error: 'boom' } };
   const failed = await call(`/jobs/${jobId}/print`, json('POST', { printerId, fileKind: 'stl', confirm: true }));
   assert.equal(failed.status, 502);
   assert.equal(failed.body.submission.state, 'failed');
@@ -316,6 +177,37 @@ test('a point cloud upload closes, fills and reconstructs through the same tail'
   assert.equal(out.body.report.lane, 'pointcloud');
   assert.equal(out.body.report.gridVolumeMm3, 72000);
   assert.equal(out.body.job.source_kind, 'pointcloud');
+});
+
+test('B7: the point cloud route seals the base on request and refuses an unreadable flag', async () => {
+  const pts = [];
+  for (let a = 0; a <= 60; a += 1) for (let b = 0; b <= 40; b += 1) pts.push([a - 30, b - 20, 30]);
+  for (let a = 0; a <= 60; a += 1) for (let c = 1; c <= 30; c += 1) { pts.push([a - 30, -20, c], [a - 30, 20, c]); }
+  for (let b = 0; b <= 40; b += 1) for (let c = 1; c <= 30; c += 1) { pts.push([-30, b - 20, c], [30, b - 20, c]); }
+  const ply = `ply\nformat ascii 1.0\nelement vertex ${pts.length}\nproperty float x\nproperty float y\nproperty float z\nend_header\n${pts.map((p) => p.join(' ')).join('\n')}\n`;
+  const post = async (fields) => {
+    const created = await call('/jobs', json('POST', { title: 'lidar box with no underside' }));
+    const form = new FormData();
+    form.append('model', new Blob([ply]), 'box.ply');
+    for (const [key, value] of Object.entries(fields)) form.append(key, value);
+    return call(`/jobs/${created.body.job.job_id}/pointcloud`, { method: 'POST', body: form });
+  };
+  const leaked = await post({ voxelMm: '2', unitScale: '1', up: 'z' });
+  assert.equal(leaked.status, 200, JSON.stringify(leaked.body));
+  assert.equal(leaked.body.closed, false, 'an unscanned underside must leak when the flag is off');
+  assert.equal(leaked.body.sealedBase, false);
+  assert.equal(leaked.body.report.sealedBase, false);
+  const sealed = await post({ voxelMm: '2', unitScale: '1', up: 'z', sealBase: 'true' });
+  assert.equal(sealed.status, 200, JSON.stringify(sealed.body));
+  assert.equal(sealed.body.closed, true);
+  assert.equal(sealed.body.sealedBase, true);
+  assert.equal(sealed.body.report.sealedBase, true);
+  assert.equal(sealed.body.report.gridVolumeMm3, 72000);
+  assert.ok(sealed.body.report.warnings.some((w) => /underside was not scanned/.test(w)), JSON.stringify(sealed.body.report.warnings));
+  const bad = await post({ voxelMm: '2', sealBase: 'yes' });
+  assert.equal(bad.status, 422);
+  assert.equal(bad.body.error, 'pointcloud_refused');
+  assert.match(bad.body.message, /sealBase must be true or false/);
 });
 
 test('deleting a job removes its rows and files', async () => {

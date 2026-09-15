@@ -1,5 +1,13 @@
 <!doctype html>
 <!--
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  SEQ | AUTHOR | DESCRIPTION
+  -----------------------------------------------------------------------------
+  1 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
+-->
+
+<!--
   Career Hunter — Profile Studio surface: turn the operator's LinkedIn profile into a
   professional site. Build a plan (headline / about / skills / custom URL / background
   image / featured resume), AI-draft the copy with your career agent, APPROVE it, then send
@@ -8,14 +16,14 @@
   explicit Approve + Send steps on this page.
   Author: roger.murphy@emeraldcoastsystemsgroup.com
 -->
-<html lang="en" data-theme="midnight"><head>
+<html lang="en" data-theme="midnight" data-career-surface="profile-studio"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Profile Studio</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css"/>
 <script src="/shared/ui/js/surface-theme.js"></script>
 <style>
   /* Every alias DERIVES from a framework token carried by surface-themes.css above — no hex
-     fallbacks, so all eleven cockpit themes follow. --scrollbar-thumb is deliberately NOT
+     fallbacks, so all supported cockpit themes follow. --scrollbar-thumb is deliberately NOT
      redefined here: the theme file already supplies it, and a :root copy would win on load order
      and pin the scrollbar to one palette. */
   :root { --bg:var(--bg-primary); --panel:var(--bg-card); --panel2:var(--bg-tertiary); --line:var(--border-color);
@@ -58,6 +66,7 @@
   @media (max-width:640px){ .wrap{padding:14px 14px 48px;} input[type=text],textarea{font-size:16px;} .bar .btn{flex:1 1 auto; min-height:40px;} }
 </style>
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css"/>
+<link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
 </head><body>
 <div class="wrap">
   <h1>Profile Studio</h1>

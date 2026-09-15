@@ -6,6 +6,10 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Initial — serve the Create home surface and the package skin from the installed package dir
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | GET /new — the purpose-first New screen
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | Serve the image editor and an exact bundled module allowlist; persistence remains a separate factory.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | Serve the editable template catalog and picker through the same fixed module allowlist.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Serve the bounded read-only editor context adapter through the existing exact module allowlist.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Serve the Brand Kit page at /brand and its shared brand modules through the same exact allowlist.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -78,8 +82,8 @@ function sendBundled(res, file, type) {
 }
 /**
  * @description The Create package's own routes: its home surface and the skin the cockpit wears while
- * the app is focused. Both are static files bundled beside the manifest; nothing here reads a store,
- * calls a provider, or mutates state — the member studios own their domains.
+ * the app is focused, plus the layered image editor. This factory serves bundled bytes; project
+ * persistence and its permission checks live in the separate Create project route factory.
  * @param ctx - Framework context (only `appPackageDir` is read).
  * @returns Express router mounted at /api/create.
  */
@@ -91,7 +95,17 @@ function createCreateRoutes(ctx) {
     const router = (0, express_1.Router)();
     router.get('/home', (_req, res) => sendBundled(res, home, 'text/html; charset=utf-8'));
     router.get('/new', (_req, res) => sendBundled(res, fresh, 'text/html; charset=utf-8'));
-    router.get('/theme.css', (_req, res) => sendBundled(res, skin, 'text/css; charset=utf-8'));
+    router.get('/theme/create.css', (_req, res) => sendBundled(res, skin, 'text/css; charset=utf-8'));
+    router.get('/editor', (_req, res) => sendBundled(res, path.join(root, 'tools', 'create-editor.html'), 'text/html; charset=utf-8'));
+    router.get('/brand', (_req, res) => sendBundled(res, path.join(root, 'tools', 'create-brand.html'), 'text/html; charset=utf-8'));
+    const modules = ['editor.mjs', 'editor-state.mjs', 'editor-view.mjs', 'editor-projects.mjs',
+        'editor-files.mjs', 'editor-interactions.mjs', 'model.mjs', 'model-validation.mjs',
+        'history.mjs', 'renderer.mjs', 'image-assets.mjs', 'hit-test.mjs', 'editor.css',
+        'templates.mjs', 'editor-templates.mjs', 'editor-context.mjs', 'brand-kit.mjs', 'brand-page.mjs', 'brand-editor.mjs', 'brand.css'];
+    for (const file of modules) {
+        const type = file.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8';
+        router.get('/editor/' + file, (_req, res) => sendBundled(res, path.join(root, 'tools', 'editor', file), type));
+    }
     return router;
 }
 //# sourceMappingURL=create-routes.js.map

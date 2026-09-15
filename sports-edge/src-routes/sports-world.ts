@@ -28,6 +28,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — stable world entity ids for teams, coaches and matchups, the per-league subject sets a followed team expands into, the news/social feed selection (regulatory and medical feeds are noise here), and the ingest pass with a per-entity cool-down so a restart cannot re-classify the same archive.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Refuse missing or unusable coach names before a person subject can reach the shared archive.
  *
  * @module sports-world
  */
@@ -100,6 +101,9 @@ export function teamEntityId(league: League, team: string): string {
  * @returns A `world:person:<slug>` URN.
  */
 export function coachEntityId(name: string): string {
+  if (typeof name !== 'string' || !slug(name) || /\b(undefined|null|unknown|tbd)\b/i.test(name)) {
+    throw new Error('A named coach is required for a World person subject');
+  }
   return `world:person:${slug(name)}`;
 }
 
@@ -161,9 +165,10 @@ export function teamSubjects(t: TeamRef): SportsSubject[] {
  * @param name - The coach's name.
  * @param teamName - Their team, used to disambiguate a common name.
  * @param league - Which league, for the sport term.
- * @returns One subject.
+ * @returns One subject, or null when no usable coach is known.
  */
-export function coachSubject(name: string, teamName: string, league: League): SportsSubject {
+export function coachSubject(name: string, teamName: string, league: League): SportsSubject | null {
+  if (typeof name !== 'string' || !slug(name) || /\b(undefined|null|unknown|tbd)\b/i.test(name)) return null;
   return {
     entity: coachEntityId(name),
     label: name,

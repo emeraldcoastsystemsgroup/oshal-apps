@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.1.1: register every shipped test and preserve the existing readiness smoke for versioned Test Lab discovery.
+# -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — bake-off ("AI Bake-Off")
 #
@@ -29,7 +35,10 @@ description: >-
   grade every output on the shared quality judge against your own rubric, and get one
   recommendation: the cheapest lane that still clears your quality bar, and what switching saves
   per month. Refuses to recommend anything it cannot honestly measure.
-version: 1.1.0
+version: 1.1.1
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 status: active
 scope: person
 
@@ -73,14 +82,21 @@ smoke:
 # add it here.
 # ─────────────────────────────────────────────────────────────────────────────
 uses:
+  - test-catalog
   - tool-registry
   - notifications
+  - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
 
 # No connectors: nothing here talks to a third party. The lanes are the deployment's own bots.
 dependencies:
-  apps: []
-  tools: []
-  connectors: []
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
 
 theme: midnight
 

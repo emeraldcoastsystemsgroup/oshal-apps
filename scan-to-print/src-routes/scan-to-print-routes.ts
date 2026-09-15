@@ -14,6 +14,9 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Serve the surface's camera module (scan-to-print-camera.js)
  *                     |                             | from the same fixed asset list — phone capture ships in the
  *                     |                             | surface, the routes and the engine are unchanged.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | `/capabilities` lists the depth lane and its upload bounds
+ *                     |                             | (BACKLOG B1): the accepted encodings, the pixel ceiling and the
+ *                     |                             | depthScale range the route enforces.
  */
 
 import { Router, type Request, type Response } from 'express';
@@ -25,6 +28,7 @@ import { type JobRouteDeps, UPLOAD_LIMITS, createJobRoutes } from './job-routes'
 import { type PrintRouteDeps, createPrintRoutes } from './print-routes';
 import { VIEW_NAMES } from './engine/grid/views';
 import { RECONSTRUCTION_LIMITS } from './engine/pipeline';
+import { DEPTH_UPLOAD_LIMITS } from './engine/grid/depth-decode';
 import { PRINTER_KINDS } from './engine/print/printer-adapters';
 import { resolveSlicerConfig } from './engine/print/slicer';
 import { resolveFfmpeg } from './image-ingest';
@@ -82,8 +86,8 @@ export function createScanToPrintRoutes(ctx: AppContext, opts: ScanToPrintRouteO
     let slicerConfigured = false;
     try { slicerConfigured = resolveSlicerConfig(env) !== null; } catch { slicerConfigured = false; }
     res.json({
-      app: 'scan-to-print', views: VIEW_NAMES, lanes: ['silhouettes', 'pointcloud'], limits: RECONSTRUCTION_LIMITS, upload: UPLOAD_LIMITS,
-      printers: { kinds: PRINTER_KINDS, slicerConfigured }, video: ffmpeg,
+      app: 'scan-to-print', views: VIEW_NAMES, lanes: ['silhouettes', 'pointcloud', 'depth'], limits: RECONSTRUCTION_LIMITS, upload: UPLOAD_LIMITS,
+      depth: DEPTH_UPLOAD_LIMITS, printers: { kinds: PRINTER_KINDS, slicerConfigured }, video: ffmpeg,
     });
   });
 

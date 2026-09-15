@@ -9,6 +9,12 @@
  *                     |                             | revision's directory, then record the revision — or record the
  *                     |                             | failure and keep the last good revision. Rebuilds of one model
  *                     |                             | are serialised so two edits cannot interleave a revision.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B5: the per-feature budget (settings.featureBudgetMs,
+ *                     |                             | default 60 s) goes to the worker with every rebuild; each
+ *                     |                             | rebuild's engine request is tagged by owner + model, and
+ *                     |                             | cancelRebuild stops it — the rebuild's own failure path then
+ *                     |                             | records the cancel and keeps the last good revision. A
+ *                     |                             | cancelled rebuild answers 409.
  */
 
 import fs from 'node:fs';
@@ -18,11 +24,11 @@ import { createChildLogger } from '@/shared/logger';
 import { EngineFailure, type EngineClient } from './engine-client';
 import { artifactPath, ensureDir, modelDir, revisionDir } from './data-dir';
 import { recordBuild, recordFailure, type ModelRow, type QueryablePool } from './model-store';
-import type { CadBase } from './feature-contract';
+import { FEATURE_BUDGET_MS, type CadBase } from './feature-contract';
 
 const logger = createChildLogger({ module: 'cad-studio-rebuild' });
 export const EXPORT_VIEWS = ['front', 'top', 'right', 'iso'] as const;
-export const DEFAULT_SETTINGS = Object.freeze({ densityGcm3: 1.24, stlToleranceMm: 0.05 });
+export const DEFAULT_SETTINGS = Object.freeze({ densityGcm3: 1.24, stlToleranceMm: 0.05, featureBudgetMs: 60_000 });
 const MESH_FILE = 'base.stl';
 
 export interface RebuildDeps { pool: QueryablePool; engine: EngineClient; dataRoot: string; engineBuild: string | null; timeoutMs?: number }
@@ -33,6 +39,30 @@ export interface BuildOutcome { ok: boolean; code?: string; error?: string; reas
 interface EngineResult { report: Record<string, unknown>; features: Array<Record<string, unknown>>; exports?: { step?: string; stl?: string; svg?: Record<string, string> }; ms?: number }
 
 const locks = new Map<string, Promise<unknown>>();
+/** Each running rebuild (engine round-trip AND its revision or failure record), by tag. */
+const active = new Map<string, Promise<unknown>>();
+
+/** @description The engine-request tag of one owner's model: only that owner's routes can form it. */
+export function rebuildTag(sub: string, modelId: string): string {
+  return JSON.stringify([sub, modelId]);
+}
+
+/**
+ * @description Stop the model's running (or queued) rebuild. The rebuild's own failure path
+ * records the cancel and keeps the last good revision; this waits for that record.
+ * @param deps - The engine the rebuild was sent to.
+ * @param sub - Owner.
+ * @param modelId - Model.
+ * @returns Where the rebuild was stopped, or null when none was running for this model.
+ */
+export async function cancelRebuild(deps: Pick<RebuildDeps, 'engine'>, sub: string, modelId: string): Promise<'inflight' | 'queued' | null> {
+  const tag = rebuildTag(sub, modelId);
+  const running = active.get(tag);
+  const stage = deps.engine.cancel(tag, 'cancelled by the owner');
+  if (stage && running) await running.catch(() => undefined);
+  logger.info({ modelId, stage }, 'rebuild cancel requested');
+  return stage;
+}
 
 /** @description Run `fn` after any in-flight rebuild of the same model finishes. */
 export function withModelLock<T>(modelId: string, fn: () => Promise<T>): Promise<T> {
@@ -58,10 +88,11 @@ function engineBase(deps: RebuildDeps, model: ModelRow): CadBase {
   return { kind: 'mesh', stl: fs.readFileSync(file).toString('base64') };
 }
 
-function settingsOf(model: ModelRow): { densityGcm3: number; stlToleranceMm: number } {
+function settingsOf(model: ModelRow): { densityGcm3: number; stlToleranceMm: number; featureBudgetMs: number } {
   const s = model.settings || {};
-  const density = Number(s.densityGcm3), tol = Number(s.stlToleranceMm);
-  return { densityGcm3: Number.isFinite(density) && density > 0 ? density : DEFAULT_SETTINGS.densityGcm3, stlToleranceMm: Number.isFinite(tol) && tol > 0 ? tol : DEFAULT_SETTINGS.stlToleranceMm };
+  const density = Number(s.densityGcm3), tol = Number(s.stlToleranceMm), budget = Number(s.featureBudgetMs);
+  const budgetOk = Number.isInteger(budget) && budget >= FEATURE_BUDGET_MS.min && budget <= FEATURE_BUDGET_MS.max;
+  return { densityGcm3: Number.isFinite(density) && density > 0 ? density : DEFAULT_SETTINGS.densityGcm3, stlToleranceMm: Number.isFinite(tol) && tol > 0 ? tol : DEFAULT_SETTINGS.stlToleranceMm, featureBudgetMs: budgetOk ? budget : DEFAULT_SETTINGS.featureBudgetMs };
 }
 
 function writeExports(dir: string, result: EngineResult): void {
@@ -85,29 +116,38 @@ function writeExports(dir: string, result: EngineResult): void {
  * @returns The updated row and the outcome (the row is the last good state on failure).
  */
 export function rebuildModel(deps: RebuildDeps, model: ModelRow): Promise<{ model: ModelRow; build: BuildOutcome }> {
-  return withModelLock(model.model_id, async () => {
-    const started = Date.now();
-    const sub = model.owner_sub;
-    try {
-      const settings = settingsOf(model);
-      const result = await deps.engine.request('rebuild', {
-        base: engineBase(deps, model), features: model.features, exports: ['step', 'stl', 'svg'], views: [...EXPORT_VIEWS], ...settings,
-      }, deps.timeoutMs) as EngineResult;
-      const nextRevision = model.revision + 1;
-      writeExports(revisionDir(deps.dataRoot, sub, model.model_id, nextRevision), result);
-      const ms = Date.now() - started;
-      const row = await recordBuild(deps.pool, sub, model.model_id, { features: model.features, report: result.report, featureStatus: result.features, engineBuild: deps.engineBuild, ms });
-      if (!row) throw new EngineFailure('engine_error', 'the model vanished during the rebuild');
-      if (row.revision !== nextRevision) logger.warn({ modelId: model.model_id, expected: nextRevision, actual: row.revision }, 'revision drifted under the lock');
-      logger.info({ modelId: model.model_id, revision: row.revision, ms, features: model.features.length }, 'model rebuilt');
-      return { model: row, build: { ok: true, ms } };
-    } catch (error) {
-      const failure = error instanceof EngineFailure ? error : new EngineFailure('engine_error', error instanceof Error ? error.message : String(error));
-      logger.error({ err: error, modelId: model.model_id, code: failure.code }, 'model rebuild failed');
-      const row = (await recordFailure(deps.pool, sub, model.model_id, `${failure.code}: ${failure.reason || failure.message}`)) ?? model;
-      return { model: row, build: { ok: false, code: failure.code, error: failure.message, reason: failure.reason, ms: Date.now() - started } };
-    }
+  return withModelLock(model.model_id, () => {
+    // Registered for the whole run, so a cancel waits until the failure is recorded.
+    const tag = rebuildTag(model.owner_sub, model.model_id);
+    const run = runRebuild(deps, model, tag);
+    active.set(tag, run);
+    return run.finally(() => { if (active.get(tag) === run) active.delete(tag); });
   });
+}
+
+/** One rebuild inside the model lock: engine round-trip, exports, revision row — or the failure. */
+async function runRebuild(deps: RebuildDeps, model: ModelRow, tag: string): Promise<{ model: ModelRow; build: BuildOutcome }> {
+  const started = Date.now();
+  const sub = model.owner_sub;
+  try {
+    const settings = settingsOf(model);
+    const result = await deps.engine.request('rebuild', {
+      base: engineBase(deps, model), features: model.features, exports: ['step', 'stl', 'svg'], views: [...EXPORT_VIEWS], ...settings,
+    }, deps.timeoutMs, tag) as EngineResult;
+    const nextRevision = model.revision + 1;
+    writeExports(revisionDir(deps.dataRoot, sub, model.model_id, nextRevision), result);
+    const ms = Date.now() - started;
+    const row = await recordBuild(deps.pool, sub, model.model_id, { features: model.features, report: result.report, featureStatus: result.features, engineBuild: deps.engineBuild, ms });
+    if (!row) throw new EngineFailure('engine_error', 'the model vanished during the rebuild');
+    if (row.revision !== nextRevision) logger.warn({ modelId: model.model_id, expected: nextRevision, actual: row.revision }, 'revision drifted under the lock');
+    logger.info({ modelId: model.model_id, revision: row.revision, ms, features: model.features.length }, 'model rebuilt');
+    return { model: row, build: { ok: true, ms } };
+  } catch (error) {
+    const failure = error instanceof EngineFailure ? error : new EngineFailure('engine_error', error instanceof Error ? error.message : String(error));
+    logger.error({ err: error, modelId: model.model_id, code: failure.code }, 'model rebuild failed');
+    const row = (await recordFailure(deps.pool, sub, model.model_id, `${failure.code}: ${failure.reason || failure.message}`)) ?? model;
+    return { model: row, build: { ok: false, code: failure.code, error: failure.message, reason: failure.reason, ms: Date.now() - started } };
+  }
 }
 
 /** @description Map a build outcome to the HTTP status the routes answer with. */
@@ -116,6 +156,7 @@ export function buildStatus(build: BuildOutcome): number {
   switch (build.code) {
     case 'capability_unavailable': case 'engine_busy': case 'engine_timeout': return 503;
     case 'refused': return 422;
+    case 'cancelled': return 409;
     default: return 500;
   }
 }
