@@ -57,7 +57,7 @@ All **61 packages**, shelved by ADR-097 suite. Versions and status come from
 |---|---|---|---|---|
 | **Daily Trade Recap** | [`daily-trade-recap/`](daily-trade-recap/) | 1.2.0 | ready | Review saved trade-recap work and receive owner-qualified recorded-report updates in Jarvis. |
 | **Finance** | [`finance/`](finance/) | 1.2.1 | ready | Link your banks and brokerages via Plaid and see everything in one place — net worth, accounts, holdings, spending — with a plain-English brief. |
-| **Intelligent Trades** | [`trading/`](trading/) | 1.13.1 | ready | Signal-justified stock trading (ADR-052). |
+| **Intelligent Trades** | [`trading/`](trading/) | 1.15.0 | ready | Signal-justified stock trading (ADR-052). |
 | **Kalshi Prediction Markets** | [`kalshi/`](kalshi/) | 1.5.0 | ready | Find mispriced event contracts on Kalshi (ADR-094). |
 | **Payroll** | [`payroll/`](payroll/) | 2.3.1 | ready | Run payroll for your team, ADP-style, then pay, file and RECONCILE from the same place. |
 | **Sports Edge** | [`sports-edge/`](sports-edge/) | 0.7.1 | ready | Follow a team and really know its next game, then set the fantasy lineup with the best chance of beating the team you actually play this week. |

@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# =============================================================================
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                                     | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com   | Refuse model attribution in the commit messages this push publishes. The operator's standing directive is that work identifies the LANE, never a model, and the core trunk has enforced it at push time since the 2026-09-12 history scrub (scripts/publish-gate.sh, run from its .githooks/pre-push). This repo had no push-time check at all: a harness session's default trailer and tool footer went straight into history, and the only way to notice was for someone to grep. Scope is exactly the commits this push publishes - history the remote already holds is out of scope by construction, because removing it is an operator-run rewrite and a gate that refused every push until then would halt all work. Enable with: git config core.hooksPath .githooks
+# 2 | maintainer@emeraldcoastsystemsgroup.com   | Scan the tracked tree at push time as well (SCAN_TREE now defaults to 1). Entry 1 shipped with the tree check off because this repo still carried 165 attributed lines and a hook that refused every push over content it did not introduce would have halted all work. Those lines are gone in this same change - the COLLABORATE.md bylines name the lane and the four Change Log AUTHOR cells name the house identity - so the hook now holds the tree clean instead of waiting for CI to notice. It runs the SPEC rather than the scanner, so one command proves both halves: every rule still red on its fixture, and this tree green.
+# =============================================================================
+set -uo pipefail
+
+say()  { printf '%s\n' "$*" >&2; }
+fail=0
+bad()  { say "  ✗ $*"; fail=1; }
+ok()   { say "  ✓ $*"; }
+
+say ""
+say "attribution gate: the commits this push publishes"
+
+# ── 1. The set of commits this push publishes ────────────────────────────────
+# git writes one "<local ref> <local sha> <remote ref> <remote sha>" line per pushed ref on stdin.
+# A push BY SHA publishes commits HEAD never reaches, so the pushed set - not HEAD's unpublished
+# commits - is the only correct scope.
+PUSH_LINES="$(cat || true)"
+PUSHED=""
+if [ -n "$PUSH_LINES" ]; then
+  while read -r _lref lsha _rref rsha; do
+    [ -n "${lsha:-}" ] && [ -n "${lsha//0/}" ] || continue   # blank, or all zeros: a deletion publishes nothing
+    ALREADY=""
+    if [ -n "${rsha:-}" ] && [ -n "${rsha//0/}" ] && git cat-file -e "${rsha}^{commit}" 2>/dev/null; then
+      ALREADY="$rsha"
+    fi
+    if ! PART="$(git rev-list "$lsha" --not --remotes $ALREADY 2>/dev/null)"; then
+      bad "cannot list the commits this push publishes for ${lsha} - refusing rather than scanning nothing"
+      continue
+    fi
+    [ -n "$PART" ] && PUSHED="${PUSHED}${PART}"$'\n'
+  done <<< "$PUSH_LINES"
+else
+  # No stdin (a manual invocation): fall back to HEAD's unpublished commits so the hook is testable.
+  PUSHED="$(git rev-list HEAD --not --remotes 2>/dev/null || true)"
+fi
+PUSHED="$(printf '%s\n' "$PUSHED" | awk 'NF && !seen[$0]++')"
+
+# ── 2. Model attribution in those messages ───────────────────────────────────
+# Matched on the IDENTIFIER in the shapes a session actually produces:
+#   - a '-by:' trailer (Co-Authored-By, Co-authored-by, Assisted-by, ...) whose value names the
+#     vendor or the model, at any address. The sanctioned house identity
+#     "Co-authored-by: oshal maintainers <maintainer@emeraldcoastsystemsgroup.com>" names neither
+#     and is unaffected;
+#   - the vendor no-reply address anywhere in the message;
+#   - 'generated with / by / using / via' followed by the model: the tool footer, link or no link.
+# `grep -a` so a message is always read as text; LC_ALL=C so case folding behaves the same
+# everywhere. Deliberately NOT filtered on '<...>': every trailer carries its address in brackets.
+ATTRIB_RE='^[[:space:]]*[a-z]+([-_ ][a-z]+)*[-_ ]by[[:space:]]*:.*(claude|anthropic)|no-?reply@([a-z0-9-]+\.)*anthropic\.com|generated[[:space:]]+(with|by|using|via)[^[:alnum:]]*claude'
+ATTRIB_HITS=""
+ATTRIB_FIXES=""
+if [ -z "$PUSHED" ]; then
+  ok "no unpublished commit messages to scan"
+else
+  for sha in $PUSHED; do
+    if ! MSG="$(git show -s --format='%B' "$sha" 2>/dev/null)"; then
+      bad "cannot read the message of pushed commit $sha - refusing rather than passing it unread"
+      continue
+    fi
+    HIT="$(printf '%s\n' "$MSG" | LC_ALL=C grep -aiE "$ATTRIB_RE" | head -3 || true)"
+    [ -n "$HIT" ] || continue
+    SHORT="$(git rev-parse --short "$sha")"
+    ATTRIB_HITS="${ATTRIB_HITS}${SHORT} $(git log -1 --format='%s' "$sha")"$'\n'"$(printf '%s\n' "$HIT" | sed 's/^/    /')"$'\n'
+    ATTRIB_FIXES="${ATTRIB_FIXES}          ${SHORT}:  git rebase -i ${SHORT}~1   (mark it 'reword'), or git commit --amend if it is your branch tip"$'\n'
+  done
+  if [ -n "$ATTRIB_HITS" ]; then
+    bad "model attribution in unpublished COMMIT MESSAGE(s) - none is allowed in this repository:"
+    printf '%s' "$ATTRIB_HITS" | sed 's/^/       /' >&2
+    say "      -> Delete those lines from each message, then push again:"
+    printf '%s' "$ATTRIB_FIXES" >&2
+    say "        Built with git commit-tree (private index)? Rebuild it with a clean -F message instead."
+    say "        Never push with --no-verify: this is the only push-time wall this repo has."
+  else
+    ok "no model attribution in unpublished commit messages"
+  fi
+fi
+
+# ── 3. Model attribution in the tracked TREE ─────────────────────────────────
+# Set per repo, because the two repos are not in the same state:
+#   SCAN_TREE=1  this repo's tracked tree is clean, so the hook holds it clean at push time.
+#   SCAN_TREE=0  the tree check runs in CI instead (see CONTRIBUTING.md); running it here would
+#                refuse every push over content this hook did not introduce.
+# This repo is on SCAN_TREE=1: the 165 attributed lines it carried were rewritten in the same
+# change that added this hook, so the hook holds a tree that is already clean.
+#
+# It runs the SPEC, not the scanner, so one command proves both halves: that the detector still
+# detects (every rule red on its fixture) and that this tree is clean. Weakening a rule to let one
+# file through therefore turns the gate red on the fixtures instead of passing quietly.
+SCAN_TREE=${OSHAL_ATTRIBUTION_SCAN_TREE:-1}
+SPEC="$(git rev-parse --show-toplevel)/scripts/check-no-model-attribution.test.mjs"
+if [ "$SCAN_TREE" = "1" ]; then
+  if [ ! -f "$SPEC" ]; then
+    bad "the tree guard is missing ($SPEC) - refusing rather than passing unchecked"
+  elif ! command -v node >/dev/null 2>&1; then
+    bad "node is not on PATH, so the tracked tree could not be scanned - refusing rather than passing unchecked"
+  elif ! OUT="$(node --test "$SPEC" 2>&1)"; then
+    bad "the tree guard failed - model attribution in TRACKED FILES, or a rule that no longer detects:"
+    printf '%s\n' "$OUT" | tail -40 | sed 's/^/       /' >&2
+  else
+    ok "no model attribution in tracked files (and every rule still detects)"
+  fi
+fi
+
+say ""
+if [ "$fail" -ne 0 ]; then
+  say "ATTRIBUTION GATE FAILED. Work identifies the LANE, never a model (operator directive)."
+  exit 1
+fi
+exit 0

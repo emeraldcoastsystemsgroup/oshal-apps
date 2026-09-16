@@ -12,9 +12,9 @@
 /*
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR        | DESCRIPTION
+ * DATE/TIME           | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-06-26          | Claude Opus   | Vids Studio routes (activation step from
+ * 2026-06-26          | maintainer@emeraldcoastsystemsgroup.com | Vids Studio routes (activation step from
  *   packages/oshal-vids-operator/DEPLOY.md §3). POST/GET /api/vids/jobs dispatch a
  *   generate-job to a REGISTERED remote Vids worker (the screen-driving operator)
  *   via the shared remoteClientRegistry — the same mesh the worker polls — and

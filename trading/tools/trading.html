@@ -177,6 +177,12 @@
   .pill { display:inline-block; font-size:10px; padding:2px 7px; border-radius:20px; border:1px solid var(--line); color:var(--muted); text-transform:uppercase; letter-spacing:.4px; font-weight:700; }
   .pill.buy { color:var(--buy); border-color:var(--buy); } .pill.sell { color:var(--sell); border-color:var(--sell); } .pill.hold { color:var(--muted); }
   .pill.own { color:var(--accent2); border-color:var(--accent); }
+  /* ADR-159 - what the engine will NOT trade. `unmanaged` is amber, not red: it is a deliberate
+     withholding, not a fault. `fenced` matches the pinned pill because both are the operator's
+     own ring-fence. `unknown` is grey and quiet - it is an absence of knowledge, not a warning. */
+  .pill.unmanaged { color:var(--warn); border-color:var(--warn); }
+  .pill.fenced { color:var(--accent2); border-color:var(--accent); }
+  .pill.unknown { color:var(--muted); border-color:var(--muted); }
   .pill.filled { color:var(--buy); border-color:var(--buy); } .pill.rejected { color:var(--danger); border-color:var(--danger); } .pill.pending,.pill.accepted{ color:var(--warn); border-color:var(--warn); }
   .livebanner { background:#3a2a08; border:1px solid #6b4a18; color:var(--warn); border-radius:10px; padding:10px 14px; font-size:13px; margin-bottom:14px; }
   .livebanner.viewonly { background:#2b2b2b; border-color:#555; color:var(--muted); }

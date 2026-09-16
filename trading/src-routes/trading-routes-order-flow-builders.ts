@@ -14,6 +14,8 @@
  * 2026-07-19 16:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Trading engine extraction (ADR-085 pre-carve): import repoints only — analyzeAndRecordDecision/recordOrder/rebindOrder from app/trading-engine.ts (was ./trading-routes-core, moved), ensureTradingSchema from app/trading-schema.ts (was ./trading-routes-schema, moved). placeDecisionOrder stays injected (now defined at the engine). Zero behavior change.
  * 2026-07-19 23:30:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Carved out of OSHAL core into the trading app package (ADR-085 Wave 3). Relative kernel imports flip to @/ aliases (helpers/schema/engine/daily-equity-store/reconcile-ledger ALL stay kernel — the dispatch loops and their specs import them). Handler bodies byte-identical, placeDecisionOrder still injected by the entry — zero behavior change.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | GET /orders and the /journal trades price each close on the engine's own cost (priceOrdersOnEngineCost over core engineRealizedForBook): realized_pnl is the engine figure, venue_realized_pnl the stored venue-basis one, which counts each wash-sale disallowed loss twice. A close the ledger cannot price shows no gain/loss rather than a guessed one.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | GET /ledger answers `governance` beside `positions` (ADR-159): per symbol, whether the engine's protective exit set runs, whether it emits any order at all, and in the operator's words why not. /ledger is THE positions payload the hub paints from, and it carried no trace of a rule the engine has been enforcing since #486/#497 - the operator could see a holding with no stop and no exit and no way to tell that was deliberate. Every part of the answer is the kernel's: subtractPinnedLots + withEngineCostBasis over the same pinned-subtracted positions the dispatch costs, then positionGovernance. A failed read answers `{}` and the surface says NOT KNOWN for those rows - it never says managed about a position nobody could check.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | GET /ledger stops disagreeing with itself, and answers for the position it was silently skipping. (a) `positions` is the RAW venue array while the governance beside it is computed over `subtractPinnedLots(positions, pinned)`, so a partially pinned symbol showed the full quantity next to a sentence about the smaller one - one payload, two numbers, on the same screen. Each answer now carries the two quantities it was measured between (heldQty, the row; governedQty, what the autopilot can act on), both taken from the kernel's OWN subtraction, so the surface can say which is which instead of leaving the operator to reconcile them. (b) `subtractPinnedLots` DROPS a symbol whose every share is pinned, so a fully protected holding reached no governance answer at all and the surface's fallback called it NOT KNOWN - a deliberately protected position shown as unexamined, which is ADR-159's own failure inverted. Such a symbol - present at the venue, absent from the kernel's subtraction - now gets the kernel's `pinnedInFullGovernance`. The words and the reason code are core's; the only thing decided here is which symbols core's subtraction dropped, read off that subtraction's own output.
  *
  * @module trading-routes-order-flow-builders
  */
@@ -22,7 +24,12 @@ import type { Router, Request, Response } from 'express';
 import * as crypto from 'crypto';
 import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
-import { getBrokerReader, type TradingMode, type TradingBook, type OrderResult } from '@/features/trading';
+import { getBrokerReader, type TradingMode, type TradingBook, type OrderResult, type Position } from '@/features/trading';
+import { withEngineCostBasis } from '@/app/trading-engine-cost-basis';
+import { pinnedQtyBySymbol, subtractPinnedLots } from '@/app/trading-pinned-lots';
+import { getActiveOverride } from '@/app/trading-config-overrides';
+import { coreConfig } from '@/app/trading-dispatch-core';
+import { pinnedInFullGovernance, positionGovernanceBySymbol, type PositionGovernance } from '@/app/trading-position-governance';
 import { callerSub, resolveMode, resolveBook, TradingError, type SignalRow } from '@/app/routes/trading-routes-helpers';
 import { loadBook } from '@/app/trading-books-store';
 import { ensureTradingSchema } from '@/app/trading-schema';
@@ -34,6 +41,89 @@ import { isOperatorIdentity } from '@/shared/middleware/authz';
 
 // Same module tag as the entry file so structured log output is unchanged by the split.
 const logger = createChildLogger({ module: 'trading-routes' });
+
+/**
+ * One position's governance as `/ledger` carries it: the kernel's answer, plus the two quantities
+ * that answer sits between. The payload used to state only the first while the table drew the
+ * second, which is how a row reading 400 ended up beside a sentence about 250. Both numbers come
+ * from the kernel's own `subtractPinnedLots`; nothing here recomputes a residual.
+ */
+export interface LedgerPositionGovernance extends PositionGovernance {
+  /** The quantity the VENUE reports - the number the positions table's row shows. */
+  heldQty: number;
+  /** The quantity the AUTOPILOT sees: the held quantity less its protected lots. 0 = all pinned. */
+  governedQty: number;
+}
+
+/**
+ * @description The engine's OWN answer, per symbol, for what it will and will not do with this
+ * book's positions (ADR-159) — so the positions table can mark a holding the engine withholds for
+ * instead of leaving the operator to discover a missing stop by its absence.
+ *
+ * Every part of the answer comes from the kernel: `subtractPinnedLots` + `withEngineCostBasis`
+ * attach the same `unmanaged` / `engineAvgCost` marks the dispatch reads, over the SAME
+ * pinned-subtracted positions the dispatch costs, and `positionGovernance` restates them. Nothing
+ * here re-derives "is this unmanaged?" — a second answer to that question is exactly what would
+ * drift away from the engine's.
+ *
+ * A failed read answers `{}`, and a symbol with no entry reads NOT KNOWN on the surface. That is
+ * deliberate: the protected-lot ledger decides which shares the engine may act on at all, so
+ * without it the coverage comparison is not a fact — and the engine skips the fire for the same
+ * reason. `withEngineCostBasis` never throws; its own failed read leaves the marks off, which lands
+ * in the same "not known" state one position at a time.
+ *
+ * ONE case is not a failed look and must never read as one. `subtractPinnedLots` drops a symbol
+ * whose residual is zero, so a holding entirely inside protected lots reaches nothing that could
+ * govern it — and "not known" about a position the operator deliberately protected is this whole
+ * readout inverted. The symbols that happens to are exactly the ones the venue reports and that
+ * subtraction dropped, which is read off the subtraction's own output rather than recomputed, and
+ * the answer for them is the kernel's `pinnedInFullGovernance` — its reason code and its words.
+ *
+ * @param ctx - App context (pool).
+ * @param sub - Caller sub.
+ * @param book - The resolved book.
+ * @param positions - The venue positions this response carries, as the payload carries them.
+ * @returns UPPER-CASE symbol → the engine's posture and the two quantities it was measured
+ *   between, or `{}` when it could not be determined. Exported so the guard can drive THIS
+ *   function - the ledger read, the cost attachment and the ring-fence parse together - rather
+ *   than a restatement of it.
+ */
+export async function ledgerGovernance(
+  ctx: AppContext, sub: string, book: TradingBook, positions: Position[],
+): Promise<Record<string, LedgerPositionGovernance>> {
+  if (!positions.length) return {};
+  try {
+    const [pinned, override] = await Promise.all([
+      pinnedQtyBySymbol(ctx.pool, sub, book.bookId),
+      getActiveOverride(ctx.pool, sub, book.bookId),
+    ]);
+    const visible = subtractPinnedLots(positions, pinned);
+    const costed = await withEngineCostBasis(ctx, sub, book, visible);
+    const answered = positionGovernanceBySymbol(costed, coreConfig(override));
+    const governedQty = new Map<string, number>();
+    for (const p of visible) governedQty.set(p.symbol.toUpperCase(), Number(p.qty));
+    const out: Record<string, LedgerPositionGovernance> = {};
+    for (const p of positions) {
+      const symbol = p.symbol.toUpperCase();
+      const heldQty = Number(p.qty);
+      const governed = governedQty.get(symbol);
+      if (governed === undefined) {
+        // The kernel's own subtraction dropped it, which it does for one reason: every share is
+        // in a protected lot. Long-only, because a pin is a long lot and core answers NOT KNOWN
+        // for anything else rather than guessing - leaving the entry off keeps that answer.
+        if (heldQty > 0) out[symbol] = { ...pinnedInFullGovernance(symbol, heldQty), heldQty, governedQty: 0 };
+        continue;
+      }
+      const g = answered[symbol];
+      if (g) out[symbol] = { ...g, heldQty, governedQty: governed };
+    }
+    return out;
+  } catch (err) {
+    logger.error({ err, bookId: book.bookId },
+      'ledger governance unavailable — the positions table will say NOT KNOWN rather than managed');
+    return {};
+  }
+}
 
 /**
  * @description The guarded order executor the entry injects (placeDecisionOrder, defined at the
@@ -279,7 +369,8 @@ export function registerTradingOrderFlowRoutes(router: Router, ctx: AppContext, 
           }
         }
       } catch { /* leave day null — the cockpit falls back to the intraday sum */ }
-      res.json({ mode, book: book.ref, configured, account, positions, orders, day });
+      const governance = await ledgerGovernance(ctx, sub, book, positions);
+      res.json({ mode, book: book.ref, configured, account, positions, orders, day, governance });
     } catch (err) {
       logger.error({ err }, 'trading ledger failed');
       res.status(502).json({ error: (err as Error).message });

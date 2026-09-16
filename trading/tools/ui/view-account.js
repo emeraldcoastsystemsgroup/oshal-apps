@@ -48,6 +48,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | wireAccountHeader carries JSDoc (@description/@returns) rather than a prose block comment - the repo rule applies to the rewritten function, not only to the new ones.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 surface expansion: the Allocation and Exits cards. Allocation paints the asset-kind and per-SECTOR mix from GET /exposure against the engine's own per-sector cap (value, % of equity, cap %, headroom, a tilt pill when TRADING_SECTOR_TILT leans a sector) and names both sources in the foot, including how many names sit outside the engine's sector map. Exits paints the venue's OWN working orders first and the autopilot's exit rules second, with the rule block marked not-in-force off-hours (the engine runs only the close-anchored dip rule then), under TRADING_HALT, when the venue clock is blind, and per core hold. A failed section says so in red - never a blank panel and never an invented row.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | Exposure review round: the cards repeat EVERY degraded section, not just the asset directory. /exposure reports six side reads and four of them (protected-lot pins, protected-lot records, trailing peaks, strategy override) were previously painted as fact when they failed - worst case the pins, where the fallback is a no-op subtraction and the card would draw stops and trims over shares the autopilot is forbidden to sell while the foot claimed they were excluded. Now: a red 'Degraded' line on each card naming what could not be read and what that costs the figures below (a section the payload gains later is surfaced by both cards rather than dropped by both), and a failed protected-lot read suppresses the rules table entirely - the engine fails the same way, skipping the fire rather than acting on an unknown book. A failed peaks read is also called out in the rules foot, because every trailing stop is then anchored at average cost.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | ADR-159 reaches the Exits card and the book switch. (a) A rule row the engine will not exit - a holding its own filled orders cannot account for, or a TRADING_CORE_SYMBOLS ring-fence - is greyed, badged, and says the engine's own sentence about why, instead of printing a stop price for a stop that will never fire; that was the one row where the absence of protection mattered and it looked exactly like the fourteen where it did not. (b) A row whose posture could not be READ keeps its prices and carries a quiet 'not known' pill: the rules shown are still the engine's own functions evaluated here, and what is unknown is only whether the engine will act on the result - blanking the row would hide protection that is probably there. (c) The book switch clears window.GOVERNANCE_BY_SYMBOL beside PINNED_BY_SYMBOL, to null rather than {} so a row reads NOT KNOWN until this book's own answer lands instead of inheriting the last account's.
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | Exposure review round 2: the five async card painters move out of renderAccountView into kickAccountCards(token, b). renderAccountView had grown to exactly the 50-line function limit, so the next line added to it would have broken the rule; the painters were already one list doing one job and read better named. No painter, token or ordering change - each still fills its own placeholder and re-checks stale(token) before it paints. The withheld-rules block also says that the SERVER withholds too (exits.rules comes back null when the protected-lot read failed), so the card is not the only thing standing between a consumer and stops drawn over ring-fenced shares.
  */
 
@@ -73,7 +74,9 @@ async function renderAccountView(token) {
         '</div></div>';
       return;
     }
-    window.PINNED_BY_SYMBOL = null; ACCT_LOTS = []; ACCT_DATED = [];  // another account's pins/timed orders must never show here
+    // Another account's pins, timed orders and engine posture must never show here. GOVERNANCE is
+    // cleared to null rather than {} so a row reads NOT KNOWN until this book's own answer lands.
+    window.PINNED_BY_SYMBOL = null; window.GOVERNANCE_BY_SYMBOL = null; ACCT_LOTS = []; ACCT_DATED = [];
     main.innerHTML = banner + accountHeader(b, autopilotOff) +
       '<div id="eventPlanCard"></div>' +                                // an event playbook on this account (ADR-136 D6), filled async
       '<div id="ticketHost"></div>' +                                   // the direct-trade ticket lands here (openTicket)
@@ -502,7 +505,9 @@ function exitsRulesHtml(x) {
     '%, take-profit ' + esc(p.takeProfitPct) + '%, trail arms at +' + esc(p.trailArmPct) + '% and gives back ' + esc(p.trailGivebackPct) +
     '%. They are NOT orders resting at the venue: nothing here is protecting the position while the engine is not running. ' +
     'Outside the regular session the engine runs only the close-anchored dip rule, so the whole block is marked not in force. ' +
-    'Protected-lot shares are excluded (their own exits are real venue orders, listed above).' +
+    'Protected-lot shares are excluded (their own exits are real venue orders, listed above). ' +
+    'A row badged <em>not managed</em> or <em>ring-fenced</em> is one the engine emits no exit for at all — the row says which, ' +
+    'and no stop price is shown for it, because no stop would fire.' +
     (exposureSectionDown(x, 'peaks')
       ? ' <span class="err">The stored trailing peaks could not be read, so every trailing stop above is anchored ' +
         'at average cost rather than the position\'s real high.</span>'
@@ -511,16 +516,36 @@ function exitsRulesHtml(x) {
 /* One rule row. A core hold and an out-of-session row are greyed and say WHY rather than showing a
    stop the engine would never fire. 'would fire now' is the engine's own reason for this position. */
 function exitRuleRowHtml(r) {
+  // ADR-159 — the engine's own reason comes FIRST when it has one. A holding it cannot account for
+  // gets no exit at all, and printing a stop price for a stop that will never fire is exactly the
+  // silence this mark exists to break. `governance` absent, or exitsApply null, means nobody could
+  // look: the rules stay shown and the doubt is said out loud rather than resolved either way.
+  var reasons = (r.governance && r.governance.reasons) || [];
+  var withheld = reasons.filter(function (x) { return x.kind !== 'accountability-unknown'; });
+  var blind = !r.governance || r.governance.exitsApply === null;
+  // The sentence is the SERVER's whenever the server has one - this file must not keep a second
+  // copy of wording that belongs to the engine. The short local line covers only the case where the
+  // payload carries no posture at all, which is a server that predates it.
+  var blindNote = (reasons.filter(function (x) { return x.kind === 'accountability-unknown'; })[0] || {}).detail
+    || 'Whether the engine manages this position could not be read, so this row is not claiming that it does.';
   if (!r.ruleActive) {
-    return '<tr style="opacity:.6"><td><strong>' + esc(r.symbol) + '</strong></td><td class="num">' + esc(r.qty) + '</td>' +
+    var why = withheld.length ? withheld.map(function (x) { return x.label + ' — ' + x.detail; }).join(' ')
+      : (r.coreHold ? 'core hold — exempt from every autopilot exit' : 'rules not in force right now');
+    return '<tr style="opacity:.6"><td><strong>' + esc(r.symbol) + '</strong>' + withheld.map(function (x) {
+      return ' <span class="pill ' + (x.kind === 'unaccounted' ? 'unmanaged' : 'fenced') + '">' + esc(x.label) + '</span>'; }).join('') + '</td>' +
+      '<td class="num">' + esc(r.qty) + '</td>' +
       '<td class="num">' + money(r.avgEntryPrice) + '</td><td class="num">' + (r.currentPrice != null ? money(r.currentPrice) : '—') + '</td>' +
-      '<td colspan="4" class="foot" style="margin:0">' + (r.coreHold ? 'core hold — exempt from every autopilot exit' : 'rules not in force right now') + '</td></tr>';
+      '<td colspan="4" class="foot" style="margin:0">' + esc(why) + '</td></tr>';
   }
   const trail = r.trailArmed ? ('armed · ' + money(r.trailStopPx)) : 'not armed';
   const now = r.wouldFireNow
     ? '<span class="pill sell">' + esc(String(r.wouldFireNow).replace(/_/g, ' ')) + '</span>'
     : (r.trimQty ? '<span class="pill">trim ' + esc(r.trimQty) + '</span>' : '<span class="foot" style="margin:0">—</span>');
-  return '<tr><td><strong>' + esc(r.symbol) + '</strong></td><td class="num">' + esc(r.qty) + '</td>' +
+  // Blind, not withheld: these rules ARE what the engine evaluates, and this row is the surface
+  // running them. What could not be checked is whether the engine will act on the result at all, so
+  // the row keeps its prices and carries the doubt as a pill rather than pretending either answer.
+  const doubt = blind ? ' <span class="pill unknown" title="' + esc(blindNote) + '">not known</span>' : '';
+  return '<tr><td><strong>' + esc(r.symbol) + '</strong>' + doubt + '</td><td class="num">' + esc(r.qty) + '</td>' +
     '<td class="num">' + money(r.avgEntryPrice) + '</td>' +
     '<td class="num">' + (r.currentPrice != null ? money(r.currentPrice) : '—') + '</td>' +
     '<td class="num">' + money(r.stopPx) + '</td>' +

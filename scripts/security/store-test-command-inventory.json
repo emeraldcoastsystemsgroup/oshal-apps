@@ -2,6 +2,8 @@
   "schemaVersion": 1,
   "commands": [
     ".|node --test scripts/check-catalog.test.mjs",
+    ".|node --test scripts/check-engine-container-pattern.test.mjs",
+    ".|node --test scripts/check-no-model-attribution.test.mjs",
     ".|node --test scripts/check-no-public-secret-fallback.test.mjs email-summarizer/tests/session-crypto.test.mjs finance/tests/session-crypto.test.mjs youtube-kids/tests/session-crypto.test.mjs",
     "animatronics|node --test \"tests/*-*.test.js\"",
     "bake-off|node --test \"tests/*.test.js\"",

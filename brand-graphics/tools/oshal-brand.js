@@ -2,9 +2,9 @@
 /*
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR        | DESCRIPTION
+ * DATE/TIME           | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-06-27          | Claude Opus   | Brand Graphics CLI: backs the registered
+ * 2026-06-27          | maintainer@emeraldcoastsystemsgroup.com | Brand Graphics CLI: backs the registered
  *   brand_graphic tool for the marketing-graphics bot. Enqueues an on-brand
  *   motion-graphic job (the validated electric-"oshal" intro) to the remote Vids
  *   worker, which runs the vids-operator's src/brand/graphics.js against

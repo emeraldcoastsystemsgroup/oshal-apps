@@ -67,6 +67,9 @@ my-app/
   README.md
 ```
 
+A package whose compute cannot run in the api process adds an `engine/` directory — see
+[section 7](#7-a-package-that-needs-its-own-engine-container).
+
 **The one hard rule — self-containment.** Every path in the manifest resolves *inside the
 package*. No `src/`, `ai-lab/`, `any-bot/`, no absolute paths, no `../`. `oshal-app validate`
 enforces this.
@@ -436,7 +439,149 @@ it pulls presentations; presentations is protected from removal while little-mon
 package that merely hands an outline to `cad-studio` lists it under `optional` instead: the App
 Loader offers it as a checkbox, and removing cad-studio later is never blocked by that package.
 
-## 7. The CLI (`scripts/oshal-app.js`, also `npm run app`)
+## 7. A package that needs its own engine container
+
+Some packages cannot compute inside the api process. The api image is Alpine (musl): several
+scientific Python stacks publish glibc-only wheels, and native toolchains like a SPICE solver or
+an AVR compiler are not on it at all. A package whose numbers come from one of those ships its own
+container and dials it over the stack network. Four packages arrived at this shape independently
+before it was written down; the differences between them were accidents, not choices, so what
+follows is the pattern — and the store CI gate `scripts/check-engine-container-pattern.mjs` holds
+every engine package to it.
+
+| package | engine | why a container | alias the route dials |
+|---|---|---|---|
+| `aero-lab` | AeroSandbox / casadi | `casadi` publishes no musl wheel | `aero-lab-engine:7411` |
+| `cad-studio` | CadQuery on the OCCT kernel | OCCT wheels are glibc + link against libGL | `cad-studio-engine:7412` |
+| `circuit-lab` | ngspice + avr-gcc / avr8js | apt-installed native toolchains | `circuit-lab-engine:7413` |
+| `embodied` | MuJoCo / Gymnasium | glibc-only wheels | `embodied-engine:7413` |
+
+Read any one of them as a worked example; they agree. The port numbers need not be unique across
+packages — nothing is published to the host, and each container has its own network namespace.
+
+**The files.** Everything lives under the package, like every other path in a manifest:
+
+```
+my-app/
+  engine/
+    install-engine.sh          # builds the image and starts the container; run on the box
+    requirements.txt           # what to install, when your stack has PyPI dependencies at all
+    requirements-lock.txt      # a CONSTRAINTS file: the exact versions you validated against
+    container/
+      Dockerfile               # FROM an official upstream image + the pins above
+      compose.yaml             # the engine's OWN compose project
+      my_engine_bridge.py      # the long-lived process: JSON lines over TCP
+```
+
+**Nothing third-party is committed and no image is published.** The Dockerfile starts from an
+official upstream image and installs the exact pins (PyPI, apt, or both); `install-engine.sh`
+builds it locally on the box. That keeps the package a source package — the store never carries
+someone else's binary.
+
+#### The three properties that are requirements, not options
+
+Each of these was learned by something breaking. They are asserted by the CI gate, so a package
+that drops one fails store CI rather than failing on an operator's box.
+
+**1. The compose project is the package's own, and the installer asserts it after `up`.** The
+compose file declares `name: oshal-<package>-engine`, and that is not sufficient on its own: the
+api container exports `COMPOSE_PROJECT_NAME` for the *core* stack, and an inherited
+`COMPOSE_PROJECT_NAME` outranks the compose file's `name:`. Inherited, it silently put the first
+engine into the core project, where the next core deploy's `--remove-orphans` swept it. So the
+installer unsets the inherited variables, pins `-p "$PROJECT"`, and then reads the label back:
+
+```sh
+unset COMPOSE_PROJECT_NAME COMPOSE_FILE COMPOSE_PROFILES COMPOSE_PROJECT_ROOT
+PROJECT=oshal-my-app-engine
+OSHAL_NETWORK="$NETWORK" docker compose -p "$PROJECT" -f "$ENGINE_DIR/container/compose.yaml" \
+  up -d --no-build --force-recreate
+
+got=$(docker inspect "$CONTAINER" --format '{{index .Config.Labels "com.docker.compose.project"}}')
+[ "$got" = "$PROJECT" ] || die "$CONTAINER landed in compose project '$got', not '$PROJECT' - a core deploy would sweep it"
+```
+
+Unsetting the variable is not proof; the read-back is. Do both.
+
+**2. The container carries no `oshal.tier` label.** `oshal.tier` is the selector the monitoring
+overlay's Prometheus uses to discover scrape targets by docker_sd — a bot service inherits it from
+`x-bot-common` and is scraped with no config change. An engine container serves no `/metrics`, so
+wearing that label makes it a permanently down target on the core dashboards. Label it with
+`oshal.app: <package>` instead, which is descriptive and selects nothing.
+
+**3. A stale container is refused with the install command, never answered.** The package's engine
+tree and the tree baked into the running image can differ — the package updated, the container did
+not. Answering anyway means returning last week's physics as if it were this week's. So the image
+and the package each hash the engine tree the same way, the bridge reports its hash in the hello
+frame, and the client refuses a mismatch:
+
+```js
+if (hello.buildHash !== this.opts.expectedBuildHash)
+  return this.unavailable(`engine container is out of date: it was built from engine ${String(hello.buildHash).slice(0, 12)}, this package ships ${this.opts.expectedBuildHash.slice(0, 12)}`);
+```
+
+Hash the *same* file list on both sides, fold CRLF to LF (a Windows checkout and the deployed Linux
+copy of one commit must agree), and keep the two implementations cross-checked by a test — see
+`cad-studio/routes/engine-build-hash.js` beside `cad-studio/engine/container/cad_engine_bridge.py`.
+
+Two more properties follow from the pattern and are checked with them: the compose file joins the
+**external** stack network (`name: ${OSHAL_NETWORK:-oshal-local_oshal}`) under an alias rather than
+creating one, and it **publishes no host port** — only containers on the stack network reach the
+bridge. Beyond that the engines run `read_only: true`, `cap_drop: [ALL]`,
+`no-new-privileges`, a tmpfs `/tmp`, a non-root user and a `mem_limit`; copy that block.
+
+#### The capability route owns the reason and the command
+
+No surface hardcodes setup instructions. The route that reports capabilities answers with the
+engine's state, the honest reason it is unavailable, and the exact command that fixes it, and the
+surface renders whatever it is given:
+
+```js
+// GET /api/my-app/capabilities — 200 with capabilities:null when the engine is down, never a 500
+res.json({
+  engine: { connected, buildHash, expectedBuildHash, address: 'my-app-engine:7411' },
+  capabilities: null,
+  reason: 'engine container is out of date: it was built from engine a1b2c3d4e5f6, this package ships 0f9e8d7c6b5a',
+  installHint: 'docker exec <api-container> sh /app/workspace-shared/deployed-apps/my-app/engine/install-engine.sh',
+});
+```
+
+Build the hint rather than writing it out — inside the api container the hostname *is* the
+container id, so the command names the box the operator is actually on:
+
+```js
+const script = `${engineDir.replace(/\\/g, '/')}/install-engine.sh`;
+return fs.existsSync('/.dockerenv') ? `docker exec ${os.hostname()} sh ${script}` : `sh ${script}`;
+```
+
+`aero-lab`'s engine-down banner is the behaviour to match: it renders the route's own reason,
+which carries the copy-paste command. It used to print a hardcoded venv instruction instead,
+which was wrong on every deployed (Alpine) box — that is why setup text lives in no surface.
+
+#### Installation, and the refusal path when it cannot happen
+
+An installed package should end up with a working engine without an operator step. Today it does
+not: package install does not yet run a declared post-install command, and no shipped engine builds
+itself on the first call. **Until one of those exists, the refusal path is the contract, and it is
+explicit** — a package with no engine container stays fully honest rather than half-working:
+
+- capabilities stay `false`/`null` with the reason and the install command, on every surface that
+  would have used the engine;
+- nothing degrades silently to an approximation unless the package says so in the same payload
+  (`embodied` keeps a kinematic truth model and labels it);
+- `install-engine.sh` is idempotent, so the same command is the fix for "never installed", "out of
+  date" and "container gone".
+
+Run it from the box, where the api container has the docker CLI and the mounted socket:
+
+```sh
+docker exec <api-container> sh /app/workspace-shared/deployed-apps/my-app/engine/install-engine.sh
+```
+
+The installer should prove the engine before it reports success — start the container, wait for the
+bridge to listen, then run one real computation through it (`--selftest`). A container that is up
+but answering wrongly is worse than one that is down, because only the down one tells the operator.
+
+## 8. The CLI (`scripts/oshal-app.js`, also `npm run app`)
 
 | Command | Does |
 |---|---|
@@ -444,7 +589,7 @@ Loader offers it as a checkbox, and removing cad-studio later is never blocked b
 | `validate <dir>` | lint against the contract (self-contained, files present, agentId unique, deps ok). CI-gate-able. |
 | `install <name> [--repo <url>] [--ref <ref>] [--dest <dir>] [--with a,b \| --with-optional]` | git-subdir-pull a package from a store repo into `deployed-apps/`, with its required apps and any optional apps you name |
 
-## 8. Publishing to this store
+## 9. Publishing to this store
 
 1. `oshal-app validate my-app` → clean.
 2. Copy `my-app/` into this repo (a top-level folder = one installable package).
@@ -479,7 +624,7 @@ installer must reject missing, pending, failed, malformed, version-mismatched, a
 records, then install the exact `sourceSha` returned by the validator instead of mutable `source.ref`.
 See [`audits/README.md`](audits/README.md) for the controls, evidence format, and maintainer flow.
 
-## 9. For an LLM asked to "build an OSHAL extension"
+## 10. For an LLM asked to "build an OSHAL extension"
 
 ### Registering package tests with the AI Test Lab
 

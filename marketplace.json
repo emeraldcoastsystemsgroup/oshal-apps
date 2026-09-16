@@ -898,7 +898,7 @@
       "suite": "ai-finance",
       "displayName": "Intelligent Trades",
       "description": "Signal-justified stock trading (ADR-052). Capture a market signal, let the trading-analyst reason it into a decision tree, and execute through the provider-agnostic BrokerAdapter (Alpaca paper / Schwab live) - every order FK-bound to its justifying decision and signals. Dual paper/live books, PAPER-ONLY by default; the env-level live gate (TRADING_LIVE_ENABLED + explicit confirm) and the whole autopilot/engine stay framework-resident - this package is the four route surfaces (/api/trading, /autopilot, /lab, /trading-charts), the cockpit surface + vendored chart lib, the trading_* operator tools, and the analyst/feed-bot manifest. NOTE: package directory is 'trading' (install trading); the registered app name stays intelligent-trades.",
-      "version": "1.13.1",
+      "version": "1.15.0",
       "theme": "midnight",
       "dependencies": {
         "apps": [],

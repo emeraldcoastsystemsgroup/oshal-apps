@@ -18,6 +18,8 @@
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Two ways the readout could still mislead. (a) The row prints the quantity the VENUE reports while the engine's answer is about the shares the autopilot can act on; for a partially pinned symbol those differ, so the row said 400 and the sentence beside it said 250 and nothing on the screen reconciled them. The payload now carries both numbers (heldQty / governedQty, measured on the kernel's own subtraction) and the explanation opens by saying which is which - it is not subtracted here, because that residual rule already has one implementation. (b) A holding whose every share is pinned is dropped by that subtraction before anything governs it, so it fell through to the NOT KNOWN fallback: a position the operator deliberately protected, shown as one nobody examined. That is its own state now, with the kernel's own words, and its own line under the table - a setting like the ring-fence, so it is counted and explained apart from the holdings the engine WILL NOT trade rather than swelling that headline. The unread state is untouched and still catches a genuinely failed look.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-159 - the positions views say which holdings the engine will NOT trade. Since #486/#497 the engine emits no order at all for a position its own filled orders cannot account for, and TRADING_CORE_SYMBOLS has always withheld for a ring-fenced name; neither was visible anywhere, so a holding could sit with no stop, no exit and no trim and look exactly like one under full management. window.GOVERNANCE_BY_SYMBOL is the KERNEL's answer, published straight from the /ledger payload - the surface never derives "can the engine account for this?", because that question has one definition and it lives with the order paths that enforce it. A managed row shows nothing; a withheld one wears its reason as a badge whose title is the whole sentence, AND the sentence is repeated in the open under the table, because a badge nobody hovers is another coloured dot. A symbol with no entry reads NOT KNOWN, never managed: a payload without the field, or a book whose answer could not be read, must never turn "could not look" into a clean bill of health. The table foot no longer claims the AI manages these positions - for a badged row that is false, which is the whole point.
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Log opened at 1.10.3 - this file predates the log and its earlier history is in git. Sub-tab race close-out (ADR-136 D2 tail): loadSignalModel captures RENDER_TOKEN before its await and bails after it (and still checks CURRENT), so a slow /signal-latest answer for a symbol the operator has moved off cannot paint the focus pane. The header note above about token-less legacy loaders no longer applies to it.
  */
 
@@ -27,6 +29,11 @@ async function loadKpisAndPositions() {
   try {
     const j = await api('/ledger');
     if (stale(token)) return;
+    // ADR-159 - the engine's OWN answer for what it will and will not do with each holding, taken
+    // from the same response the table is painted from. A payload with no `governance` (or a server
+    // that could not determine it) leaves this empty, and every row then reads NOT KNOWN rather than
+    // managed: the surface must never turn "could not look" into "looked and found nothing".
+    window.GOVERNANCE_BY_SYMBOL = (j.governance && typeof j.governance === 'object') ? j.governance : {};
     const kpisHost = $('kpis');
     // HONESTY: a null account means the broker read failed — never paint $0 equity / $0 cash.
     if (!j.account) {
@@ -113,7 +120,7 @@ function renderPositions() {
     const barColor = (pnl||0)>=0 ? '#34c79a' : '#ec7672';
     return '<button class="uni-row' + (u.symbol===CURRENT?' active':'') + '" data-symbol="' + esc(u.symbol) + '">' +
       '<span class="s">' + esc(u.symbol) + '</span><span class="p">' + (u.price?money(u.price):'—') + '</span>' +
-      '<span class="a"><span class="pill own" style="font-size:9px">HELD ' + (u.qty||0) + '</span> ' + sigPill + '</span>' + pnlSpan +
+      '<span class="a"><span class="pill own" style="font-size:9px">HELD ' + (u.qty||0) + '</span> ' + sigPill + governancePills(u.symbol) + '</span>' + pnlSpan +
       '<span class="gbar"><i style="width:' + w + '%;background:' + barColor + '"></i></span></button>';
   }).join('');
   host.querySelectorAll('.uni-row').forEach(r => r.onclick = () => focus(r.getAttribute('data-symbol')));
@@ -149,6 +156,90 @@ function posSortVal(p) {
     default: return Number(p.marketValue)||0;
   }
 }
+/* ADR-159 - what the ENGINE will not do with a holding, and why, in its own words.
+ * window.GOVERNANCE_BY_SYMBOL is the kernel's answer ({SYM: {exitsApply, ordersApply, reasons[]}}),
+ * published by loadKpisAndPositions from the /ledger payload. The surface NEVER derives it: "can the
+ * engine account for this?" has one definition and it lives with the order paths that enforce it.
+ * A symbol with no entry is NOT KNOWN - never "managed" - so a failed read can never read as a clean
+ * bill of health. A managed holding has an empty reasons[] and shows nothing at all. */
+var GOV_PILL_CLASS = { 'unaccounted': 'unmanaged', 'ring-fenced': 'fenced', 'core-holding': 'fenced',
+  'pinned-in-full': 'pinned', 'accountability-unknown': 'unknown' };
+var GOV_UNREAD = "Whether the engine manages this position is NOT KNOWN: its answer for this book could not be read, so this row is not claiming the position is managed and is not claiming it is unmanaged either. The engine keeps trading the book from the venue's cost basis when that read fails - it is this readout that is blind, not the engine. Reload; if it persists, the engine's order ledger or the protected-lot ledger is unreadable.";
+function governanceOf(sym) {
+  var m = window.GOVERNANCE_BY_SYMBOL;
+  var key = String(sym || '').toUpperCase();
+  var g = (m && typeof m === 'object') ? m[key] : null;
+  if (g && Array.isArray(g.reasons)) return g;
+  return { symbol: key, exitsApply: null, ordersApply: null, reasons: [{ kind: 'accountability-unknown', label: 'not known', detail: GOV_UNREAD }] };
+}
+/* WHICH quantity the answer is about. The row shows what the venue reports; the engine's answer is
+ * about the shares the autopilot can act on, and those are the same number only until some of them
+ * sit in protected lots. Saying so is the difference between one payload and two readings of it - a
+ * row reading 400 beside a sentence about 250 is the same screen disagreeing with itself. Both
+ * numbers come from the server, measured on the kernel's own subtraction; the difference is printed,
+ * never the residual rule, which already has exactly one implementation. A fully pinned holding
+ * says nothing here - its own reason already opens with the whole quantity. */
+function governedQtyNote(g) {
+  if (!g || g.heldQty == null || g.governedQty == null) return '';
+  var held = Number(g.heldQty), governed = Number(g.governedQty);
+  if (!(held > 0) || !(governed > 0) || governed === held) return '';
+  return 'Of the ' + held + ' ' + g.symbol + ' held, ' + (held - governed) + ' sit in protected lots with their '
+    + 'own exits; the row above shows all ' + held + ', and what follows is about the other ' + governed + '.';
+}
+/* The badges for one symbol. Hovering any of them gives the whole sentence; the block under the
+ * table repeats it in the open, because a badge nobody hovers is just another coloured dot. */
+function governancePills(sym) {
+  var g = governanceOf(sym), note = governedQtyNote(g);
+  return g.reasons.map(function (r) {
+    return ' <span class="pill ' + (GOV_PILL_CLASS[r.kind] || 'unknown') + '" title="' + esc(note ? note + ' ' + r.detail : r.detail) + '">' + esc(r.label) + '</span>';
+  }).join('');
+}
+/* One group's rows: each symbol's badges, then the engine's whole sentence in the open, opened by
+ * the quantity note when the row's number and the answer's number are not the same one. */
+function govRowsHtml(list, limit) {
+  var shown = list.slice(0, limit);
+  var rows = shown.map(function (g) {
+    var note = governedQtyNote(g);
+    return '<div style="margin-top:7px"><strong>' + esc(g.symbol) + '</strong>' + governancePills(g.symbol) +
+      '<div style="margin-top:2px">' + (note ? esc(note) + ' ' : '') +
+      g.reasons.map(function (r) { return esc(r.detail); }).join(' ') + '</div></div>';
+  }).join('');
+  return rows + (list.length > shown.length
+    ? '<div style="margin-top:6px">and ' + (list.length - shown.length) + ' more - hover a badge on the row for its reason.</div>' : '');
+}
+/* The explanation under the positions table: which holdings the engine will not trade, and what
+ * that means for each. Symbols whose answer simply could not be read collapse into ONE line - a
+ * failed book read marks every row, and fifteen copies of the same sentence hides the real ones.
+ * A holding held entirely in protected lots is counted and explained APART from both: it is a
+ * setting the operator made, nothing is wrong with it, and folding it into 'the engine will not
+ * trade these' would make that headline say something it does not mean. */
+function governanceNotice(pos) {
+  var marked = pos.map(function (p) { return governanceOf(p.symbol); }).filter(function (g) { return g.reasons.length; });
+  if (!marked.length) return '';
+  var pinnedAll = marked.filter(function (g) { return g.reasons.some(function (r) { return r.kind === 'pinned-in-full'; }); });
+  var rest = marked.filter(function (g) { return pinnedAll.indexOf(g) < 0; });
+  var named = rest.filter(function (g) { return g.reasons.some(function (r) { return r.kind !== 'accountability-unknown'; }); });
+  var unread = rest.filter(function (g) { return named.indexOf(g) < 0; });
+  var rows = govRowsHtml(named, 6);
+  var pinnedBlock = pinnedAll.length
+    ? '<div style="margin-top:9px"><strong>' + pinnedAll.length + (pinnedAll.length === 1 ? ' position is' : ' positions are') +
+      ' held entirely in protected lots.</strong> The autopilot does not act on these at all - it never sees them. ' +
+      'Each lot works the exits it was opened with, and those are real orders at the venue, so this is a setting ' +
+      'and not a finding. They return to the autopilot when the lots are released.</div>' + govRowsHtml(pinnedAll, 6)
+    : '';
+  var head = named.length
+    ? '<strong>' + named.length + (named.length === 1 ? ' position the engine will not trade.' : ' positions the engine will not trade.') +
+      '</strong> Monitored, not managed: no stop, no take-profit, no trailing exit and no trim, by design. ' +
+      'The money is still at the venue and still counts toward exposure and drawdown - only the orders are withheld.'
+    : '';
+  var blind = unread.length
+    ? '<div style="margin-top:7px"><strong>' + unread.length + (unread.length === 1 ? ' position: ' : ' positions: ') + esc(unread.map(function (g) { return g.symbol; }).join(', ')) +
+      '</strong><div style="margin-top:2px">' + esc(GOV_UNREAD) + '</div></div>'
+    : '';
+  return '<div class="foot" style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px">' +
+    head + rows + pinnedBlock + blind + '</div>';
+}
+
 /* ADR-138: 'pinned N' after a symbol whose shares (in part or whole) sit in protected lots. */
 function pinnedPill(sym) {
   const m = window.PINNED_BY_SYMBOL, n = m && m[sym] != null ? Number(m[sym]) : 0;
@@ -171,7 +262,7 @@ function renderPortfolioTable() {
     const dayPl = p.unrealizedIntradayPl!=null?Number(p.unrealizedIntradayPl):null;
     const dayPct = p.changeToday!=null?Number(p.changeToday)*100:null;
     return '<tr data-fsym="' + esc(p.symbol) + '" class="pos-row' + (p.symbol===CURRENT?' active':'') + '" style="cursor:pointer">' +
-      '<td><strong>' + esc(p.symbol) + '</strong>' + pinnedPill(p.symbol) + '</td>' +
+      '<td><strong>' + esc(p.symbol) + '</strong>' + pinnedPill(p.symbol) + governancePills(p.symbol) + '</td>' +
       '<td>' + sigPill + '</td>' +
       '<td class="num">' + (p.qty) + '</td>' +
       '<td class="num">' + money(p.avgEntryPrice) + '</td>' +
@@ -194,7 +285,8 @@ function renderPortfolioTable() {
       '<td class="num ' + (tot.day>=0?'ok':'err') + '"><strong>' + money(tot.day) + '</strong></td><td></td>' +
       '<td class="num ' + (tot.upl>=0?'ok':'err') + '"><strong>' + money(tot.upl) + '</strong></td><td></td></tr></tfoot>' +
     '</table></div>' +
-    '<div class="foot" style="margin-top:8px">Click any row to open its chart, signal model and order ticket below. The AI manages these positions — this table is your read-only ledger of what it holds and how each is doing.</div></div>';
+    '<div class="foot" style="margin-top:8px">Click any row to open its chart, signal model and order ticket below. This table is your read-only ledger of what the book holds and how each name is doing. ' +
+      'The engine manages every row that carries no badge; a badged row it does not, and says why.</div>' + governanceNotice(pos) + '</div>';
   host.querySelectorAll('th[data-sort]').forEach(t => t.onclick = () => {
     const k = t.getAttribute('data-sort');
     if (STATE.posSort.key===k) STATE.posSort.dir *= -1; else STATE.posSort = { key:k, dir:-1 };
@@ -233,7 +325,7 @@ function focus(sym) {
   ) : '';
   host.innerHTML =
     '<div class="det-head"><div class="det-id">' +
-      '<h2>' + esc(sym) + ' ' + stancePill + (u.held?'<span class="pill own">held ' + (u.qty||0) + '</span>':'') + pinnedPill(sym) + '</h2>' +
+      '<h2>' + esc(sym) + ' ' + stancePill + (u.held?'<span class="pill own">held ' + (u.qty||0) + '</span>':'') + pinnedPill(sym) + (u.held?governancePills(sym):'') + '</h2>' +
       '<div class="det-price">' + (u.price?money(u.price):'—') + '</div>' +
       '<div class="det-meta">' + chg + (u.avg?('<span>avg ' + money(u.avg) + '</span>'):'') + (u.retPct!=null?('<span class="' + (u.retPct>=0?'ok':'err') + '">' + pct(u.retPct) + ' unreal</span>'):'') + '</div>' +
     '</div><div class="tf-switch" id="focTf">' + tfs.map(t => '<button data-tf="' + t + '"' + (t===FOC_TF?' class="on"':'') + '>' + t + '</button>').join('') + '</div></div>' +

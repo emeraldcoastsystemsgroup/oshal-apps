@@ -33,6 +33,9 @@
 # 27 | maintainer@emeraldcoastsystemsgroup.com     | Narrow the spaces glob to tests/spaces-*.test.js: the new upload-identity.core.test.js drives the compiled router over real HTTP with express + multer resolved from a framework checkout (OSHAL_CORE_DIR), which this bare-checkout job does not have — same *.core.test.js convention as cad-studio and circuit-lab. Run locally with the framework checkout present.
 # 28 | maintainer@emeraldcoastsystemsgroup.com     | Run the animatronics package's dependency-free suites (engine, protocol, prop-kind seam, Web Serial link) with the house one-glob contract; routes.core and surface.core stay local with the framework checkout.
 # 29 | maintainer@emeraldcoastsystemsgroup.com     | Keep the scan-to-print core suite out of this bare-checkout job by NAME rather than by widening the glob. `tests/*-*.test.js` matched upload-identity.core.test.js only because that filename carried a hyphen, and that suite resolves express, multer and request-identity.ts from a framework checkout (OSHAL_CORE_DIR) this job does not have. The house contract is one glob per package (check-store-test-discovery.mjs enforces it), and every other package on tests/*-*.test.js already keeps its core suites hyphen-free - cad-studio and animatronics use routes.core.test.js, and a hyphenated one uses .core.spec.mjs. scan-to-print now matches: the file is identity.core.test.js beside routes.core.test.js and freshness.core.test.js. Glob unchanged.
+# 30 | maintainer@emeraldcoastsystemsgroup.com     | Hold every package-owned engine container to the pattern BUILDING-EXTENSIONS.md now documents. Four packages (aero-lab, cad-studio, circuit-lab, embodied) arrived at the same shape independently and nothing kept them or the doc in step: the compose project must be the package's own and asserted after `up` (an inherited COMPOSE_PROJECT_NAME put the first one in the core project, where the next core deploy swept it), no `oshal.tier` label (Prometheus' docker_sd selector), no published host port, and a stale container refused with the install command rather than answered with stale results. Mutation-proved, and the gate also runs against this repository's real compose files, installers and doc so the fixtures cannot pass while the shipped engines diverge.
+
+# 31 | maintainer@emeraldcoastsystemsgroup.com     | Run the attribution guard, and land it GREEN. The operator's standing directive is that work identifies the LANE, never a model; core has enforced it in the tree and at push time since the 2026-09-12 history scrub and this repo enforced it nowhere, so recurrence was invisible until someone grepped - and it had recurred in 165 lines. The gate ships with the tree already clean rather than red on arrival: a gate that fails on every PR from the day it lands trains everyone to ignore red, which is the opposite of a guard. The bylines were rewritten to name the lane and the Change Log AUTHOR columns to name the house identity; no pattern was narrowed to the files that tripped it. See CONTRIBUTING.md.
 name: store-ci
 on:
   pull_request:
@@ -83,6 +86,32 @@ jobs:
         run: node scripts/check-catalog.mjs
       - name: Mutation-test catalog drift detection
         run: node --test scripts/check-catalog.test.mjs
+
+  engine-container-pattern:
+    name: package-owned engine containers follow the documented pattern
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # Structural discovery, not a list: a package is covered the moment it commits
+      # engine/container/compose.yaml, so a fifth engine cannot be hand-rolled unnoticed.
+      - name: Check every engine container against BUILDING-EXTENSIONS.md
+        run: node scripts/check-engine-container-pattern.mjs
+      - name: Mutation-test the engine-container gate
+        run: node --test scripts/check-engine-container-pattern.test.mjs
+
+  attribution:
+    name: no model attribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Refuse model attribution in tracked files
+        run: node --test scripts/check-no-model-attribution.test.mjs
 
   little-monsters:
     name: little-monsters security suites

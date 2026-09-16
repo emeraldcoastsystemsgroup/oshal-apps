@@ -52,3 +52,24 @@ recent prices.
 operator's signed-in session: the package's ADR-149 gate refuses service identities), the proposed
 bookings are checked against Schwab's history, it is applied, and the next fire logs
 `engine cost basis attached` with both names covered.
+
+## T4 — The surface parse guard has been red since the connected-actions handoff (added 2026-09-15)
+
+`tests/trading-html-syntax.spec.ts` parses every `tools/ui/*.js` as a **classic script**, and
+`tools/ui/connected-actions.js` (added by `bcbf9df`, "Add saved market evidence and explicit
+research handoffs") is an ES module: it opens with `import {receiveHandoff} from
+'/cockpit/js/app-handoff.js'`, and `trading.html:288` loads it with `type="module"`, which is
+correct. The file is right and the guard's blanket assumption is stale, so the guard fails with
+`connected-actions.js: Cannot use import statement outside a module`.
+
+Measured on a pristine `origin/main` checkout at `0bb5d69` on 2026-09-15: **1 failed, 228 passed**,
+that one case. It is the guard that exists to catch a syntax error nobody else would catch — a
+2026-09-03 blank page was a raw newline in a string literal — so while it is red it is protecting
+nothing, and a real break in another module would look like the failure everyone has learned to
+skip past.
+
+**Done when:** the spec decides each module's goal (script vs module) from how `trading.html`
+actually loads it — `type="module"` parses as a module, everything else as a classic script — with
+the mapping asserted in both directions so a module added to the page and never loaded, or loaded
+as a module and written as a script, still fails; and the suite reports zero failures on a clean
+checkout.

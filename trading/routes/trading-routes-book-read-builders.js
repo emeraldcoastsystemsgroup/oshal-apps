@@ -18,6 +18,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | Exposure review round. (a) The trailing peak is the ENGINE's rolled-forward peak - nextPeaks(visible, storedPeaks), exactly what computeExits computes before it evaluates trailingExits - so a winner at a new high is priced off that high here too rather than off a stale stored peak; the roll is in memory only, savePeaks is still never called from a read route. (b) The per-sector cap denominator follows sizeEntry's own fallback (capped equity, or capped CASH when equity is zero), so a cash-only book stops reading as zero headroom where the engine would still size. (c) The asset-directory map is built from the HELD symbols instead of materialising all ~11k reference rows on every account-page paint, and availability is decided by the directory itself rather than by the map being empty (a flat book is not a failed read). (d) The card, not just the payload, now repeats every degraded section - see view-account.js SEQ 5.
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | Exposure review round 2. (a) The cap-TRIM base handed to exitRuleRows is the capped EQUITY, which is what the engine passes to rebalanceTrims - the equity-or-cash fallback is sizeEntry's rule for the per-sector denominator only, and applying it to trims too would have been a (zero-equity-only) divergence from the engine. (b) `exits.rules` is now null - not a computed list - whenever the protected-lot read failed, so the PAYLOAD enforces what the card already did: a consumer that reads `rules` without checking `sections` can no longer be handed stops computed over shares the autopilot may not touch. (c) The /exposure registration moves into registerExposureRoute so the already-oversized registerTradingBookReadRoutes block stops growing.
  * 9 | maintainer@emeraldcoastsystemsgroup.com   | Two reads now agree with the engine's own cost. (1) GET /realized tallies closes priced by the engine (core engineRealizedForBook) instead of the stored venue-basis realized_pnl, which counts each wash-sale disallowed loss twice; the response says basis:'engine' and carries the venue's net alongside. (2) The exposure card's wouldFireNow runs the stop/take-profit check on the engine-costed position, exactly as computeExits does, so a stop the wash-sale veto suppresses is no longer shown as about to fire; trailing and trims still read the raw position, as the dispatch does.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com   | ADR-159 reaches the Exits card. The card printed a stop price and a take-profit for EVERY held name, including one the engine cannot account for from its own filled orders - for which it now emits no order at all - so the one row where the absence of protection actually mattered looked exactly like the fourteen where it did not. Each rule row now carries the kernel's `positionGovernance` for its symbol, read off the SAME costed array the card already builds (withEngineCostBasis over the pinned-subtracted positions), and a row the engine will not exit is marked inactive with no `wouldFireNow` computed - the same shape a core hold has had since SEQ 6. Nothing is re-derived here: a second answer to "is this unmanaged?" is precisely what would drift from the engine's. `exitsApply: null` (the ledger read failed) deliberately leaves the rules shown and carries the doubt in `governance` instead, because blanking a row on a failed read hides protection that is probably there; a failed PROTECTED-LOT read withholds the governance entirely, since `exits.rules` is already withheld for the same reason.
  *
  * @module trading-routes-book-read-builders
  */
@@ -41,6 +42,7 @@ const trading_pinned_lots_1 = require("@/app/trading-pinned-lots");
 // The engine's own cost: the stop veto the dispatch applies, and realized P&L priced without the
 // venue's wash-sale adjustment. The card and the tally read the same functions the engine does.
 const trading_engine_cost_basis_1 = require("@/app/trading-engine-cost-basis");
+const trading_position_governance_1 = require("@/app/trading-position-governance");
 const trading_realized_1 = require("./trading-realized");
 // ADR-134 PR3: every read resolves the BOOK (query.book, falling back to legacy ?mode= aliases via
 // resolveBook) — with two live books both mode='live', an unconverted read would merge BOTH books'
@@ -202,13 +204,20 @@ function sectorRow(sector, symbols, capBase, policy, tilt, pctE) {
  * @param rulesRunNow - True only when the full regular-session exit set is the one in force.
  * @param engineCost - The engine's own cost per symbol (withEngineCostBasis); the stop decision reads it,
  *   exactly as computeExits does, so a stop the wash-sale veto suppresses is not shown as about to fire.
+ * @param governance - The engine's posture per symbol (ADR-159). A holding the engine cannot account
+ *   for gets NO exit at all, so its rules are marked inactive and no `wouldFireNow` is computed:
+ *   printing a stop price for a stop the engine will never fire is the exact thing the mark exists
+ *   to stop. `exitsApply: null` (nobody could look) leaves the rules shown and carries the doubt in
+ *   `governance` instead, because blanking a row on a failed read would hide protection that is
+ *   probably there.
  * @returns One row per held name.
  */
-function exitRuleRows(visible, policy, peaks, capEquity, coreSymbols, rulesRunNow, engineCost = new Map()) {
+function exitRuleRows(visible, policy, peaks, capEquity, coreSymbols, rulesRunNow, engineCost = new Map(), governance = {}) {
     return visible.filter((p) => p.qty > 0).map((p) => {
         const symbol = p.symbol.toUpperCase();
         const coreHold = coreSymbols.has(symbol);
-        const ruleActive = rulesRunNow && !coreHold;
+        const posture = governance[symbol];
+        const ruleActive = rulesRunNow && !coreHold && posture?.exitsApply !== false;
         const peak = peaks.get(symbol) ?? p.avgEntryPrice;
         const currentPrice = p.currentPrice ?? null;
         const gainPct = currentPrice != null && p.avgEntryPrice > 0 ? ((currentPrice - p.avgEntryPrice) / p.avgEntryPrice) * 100 : 0;
@@ -223,6 +232,7 @@ function exitRuleRows(visible, policy, peaks, capEquity, coreSymbols, rulesRunNo
             trimQty: trims.length ? trims[0].qty : 0,
             wouldFireNow: ruleActive ? firstExitReason(p, policy, peaks, capEquity, engineCost.get(symbol)) : null,
             coreHold, ruleActive,
+            ...(posture ? { governance: posture } : {}),
         };
     });
 }
@@ -329,7 +339,13 @@ async function readExposureInputs(ctx, sub, book, broker) {
     for (const p of costed)
         if (p.engineAvgCost !== undefined)
             engineCost.set(p.symbol.toUpperCase(), p.engineAvgCost);
-    return { account, positions, pinned, lots: lots, peaks, override, orders, kinds, engineCost, sections };
+    // ADR-159 - read off the SAME costed array, so the card's answer for a holding is the engine's
+    // own and not a second computation. A pinned-lot read failure already downgraded that section,
+    // and `costed` is then built over unsubtracted positions, so the governance is withheld with it:
+    // `{}` reads as NOT KNOWN on the card rather than as a claim the engine manages the book.
+    const governance = sections.pinnedLots === 'unavailable'
+        ? {} : (0, trading_position_governance_1.positionGovernanceBySymbol)(costed, (0, trading_dispatch_core_1.coreConfig)(override));
+    return { account, positions, pinned, lots: lots, peaks, override, orders, kinds, engineCost, governance, sections };
 }
 /**
  * @description Shape the /exposure response from the gathered inputs. Pure apart from the session
@@ -389,7 +405,7 @@ async function shapeExposure(book, inp) {
             // non-browser consumer reading `rules` without checking `sections` cannot be misled either.
             // The trim base is the CAPPED EQUITY - what dispatch hands rebalanceTrims - not the sector base.
             rules: inp.sections.pinnedLots === 'ok'
-                ? exitRuleRows(visible, policy, peaks, capped.equity, new Set(core.symbols), rulesRunNow, inp.engineCost)
+                ? exitRuleRows(visible, policy, peaks, capped.equity, new Set(core.symbols), rulesRunNow, inp.engineCost, inp.governance)
                 : null,
         },
         sections: inp.sections,

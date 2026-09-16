@@ -68,6 +68,46 @@ Deep links: `?view=accounts|strategies|research|reports` for the four top-level 
 Legacy `?tab=` links (`journal`, `perf`, `lab`, `studio`, `tuning`, `accounts`, `reco`, `algos`,
 `capture`, `summary`) still resolve — they map onto the view above that now holds that content.
 
+### Positions the engine will not trade (1.15.0, ADR-159)
+
+The engine reads the **venue's** positions and manages what it finds there, so a share bought by
+hand outside it used to acquire an engine decision measured against a cost the engine never paid.
+Since ADR-159 (`docs/adr/159-the-engine-manages-only-what-it-can-account-for.md` in the framework
+repo) it withholds instead: a holding its own filled orders cannot account for gets **no order at all** — no
+stop, no take-profit, no trailing exit, no rotation or rebalance trim, and no entry that adds to it.
+A `TRADING_CORE_SYMBOLS` ring-fence withholds for its own, separate reason.
+
+Both were invisible until 1.15.0: a position could sit with no stop and no exit and look exactly
+like one under full management. The positions table, the holdings list, the focus pane and the Exits
+card now badge every such row, and say what the badge means under the table:
+
+| badge | what the engine does | what changes it |
+|---|---|---|
+| **not managed** | no order of any kind — its own filled orders do not cover the quantity held | account for the shares (partial coverage is not coverage) |
+| **ring-fenced** | `SYM:0` in `TRADING_CORE_SYMBOLS`: held, never bought, never sold | the environment variable — this one is a setting, not a finding |
+| **core hold N%** | no sleeve exit, but the beta core still tops it up and trims it toward N% | the environment variable |
+| **not known** | not stated — the engine's own answer for this book could not be read | reload; the order ledger or the protected-lot ledger is unreadable |
+| **protected lots** | nothing at all — every share is pinned, so the autopilot never sees the position; each lot works the exits it was opened with | release the lots — a setting, not a finding |
+
+A **marked position is still monitored**: it shows in every list, its market value still counts
+toward exposure, capital and drawdown, and its P&L is shown on the venue's basis. Only the orders
+are withheld.
+
+**Which quantity the badge is about.** The row prints what the venue reports; the engine's answer is
+about the shares the autopilot can act on, and protected lots make those two different numbers. Each
+`/ledger` answer therefore carries both — `heldQty` (the row) and `governedQty` (what the autopilot
+sees, `0` when the whole position is pinned) — and the explanation under the table opens by saying
+which is which, so a row reading 400 beside a sentence about 250 is not left for the reader to
+reconcile. A holding pinned in FULL is dropped from the autopilot's view before anything can govern
+it, so it reads **protected lots** rather than *not known*: somebody did look, and the answer is
+benign.
+
+The answer is the **kernel's**, carried on `GET /ledger` as `governance` (`{SYM: {exitsApply,
+ordersApply, reasons[], heldQty, governedQty}}`) and on each `GET /exposure` exit-rule row. The surface never decides
+"can the engine account for this?" — that has one definition and it lives with the order paths that
+enforce it. A symbol the payload does not answer for reads **not known**, never *managed*: the
+surface must not turn "could not look" into "looked and found nothing".
+
 ### Allocation and Exits on the account page (1.11.0)
 
 Two cards sit between the positions table and the protected lots, both filled by one

@@ -1,11 +1,11 @@
 /**
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR        | DESCRIPTION
+ * DATE/TIME           | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-06-22          | Claude Opus   | Regression: an aborted static request must
- *                     |               | NOT write to a finished response (that uncaught
- *                     |               | ERR_HTTP_HEADERS_SENT crashed the whole control plane).
+ * 2026-06-22          | maintainer@emeraldcoastsystemsgroup.com | Regression: an aborted static request must
+ *                     |                                         | NOT write to a finished response (that uncaught
+ *                     |                                         | ERR_HTTP_HEADERS_SENT crashed the whole control plane).
  */
 
 /**
