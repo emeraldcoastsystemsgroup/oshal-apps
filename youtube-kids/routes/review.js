@@ -41,3 +41,4 @@ function createReviewRoutes(ctx) {
     router.get('/', (_req, res) => { res.setHeader('Cache-Control', 'no-store'); res.sendFile(path.join(ctx.appPackageDir, 'tools/review.html')); });
     return router;
 }
+//# sourceMappingURL=review.js.map

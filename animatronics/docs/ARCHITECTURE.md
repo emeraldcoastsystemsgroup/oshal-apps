@@ -133,9 +133,12 @@ allowlist admits it (the same reasoning as Scan to Print's camera).
 jog, arm, disarm, e-stop], minSafetyClass:1}`; class 2 once any servo's stall torque reaches
 10 kg·cm; `e-stop` and `disarm` confirm-exempt. `GET /rigs/:id/manifest` answers the ADR-151 D1
 manifest. The row is **embodied's** (ADR-156 D6 folded in at 0.2.0): `KIND_VOCABULARY.prop` is
-decided there, `GET /capabilities` names the owner, and this package pins the values as data.
-`engine-kind.test.js` imports embodied's row, refuses any drift either way, and proves embodied's
-`validateManifest` accepts a real rig — while still pinning the refusal of a prop as a rail node.
+decided there, `GET /capabilities` names the owner, and since 0.2.1 `loadPropVocabulary()` READS
+the row out of embodied's compiled `routes/engine/nodes/capability-manifest.js` beside this package
+instead of holding a copy. The read is fail-closed: no embodied, no `prop` row, no
+`CONFIRM_EXEMPT_ACTS`, or a module that throws each yields no vocabulary and a null manifest (503
+on the manifest route), never a locally invented row. `engine-kind.test.js` proves it against a
+fixture embodied whose row differs — while still pinning the refusal of a prop as a rail node.
 
 ## 11. Storage (`migrations/001-animatronics.sql`)
 

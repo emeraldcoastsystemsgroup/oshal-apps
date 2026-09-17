@@ -13,6 +13,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The packaged routes over real loopback HTTP with express resolved from the framework checkout (OSHAL_CORE_DIR) and the REAL engine client talking to a fake bridge on loopback that speaks the wire protocol: the surface, assets and capabilities serve; the caller gate 401s; a circuit is created from an example and solved (run 1, artifacts on disk, the engine's report); an empty circuit stays a draft; parts add / update-with-merge / refuse-with-field / remove-with-wires, wires connect / refuse-mixed-kinds / disconnect, each a run; the engine's refusal is a 422 naming the field and the last run stays; owner scoping (a second subject gets 404); artifacts by run; the Home summary; deletion removes rows and files; and with the bridge gone, a run answers 503 naming the install command while the last run still serves. The database is a SQL-dispatching in-memory double — the owner RLS boundary itself is proven by the migration's policy text and the live installer, not here.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Resolve the framework checkout from OSHAL_CORE_ROOT first (what the Test Lab sandbox sets, /app) and OSHAL_CORE_DIR second, and fail loud when neither is set. The old default C:/Projects/oshal existed on one Windows box only and turned a missing variable into a confusing module error.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Redirect a bare require to the framework checkout only when the package itself asks for it. Requires made inside node_modules resolve normally again: redirecting them to core's root broke in the Test Lab sandbox, where the image's pruned node_modules keeps semver only nested under sharp (Cannot find module 'semver'); a developer checkout hoists it, which is why no local run saw it. A setup that fails part-way no longer hangs the suite to its time limit: teardown is null-safe and closes the fake engine it did start. In the Test Lab sandbox a missing catalog file failed setup after the engine was listening, and the open socket held the run for 120 s.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | The catalog counts this suite asserts are the ones the ENVIRONMENT implies. A row may name another package as the owner of a real part and read it, and an absent owner withholds that row on purpose; pinning `catalog.drivers` at five asserted that the degradation never happens, and it went red against a copy of this package alone - the shape the Test Lab and a single-package install both have. The responses are now held to the contract in both environments, including the `unresolved` block that says which row went and who owns it, because a package that quietly drops a part row is worse than one that says it did.
  *
  * FRAMEWORK-COUPLED: needs a core checkout for express. Not part of the store-CI
  * wildcard; run locally: OSHAL_CORE_DIR=C:/Projects/oshal node --test tests/routes.core.test.js
@@ -32,6 +33,7 @@ if (!CORE) throw new Error('Set OSHAL_CORE_ROOT (the Test Lab sets /app) or OSHA
 assert.ok(fs.existsSync(path.join(CORE, 'node_modules', 'express')), `OSHAL_CORE_ROOT (or OSHAL_CORE_DIR) must point at a framework checkout with node_modules (got ${CORE})`);
 const coreRequire = Module.createRequire(path.join(CORE, 'package.json'));
 const PKG = path.resolve(__dirname, '..');
+const { declaredDrivers, missingSharedOwners } = require(path.resolve(__dirname, 'shared-part-owners.js'));
 
 // ── Framework doubles: exactly the @/ modules the package imports ─────────────
 const STUBS = { '@/shared/logger': { createChildLogger: () => ({ debug() {}, info() {}, warn() {}, error(obj, msg) { const err = obj && typeof obj === 'object' && obj.err; console.error('[package]', msg || obj, err instanceof Error ? err.stack : err || ''); } }) } };
@@ -193,9 +195,19 @@ test('surface, assets and capabilities serve; the caller gate answers 401', asyn
   assert.deepEqual(caps.body.examples.map((e) => e.id), ['led-switch', 'rc-charge', 'motor-gearbox', 'pwm-motor', 'crank-slider', 'arduino-blink']);
   assert.match(caps.body.engine.installHint, /docker exec oshal-local-api sh .*circuit-lab\/engine\/install-engine\.sh/);
   assert.equal(caps.body.engine.expectedBuildHash, HASH);
-  assert.equal(caps.body.catalog.drivers, 5); assert.equal(caps.body.contract.parts.servo.pins.find((p) => p.name === 'shaft').kind, 'shaft');
+  // A shared row resolves only where its owner package is installed beside this one, and a store
+  // package installs on its own - so what the catalog routes must serve is what the environment
+  // implies, not a fixed five. Both halves are asserted: the rows that load, and the `unresolved`
+  // block naming the owner of every row that did not, so a withheld row is never silent.
+  const catalogFile = path.join(PKG, 'catalog', 'drivers.json');
+  const withheld = missingSharedOwners(catalogFile);
+  const serves = declaredDrivers(catalogFile).length - withheld.length;
+  assert.equal(caps.body.catalog.drivers, serves); assert.equal(caps.body.contract.parts.servo.pins.find((p) => p.name === 'shaft').kind, 'shaft');
+  assert.deepEqual(caps.body.catalog.unresolved.map((u) => u.id).sort(), withheld.map((w) => w.id).sort());
+  for (const row of caps.body.catalog.unresolved) assert.match(row.reason, new RegExp(row.owner), `${row.id}: the reason names the owner`);
   const catalog = await call('/catalog/drivers');
-  assert.equal(catalog.status, 200); assert.equal(catalog.body.drivers.length, 5);
+  assert.equal(catalog.status, 200); assert.equal(catalog.body.drivers.length, serves);
+  assert.deepEqual(catalog.body.unresolved.map((u) => u.id).sort(), withheld.map((w) => w.id).sort());
   assert.deepEqual((await call('/catalog/drivers?type=stepper')).body.drivers.map((d) => d.id), ['stepper-nema17-17hs4401']);
   assert.equal((await call('/catalog/drivers?type=gear')).status, 400);
   currentSub = null;

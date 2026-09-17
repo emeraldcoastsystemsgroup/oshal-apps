@@ -12,6 +12,12 @@
  *                     |                             | router under the `/api/animatronics` mount. The manifest's
  *                     |                             | `auth: oidc` wraps the whole mount; every handler still
  *                     |                             | re-derives the caller.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | `/capabilities` READS the `prop` row from its owner instead of
+ *                     |                             | echoing a copy this package kept (core BACKLOG 2026-09-14).
+ *                     |                             | The row is resolved per request, so a box that installs
+ *                     |                             | embodied after this package picks it up without a restart, and
+ *                     |                             | a box without it is told plainly which package owns the
+ *                     |                             | vocabulary rather than shown one invented here.
  */
 
 import fs from 'node:fs';
@@ -24,7 +30,7 @@ import { describeBehaviourContract } from './engine/scenario';
 import { describeProtocol } from './engine/protocol';
 import { loadServoCatalog, servoMap } from './engine/catalog';
 import { buildTemplates } from './engine/templates';
-import { PROP_CONFIRM_EXEMPT, PROP_KIND, PROP_VOCABULARY, PROP_VOCABULARY_OWNER } from './engine/kind';
+import { PROP_KIND, PROP_VOCABULARY_OWNER, loadPropVocabulary } from './engine/kind';
 import { createRigRoutes } from './rig-routes';
 
 const logger = createChildLogger({ module: 'animatronics-routes' });
@@ -93,12 +99,15 @@ export function createAnimatronicsRoutes(ctx: AppContext): Router {
   logger.info({ servos: catalog.servos.length, controllers: catalog.controllers.length, templates: templates.length }, 'Loaded the servo catalog and the rig templates');
 
   router.get('/capabilities', (_req: Request, res: Response) => {
+    const vocabulary = loadPropVocabulary();
     res.json({
       app: 'animatronics',
       contract: describeRigContract(),
       behaviour: describeBehaviourContract(),
       protocol: describeProtocol(),
-      kind: { kind: PROP_KIND, owner: PROP_VOCABULARY_OWNER, ...PROP_VOCABULARY, confirmExempt: [...PROP_CONFIRM_EXEMPT] },
+      kind: vocabulary.ok
+        ? { kind: PROP_KIND, owner: PROP_VOCABULARY_OWNER, ...vocabulary.row, confirmExempt: [...vocabulary.confirmExempt] }
+        : { kind: PROP_KIND, owner: PROP_VOCABULARY_OWNER, available: false, reason: vocabulary.reason },
       catalog: { servos: catalog.servos.length, controllers: catalog.controllers.length, path: '/api/animatronics/catalog/servos' },
       templates: templates.map((t) => ({ id: t.id, title: t.title, description: t.description, channels: t.rig.channels.length, poses: Object.keys(t.poses), scenarios: Object.keys(t.scenarios) })),
       rail: 'draft → rehearse → arm (confirm) → play / look-at / jog → disarm (e-stop)',

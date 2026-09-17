@@ -4,6 +4,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-08-06 00:10:00 | maintainer@emeraldcoastsystemsgroup.com   | Mutation-proof the catalog gate against version/source drift, missing and phantom entries, duplicate ids, and the retired schema URL using isolated temporary stores; prove every package job waits for both store contract gates.
+ * 2026-09-16 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Require the catalog-parity job to run the dependency-mirror mutation suite too, so the guard that keeps marketplace.json's dependency block generated cannot be dropped from CI without this suite going red.
  */
 
 import test from 'node:test';
@@ -114,6 +115,7 @@ test('every package job waits for non-empty discovery and catalog parity', () =>
   assert.match(jobBlock('test-discovery'), /node scripts\/security\/check-store-test-discovery\.mjs/);
   assert.match(jobBlock('catalog-parity'), /node scripts\/check-catalog\.mjs/);
   assert.match(jobBlock('catalog-parity'), /node --test scripts\/check-catalog\.test\.mjs/);
+  assert.match(jobBlock('catalog-parity'), /node --test scripts\/gen-catalog-dependencies\.test\.mjs/);
   for (const job of packageJobs) {
     assert.match(
       jobBlock(job),

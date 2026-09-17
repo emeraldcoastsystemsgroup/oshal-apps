@@ -55,7 +55,7 @@ description: >-
   reason over it, and place the trade through your broker (Alpaca) — with a full decision
   trail from every order back to the signal that triggered it. Paper-trade and live-trade as
   two separate books. Cash equities. No crypto.
-version: 1.15.0
+version: 1.18.0
 status: active
 
 source:
@@ -93,6 +93,11 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  # ADR-090: the specialist-context channel. A protected bot-node run is TOOL-LESS, so the
+  # controller-side fact append registered by createTradingRoutes is the accountable trading
+  # bot's ONLY data channel. Declared here so a kernel that predates the channel REFUSES this
+  # package instead of installing it with the bot silently blind.
+  - specialist-context
 
 # Dark, focused trading skin.
 theme: midnight
@@ -257,6 +262,32 @@ tools:
       required: [symbol]
     usageInstructions: Places a PAPER order only (never live). Confirm with the user before trading.
     routingTags: [trading, order, paper]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  # The named read the ADR-090 specialist-context facts run under. It is a real read-only surface
+  # (GET /api/trading/summary) as a tool, and it is the name the kernel resolves this package's
+  # ownership of when createTradingRoutes registers the reader: SpecialistContextRegistry refuses
+  # a registration whose bot AND tool this manifest does not both declare. When this app gains an
+  # authorization catalog, this is the binding that carries the read permission.
+  - name: trading_book_facts
+    displayName: Trading Book Facts
+    type: api
+    category: trading
+    description: >-
+      Today's numbers for ONE book per key, never summed across books and never across live and
+      paper: recorded equity, the day change against that book's prior session close, and
+      engine-priced realized P&L. Read-only, owner-scoped, and it never calls the venue - a book
+      with no recorded snapshot today reads "unknown", never a stale figure and never 0.
+      Input: {}.
+    executor: { executorType: api, apiEndpoint: "GET /api/trading/summary" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+    usageInstructions: Call with {} to read each book's own equity, day change and realized P&L.
+    routingTags: [trading, performance, summary]
     skills: [trading]
     tags: [intelligent-trades]
 

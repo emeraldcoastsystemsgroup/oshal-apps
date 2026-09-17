@@ -1,8 +1,8 @@
 name: calendar
 suite: ai-home
 displayName: Calendar Preparation
-description: Sync your upcoming primary-calendar events explicitly and prepare reviewed gift, meal, travel and meeting plans.
-version: 1.0.0
+description: Sync your upcoming primary-calendar events explicitly, prepare reviewed gift, meal, travel and meeting plans, and receive an opt-in cited brief before a meeting.
+version: 1.1.0
 status: active
 scope: person
 source:
@@ -27,6 +27,41 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - jarvis-briefings
+  - test-catalog
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+
+# The meeting-brief agent. Consent is default-OFF: `defaults.enabled: false` is what
+# JarvisBriefingService reads for any principal who has never saved a preference, so nothing is
+# announced, nothing is stored, and nothing of theirs is READ until the caller turns this source
+# on - the collector asks the framework's own publish gate per owner before it opens a record.
+briefings:
+  - id: meeting-briefs
+    title: Brief me before the meeting
+    description: A cited brief assembled from material you already recorded; no prior material means an honest "no prior context".
+    sessionId: calendar-meeting-briefs
+    defaults: { enabled: false, frequency: as-available, channel: bubble }
+
+schedules:
+  - id: calendar-meeting-briefs
+    cron: "*/15 * * * *"
+    scope: framework
+    runsAs: system
+    description: Assemble, deliver and store briefs for meetings starting inside the lead window, for callers who enabled the meeting-brief source.
+    target: service-route
+    route: /api/calendar/brief-collection/collect
+    handler: collectMeetingBriefs
+    body:
+      leadHours: 24
+      maxOwners: 50
+      maxBriefsPerOwner: 5
+      maxPriors: 2
+      maxSegments: 3
+      maxClaims: 6
+      excerptChars: 240
+      snapshotAgeDays: 30
 
 smoke:
   - name: package-readiness
@@ -65,6 +100,19 @@ routes:
     auth: oidc
     requiresContext: true
     requiresAuth: true
+    requiresAi: false
+  - module: routes/meeting-brief-view.js
+    factory: createMeetingBriefViewRoutes
+    mountPath: /api/calendar/meeting-briefs
+    auth: oidc
+    requiresContext: true
+    requiresAuth: true
+    requiresAi: false
+  - module: routes/meeting-briefs.js
+    factory: createMeetingBriefRoutes
+    mountPath: /api/calendar/brief-collection
+    auth: service
+    requiresContext: true
     requiresAi: false
 ui:
   static:
@@ -106,3 +154,4 @@ integrations:
       version: 1
 migrations:
   - migrations/001-calendar-preparation.sql
+  - migrations/002-meeting-briefs.sql

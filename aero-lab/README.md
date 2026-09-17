@@ -77,16 +77,17 @@ margins as design guidance, not flight certification.
   `engine/aerosim/`, fingerprint `603cf4c5e8d9e4c9`), so the package runs on a
   fresh box with no external checkout. The engine container is built from this
   tree, so a deployed box always answers from the vendored snapshot.
-  `AERO_LAB_ENGINE_DIR` still overrides it for a local worker and points at a
-  concurrently-developed upstream tree when set. If no engine is reachable,
-  every capability reports `false` and the surface says exactly why nothing
-  runs — no fabricated numbers, ever.
+  It is also what a local worker uses by default; `AERO_LAB_ENGINE_DIR` overrides
+  it and is the only way to reach a concurrently-developed upstream tree. If no
+  engine is reachable, every capability reports `false` and the surface says
+  exactly why nothing runs — no fabricated numbers, ever.
 
-  ⚠ The two trees currently **disagree**: the vendored snapshot runs 3 of 4
-  presets and reproduces the recorded numbers; the live upstream tree
-  (`0a9aaab7ff87f747`) refuses all four. The surface always shows the engine
-  fingerprint, so which tree answered is never a guess. See
-  [BACKLOG.md](BACKLOG.md) §B.
+  ⚠ The trees **disagree**: the vendored snapshot runs 3 of 4 presets and
+  reproduces the recorded numbers; the concurrently-developed upstream tree
+  (`0a9aaab7ff87f747`) refuses all four. Since 1.2.1 nothing selects that tree
+  by accident — it is reached only through an explicit `AERO_LAB_ENGINE_DIR`.
+  The surface always shows the engine fingerprint, so which tree answered is
+  never a guess. See [BACKLOG.md](BACKLOG.md) §B.
 
 ## Surfaces
 
@@ -119,12 +120,14 @@ Details — image contents, licenses, transport, the stale-container guard — a
 
 ## Local dev setup
 
-1. **Engine checkout.** aero-lab REQUIRES an aerosim tree. Point
-   `AERO_LAB_ENGINE_DIR` at it; the documented default on this box is the
-   session scratchpad:
+1. **Engine checkout.** aero-lab ships one: the vendored snapshot at
+   `engine/`, which is what a local worker uses with no configuration. Set
+   `AERO_LAB_ENGINE_DIR` only to drive a different aerosim checkout — the
+   surface prints the engine fingerprint, so which tree answered is never a
+   guess:
 
    ```
-   AERO_LAB_ENGINE_DIR=C:/Users/you/AppData/Local/Temp/claude/c--Projects-oshal/a6f28b94-bbf2-435a-9f7c-b5755938e4c5/scratchpad/aerosim
+   AERO_LAB_ENGINE_DIR=<path-to-an-aerosim-checkout>
    ```
 
 2. **Dedicated venv.** The engine runs from `<engineDir>/.venv` — never a

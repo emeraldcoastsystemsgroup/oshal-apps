@@ -3,6 +3,7 @@
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Add the Resume Studio MASTER document mapping: base_document() (straight, model-free profile -> editor shape) and replace_resume_fields() (whitelist write-back reusing augment's backup/audit/atomic-replace rails), so the durable profile every tailored resume is generated from finally has an editor.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | ADR-141 D7: the master document carries each role's recorded stories with the bullet each one supports, so the Resume Studio shows the evidence under the claim it proves. Read-only — the save path is a whitelist and still cannot write a story.
 
 """Loads the user's career_db.json and renders a compact profile for prompts."""
 from __future__ import annotations
@@ -604,6 +605,38 @@ _MASTER_MAX_SKILLS = 120
 _MASTER_MAX_BULLETS = 24
 _MASTER_ITEM_MAX_CHARS = 200
 _MASTER_BULLET_MAX_CHARS = 1000
+# ADR-141 D7: the story review's evidence travels with the document it proves. Bounded for the
+# same reason every other field here is — the studio round-trips this over HTTP.
+_MASTER_MAX_STORIES = 6
+_MASTER_STORY_MAX_CHARS = 1200
+
+
+def _master_stories(role: dict) -> list:
+    """Every story the review recorded against one role, with the bullet each one supports.
+
+    Read-only and lossless-in-intent: a story the model flagged as carrying no real evidence is
+    MARKED (`weak`), never hidden — the candidate is the one editing this document, and a silently
+    dropped answer reads as an answer that was never saved. Bounded in count and length because the
+    studio round-trips the whole document."""
+    items = role.get("stories")
+    if not isinstance(items, list):
+        return []
+    out = []
+    for story in items:
+        if not isinstance(story, dict):
+            continue
+        text = str(story.get("story") or "").strip()
+        if not text:
+            continue
+        out.append({
+            "title": str(story.get("title") or "").strip()[:120],
+            "story": text[:_MASTER_STORY_MAX_CHARS],
+            "bullet": str(story.get("bullet") or "").strip(),
+            "weak": story.get("weak") is True,
+        })
+        if len(out) >= _MASTER_MAX_STORIES:
+            break
+    return out
 
 
 def base_document() -> dict:
@@ -613,7 +646,9 @@ def base_document() -> dict:
     renderPreview/applyAction already speak: headline (the profile's optional headline field,
     falling back to the credential line — both candidate-stated, nothing invented), summary,
     competencies, experience (roles with verbatim deliverable bullets), a flattened skills
-    list in group order, and clearance. Returns {resume, cover, meta{master: True}}."""
+    list in group order, and clearance. Each role also carries the stories the ADR-141 D7
+    review recorded against it, each naming the bullet it supports, so the editor can show
+    the evidence under the claim. Returns {resume, cover, meta{master: True}}."""
     d = load()
     p = d.get("profile", {}) or {}
     experience = [{
@@ -621,6 +656,7 @@ def base_document() -> dict:
         "org": r.get("org", ""),
         "span": f"{r.get('start', '')}–{r.get('end') or 'present'}",
         "bullets": [str(b) for b in (r.get("deliverables") or [])],
+        "stories": _master_stories(r),
     } for r in d.get("roles", []) or []]
     flat_skills = []
     for group in (d.get("skills", {}) or {}).values():

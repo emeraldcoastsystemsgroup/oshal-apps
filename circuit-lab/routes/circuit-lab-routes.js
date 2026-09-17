@@ -4,6 +4,14 @@
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | The catalog is resolved PER REQUEST, and the response carries the
+ *                     |                             | rows it could not resolve. A row may now name another package
+ *                     |                             | as the owner of a real part and read it (`sharedPart`), and
+ *                     |                             | store packages install one at a time: a box that installs the
+ *                     |                             | owner after this package would otherwise go on hiding the row
+ *                     |                             | until someone restarted the api. The re-read is one small JSON
+ *                     |                             | file per call; the mount still loads once so a catalog this
+ *                     |                             | package itself got wrong fails the mount, as before.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Serve circuit-lab-geometry.js (the wire-bend and group-rotation
  *                     |                             | geometry the canvas shares with the plain-node suite).
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | The shaft-driver catalog (`/catalog/drivers`, loaded and validated
@@ -93,10 +101,25 @@ function createCircuitLabRoutes(ctx, opts = {}) {
     for (const file of SURFACE_SCRIPTS)
         assets.get(`/${file}`, serveFile(packageFile(appPackageDir, 'tools', file), 'application/javascript'));
     router.use('/assets', assets);
-    const catalog = (0, driver_catalog_1.loadDriverCatalog)(packageFile(appPackageDir, 'catalog', 'drivers.json'));
-    logger.info({ drivers: catalog.length }, 'Loaded the shaft-driver catalog');
+    const catalogFile = packageFile(appPackageDir, 'catalog', 'drivers.json');
+    const booted = (0, driver_catalog_1.loadDriverCatalog)(catalogFile);
+    logger.info({ drivers: booted.drivers.length, unresolved: booted.unresolved.length, catalogFile }, 'Loaded the shaft-driver catalog');
+    // A shared row's owner is a sibling package that may be installed or uninstalled while this
+    // process runs, so the answer is re-read per call. A catalog this package itself got wrong
+    // already failed the mount above; if the file becomes unreadable afterwards the boot answer is
+    // served rather than a 500, and the reason is logged.
+    const currentCatalog = () => {
+        try {
+            return (0, driver_catalog_1.loadDriverCatalog)(catalogFile);
+        }
+        catch (err) {
+            logger.error({ err, catalogFile }, 'Re-reading the shaft-driver catalog failed; serving the catalog loaded at mount');
+            return booted;
+        }
+    };
     router.get('/capabilities', (_req, res) => {
-        res.json({ app: 'circuit-lab', solver: 'ngspice (engine container)', contract: (0, circuit_contract_1.describeContract)(), examples: (0, examples_1.listExamples)(), engine: engine.status(), catalog: { drivers: catalog.length, path: '/api/circuit-lab/catalog/drivers' } });
+        const catalog = currentCatalog();
+        res.json({ app: 'circuit-lab', solver: 'ngspice (engine container)', contract: (0, circuit_contract_1.describeContract)(), examples: (0, examples_1.listExamples)(), engine: engine.status(), catalog: { drivers: catalog.drivers.length, unresolved: catalog.unresolved, path: '/api/circuit-lab/catalog/drivers' } });
     });
     router.get('/examples', (_req, res) => { res.json({ examples: (0, examples_1.listExamples)() }); });
     router.get('/catalog/drivers', (req, res) => {
@@ -105,7 +128,8 @@ function createCircuitLabRoutes(ctx, opts = {}) {
             res.status(400).json({ error: 'invalid_input', field: 'type', message: `type must be one of ${circuit_contract_1.DRIVER_TYPES.join(', ')}` });
             return;
         }
-        res.json({ drivers: (0, driver_catalog_1.listDrivers)(catalog, type) });
+        const catalog = currentCatalog();
+        res.json({ drivers: (0, driver_catalog_1.listDrivers)(catalog.drivers, type), unresolved: catalog.unresolved.filter((u) => !type || u.type === type) });
     });
     router.use((0, design_routes_1.createDesignRoutes)({ pool: ctx.pool, engine, dataRoot, engineBuild, callerSub, timeoutMs: opts.runTimeoutMs }));
     return router;

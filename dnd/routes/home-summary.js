@@ -1,4 +1,6 @@
 "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.createHomeSummaryRoutes = createHomeSummaryRoutes;
 /**
  * CHANGE LOG
  * -----------------------------------------------------------------------------
@@ -6,9 +8,6 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Add saved campaign evidence and a native review surface for explicit connected planning.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.createHomeSummaryRoutes = createHomeSummaryRoutes;
-
 /** Saved dnd evidence. GET is owner-scoped, bounded, and side-effect free. */
 const express_1 = require("express");
 const clip = (v, cap = 400) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, cap);
@@ -45,3 +44,4 @@ function createHomeSummaryRoutes(ctx) {
     });
     return router;
 }
+//# sourceMappingURL=home-summary.js.map

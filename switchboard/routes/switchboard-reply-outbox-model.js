@@ -1,3 +1,4 @@
+"use strict";
 /**
  * CHANGE LOG
  * -----------------------------------------------------------------------------
@@ -6,7 +7,6 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Add the pure validation, identity, request-hash, and wire-shape model for Switchboard's confirmed idempotent reply outbox.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Canonicalize workspace UUIDs before hashing so database normalization cannot break an exact replay.
  */
-"use strict";
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);

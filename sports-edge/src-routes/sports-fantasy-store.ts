@@ -17,12 +17,13 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — schema self-heal, per-user league links, the shared projection cache, and the start/sit ledger's upsert, open-row and grading statements.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Accumulate each player's completed weeks in their own narrow table. The projection cache holds one row per week and the whole ~40MB payload with it, so reading a fifteen-player roster's history out of it would mean loading every week's entire universe on a request path. Raw stats are stored, never points: a week's points do not exist until a league's scoring rules are applied, and two leagues price the same line differently.
  *
  * @module sports-fantasy-store
  */
 
 import type { Pool } from 'pg';
-import type { DistilledPlayer } from './sports-fantasy-espn';
+import type { DistilledPlayer, PlayerWeekActual } from './sports-fantasy-espn';
 import type { StartSitCall } from './sports-fantasy-scoring';
 
 /** DDL kept equivalent to migrations/002-sports-fantasy.sql. */
@@ -49,6 +50,10 @@ const DDL = [
      CONSTRAINT sports_fantasy_calls_unique UNIQUE (user_sub, season, league_id, week, start_player_id, sit_player_id))`,
   `CREATE INDEX IF NOT EXISTS idx_sports_fantasy_calls_open ON sports_fantasy_calls (settled, season, week)`,
   `CREATE INDEX IF NOT EXISTS idx_sports_fantasy_calls_user ON sports_fantasy_calls (user_sub, created_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS sports_fantasy_player_weeks (
+     season INTEGER NOT NULL, week INTEGER NOT NULL, player_id INTEGER NOT NULL,
+     stats JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+     PRIMARY KEY (season, week, player_id))`,
 ];
 
 /**
@@ -166,6 +171,76 @@ export async function writeProjections(
      SET payload = EXCLUDED.payload, players = EXCLUDED.players, generated_at = now(), build_ms = EXCLUDED.build_ms`,
     [season, week, JSON.stringify(players), Object.keys(players).length, buildMs],
   );
+}
+
+/**
+ * How many player-weeks go into one INSERT. The feed produces on the order of 1,400 rows per
+ * completed week (1,348 on the live run of 2026-09-16), so a full season is ~25,000 rows and a row
+ * at a time would be 25,000 round trips for data that is refreshed at most every few hours.
+ */
+export const PLAYER_WEEK_CHUNK = 500;
+
+/**
+ * @description Store completed weeks' actual stat lines. Idempotent: a completed week never changes,
+ * and the week still in progress is simply overwritten as it fills in.
+ *
+ * RAW STATS, NOT POINTS — deliberately, and for the same reason `appliedTotal` is unused everywhere
+ * else in this package. A week's fantasy points do not exist until a league's scoring rules are
+ * applied, and this table is shared by every league on the box. Storing points here would bake one
+ * league's rules into another league's history and look completely normal doing it.
+ * @param pool - Postgres pool.
+ * @param season - Season year.
+ * @param rows - Player-weeks from the feed.
+ * @returns How many rows were written or refreshed.
+ */
+export async function writePlayerWeeks(pool: Pool, season: number, rows: PlayerWeekActual[]): Promise<number> {
+  let written = 0;
+  for (let i = 0; i < rows.length; i += PLAYER_WEEK_CHUNK) {
+    const chunk = rows.slice(i, i + PLAYER_WEEK_CHUNK);
+    const values: any[] = [];
+    const tuples = chunk.map((r, j) => {
+      values.push(season, r.week, r.playerId, JSON.stringify(r.stats));
+      const b = j * 4;
+      return `($${b + 1},$${b + 2},$${b + 3},$${b + 4})`;
+    });
+    const res = await pool.query(
+      `INSERT INTO sports_fantasy_player_weeks (season, week, player_id, stats)
+       VALUES ${tuples.join(',')}
+       ON CONFLICT (season, week, player_id) DO UPDATE
+       SET stats = EXCLUDED.stats, updated_at = now()`,
+      values,
+    );
+    written += res.rowCount || 0;
+  }
+  return written;
+}
+
+/**
+ * @description A set of players' completed weeks, for the scoring history behind their spreads.
+ *
+ * `beforeWeek` is EXCLUSIVE and that is the whole point: the week being set is in progress, its
+ * actuals are partial or absent, and letting a half-played week into the history would tell the
+ * spread model that a player who has not kicked off yet scored zero.
+ * @param pool - Postgres pool.
+ * @param season - Season year.
+ * @param beforeWeek - Only weeks strictly before this one.
+ * @param playerIds - The players whose history is wanted — a roster, not the universe.
+ * @returns Their stored weeks, oldest first.
+ */
+export async function readPlayerWeeks(
+  pool: Pool, season: number, beforeWeek: number, playerIds: number[],
+): Promise<PlayerWeekActual[]> {
+  const ids = [...new Set(playerIds.filter((n) => Number.isFinite(n)))];
+  if (!ids.length) return [];
+  const r = await pool.query(
+    `SELECT week, player_id, stats FROM sports_fantasy_player_weeks
+     WHERE season = $1 AND week < $2 AND player_id = ANY($3::int[])
+     ORDER BY week ASC`,
+    [season, beforeWeek, ids],
+  );
+  return r.rows.map((x: any) => ({
+    playerId: Number(x.player_id), week: Number(x.week), stats: x.stats as Record<string, number>,
+  }));
 }
 
 /**

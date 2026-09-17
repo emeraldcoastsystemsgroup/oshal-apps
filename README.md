@@ -17,6 +17,13 @@ dependency lifecycle, and the CLI. Start from the example, read the reference ap
 
 See [APP-HOME-EXTRACTION-PLAN.md](APP-HOME-EXTRACTION-PLAN.md) for the per-package configurable Home rollout and source assessment.
 
+**Turn the gate on, once per clone:** `git config core.hooksPath .githooks`. This repo is private,
+so Actions minutes are billed — `store-ci` is `workflow_dispatch`-only, and `.githooks/pre-push` is
+the only automatic gate left. It runs `bash scripts/store-ci-local.sh`, which mirrors every workflow
+job against your working tree in about two minutes with no cloud and no secrets. Until you run that
+one command, **nothing checks your push**. See
+[CONTRIBUTING.md](CONTRIBUTING.md#turn-the-gate-on--once-per-clone).
+
 ## Apps
 
 <!-- apps-table:begin (generated - run `node scripts/gen-readme-apps-table.mjs`; do not edit by hand) -->
@@ -30,13 +37,13 @@ All **61 packages**, shelved by ADR-097 suite. Versions and status come from
 |---|---|---|---|---|
 | **Intelligent Communication** | [`email-summarizer/`](email-summarizer/) | 1.2.1 | ready | Your inbox, calendar, and day in one surface - the ADR-037 reference comms app. |
 | **Feeds** | [`feeds/`](feeds/) | 1.2.0 | ready | Your connected message feeds in one place - live stream, activity trends, hot channels, and trending topics over your own Slack messages, with a curator bot that answers 'what did I miss'. |
-| **Identity Hub** | [`identity/`](identity/) | 1.1.1 | ready | Every account you've connected, in one place - click to jump straight into Gmail, LinkedIn, your smart-home app, and more, reconnect a login that's expired, or connect a new one, plus an optional access review that flags what needs attention. |
-| **Marketing Engine** | [`marketing-engine/`](marketing-engine/) | 0.5.0 | ready | Takes a built oshal product to traffic, users, and revenue: campaign board with stage-gated intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic metrics scorecard, experiment registry, budget proposals a human approves, and weekly review tickets worked by inline concierge bots only after human approval. |
+| **Identity Hub** | [`identity/`](identity/) | 1.2.0 | ready | Every account you've connected, in one place - click to jump straight into Gmail, LinkedIn, your smart-home app, and more, reconnect a login that's expired, or connect a new one, plus an optional access review that flags what needs attention. |
+| **Marketing Engine** | [`marketing-engine/`](marketing-engine/) | 0.5.1 | ready | Takes a built oshal product to traffic, users, and revenue: campaign board with stage-gated intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic metrics scorecard, experiment registry, budget proposals a human approves, and weekly review tickets worked by inline concierge bots only after human approval. |
 | **Marketing** | [`marketing-suite/`](marketing-suite/) | 1.0.0 | ready | One front door for taking a product to market: the campaign board with its consent gates and weekly scorecard, the compose desk and scheduled calendar, your social presence and the signals you follow, and the graphics, decks and clips a launch needs — with a setup page that shows what is armed and what still needs you. |
 | **Payments** | [`payments/`](payments/) | 1.1.0 | ready | Take payments through your own Square or PayPal account — Square runs a card charge, PayPal sends an invoice. |
 | **AI Office** | [`presentations/`](presentations/) | 2.12.0 | ready | One outline, three artifacts — a themed PowerPoint deck, Word document, or live Excel workbook. |
 | **Shopping** | [`purchasing/`](purchasing/) | 1.2.0 | ready | AI shopping concierge — search Walmart, build lists, learn your preferences, find deals, and hand off a ready-to-checkout cart you complete on the retailer's site. |
-| **Social** | [`social/`](social/) | 1.3.0 | ready | Draft, review, and publish across your networks from one surface - the comms bot drafts a post in your voice, you approve, and it publishes on your per-user LinkedIn / X / Facebook token (nothing posts until you click Publish). |
+| **Social** | [`social/`](social/) | 1.4.0 | ready | Draft, review, and publish across your networks from one surface - the comms bot drafts a post in your voice, you approve, and it publishes on your per-user LinkedIn / X / Facebook token (nothing posts until you click Publish). |
 | **Storage** | [`storage/`](storage/) | 1.2.0 | ready | Your storage hub — choose where OSHAL saves generated code vs files (GitHub / Dropbox / OSHAL-local), manage targets by chat with the Storage Assistant, and browse your files. |
 | **Switchboard** | [`switchboard/`](switchboard/) | 0.6.0 | ready | Every line, one board. |
 | **System** | [`system/`](system/) | 1.0.0 | ready | One desk for account infrastructure: Identity Hub, Storage, and Cloud accounts — each already its own app, gathered here so you don't have to hunt the full catalog. |
@@ -45,7 +52,7 @@ All **61 packages**, shelved by ADR-097 suite. Versions and status come from
 
 | App | Folder | Version | Status | What it is |
 |---|---|---|---|---|
-| **Intelligent Career** | [`career-hunter/`](career-hunter/) | 1.21.0 | ready | Reads openings from employers' own public ATS job feeds into a shared corpus, scores every posting against your private career profile, and turns the best fits into a human-in-the-loop application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume + cover letter. |
+| **Intelligent Career** | [`career-hunter/`](career-hunter/) | 1.22.0 | ready | Reads openings from employers' own public ATS job feeds into a shared corpus, scores every posting against your private career profile, and turns the best fits into a human-in-the-loop application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume + cover letter. |
 | **Intelligent Career** | [`intelligent-career/`](intelligent-career/) | 1.0.1 | ready | One front door for your job search: the board, search, resume and strengthen tools, your profile picture, your LinkedIn and Facebook presence, and the documents you print into the swarm — with a setup page that shows what is connected and what still needs you. |
 | **Job Apply** | [`job-apply/`](job-apply/) | 1.1.0 | ready | Submit an approved, packet-ready job application by driving your real browser on a desktop worker node — push a ticket, it queues, the career-hunter worker submits it, and the ticket passes or fails. |
 | **Print Ingest** | [`print-ingest/`](print-ingest/) | 0.3.0 | ready | Print a document to the swarm and decide where it belongs. |
@@ -55,19 +62,19 @@ All **61 packages**, shelved by ADR-097 suite. Versions and status come from
 
 | App | Folder | Version | Status | What it is |
 |---|---|---|---|---|
-| **Daily Trade Recap** | [`daily-trade-recap/`](daily-trade-recap/) | 1.2.0 | ready | Review saved trade-recap work and receive owner-qualified recorded-report updates in Jarvis. |
+| **Daily Trade Recap** | [`daily-trade-recap/`](daily-trade-recap/) | 1.2.1 | ready | Review saved trade-recap work and receive owner-qualified recorded-report updates in Jarvis. |
 | **Finance** | [`finance/`](finance/) | 1.2.1 | ready | Link your banks and brokerages via Plaid and see everything in one place — net worth, accounts, holdings, spending — with a plain-English brief. |
-| **Intelligent Trades** | [`trading/`](trading/) | 1.15.0 | ready | Signal-justified stock trading (ADR-052). |
-| **Kalshi Prediction Markets** | [`kalshi/`](kalshi/) | 1.5.0 | ready | Find mispriced event contracts on Kalshi (ADR-094). |
+| **Intelligent Trades** | [`trading/`](trading/) | 1.18.0 | ready | Signal-justified stock trading (ADR-052). |
+| **Kalshi Prediction Markets** | [`kalshi/`](kalshi/) | 1.6.0 | ready | Find mispriced event contracts on Kalshi (ADR-094). |
 | **Payroll** | [`payroll/`](payroll/) | 2.3.1 | ready | Run payroll for your team, ADP-style, then pay, file and RECONCILE from the same place. |
-| **Sports Edge** | [`sports-edge/`](sports-edge/) | 0.7.1 | ready | Follow a team and really know its next game, then set the fantasy lineup with the best chance of beating the team you actually play this week. |
-| **Venture Plan** | [`venture-plan/`](venture-plan/) | 1.4.1 | ready | Turn an idea into the venture document set a real decision needs — bill of materials, landed cost, channel margin, profit, cash and working capital, schedule, org, funding ask. |
+| **Sports Edge** | [`sports-edge/`](sports-edge/) | 0.9.0 | ready | Follow a team and really know its next game, then set the fantasy lineup with the best chance of beating the team you actually play this week. |
+| **Venture Plan** | [`venture-plan/`](venture-plan/) | 1.4.2 | ready | Turn an idea into the venture document set a real decision needs — bill of materials, landed cost, channel margin, profit, cash and working capital, schedule, org, funding ask. |
 
 ### AI Creative
 
 | App | Folder | Version | Status | What it is |
 |---|---|---|---|---|
-| **Animatronics** | [`animatronics/`](animatronics/) | 0.2.0 | ready | The motion layer for a Halloween prop or any servo animatronic. |
+| **Animatronics** | [`animatronics/`](animatronics/) | 0.2.1 | ready | The motion layer for a Halloween prop or any servo animatronic. |
 | **Brand Graphics** | [`brand-graphics/`](brand-graphics/) | 1.1.0 | ready | On-brand OSHAL motion graphics — a short brief becomes the validated electric-"oshal" intro look via Google Vids on the operator's signed-in Chrome. |
 | **Camera Ops** | [`camera/`](camera/) | 1.1.0 | ready | Remote camera control - connect a GoPro (Open GoPro HTTP) or other cameras as device nodes and drive them: record, photo, modes, settings, low-latency preview. |
 | **Create** | [`create/`](create/) | 1.8.0 | ready | One studio for everything you make: decks, documents and workbooks from AI Office, portraits, short videos, story episodes, LoRA characters and 3D scans — a single home page that shows what you were working on and one tap to pick up where you left off, in every studio you already have. |
@@ -85,7 +92,7 @@ All **61 packages**, shelved by ADR-097 suite. Versions and status come from
 
 | App | Folder | Version | Status | What it is |
 |---|---|---|---|---|
-| **Calendar Preparation** | [`calendar/`](calendar/) | 1.0.0 | ready | Sync your upcoming primary-calendar events explicitly and prepare reviewed gift, meal, travel and meeting plans. |
+| **Calendar Preparation** | [`calendar/`](calendar/) | 1.1.0 | ready | Sync your upcoming primary-calendar events explicitly, prepare reviewed gift, meal, travel and meeting plans, and receive an opt-in cited brief before a meeting. |
 | **Drone Ops** | [`drone/`](drone/) | 1.2.0 | ready | Drone fleet automation control - arm, take off, fly waypoint missions, and coordinate multi-drone fleet plans inside a hard geofence with deterministic separation checks. |
 | **Eats** | [`eats/`](eats/) | 1.2.0 | ready | AI Uber Eats concierge — search restaurants, browse menus, build an order, and hand off a ready Uber Eats checkout you confirm and pay in your own Uber app. |
 | **Embodied Swarm** | [`embodied/`](embodied/) | 0.16.0 | ready | Drones are the eyes, a detached rolling six-axis arm is the hands, the swarm plans and you hold command — and the machine knows only what its sensors have seen. |
@@ -103,11 +110,11 @@ All **61 packages**, shelved by ADR-097 suite. Versions and status come from
 
 | App | Folder | Version | Status | What it is |
 |---|---|---|---|---|
-| **Aero Lab** | [`aero-lab/`](aero-lab/) | 1.2.0 | ready | Persistent-flight design lab - shape a solar-endurance aircraft (span, area, aspect ratio, battery, cells, buoyancy fraction, site, season), run it through the validated aerosim engine (wing polar, 24 h energy limit cycle, admissibility screen), read the verdict with real plots (SOC trace, polar, drag buildup, margins), and download the build package (STL / DXF / BOM). |
+| **Aero Lab** | [`aero-lab/`](aero-lab/) | 1.2.1 | ready | Persistent-flight design lab - shape a solar-endurance aircraft (span, area, aspect ratio, battery, cells, buoyancy fraction, site, season), run it through the validated aerosim engine (wing polar, 24 h energy limit cycle, admissibility screen), read the verdict with real plots (SOC trace, polar, drag buildup, margins), and download the build package (STL / DXF / BOM). |
 | **AI Bake-Off** | [`bake-off/`](bake-off/) | 1.1.1 | ready | Race one job across every AI lane you already have, grade every output on the shared quality judge, and get the cheapest lane that still clears your quality bar. |
 | **CAD Studio** | [`cad-studio/`](cad-studio/) | 0.2.0 | ready | A real CAD kernel (Open CASCADE via CadQuery) the swarm can drive iteratively. |
 | **Capability Ideator** | [`capability-ideator/`](capability-ideator/) | 1.1.0 | ready | Discover sourced tools and integration opportunities for business processes, grounded in installed applications and explicit connection requirements. |
-| **Circuit Lab** | [`circuit-lab/`](circuit-lab/) | 0.8.1 | ready | A local circuit and mechanism lab the swarm can drive. |
+| **Circuit Lab** | [`circuit-lab/`](circuit-lab/) | 0.8.2 | ready | A local circuit and mechanism lab the swarm can drive. |
 | **Cloud** | [`cloud/`](cloud/) | 1.1.0 | ready | Inspect and operate your Google Cloud by chat. |
 | **Drone Relay** | [`drone-relay/`](drone-relay/) | 0.4.0 | ready | Design a chain of mini drones that relays commands and telemetry drone to drone so one can work beyond the base link: size the hop from a link budget on ESP-NOW, Wi-Fi Direct, Wi-Fi mesh, BLE, LoRa or Wi-Fi HaLow, place the relay slots and spares, fail a relay in a simulated scenario and read how long the tip was out of reach and when the chain closed the gap and was restored — with the on-board and controller rules a companion firmware carries, and the signed, source-routed envelope shown hop by hop. |
 | **Hello OSHAL** | [`hello-oshal/`](hello-oshal/) | 1.2.0 | ready | The minimal working example — one route, one ribbon tile. |

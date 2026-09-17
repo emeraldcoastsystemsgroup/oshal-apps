@@ -67,7 +67,7 @@ hole; the cross-package suite validates the body against CAD Studio's contract.
 Still open, done when: a meshed pair from one design, printed, fits on the drawn centre distance
 (needs a print and a measurement — evidence, not code).
 
-## B4 — One parts model with the embodied lab (ADR-152 D1) — this lab's half DONE in 0.3.0
+## B4 — One parts model with the embodied lab (ADR-152 D1) — this lab's half DONE in 0.3.0; the servo half READS in 0.8.2
 
 `catalog/drivers.json` is the shared declaration: motors, servos and steppers with a nameplate
 that validates against the part contract, the mass and price other packages share, a `source`
@@ -76,10 +76,25 @@ line per row, and `usedBy`. The two motors embodied's fits name are rows here, a
 the name, mass or price of either drifts between the two packages. The surface and the
 `circuit-driver-catalog` tool fill a part's nameplate from a row.
 
+0.8.2 took the next step for the part this lab does NOT own. A servo bought once should be
+describable once, and the SG90 was written down twice: animatronics publishes it (identity, mass,
+price, source, and the pulse / travel / speed / torque / current block) and this catalog restated
+it under its own name at its own price — already drifted, $3 against $2. That row now carries
+`sharedPart: {owner, file, list, id}`, declares only the block this lab adds (the operating point
+the solver runs it at, the reflected rotor inertia) and READS the rest out of the owner's catalog
+file as data, not as an imported runtime. Fail-closed: an absent or unanswerable owner withholds
+that one row naming the owner (`GET /catalog/drivers` answers `{drivers, unresolved}`) and
+everything this package owns outright still loads. `tests/shared-parts.test.js` proves it against
+real package trees, including a fixture owner whose different numbers move the answer.
+
 Still open (embodied's half — its package, its session), done when: embodied's parts model
 imports these rows by id instead of restating name, mass and price, and its MJCF generator reads
 what it needs for the actuator from the same row (the KV, once aero-lab's propeller curves give
 thrust per rpm — embodied B13).
+
+Also still open here: the rest of animatronics' servo rows (MG90S, MG996R, DS3218, STS3215) are
+not offered by this lab at all, and a stepper or motor `sharedPart` has no reader yet — a row of a
+type with no reader is refused at load rather than half-resolved.
 
 ## B5 — Non-rigid mechanics — DONE in 0.5.0, inside the single solve
 

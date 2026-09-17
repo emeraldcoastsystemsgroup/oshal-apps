@@ -103,4 +103,3 @@ async function runFanout(posts, publish) {
     const sent = results.filter((r) => r.ok).length;
     return { results, summary: { total: results.length, sent, failed: results.length - sent } };
 }
-//# sourceMappingURL=switchboard-stage-fanout.js.map

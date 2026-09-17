@@ -20,6 +20,7 @@
  * 2026-07-30 04:05:00 | roger.murphy@emeraldcoastsystemsgroup.com | The scan came OFF the request path (operator: "kalshi task takes too long ... it should always be running on new ops every x ms based on configuration ... every hour, and jarvis should be notified ... only if you have the application"). The live api's own log is the evidence: openPaged=60000 evaluable=6 hands=1 ms=23125 — every cold open paid a 23s feed walk, and an api recreate threw the in-process cache away so the next visitor paid again. Now: runScan/calibration/prediction-recording moved to kalshi-scan-engine; the poller in kalshi-scan-cron (started here, so it exists only while this app is ACTIVE) keeps a durable Postgres snapshot warm on a configured cadence and posts NEW playable hands to each entitled user's Jarvis feed; GET /scan serves that snapshot instantly with freshness metadata; new POST /scan/run (202, single-flighted), GET+PUT /settings (deployment cadence knobs are operator-only, alert knobs are per-user, both clamped by the pure config module), GET /alerts.
  * 2026-09-04 23:40:00 | roger.murphy@emeraldcoastsystemsgroup.com | GET /alerts also returns `record` (alertRecord): the caller's W-L over the ledger, beside the per-alert outcome columns listAlerts now carries.
  * 2026-09-05 06:45:00 | roger.murphy@emeraldcoastsystemsgroup.com | GET /trends — the Trends tab's payload (kalshi-trends.ts): per-strategy daily series with cumulative P&L and rolling hit vs breakeven, the days-to-verdict projection, and the four books. Read-only, caller-scoped, window bounded to 365 days.
+ * 2026-09-16 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | /trends is now BANKROLL-based (the Paper · auto book replays the ledger's own stake_fraction as paper fills against KALSHI_PAPER_BANKROLL_START), and GET /alerts/pops answers "price since announced" for the caller's OPEN alerts — kalshi-pops.ts over the framework's getCandles, bounded/spaced/cached for the shared ~3 rps public tier, caller-scoped, read-only.
  *
  * @module kalshi-routes
  */
@@ -33,23 +34,30 @@ import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
 import type { KalshiOrderRequest } from '@/features/prediction-markets';
 import {
-  cancelKalshiOrder, exchangeTradingActive, getKalshiPortfolio, getScorecard,
+  cancelKalshiOrder, exchangeTradingActive, getCandles, getKalshiPortfolio, getScorecard,
   kalshiLiveOrdersEnabled, parseKalshiSecret, placeKalshiOrder, validateOrderRequest,
 } from '@/features/prediction-markets';
 import { getValidAccessToken } from '@/app/routes/connectors-routes';
 import { callerSub, servePage } from '@/app/routes/trading-routes-helpers';
 import { isOperator } from '@/shared/middleware/authz';
 import {
-  DEPLOYMENT_SCOPE, alertRecord, listAlerts, loadCalibration, manifestSettingsSchema, readSettingsRow,
-  readSnapshot, resolveConfig, writeSettingsRow,
+  DEPLOYMENT_SCOPE, SCAN_STRATEGY, alertRecord, listAlerts, loadCalibration, manifestSettingsSchema,
+  readSettingsRow, readSnapshot, resolveConfig, writeSettingsRow,
 } from './kalshi-scan-engine';
 import { scanFreshness, keysForScope } from './kalshi-scan-config';
-import { trendSeries } from './kalshi-trends';
+import { paperBankrollStart, trendSeries } from './kalshi-trends';
+import { createPopCache, fetchPops, readOpenAlerts } from './kalshi-pops';
 import {
   ALERT_TOPIC, manualRunAllowed, scanNow, scanRuntimeStatus, startKalshiScanCron,
 } from './kalshi-scan-cron';
 
 const log = createChildLogger({ module: 'kalshi-routes' });
+
+/**
+ * ONE pop cache per process. It memoizes priced markets AND carries the rate-limit clock, so two
+ * surfaces opened at once queue behind each other instead of both bursting the shared public tier.
+ */
+const popCache = createPopCache();
 
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -247,6 +255,27 @@ export function createKalshiRoutes(ctx: AppContext): Router {
     }
   });
 
+  // "POPS": price since announced, for the caller's OPEN alerts only — a settled market has an
+  // outcome, not a move. Deliberately a SEPARATE read from /alerts: this one talks to Kalshi, and
+  // the alert table must render instantly whether or not the exchange answers. Bounded, spaced and
+  // cached in kalshi-pops (the public tier is ~3 rps and the background scan already spends it);
+  // a per-market failure is counted in `unavailable`, never thrown.
+  router.get('/alerts/pops', async (req: Request, res: Response) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'authentication required' }); return; }
+    try {
+      const limit = Number(req.query.limit) || 50;
+      const open = await readOpenAlerts(pool, sub, SCAN_STRATEGY, limit);
+      res.json(await fetchPops(open, getCandles, {
+        cache: popCache,
+        onError: (err, ticker) => log.error({ err, ticker }, 'kalshi pop candle read failed'),
+      }));
+    } catch (err) {
+      log.error({ err }, 'kalshi pops read failed');
+      res.status(503).json({ error: (err as Error).message });
+    }
+  });
+
   // THE TRENDS READ. The ledger as a trader watches it — every strategy's cumulative P&L (one
   // contract per pick), rolling hit rate against rolling breakeven, when each forward test reaches
   // its verdict, and the four books. Only SELECTs; `days` bounds the window (default: everything).
@@ -254,7 +283,10 @@ export function createKalshiRoutes(ctx: AppContext): Router {
     if (!callerSub(req)) { res.status(401).json({ error: 'authentication required' }); return; }
     try {
       const days = Number(req.query.days);
-      res.json(await trendSeries(pool, { sinceDays: Number.isFinite(days) && days > 0 ? Math.min(365, Math.floor(days)) : null }));
+      res.json(await trendSeries(pool, {
+        sinceDays: Number.isFinite(days) && days > 0 ? Math.min(365, Math.floor(days)) : null,
+        bankrollStart: paperBankrollStart(),
+      }));
     } catch (err) {
       log.error({ err }, 'kalshi trends failed');
       res.status(503).json({ error: (err as Error).message });

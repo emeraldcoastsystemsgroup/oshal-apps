@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "Shaft drivers a person can drop onto the canvas with their nameplate filled in. Every row's nameplate validates against the part contract (tests/driver-catalog.test.js). `source` says where each number came from; a number marked typical is not a measurement — replace it from the datasheet of the unit bought. Rows used by another package name it in usedBy and a read-only cross-package test keeps the shared numbers (name, mass, price) equal.",
+  "about": "Shaft drivers a person can drop onto the canvas with their nameplate filled in. Every row's nameplate validates against the part contract (tests/driver-catalog.test.js). `source` says where each number came from; a number marked typical is not a measurement — replace it from the datasheet of the unit bought. A row with `sharedPart` does not describe the part at all: another package OWNS that real part, and this catalog READS its name, mass, price, source and per-domain block out of the owner's catalog file, declaring only the block this lab adds (`note` says what that is). Rows used by another package name it in usedBy and a read-only cross-package test keeps the shared numbers equal (tests/shared-parts.test.js).",
   "drivers": [
     {
       "id": "brushed-12v-generic",
@@ -42,12 +42,10 @@
     {
       "id": "servo-micro-9g",
       "type": "servo",
-      "name": "9 g micro servo (SG90 class)",
       "kind": "servo",
-      "massG": 9,
-      "approxUsd": 3,
-      "nameplate": { "nominalVolts": 5, "stallAmps": 0.7, "runAmps": 0.2, "stallTorqueMnm": 180, "noLoadDegPerS": 500, "travelDeg": 180, "minPulseMs": 1.0, "maxPulseMs": 2.0, "idleAmps": 0.01, "rotorInertiaGcm2": 500 },
-      "source": "the class's usual sheet: 4.8–6 V, 1.8 kg cm (180 mN m) stall, 0.1–0.12 s per 60 deg (500–600 deg/s), 1–2 ms pulses at 50 Hz; stall and running currents and the reflected inertia are typical, not measured",
+      "sharedPart": { "owner": "animatronics", "file": "catalog/servos.json", "list": "servos", "id": "sg90" },
+      "nameplate": { "nominalVolts": 5, "rotorInertiaGcm2": 500 },
+      "note": "the 5 V operating point the solver runs it at and the 500 g cm2 reflected rotor inertia are this lab's modelling defaults, not datasheet figures",
       "usedBy": []
     },
     {

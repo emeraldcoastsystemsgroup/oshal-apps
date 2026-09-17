@@ -46,6 +46,8 @@
  * 2026-07-19 23:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | Carved out of OSHAL core into the trading app package (ADR-085 Wave 3, "skill with a surface"). Standard (ctx) factory (the ManifestRouteMounter contract); the surface serves trading.html from ctx.appPackageDir/tools (load-time env fallback, D10) through the kernel's servePage helper. Relative imports flip to @/ aliases: @/app/routes/trading-routes-helpers (callerSub/resolveMode/servePage/guardrails — global-search + the engine also import them, they stay kernel), @/app/routes/connectors-routes (getValidAccessToken), @/app/trading-{schema,engine} (the ENGINE — stays kernel, the 8 dispatch/reconcile loops import it; D8 verified NOT orphaned). Route bodies byte-identical: POST /trigger keeps its route-level live-approval gate VERBATIM (live tickets park in backlog — source-guarded by this package's tests/trading-surface-live-gate.spec.ts; the engine's env-level live_blocked gate stays kernel-guarded in risky-write-guards.spec.ts).
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 D6 event playbooks: register the /events/plans route family (trading-event-plan-routes.ts) right after the direct-trade routes — the operator's surface over the kernel event-plan store (IPO watch/entry/exit), book-scoped query-first like every 2026-09-03-audited route.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-138 single-stock research: register the /research/:symbol + /watchlist + /lots route family (trading-research-routes.ts) right after the event-plan routes — research reads, the per-user watchlist, and the operator's view/release over the kernel pinned-lot store.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Register the book-scoped specialist-context reader (ADR-090 uses: specialist-context) synchronously from this factory, through the activation-scoped port the manifest route mounter injects. A protected bot-node run is TOOL-LESS, so this append is the accountable trading bot's ONLY data channel: without it the bot is asked how the book did today and has no numbers to answer with. Facts live in trading-book-facts.ts - scalars only, one slot per BOOK (paper, live, live2...) so a stale sibling cannot withhold another book, computed for the ticket's OWNER, and venue-free so market hours and a venue outage cannot decide whether the dispatch happens.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Declare the MARKET half of the fact set alongside the book half (trading-market-facts.ts), so the registration is TRADING_SPECIALIST_FACT_KEYS and the read is readTradingSpecialistFacts. The book half alone is why the accountable bot could report the operator's equity to the cent and, in the same answer, say it could not access index or market-mover data: the screener ships in the kernel and GET /reports/movers already uses it, but a tool-less worker can never call a route, and no market number was declared on the one channel it can see. The market half reads SPY/QQQ/DIA day moves and the whole-market screener's extremes in PARALLEL with the book half, so the declaration costs no additional wall-clock time against the registry's 2000 ms deadline.
  *
  * @module trading-routes
  */
@@ -68,8 +70,23 @@ import { registerTradingAccountRoutes } from './trading-accounts-routes';
 import { registerTradingManualOrderRoutes } from './trading-manual-order-routes';
 import { registerTradingEventPlanRoutes } from './trading-event-plan-routes';
 import { registerTradingResearchRoutes } from './trading-research-routes';
+import { TRADING_SPECIALIST_FACT_KEYS, readTradingSpecialistFacts } from './trading-market-facts';
 
 const logger = createChildLogger({ module: 'trading-routes' });
+
+/**
+ * The accountable trading specialist. Declared in this package's oshal-app.yaml `bots:` - the
+ * kernel registry refuses a specialist registration whose bot this package does not own, and
+ * tests/trading-specialist-context.spec.ts pins the two together so the pair cannot drift.
+ */
+export const TRADING_ANALYST_AGENT_ID = 'a0000000-0000-0000-0000-000000000046';
+
+/**
+ * The named read the facts run under - this package's own `tools:` entry, so the kernel resolves
+ * us as its owner. When this app gains an authorization catalog, this is the binding that carries
+ * the permission; until then it is the audited name of the read.
+ */
+export const TRADING_FACTS_TOOL = 'trading_book_facts';
 
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -100,6 +117,33 @@ export function surfaceDir(appPackageDir: string | undefined): string {
 export function createTradingRoutes(ctx: AppContext): Router {
   const router = Router();
   const apiDir = surfaceDir(ctx.appPackageDir);
+
+  // ADR-090 specialist context. Registration is SYNCHRONOUS and inside the factory on purpose:
+  // the mounter stages this package's readers around the factory call and rolls them back if the
+  // factory fails, so a half-activated package can never leave a live reader behind.
+  //
+  // A protected run is tool-less, so this append is the trading bot's only data channel. The
+  // manifest declares `uses: specialist-context`, which makes a kernel that predates the channel
+  // REFUSE this package outright rather than install it with the channel silently missing. The
+  // port can still be absent on a framework that has the skill but composes no registry (no
+  // server.ts wiring) - that is a deployment fault, not a package one, so it is logged loudly
+  // rather than thrown, which would unmount 89 working routes over a missing prompt appendix.
+  //
+  // The declared set is BOTH halves: the per-book numbers and the market context. Declaring only
+  // the book half is what left the bot able to report the operator's equity to the cent while
+  // answering that it could not access index or market-mover data - the surface route had the
+  // screener all along, and a tool-less worker can never call a route.
+  if (ctx.specialistContext) {
+    ctx.specialistContext.register({
+      agentId: TRADING_ANALYST_AGENT_ID,
+      toolName: TRADING_FACTS_TOOL,
+      facts: [...TRADING_SPECIALIST_FACT_KEYS],
+      read: (input) => readTradingSpecialistFacts(ctx, { sub: input.sub, signal: input.signal }),
+    });
+  } else {
+    logger.error({ agentId: TRADING_ANALYST_AGENT_ID, tool: TRADING_FACTS_TOOL },
+      'No specialist-context port on this framework - the trading bot will be dispatched with no book or market facts');
+  }
 
   // Wire the Schwab LIVE rail's per-user token lookup (ADR-036 brokered creds): the trading feature
   // slice can't import the app-layer connector store (FSD), so it calls back through this resolver to

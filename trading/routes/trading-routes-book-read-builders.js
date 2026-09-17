@@ -19,6 +19,8 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | Exposure review round 2. (a) The cap-TRIM base handed to exitRuleRows is the capped EQUITY, which is what the engine passes to rebalanceTrims - the equity-or-cash fallback is sizeEntry's rule for the per-sector denominator only, and applying it to trims too would have been a (zero-equity-only) divergence from the engine. (b) `exits.rules` is now null - not a computed list - whenever the protected-lot read failed, so the PAYLOAD enforces what the card already did: a consumer that reads `rules` without checking `sections` can no longer be handed stops computed over shares the autopilot may not touch. (c) The /exposure registration moves into registerExposureRoute so the already-oversized registerTradingBookReadRoutes block stops growing.
  * 9 | maintainer@emeraldcoastsystemsgroup.com   | Two reads now agree with the engine's own cost. (1) GET /realized tallies closes priced by the engine (core engineRealizedForBook) instead of the stored venue-basis realized_pnl, which counts each wash-sale disallowed loss twice; the response says basis:'engine' and carries the venue's net alongside. (2) The exposure card's wouldFireNow runs the stop/take-profit check on the engine-costed position, exactly as computeExits does, so a stop the wash-sale veto suppresses is no longer shown as about to fire; trailing and trims still read the raw position, as the dispatch does.
  * 10 | maintainer@emeraldcoastsystemsgroup.com   | ADR-159 reaches the Exits card. The card printed a stop price and a take-profit for EVERY held name, including one the engine cannot account for from its own filled orders - for which it now emits no order at all - so the one row where the absence of protection actually mattered looked exactly like the fourteen where it did not. Each rule row now carries the kernel's `positionGovernance` for its symbol, read off the SAME costed array the card already builds (withEngineCostBasis over the pinned-subtracted positions), and a row the engine will not exit is marked inactive with no `wouldFireNow` computed - the same shape a core hold has had since SEQ 6. Nothing is re-derived here: a second answer to "is this unmanaged?" is precisely what would drift from the engine's. `exitsApply: null` (the ledger read failed) deliberately leaves the rules shown and carries the doubt in `governance` instead, because blanking a row on a failed read hides protection that is probably there; a failed PROTECTED-LOT read withholds the governance entirely, since `exits.rules` is already withheld for the same reason.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com  | GET /realized is now a call to realizedReport (trading-realized.ts) - the same body, moved. The trading specialist's bounded facts read today's realized from that helper too, and a money figure must not have two implementations to drift between.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com  | The two cost bases stop being reconciled in silence. The venue reports the WASH-SALE-ADJUSTED average, so after a loss sale and a re-buy inside 30 days the disallowed loss rides on the replacement shares; the engine vetoes a stop drawn off that number (SEQ 9), but the card still printed the venue average and a stop price derived from it - so the row said a position was 5-18% under water and about to be sold while the engine quietly measured something else, which is the same silent-correct this package spent SEQ 10 removing from the other half of the card. Each rule row now carries `engineBasisPx` - the engine's own average cost for the holding, the kernel number from withEngineCostBasis rounded for display, never recomputed here - and `engineStopPx`, the stop measured from it, which is the price the stop ACTUALLY fires at whenever the venue average is the higher of the two. Both are null where the engine's ledger does not cover the quantity: there is no second basis to show, and inventing one is the failure this closes.
  *
  * @module trading-routes-book-read-builders
  */
@@ -203,7 +205,9 @@ function sectorRow(sector, symbols, capBase, policy, tilt, pctE) {
  * @param coreSymbols - Core holds, exempt from every autopilot exit.
  * @param rulesRunNow - True only when the full regular-session exit set is the one in force.
  * @param engineCost - The engine's own cost per symbol (withEngineCostBasis); the stop decision reads it,
- *   exactly as computeExits does, so a stop the wash-sale veto suppresses is not shown as about to fire.
+ *   exactly as computeExits does, so a stop the wash-sale veto suppresses is not shown as about to fire,
+ *   and the ROW reports it (engineBasisPx / engineStopPx) so the divergence from the venue's wash-sale-
+ *   adjusted average is on the screen instead of being corrected out of sight.
  * @param governance - The engine's posture per symbol (ADR-159). A holding the engine cannot account
  *   for gets NO exit at all, so its rules are marked inactive and no `wouldFireNow` is computed:
  *   printing a stop price for a stop the engine will never fire is the exact thing the mark exists
@@ -223,8 +227,13 @@ function exitRuleRows(visible, policy, peaks, capEquity, coreSymbols, rulesRunNo
         const gainPct = currentPrice != null && p.avgEntryPrice > 0 ? ((currentPrice - p.avgEntryPrice) / p.avgEntryPrice) * 100 : 0;
         const trailArmed = p.avgEntryPrice > 0 && currentPrice != null && gainPct >= policy.trailArmPct;
         const trims = ruleActive ? (0, trading_1.rebalanceTrims)([p], capEquity, policy) : [];
+        // The kernel's own number, rounded for display. Absent = its ledger does not cover the quantity,
+        // which is reported as null: there is no second basis, and inventing one is the whole defect.
+        const engineBasis = engineCost.get(symbol);
         return {
             symbol, qty: p.qty, avgEntryPrice: r2c(p.avgEntryPrice), currentPrice,
+            engineBasisPx: engineBasis === undefined ? null : r2c(engineBasis),
+            engineStopPx: engineBasis === undefined ? null : r2c(engineBasis * (1 - policy.stopLossPct / 100)),
             stopPx: r2c(p.avgEntryPrice * (1 - policy.stopLossPct / 100)),
             takeProfitPx: r2c(p.avgEntryPrice * (1 + policy.takeProfitPct / 100)),
             peak: r2c(peak), trailArmed,
@@ -712,29 +721,9 @@ function registerTradingBookReadRoutes(router, ctx, apiDir) {
         try {
             await (0, trading_schema_1.ensureTradingSchema)(ctx.pool);
             const book = await (0, trading_accounts_routes_1.routeBook)(ctx, sub, req);
-            const mode = book.kind;
-            // Closes are priced on the ENGINE's own cost: the stored realized_pnl uses the venue's wash-sale-
-            // adjusted average and counts each disallowed loss twice. The venue's net rides along, labelled.
-            const closes = (await ctx.pool.query(`SELECT order_id::text AS order_id, upper(symbol) AS symbol, realized_pnl,
-                (created_at::date = CURRENT_DATE) AS today
-           FROM oshal_trading_orders
-          WHERE user_sub=$1 AND book_id=$2 AND side='sell' AND status='filled'
-            AND created_at >= now() - interval '30 days'`, [sub, book.bookId])).rows;
-            const sales = closes.length
-                ? await (0, trading_engine_cost_basis_1.engineRealizedForBook)(ctx, sub, book.bookId, [...new Set(closes.map((c) => c.symbol))])
-                : new Map();
-            const engine = (c) => sales.get(c.order_id)?.realizedPnl ?? null;
-            const venueNet = (list) => Math.round(list.reduce((s, c) => s + Number(c.realized_pnl ?? 0), 0) * 100) / 100;
-            const todays = closes.filter((c) => c.today);
-            const today = (0, trading_realized_1.tallyRealized)(todays.map(engine));
-            const d30 = (0, trading_realized_1.tallyRealized)(closes.map(engine));
-            const winRate = (r) => r.trades ? Math.round((r.wins / r.trades) * 100) : null;
-            res.json({
-                mode, basis: 'engine',
-                today: { ...today, winRatePct: winRate(today) },
-                last30d: { ...d30, winRatePct: winRate(d30) },
-                venueNet: { today: venueNet(todays), last30d: venueNet(closes) },
-            });
+            // The whole tally lives in realizedReport (trading-realized.ts) so this surface and the
+            // trading specialist's bounded facts read exactly the same numbers for the same day.
+            res.json(await (0, trading_realized_1.realizedReport)(ctx, sub, book.bookId, book.kind));
         }
         catch (err) {
             logger.error({ err }, 'trading realized failed');

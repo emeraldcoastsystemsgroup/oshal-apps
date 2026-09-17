@@ -23,6 +23,7 @@
 # 19 | maintainer@emeraldcoastsystemsgroup.com | Release remote-only matching as version 1.18.0. The corpus has carried a per-posting `remote` flag since 095 and Job Search has filtered on it since 1.11.0, but nothing AUTOMATED consulted it — a remote-only candidate was still scored against, digested and shown on-site roles. career_score_settings.remote_only (migration 104, additive, default FALSE) is the standing preference, and it is honoured at every automated path: the scoring candidate query (so an on-site role never costs an inference), the digest, and the matched board as a DEFAULT an explicit Any/Remote/On-site pill still overrides. Job Search is deliberately untouched — it is a browse surface with its own pills. Settings gains the toggle.
 # 20 | maintainer@emeraldcoastsystemsgroup.com | Release shared portal palettes across thirteen existing screens and an honest package Test Lab catalog as version 1.20.0.
 # 21 | maintainer@emeraldcoastsystemsgroup.com | Release connected Job Board/open search views, responsive result-first controls and bounded retryable board reads as version 1.21.0.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | Release the ADR-141 D7 evidence half as version 1.22.0. The story review already recorded a defensible story per job title; nothing downstream could show it or cite it. The master resume document now carries each role's stories with the bullet each one supports, and the Resume Studio renders the story UNDER that bullet (a story whose bullet an edit rewrote falls to the end of its role rather than disappearing). A tailored packet's prompt carries the same evidence role by role with the rule that a role holding a story must spend a bullet on it, every citation the model returns is verified against the story the profile actually holds ON THE ROLE it belongs to (an invented story, a weak one, or one moved to another employer is dropped), and application.json records what was cited. A profile that has never been through the review builds a byte-identical prompt to before.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — career-hunter (Career Hunter)
@@ -63,7 +64,7 @@ description: >-
   posting against your private career profile, and turns the best fits into a human-in-the-loop
   application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume +
   cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.
-version: 1.21.0
+version: 1.22.0
 
 # ── ADR-139 artifact exchange — this app as a "Send to…" DESTINATION ─────────
 # Any document anywhere in the swarm (files browser, another app) can be sent

@@ -3,6 +3,7 @@
 # SEQ                 | AUTHOR                      | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register all shipped package tests with explicit runner and fixture boundaries; retain readiness smoke identity.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | The connection-contract case now runs the surface, not a regex over it, and covers the revoked-grant case the stored expiry cannot see.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -26,7 +27,7 @@ cases:
     name: Connection expiry surface contract
     purpose: >-
       Verify packaged source and compiled inventory agree with the connection-list keys and shared expiry
-      rule.
+      rule, and that the rendered surface reports every broken login - lapsed, or rejected by its provider.
     level: unit
     runner:
       kind: node-test
@@ -35,6 +36,9 @@ cases:
         - tests/identity-list-contract.test.js
     expected:
       - The surface reads only promised connection fields and consumes the expired flag.
+      - A lapsed unrenewable login renders the marker and pill and is counted by the tile and filter.
+      - A grant the provider has revoked reaches the same four places via the liveness probe.
+      - A healthy self-renewing login stays unflagged, and a probe that cannot answer changes nothing.
       - Source and compiled inventory use the shared expiry rule and expose refreshability.
     prerequisites:
       - runner:node-test

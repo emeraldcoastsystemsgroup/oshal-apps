@@ -164,4 +164,3 @@ function createThreadsRoutes(ctx) {
     });
     return router;
 }
-//# sourceMappingURL=switchboard-threads-routes.js.map

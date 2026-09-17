@@ -309,4 +309,3 @@ function iceScore(impact, confidence, ease) {
     }
     return impact * confidence * ease;
 }
-//# sourceMappingURL=marketing-model.js.map

@@ -16,6 +16,13 @@
  *                     |                             | the e-stop — and the command log. Every answer that moves the
  *                     |                             | prop carries the exact protocol lines the browser streams to
  *                     |                             | the controller, so the server, not the page, owns the pulses.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | The capability manifest is built from the OWNER's vocabulary
+ *                     |                             | row (core BACKLOG 2026-09-14), so it is null on a box where
+ *                     |                             | that package is not installed: a rig still lists, rehearses,
+ *                     |                             | arms and plays — only the enrolment document, which describes
+ *                     |                             | a vocabulary this package does not own, is absent, and
+ *                     |                             | GET /rigs/:id/manifest says so with 503 rather than answering
+ *                     |                             | with a locally invented row.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.stallOf = stallOf;
@@ -468,6 +475,12 @@ function createRigRoutes(deps) {
     });
     router.get('/rigs/:rigId/manifest', (req, res) => {
         const row = req.propRig;
+        const vocabulary = (0, kind_1.loadPropVocabulary)();
+        if (!vocabulary.ok) {
+            logger.warn({ rigId: row.rig_id, reason: vocabulary.reason }, 'No capability manifest: the prop vocabulary owner is not installed');
+            res.status(503).json({ error: 'vocabulary_unavailable', owner: kind_1.PROP_VOCABULARY_OWNER, message: vocabulary.reason });
+            return;
+        }
         res.json({ manifest: (0, kind_1.capabilityManifestFor)(`prop-${row.rig_id.slice(0, 8)}`, row.rig, stallOf(row.rig, deps.catalog)) });
     });
     return router;

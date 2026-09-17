@@ -13,6 +13,12 @@
  *                     |                             | router under the `/api/animatronics` mount. The manifest's
  *                     |                             | `auth: oidc` wraps the whole mount; every handler still
  *                     |                             | re-derives the caller.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | `/capabilities` READS the `prop` row from its owner instead of
+ *                     |                             | echoing a copy this package kept (core BACKLOG 2026-09-14).
+ *                     |                             | The row is resolved per request, so a box that installs
+ *                     |                             | embodied after this package picks it up without a restart, and
+ *                     |                             | a box without it is told plainly which package owns the
+ *                     |                             | vocabulary rather than shown one invented here.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -93,12 +99,15 @@ function createAnimatronicsRoutes(ctx) {
     const templates = (0, templates_1.buildTemplates)(rows);
     logger.info({ servos: catalog.servos.length, controllers: catalog.controllers.length, templates: templates.length }, 'Loaded the servo catalog and the rig templates');
     router.get('/capabilities', (_req, res) => {
+        const vocabulary = (0, kind_1.loadPropVocabulary)();
         res.json({
             app: 'animatronics',
             contract: (0, rig_contract_1.describeRigContract)(),
             behaviour: (0, scenario_1.describeBehaviourContract)(),
             protocol: (0, protocol_1.describeProtocol)(),
-            kind: { kind: kind_1.PROP_KIND, owner: kind_1.PROP_VOCABULARY_OWNER, ...kind_1.PROP_VOCABULARY, confirmExempt: [...kind_1.PROP_CONFIRM_EXEMPT] },
+            kind: vocabulary.ok
+                ? { kind: kind_1.PROP_KIND, owner: kind_1.PROP_VOCABULARY_OWNER, ...vocabulary.row, confirmExempt: [...vocabulary.confirmExempt] }
+                : { kind: kind_1.PROP_KIND, owner: kind_1.PROP_VOCABULARY_OWNER, available: false, reason: vocabulary.reason },
             catalog: { servos: catalog.servos.length, controllers: catalog.controllers.length, path: '/api/animatronics/catalog/servos' },
             templates: templates.map((t) => ({ id: t.id, title: t.title, description: t.description, channels: t.rig.channels.length, poses: Object.keys(t.poses), scenarios: Object.keys(t.scenarios) })),
             rail: 'draft → rehearse → arm (confirm) → play / look-at / jog → disarm (e-stop)',

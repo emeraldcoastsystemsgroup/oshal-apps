@@ -15,9 +15,12 @@
 # `confirm: true` or 428) → play / look-at / jog (409 until armed) → DISARM (the e-stop; always
 # allowed). Every command is a row in the command log. The concierge rehearses; it never arms.
 #
-# The `prop` peripheral kind now lives in embodied's capability-manifest vocabulary (ADR-156 D6
-# folded in): embodied owns the row, this package pins it as data and engine-kind.test.js holds
-# the two in agreement. No engine container: the engine is deterministic TypeScript in this package.
+# The `prop` peripheral kind lives in embodied's capability-manifest vocabulary (ADR-156 D6):
+# embodied owns the row and this package READS it out of embodied's compiled module at run time.
+# There is no second copy, so a box without embodied gets no prop vocabulary and no capability
+# manifest — an honest refusal naming the owner — rather than a row invented here; everything else
+# (rigs, poses, rehearsal, arming, Web Serial) works with embodied absent.
+# No engine container: the engine is deterministic TypeScript in this package.
 #
 # Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md,
 # docs/adr/036-bot-owned-application-architecture.md, docs/adr/151-eyes-and-hands-embodied-swarm.md)
@@ -26,6 +29,8 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Initial package: rig contract, poses and scenarios, compiler, servo rehearsal, supply budget, look-at, controller protocol, Web Serial surface, concierge, Test Lab catalog.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | ADR-156 D6 fold-in: the `prop` kind moved to embodied's KIND_VOCABULARY. This package binds to that row instead of declaring its own, /capabilities names embodied as the vocabulary owner, and the seam test now proves agreement (embodied ACCEPTS a real rig's manifest) instead of refusal.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 0.2.1: the binding became a real READ. Entry 2 kept the row as a frozen copy a test held equal to embodied's, which is still two declarations of one vocabulary; engine/kind.ts now resolves embodied's compiled capability-manifest module beside this package and reads KIND_VOCABULARY.prop and CONFIRM_EXEMPT_ACTS out of it. Without embodied there is no vocabulary and no capability manifest (GET /rigs/:id/manifest answers 503 naming the owner), never a locally invented row.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 0.2.1: declare embodied under dependencies.optional.apps. Entry 3 made this the first store package to READ a sibling package at run time while the manifest still declared no app dependency at all, so an installer offering Animatronics never offered the package it degrades without and nothing recorded the edge. `optional` is the tier for exactly this - offered at install, never blocking - and the catalog mirror is generated from this block.
 name: animatronics
 suite: ai-creative   # ADR-097: primary catalog shelf — exactly one (the prop is the creative deliverable; Pumpkin sits here too)
 displayName: Animatronics
@@ -37,7 +42,7 @@ description: >-
   streams the exact controller lines from the page over Web Serial to an ESP32 or Arduino driving
   a PCA9685. Look-at splits a bearing between eyes and neck. Arm with a confirm, e-stop always.
   The director in the chat rail edits and rehearses the same libraries; it cannot arm or play.
-version: 0.2.0
+version: 0.2.1
 status: active
 scope: person
 
@@ -66,13 +71,20 @@ smoke:
 
 # No connector allow-list: the inputs are the person's own rig; the controller is a USB device
 # the person's browser opens. Nothing here leaves the box.
+#
+# embodied is OPTIONAL, not required: it owns the `prop` KIND_VOCABULARY row this package reads at
+# run time (ADR-156 D6). Optional is an install-time OFFER that never blocks - with embodied absent
+# every rig, pose, scenario, rehearsal, supply budget, arming and Web Serial stream still works and
+# only the capability manifest is withheld, naming the owner. Declaring it required would refuse the
+# install; declaring nothing would hide the offer, so an installer would never mention the package
+# this one degrades without.
 dependencies:
   required:
     apps: []
     tools: []
     connectors: []
   optional:
-    apps: []
+    apps: [embodied]   # owns the `prop` vocabulary row this package READS; absent, no prop vocabulary and no capability manifest
     tools: []
     connectors: []
 

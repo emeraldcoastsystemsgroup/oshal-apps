@@ -477,3 +477,4 @@ function createSatRoutes(arg = {}) {
     });
     return router;
 }
+//# sourceMappingURL=sat-routes.js.map

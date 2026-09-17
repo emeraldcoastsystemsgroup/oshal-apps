@@ -23,6 +23,8 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — connection status, league link/unlink with the caller's own team resolved from their SWID, the lineup advisor (optimal lineup + start/sit, registered before kickoff), the graded record, and the shared projection refresh.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Optimise the lineup against THIS WEEK'S OPPONENT rather than against the field. The week's fixture is read, the opponent's own best lineup is projected from the same feed, and the recommendation maximises P(win) instead of the projected total — which starts the volatile player when you are an underdog and the steady one when you are favoured. The highest-projected lineup is still computed and returned beside it, so a recommendation that gives up projected points has to show what it bought.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Tell an unreachable ESPN apart from an unconnected caller. A league read that never reached ESPN answered 403 "Connect ESPN Fantasy to read a private league.", which on 2026-09-09 sent an operator whose resolver was down to re-paste cookies that were already correct; it now answers 503 naming the transport, and only a refusal keeps the credential message. Same fix one layer up: the response says WHY there is no opponent, so a failed schedule read cannot render as a bye.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Feed the spread model real weekly scores. The refresh now stores every completed week the same response already carried, and the lineup reads the caller's roster and their opponent's out of that table, scores each week under the league's own rules, and hands it to the optimiser. Until now `pointsHistory` had no producer anywhere in the package, so every spread was a positional prior times a projection and two similar players were modelled as equally volatile — which is exactly why the first live run produced zero variance swaps.
  *
  * @module sports-fantasy-routes
  */
@@ -35,6 +37,7 @@ const connectors_routes_1 = require("@/app/routes/connectors-routes");
 const sports_espn_1 = require("./sports-espn");
 const sports_fantasy_espn_1 = require("./sports-fantasy-espn");
 const sports_fantasy_winprob_1 = require("./sports-fantasy-winprob");
+const sports_fantasy_roster_1 = require("./sports-fantasy-roster");
 const sports_fantasy_scoring_1 = require("./sports-fantasy-scoring");
 const sports_fantasy_store_1 = require("./sports-fantasy-store");
 const sports_fantasy_scoring_2 = require("./sports-fantasy-scoring");
@@ -59,6 +62,26 @@ let refreshing = null;
 async function credentialFor(pool, sub) {
     const secret = await (0, connectors_routes_1.getValidAccessToken)(pool, sub, 'espn-fantasy').catch(() => null);
     return (0, sports_fantasy_espn_1.parseCredential)(secret);
+}
+/**
+ * @description Answer a league read that never reached ESPN, or reached it and got a 5xx. Neither
+ * is a credential problem, and the credential message is actively harmful advice for both — it
+ * sends someone to re-paste account cookies that were never the fault. A refusal is left alone:
+ * that one IS about the request, and the caller answers it in its own terms.
+ * @param res - The response to answer on.
+ * @param failure - The classified failure, or null when the read simply returned nothing.
+ * @returns True when the failure was answered here and the caller should stop.
+ */
+function answerUnreachable(res, failure) {
+    if (!failure || failure.kind === 'refused')
+        return false;
+    const error = failure.kind === 'unavailable'
+        ? `Could not reach ESPN for that league — it answered ${failure.reason}. ESPN's fantasy API is failing, `
+            + 'not your ESPN account, so there is nothing to re-paste; try again shortly.'
+        : `Could not reach ESPN at all (${failure.reason}). That is a network fault between this swarm and `
+            + 'ESPN, not your ESPN account — check connectivity, starting with DNS, rather than re-pasting cookies.';
+    res.status(503).json({ error, reason: failure.kind, espnStatus: failure.status });
+    return true;
 }
 /** Resolves the caller or answers 401. */
 function requireSub(req, res) {
@@ -91,10 +114,15 @@ async function projectionsFor(pool, season, week) {
     if (!refreshing) {
         refreshing = (async () => {
             const started = Date.now();
-            const players = await (0, sports_fantasy_espn_1.fetchProjections)(season, week, espn);
+            const { players, weeks } = await (0, sports_fantasy_espn_1.fetchProjections)(season, week, espn);
             if (Object.keys(players).length)
                 await (0, sports_fantasy_store_1.writeProjections)(pool, season, week, players, Date.now() - started);
-            log.info({ season, week, players: Object.keys(players).length, ms: Date.now() - started }, 'projection feed refreshed');
+            // The completed weeks came back in the SAME response, so accumulating them costs no extra
+            // read. They are what turns a spread from a positional prior into a measurement.
+            const stored = weeks.length ? await (0, sports_fantasy_store_1.writePlayerWeeks)(pool, season, weeks) : 0;
+            log.info({
+                season, week, players: Object.keys(players).length, playerWeeks: stored, ms: Date.now() - started,
+            }, 'projection feed refreshed');
             return Object.keys(players).length;
         })().finally(() => { refreshing = null; });
     }
@@ -108,47 +136,19 @@ async function projectionsFor(pool, season, week) {
     };
 }
 /**
- * @description Build the roster as the scoring model needs it: ESPN's league roster entries joined
- * to the shared projection feed. A player missing from the feed still appears, with no projection,
- * rather than being dropped — a roster with a silently missing player is worse than one with an
- * obvious zero.
- * @param entries - Roster entries from the league read.
- * @param projections - The shared projection feed.
- * @returns Players for the optimiser.
- */
-function joinRoster(entries, projections) {
-    return entries.map((e) => {
-        const proj = projections[e.playerId];
-        const espnPlayer = e.player || {};
-        return {
-            // Carried for the spread prior in sports-fantasy-winprob: without a position every player
-            // gets the default coefficient of variation, which silently flattens the whole variance
-            // argument into "everyone is equally streaky" — the objective would still change, but the
-            // ranking inside it would stop meaning anything.
-            defaultPositionId: Number(proj?.defaultPositionId
-                ?? espnPlayer.defaultPositionId) || undefined,
-            playerId: e.playerId,
-            name: proj?.name || String(espnPlayer.fullName || `Player ${e.playerId}`),
-            eligibleSlots: proj?.eligibleSlots?.length ? proj.eligibleSlots : (espnPlayer.eligibleSlots || []).map(Number),
-            projectedStats: proj?.projectedStats || {},
-            actualStats: proj?.actualStats,
-            injuryStatus: proj?.injuryStatus || (espnPlayer.injuryStatus ? String(espnPlayer.injuryStatus) : undefined),
-        };
-    });
-}
-/**
  * @description The opponent's own best lineup, as moments. This is deliberately THEIR optimal lineup
  * rather than the one they have currently set: a lineup read hours before kickoff is half-made, and
  * assuming an opponent will field their best team is the only assumption that cannot flatter us.
  * @param opponent - The opposing team, or null when the schedule gave no opponent.
  * @param projections - The shared projection feed.
  * @param settings - The league's rules.
+ * @param history - Weekly point totals per player id, so their spreads are measured too.
  * @returns Their moments, or null when there is nobody to play.
  */
-function opponentMoments(opponent, projections, settings) {
+function opponentMoments(opponent, projections, settings, history) {
     if (!opponent)
         return null;
-    const roster = joinRoster(opponent.entries, projections);
+    const roster = (0, sports_fantasy_roster_1.joinRoster)(opponent.entries, projections, history);
     const best = (0, sports_fantasy_scoring_1.optimiseLineup)(roster, settings.slots, settings.scoring);
     return (0, sports_fantasy_winprob_1.lineupMoments)(best.starters.map((a) => a.player), settings.scoring);
 }
@@ -193,8 +193,10 @@ function registerFantasyRoutes(router, pool) {
         }
         try {
             const cred = await credentialFor(pool, sub);
-            const settings = await (0, sports_fantasy_espn_1.readLeagueSettings)(season, leagueId, cred, espn);
+            const { settings, failure } = await (0, sports_fantasy_espn_1.readLeagueSettingsOutcome)(season, leagueId, cred, espn);
             if (!settings) {
+                if (answerUnreachable(res, failure))
+                    return;
                 res.status(cred ? 404 : 403).json({
                     error: cred
                         ? 'ESPN would not return that league — check the id and season, and that this ESPN account is in it.'
@@ -253,8 +255,11 @@ function registerLineupRoute(router, pool) {
         const started = Date.now();
         try {
             const cred = await credentialFor(pool, sub);
-            const settings = await (0, sports_fantasy_espn_1.readLeagueSettings)(season, leagueId, cred, espn);
+            const { settings, failure } = await (0, sports_fantasy_espn_1.readLeagueSettingsOutcome)(season, leagueId, cred, espn);
             if (!settings) {
+                // A read that never reached ESPN is not a missing credential, and must not be answered as one.
+                if (answerUnreachable(res, failure))
+                    return;
                 res.status(cred ? 404 : 403).json({
                     error: cred ? 'ESPN would not return that league right now.' : 'Connect ESPN Fantasy to read a private league.',
                 });
@@ -268,13 +273,19 @@ function registerLineupRoute(router, pool) {
                 return;
             }
             const { players, generatedAt } = await projectionsFor(pool, season, week);
-            const roster = joinRoster(own.entries, players);
             // Who you play decides the objective. A failed schedule read is not fatal — it degrades to the
             // highest-projected lineup, which is what this route did before it could see an opponent.
-            const matchups = await (0, sports_fantasy_espn_1.readMatchups)(season, leagueId, cred, espn).catch(() => []);
-            const opponentId = (0, sports_fantasy_espn_1.opponentTeamFor)(matchups, own.teamId, week);
-            const opponent = opponentId === null ? null : teams.find((t) => t.teamId === opponentId) || null;
-            const theirs = opponentMoments(opponent, players, settings);
+            const schedule = await (0, sports_fantasy_espn_1.readMatchupsOutcome)(season, leagueId, cred, espn)
+                .catch(() => ({ matchups: [], failure: null }));
+            const fixture = (0, sports_fantasy_espn_1.opponentOutcomeFor)(schedule.matchups, own.teamId, week);
+            const opponent = fixture.opponentTeamId === null
+                ? null : teams.find((t) => t.teamId === fixture.opponentTeamId) || null;
+            // Both rosters' completed weeks in one read, scored under THIS league's rules. Strictly before
+            // the week being set: the current week is in progress, and a player who has not kicked off yet
+            // would enter the history as a zero.
+            const history = (0, sports_fantasy_roster_1.historyFor)(await (0, sports_fantasy_store_1.readPlayerWeeks)(pool, season, week, [...own.rosterPlayerIds, ...(opponent?.rosterPlayerIds || [])]).catch(() => []), settings.scoring);
+            const roster = (0, sports_fantasy_roster_1.joinRoster)(own.entries, players, history);
+            const theirs = opponentMoments(opponent, players, settings, history);
             const win = (0, sports_fantasy_winprob_1.optimiseForWin)(roster, settings.slots, settings.scoring, theirs);
             const optimal = win.lineup;
             const calls = (0, sports_fantasy_scoring_1.startSitCalls)(own.startingPlayerIds, optimal, settings.scoring, roster);
@@ -282,6 +293,7 @@ function registerLineupRoute(router, pool) {
             const registered = await (0, sports_fantasy_store_1.recordCalls)(pool, sub, season, leagueId, week, calls);
             log.info({
                 sub, season, leagueId, week, roster: roster.length, calls: calls.length, registered,
+                playersWithHistory: roster.filter((p) => p.pointsHistory?.length).length,
                 opponentTeamId: opponent?.teamId ?? null, posture: theirs ? win.posture : 'no-opponent',
                 winProbability: theirs ? win.winProbability : null, varianceSwaps: win.swaps.length,
                 ms: Date.now() - started,
@@ -296,6 +308,11 @@ function registerLineupRoute(router, pool) {
                 matchup: {
                     opponentTeamId: opponent?.teamId ?? null,
                     opponentName: opponent?.name ?? null,
+                    // WHY there is no opponent. A bye, a week the schedule does not cover, and a schedule
+                    // nobody could read all produce the same empty matchup, and the surface was calling all
+                    // three a bye — a wrong reason attached to a lineup that is otherwise still correct.
+                    opponentReason: opponent ? 'opponent' : (schedule.failure ? 'unreadable' : fixture.reason),
+                    scheduleError: schedule.failure ? schedule.failure.reason : null,
                     opponentProjected: theirs?.mean ?? null,
                     opponentSpread: theirs?.sd ?? null,
                     yourProjected: win.moments.mean,
@@ -427,3 +444,4 @@ async function currentWeek(season) {
     const body = await (0, sports_espn_1.getJson)(`https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/${season}`, espn);
     return Number(body?.currentScoringPeriod?.id) || 1;
 }
+//# sourceMappingURL=sports-fantasy-routes.js.map

@@ -55,6 +55,9 @@
   .sheet .exp .org { color: #5b6b7d; font-size: 13px; margin-bottom: 4px; }
   .sheet ul { margin: 4px 0 0; padding-left: 18px; }
   .sheet li { margin: 2px 0; }
+  /* ADR-141 D7: the evidence sits under the claim it proves, visibly secondary to it. */
+  .sheet li.story { list-style: none; margin: 2px 0 6px -8px; padding: 4px 8px;
+    border-left: 2px solid #c9d6e4; color: #45566a; font-size: 12px; }
   /* Chat pane */
   .chat { border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; }
   .chat header { padding: 14px 16px; border-bottom: 1px solid var(--line); font-weight: 600; display: flex; gap: 8px; align-items: center; }
@@ -120,11 +123,30 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '
 function setStatus(t){ $('status').textContent = t || ''; }
 function add(role, text){ const d = document.createElement('div'); d.className = 'msg ' + role; d.textContent = text; $('log').appendChild(d); $('log').scrollTop = $('log').scrollHeight; }
 
+// ADR-141 D7: a bullet asserts, a story proves. The review records every story against the bullet
+// it supports, so the preview shows it THERE — under the claim — instead of in a separate list the
+// reader has to reconcile. A story whose bullet has since been rewritten is NOT dropped: it falls to
+// the end of its role, where the candidate can see the evidence an edit is about to strand.
+// Pure and DOM-free on purpose, so the layout this function decides is provable without a browser.
+function expHtml(experience){
+  const story = (s) => `<li class="story">${s.title ? `<b>${esc(s.title)}</b> ` : ''}${esc(s.story)}</li>`;
+  return (experience || []).map((e) => {
+    const stories = (e.stories || []).filter((s) => s && s.story);
+    const placed = new Set();
+    const items = (e.bullets || []).map((b) => {
+      const mine = stories.filter((s) => s.bullet === b);
+      mine.forEach((s) => placed.add(s));
+      return `<li>${esc(b)}</li>` + mine.map(story).join('');
+    }).join('');
+    const stranded = stories.filter((s) => !placed.has(s)).map(story).join('');
+    return `<div class="exp"><div class="er"><span>${esc(e.title)}</span><span>${esc(e.span)}</span></div>`
+      + `<div class="org">${esc(e.org)}</div><ul>${items}${stranded}</ul></div>`;
+  }).join('');
+}
+
 function renderPreview(){
   const r = state.resume || {};
-  const exp = (r.experience || []).map((e, i) =>
-    `<div class="exp"><div class="er"><span>${esc(e.title)}</span><span>${esc(e.span)}</span></div>`
-    + `<div class="org">${esc(e.org)}</div><ul>${(e.bullets || []).map((b) => `<li>${esc(b)}</li>`).join('')}</ul></div>`).join('');
+  const exp = expHtml(r.experience);
   const comp = (r.competencies || []).map((c) => `<span>${esc(c)}</span>`).join('');
   const name = ((window.__meta && window.__meta.name) || (window.__contact && window.__contact.name) || 'Resume');
   $('sheet').innerHTML =
@@ -171,6 +193,11 @@ function resumeDigest(){
     // the user is actually looking at.
     lines.push(`Role ${i + 1}: ${e.title || ''} — ${e.org || ''} (${e.span || ''})`);
     (e.bullets || []).forEach((b, bi) => lines.push(`  bullet ${bi + 1}: ${b}`));
+    // The evidence behind the bullets, so the assistant argues from what the candidate actually
+    // told the review rather than restating the bullet back at them.
+    (e.stories || []).forEach((s) => {
+      if (s && s.story) lines.push(`  story (${s.bullet ? `supports: ${s.bullet}` : 'role-level'}): ${s.story}`);
+    });
   });
   const text = lines.join('\n');
   return text.length > 3900 ? text.slice(0, 3900) + '\n…(truncated)' : text;

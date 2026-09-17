@@ -262,4 +262,3 @@ function unpackExport(line, workDir) {
 function openContainerChannel(opts, handlers) {
     return new ContainerChannel(opts, handlers);
 }
-//# sourceMappingURL=engine-channel.js.map

@@ -29,6 +29,7 @@
 
 name: daily-trade-recap
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Register bounded recorded-report briefing collection and isolated contract evidence.
+# CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1, ADR-157 S3: classify the recorded-report collector as a system service. It is not one person's job — collectCompletedReports opens runWithSystemIdentity and reads the journal for EVERY owner, then fans each row to the owner recorded on it, so a per-person activation would run the same whole-application sweep once per activating person. No `requires:` is declared because this package imports no ADR-149 authorization catalog, and the loader refuses a `requires` naming a permission no catalog defines.
 suite: ai-finance   # ADR-097: primary catalog shelf (tools keep their own category:)
 displayName: Daily Trade Recap
 status: active
@@ -38,7 +39,7 @@ description: >-
   briefing collection reads its report journal and does not generate reports or trade.
 scope: public
 ticketType: daily-trade-recap
-version: 1.2.0
+version: 1.2.1
 
 uses: [jarvis-briefings, test-catalog, app-dependencies]
 testing:
@@ -51,9 +52,14 @@ briefings:
     sessionId: daily-trade-recap-recorded-reports
     defaults: { enabled: true, frequency: as-available, channel: voice }
 schedules:
+  # ADR-157: a SYSTEM service. collectCompletedReports reads the report journal under the system
+  # identity with no owner filter and publishes to whichever owner each row names, re-authorizing
+  # every recipient through the kernel's exact-owner briefing transaction. Nothing about the run
+  # depends on who turned it on, so it is activated once by a swarm administrator, not per person.
   - id: daily-trade-recap-recorded-reports
     cron: "*/15 * * * *"
     scope: framework
+    runsAs: system
     description: Reconcile at most 50 report journal entries from the last 72 hours into registered owner briefings.
     target: service-route
     route: /api/daily-trade-recap/briefings/collect

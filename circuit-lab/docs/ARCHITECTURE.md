@@ -397,6 +397,28 @@ parts model read-only and fails when either name, mass or price differs between 
 (B4, this lab's half). The inspector's "nameplate from the catalog" and the
 `circuit-driver-catalog` tool fill a part's properties from a row.
 
+**A row may not describe a part another package already owns.** A servo bought once should be
+describable once, and the SG90 was written down twice — animatronics publishes it (identity, mass,
+price, source, and the pulse / travel / speed / torque / current block a rig is built from) and
+this catalog restated it under its own name at its own price. Such a row now carries
+`sharedPart: {owner, file, list, id}` instead, declares only the block this lab adds — the
+operating point the solver runs it at and the reflected rotor inertia — plus a `note` saying so,
+and `loadDriverCatalog` reads the rest out of the owner's catalog **file**. It is data, not an
+imported runtime: nothing here requires a sibling package's module, so the scoped route compile is
+untouched and the store's package-separation guard has nothing to weaken. The translation into
+this lab's units (µs → ms, s/60° → deg/s, kg·cm → mN·m, mA → A) lives here, once, so the owner
+never carries this lab's units.
+
+Store packages install one at a time, so the read is fail-closed: an owner that is absent, or
+present but unable to answer (no list, no row, unreadable file, a row missing a number), WITHHOLDS
+that one row with a reason naming the owner — `GET /catalog/drivers` answers `{drivers, unresolved}`
+and every row this package owns outright still loads. Restating a field the owner publishes, or
+choosing an operating point outside the owner's voltage window, is refused at load with the field
+named. The catalog is re-read per request, so installing the owner later needs no restart.
+`tests/shared-parts.test.js` proves all of it against real package trees on disk, including a
+fixture packages root whose owner declares different numbers — the answer moves with it, which a
+copy could not do.
+
 ## 9. The canvas
 
 A 1920 × 960 world on a 20 px grid; the viewBox is the camera (wheel zooms about the cursor, shift-

@@ -37,17 +37,23 @@ Done when: the page (or a node) turns a detected face into a bearing in the prop
 frames — at a few Hz, with a dead-band and a rate limit so the prop does not chatter, and a
 browser case proves a moving target moves the pupils then the neck.
 
-## B4 — Fold `prop` into embodied's vocabulary — DONE (0.2.0, embodied 0.15.0)
+## B4 — Fold `prop` into embodied's vocabulary — DONE (0.2.1, embodied 0.15.0)
 
 `KIND_VOCABULARY.prop` lives in embodied's capability manifest with the agreed senses, acts and a
 class-1 floor, and `disarm` joined its confirm-exempt set. `engine/kind.ts` no longer decides the
-row: it binds to embodied's, names embodied as the owner on `GET /capabilities`, and carries the
-values as data — not a `require` of the sibling package, because packages install one at a time
-into `deployed-apps/` and a sibling import would take this package down with MODULE_NOT_FOUND
-wherever embodied is absent. `engine-kind.test.js` imports embodied's real row instead, refuses
-any drift in either direction, and proves embodied's own `validateManifest` ACCEPTS the skull rig's
-manifest unchanged. Still out of scope and still pinned as refused: a prop as a node on the swarm
-rail, gated on the ADR-149 decision.
+row and no longer copies it either: `loadPropVocabulary()` resolves embodied's compiled
+`routes/engine/nodes/capability-manifest.js` beside this package and reads `KIND_VOCABULARY.prop`
+and `CONFIRM_EXEMPT_ACTS` out of it, so one vocabulary is written down in one place. 0.2.0 kept a
+frozen copy instead, on the argument that packages install one at a time into `deployed-apps/` and
+a sibling `require` would take this package down with MODULE_NOT_FOUND wherever embodied is absent;
+the guarded read answers that without a second declaration — no embodied means no vocabulary and no
+capability manifest (503 on `GET /rigs/:id/manifest`, naming the owner), while the rig, the poses,
+the rehearsal, the supply budget and the Web Serial stream are untouched. `engine-kind.test.js`
+points the package at a fixture packages root whose embodied declares a different row and requires
+its vocabulary and a real rig's manifest to change with it, pins the four unhappy shapes as
+refusals with nothing invented in their place, and proves embodied's own `validateManifest` ACCEPTS
+the skull rig's manifest unchanged. Still out of scope and still pinned as refused: a prop as a node
+on the swarm rail, gated on the ADR-149 decision.
 
 ## B5 — Dynamics on the rehearsal
 

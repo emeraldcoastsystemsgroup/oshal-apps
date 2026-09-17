@@ -148,4 +148,3 @@ function buildThreads(rows, options) {
     threads.sort((a, b) => new Date(b.lastTs).getTime() - new Date(a.lastTs).getTime());
     return threads.slice(0, maxThreads);
 }
-//# sourceMappingURL=switchboard-threads-model.js.map

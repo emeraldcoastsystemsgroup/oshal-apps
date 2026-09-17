@@ -26,6 +26,14 @@
 #     marketing-routes.ts (974 code lines, over the 800-line plan threshold) split verbatim into
 #     support/bots/publish/campaigns/measure modules; the mount, factory and all 20 routes are
 #     unchanged, guarded by a route-table parity check.
+# 5 | maintainer@emeraldcoastsystemsgroup.com   | 0.5.1, ADR-157 S3: both scheduled services declare
+#     runsAs: system. Each one opens runWithSystemIdentity and enumerates owners from the store —
+#     ingestUserSubs (active campaigns UNION channel authorizations) and activeCampaignOwners —
+#     then works per owner. Neither reads the caller, so a per-person activation would sweep every
+#     other owner under one person's name. No `requires:` is declared: this package imports no
+#     ADR-149 authorization catalog, and the loader refuses a `requires` naming a permission no
+#     catalog defines. The classification widens nothing — per-channel consent still gates every
+#     outward action and the weekly review still opens a backlog ticket a human must approve.
 
 name: marketing-engine
 displayName: Marketing Engine
@@ -34,7 +42,7 @@ description: >-
   intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic
   metrics scorecard, experiment registry, budget proposals a human approves, and weekly review
   tickets worked by inline concierge bots only after human approval.
-version: 0.5.0
+version: 0.5.1
 status: active
 suite: ai-productivity
 theme: midnight
@@ -182,9 +190,16 @@ workflow:
 
 schedules:
   # Deterministic, no-LLM. Consent rows gate every outward action; ingest only READS sources.
+  #
+  # ADR-157: both are SYSTEM services. Each opens runWithSystemIdentity and enumerates the owners
+  # it serves from this app's own store, then works per owner — the caller never selects the set.
+  # A per-person activation would therefore reach into every other owner's data under one person's
+  # identity, which is exactly what the class exists to prevent, so a swarm administrator activates
+  # them once for the application instead.
   - id: daily-metrics-ingest
     cron: "20 6 * * *"
     scope: framework
+    runsAs: system
     description: Pull configured metrics sources (Search Console, PostHog, GitHub traffic) into the owner-scoped marketing_events store. Reads only; sources missing config are recorded as NO DATA, never invented.
     target: service-route
     route: /api/marketing-ops/ingest
@@ -192,6 +207,7 @@ schedules:
   - id: weekly-campaign-review
     cron: "0 12 * * 1"
     scope: framework
+    runsAs: system
     description: Roll up the weekly scorecard and open ONE backlog review ticket per owner with active campaigns. No bot runs and nothing publishes until a human approves the ticket in the cockpit.
     target: service-route
     route: /api/marketing-ops/weekly

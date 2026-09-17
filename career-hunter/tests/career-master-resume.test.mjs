@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the Resume Studio MASTER document: `resume base` straight mapping and `resume base-save` whitelist round-trip run the CLI's exact Python programs against the real profile engine (backup rotation, audit, refusal-on-mismatch with the file untouched), with source-level assertions for the routing and surface seams only.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Size the oversize fixture so it can actually reach the engine on Linux, and assert that it does. At 263 KB it exceeded execve's 128 KiB per-variable limit, so the spawn failed before the refusal branch ran and the test only passed on Windows.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Pin the ADR-141 D7 stories key on the editor document: a role the review has not reached carries an empty list, never a missing key, so a surface reading it never has to guess whether the evidence is absent or the field is.
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -95,6 +96,10 @@ test('resume base maps the profile straight into the editor document shape', () 
   assert.deepEqual(r.experience[0], {
     title: 'Platform Lead', org: 'Acme', span: '2019-01–present',
     bullets: ['Led the team that shipped the platform', 'Cut deploy time 60%'],
+    // ADR-141 D7: the key is always present. This fixture has never been through the story
+    // review, so it is empty — a missing key would make "no evidence yet" indistinguishable
+    // from "an older engine that cannot carry evidence at all".
+    stories: [],
   });
   assert.deepEqual(r.experience[1].bullets, fixtureProfile.roles[1].deliverables,
     'bullets are carried verbatim, not rewritten');

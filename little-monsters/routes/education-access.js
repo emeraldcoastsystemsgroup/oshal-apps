@@ -435,3 +435,4 @@ async function listAccessibleClassIds(pool, student) {
      SELECT class_id FROM lm_classes WHERE teacher_student_id = $1 AND tenant_id = $2`, [student.studentId, student.tenantId]);
     return r.rows.map((x) => x.class_id);
 }
+//# sourceMappingURL=education-access.js.map

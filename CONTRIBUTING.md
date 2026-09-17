@@ -1,5 +1,122 @@
 # Contributing to the store repo
 
+## Turn the gate on — once per clone
+
+```bash
+git config core.hooksPath .githooks
+```
+
+**Nothing is enforced until you run that.** Git only runs hooks from a path the clone has been told
+to use, and this is not set by default — it was set in **no** clone of this repository when the
+local gate landed, which means the attribution gate below was inert too. `.githooks/pre-push` is now
+the **only automatic gate this repository has**: `store-ci` is `workflow_dispatch`-only, `security.yml`
+already was, there is no root `package.json`, and required status checks are not available on this
+plan. One command, once, per clone.
+
+## Run the CI locally before you push
+
+```bash
+bash scripts/store-ci-local.sh
+```
+
+`.githooks/pre-push` runs this for you. Run it by hand whenever you want the answer sooner.
+
+**This is the gate.** `store-ci` no longer runs on `pull_request`, because this repository is
+**private** and every Actions minute is billed. The workflow fans out to ~30 jobs and GitHub bills
+**each job rounded up to a whole minute**, so a run with a few minutes of real work is billed at
+roughly nineteen.
+
+| measured, 1–16 September 2026 | |
+|---|---|
+| runs | **217**, 100% `pull_request` |
+| billed minutes per run | **~18.9** |
+| billed minutes month-to-date | **~4,100** |
+| projected per 30-day month | **~7,700** (~**$62**) |
+
+Basis: per-job `started_at`/`completed_at` from `actions/runs/{id}/jobs` over a 55-run sample, each
+job rounded up to a minute, priced at the published **$0.008/min** Linux rate. `skipped` jobs are
+excluded — they never allocate a runner. **That is the spend, not the percentage of the limit** the
+75% warning was measured against: the included-minutes allowance cannot be read, because the Actions
+billing endpoints return *Not Found* for this token and plan.
+
+`security.yml` and `scripts/publish-store.sh` already carried this constraint; `store-ci.yml` was
+the hole.
+
+The script runs the **same checks the workflow runs, in the same order**, against your working tree.
+It takes about two minutes and needs no cloud, no secrets and no network.
+
+It does not restate the workflow — it **parses** `.github/workflows/store-ci.yml` and derives the
+command, working directory and glob for every job. Three properties follow, and they are the reason
+to trust it:
+
+- **It cannot silently drift.** A job, command or glob it has no policy for is a hard refusal, not a
+  quiet skip. If you add a job to `store-ci.yml`, the script stops until you map it.
+- **It reproduces the `needs:` gate.** `test-discovery` and `catalog-parity` gate every package job.
+  When one of them fails, the package checks report **BLOCKED** — they are never reported green just
+  because they did not run.
+- **It never re-types a glob.** The house contract is **one glob per package** (`tests/*.test.js`
+  matches zero files in a `.cjs` or `.mjs` package, and `node --test` would then exit 0 having run
+  nothing). The globs come from the workflow, the first check to run is
+  `scripts/security/check-store-test-discovery.mjs` which proves each one resolves to a non-empty
+  file set, and any suite whose TAP summary shows **zero tests** is failed outright.
+
+### Reading the verdicts
+
+| verdict | meaning | exit code |
+|---|---|---|
+| `PASS` | ran, everything green | 0 |
+| `PARTIAL` | ran and passed, but the suite **skipped** cases — the reason is printed | **non-zero** |
+| `SKIPPED` | **did not run**: a prerequisite is missing | **non-zero** |
+| `BLOCKED` | a `needs:` gate failed, so store-ci would not have run this job either | non-zero |
+| `FAIL` | red. Do not push | non-zero |
+
+**A skip is not a pass, and the exit code says so.** A hook and a human both read `$?`, not the
+prose above it. If you have decided a skip is acceptable on your box, say so explicitly:
+
+```bash
+bash scripts/store-ci-local.sh --allow-skips     # exits 0, still names everything that did not run
+```
+
+The hook passes that for you when `OSHAL_STORE_CI_ALLOW_SKIPS=1` is set. `scripts/store-ci-local.test.mjs`
+pins both halves of this contract.
+
+### Prerequisites, and what you lose without them
+
+- **A kernel checkout** — for a TypeScript compiler, `playwright`/`express`, and the real `multer`
+  (`little-monsters`, `career-hunter`, `kalshi`). Found automatically in the sibling `../oshal`
+  checkout, which is where it already is on an operator workstation; set `OSHAL_ROOT` if your layout
+  differs. Without it those checks report `SKIPPED`, never `PASS` — including the **little-monsters
+  security suite**. With it you run *two cases store-ci itself cannot*: the real-Multer resume cases
+  skip on a runner, which has no kernel checkout.
+- **A disposable PostgreSQL** for the Career storage contract. **store-ci runs this** — it declares a
+  `pgvector/pgvector:pg16` service and `career-hunter/tests/career-storage-contract.test.mjs` asserts
+  the URL is present when `CI` is set — so skipping it locally is a **real loss of coverage**, not a
+  skip you share with CI. Spin up a throwaway on a port that is **not** 55433 or 55434:
+
+  ```bash
+  docker run -d --rm --name career-contract-pg -p 55460:5432 \
+    -e POSTGRES_PASSWORD=career-contract-ci pgvector/pgvector:pg16
+  export CAREER_TEST_POSTGRES_ADMIN_URL=postgresql://postgres:career-contract-ci@127.0.0.1:55460/postgres
+  # when you are done:  docker rm -f career-contract-pg
+  ```
+
+  **Never point that variable at `oshal-local-db`** (`:55433`) or any database you care about — the
+  contract creates and drops databases.
+
+### Which local skips are real losses
+
+Do not assume a skip is shared with CI. Checked against the workflow:
+
+| skip | also skipped in CI? |
+|---|---|
+| `career-hunter` — real-Multer resume cases (2) | **yes** — a runner has no kernel checkout |
+| `career-hunter` — PostgreSQL storage contract | **no** — CI runs it with a service container |
+| `career-hunter` — symlink cases | **no** — these are `catch (EPERM/EACCES)` clauses, so they run on Linux and skip only on Windows |
+| `embodied` — `EMBODIED_PYTHON` / `EMBODIED_ENGINE_ADDR` (2) | **yes** — that job sets neither |
+
+`workflow_dispatch` stays available for a deliberate cloud run — a second opinion on clean Linux
+runners, or a check that genuinely wants a service container. Do not re-add `pull_request:`.
+
 ## Work identifies the LANE, never a model
 
 Standing operator directive: **no model attribution anywhere** — not in a file, not in a commit

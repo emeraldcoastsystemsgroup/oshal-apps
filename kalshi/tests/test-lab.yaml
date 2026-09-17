@@ -46,6 +46,29 @@ cases:
     expected:
       - Daily cumulative values and rolling settlement windows preserve their mathematics.
       - Strategy grouping and days-to-verdict projections remain read-only.
+      - Sized paper fills return profit and loss over the ask plus the taker fee, and a total loss is exactly minus one.
+      - A zero-stake pre-registered pick leaves the paper bankroll unchanged and a ruinous run stops at zero.
+      - The paper book compounds every strategy together in grading order and ignores the selected display window.
+      - The starting paper bankroll comes from deployment configuration with the shipped fallback.
+      - The compiled route and surface carry the paper bankroll and label it as paper money.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000, maxMemoryMb: 256 }
+    installation: never
+  - id: pops
+    name: Price since announced for open alerts
+    purpose: Run the compiled price-move module against an in-memory candle transport and clock, with no provider calls.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/kalshi-pops.test.js] }
+    expected:
+      - A pick is priced on its own side, and an announced price outside the contract range yields nothing.
+      - Candle prices prefer the book middle, then the last trade, then the period mean, walking back past empty candles.
+      - Reads stay capped per request, spaced under the shared public request limit, and served from the cache inside its window.
+      - One failing or empty market is counted as unavailable and reported to the caller logger, never thrown.
+      - One shared cache serves every caller, so each caller keeps its own announced price and side off a single market read.
+      - The announced-hand read stays scoped to the caller and excludes settled markets.
+      - The compiled route and surface carry the column through the framework candle client.
     prerequisites: [runner:node-test]
     sideEffects: none
     isolation: { mode: none }

@@ -487,4 +487,3 @@ function createAeroLabRoutes(arg = {}) {
     });
     return router;
 }
-//# sourceMappingURL=aero-lab-routes.js.map

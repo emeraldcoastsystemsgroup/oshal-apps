@@ -15,6 +15,13 @@
  *                     |                             | the e-stop — and the command log. Every answer that moves the
  *                     |                             | prop carries the exact protocol lines the browser streams to
  *                     |                             | the controller, so the server, not the page, owns the pulses.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | The capability manifest is built from the OWNER's vocabulary
+ *                     |                             | row (core BACKLOG 2026-09-14), so it is null on a box where
+ *                     |                             | that package is not installed: a rig still lists, rehearses,
+ *                     |                             | arms and plays — only the enrolment document, which describes
+ *                     |                             | a vocabulary this package does not own, is absent, and
+ *                     |                             | GET /rigs/:id/manifest says so with 503 rather than answering
+ *                     |                             | with a locally invented row.
  */
 
 import { Router, type Request, type Response } from 'express';
@@ -29,7 +36,7 @@ import { lookAt } from './engine/look-at';
 import { encodeEstop, encodeFrame, encodeHello, encodeLimits, frameLines } from './engine/protocol';
 import type { ServoRow } from './engine/catalog';
 import { findTemplate, type RigTemplate } from './engine/templates';
-import { capabilityManifestFor } from './engine/kind';
+import { PROP_VOCABULARY_OWNER, capabilityManifestFor, loadPropVocabulary } from './engine/kind';
 import { createRig, deleteRig, getRig, listRigs, listRuns, recordRun, updateRig, type QueryablePool, type RigRow, type RunKind } from './rig-store';
 
 const logger = createChildLogger({ module: 'animatronics-rig-routes' });
@@ -357,6 +364,12 @@ export function createRigRoutes(deps: RigRouteDeps): Router {
 
   router.get('/rigs/:rigId/manifest', (req: RigRequest, res) => {
     const row = req.propRig as RigRow;
+    const vocabulary = loadPropVocabulary();
+    if (!vocabulary.ok) {
+      logger.warn({ rigId: row.rig_id, reason: vocabulary.reason }, 'No capability manifest: the prop vocabulary owner is not installed');
+      res.status(503).json({ error: 'vocabulary_unavailable', owner: PROP_VOCABULARY_OWNER, message: vocabulary.reason });
+      return;
+    }
     res.json({ manifest: capabilityManifestFor(`prop-${row.rig_id.slice(0, 8)}`, row.rig, stallOf(row.rig, deps.catalog)) });
   });
 

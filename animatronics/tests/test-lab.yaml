@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped package test with explicit runner and fixture boundaries; retain the readiness smoke identity. The framework-coupled route suite is registered with its real prerequisite (a framework checkout); the actual page runs in headless Chromium against a fake Web Serial port; the seam suite reads embodied's compiled manifest module read-only; the firmware sketch has NO registered case because nothing here compiles or runs it (BACKLOG B2).
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Rename the drifted framework-checkout prerequisites to the Test Lab's own vocabulary so these cases can run: node-test cases declare fixture:core-checkout (the sealed Node profile runs on the oshal image, where /app is the checkout); browser cases declare harness:oshal-core-root and core:dependencies, as create does. A case that imports core's tests/fixtures, which the image does not ship, also declares harness:core-test-fixtures and stays pending with that exact reason instead of an unknown name.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | The prop-kind case also covers the DECLARATION behind the read: the manifest offers embodied under dependencies.optional.apps, the store's own dependency reader sees the same offer, and the generated marketplace.json block mirrors it. A run-time edge that only the code knows about is one an installer cannot offer.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -125,7 +126,7 @@ cases:
     installation: never
   - id: engine-kind
     name: The prop kind seam with embodied
-    purpose: Prove the `prop` kind AGREES with embodied's compiled capability manifest (read-only cross-package import) now that the ADR-156 D6 fold-in has landed — embodied owns KIND_VOCABULARY.prop, our pinned row equals it in both directions, a real rig's manifest built from the servo catalog is ACCEPTED by embodied's own validateManifest, the confirm rule matches embodied's actRequiresConfirm, and a prop is still refused as a heartbeating node on the rail.
+    purpose: Prove the `prop` kind is READ from embodied's compiled capability manifest rather than copied — the package holds no row of its own, a fixture packages root whose embodied declares a different row changes both the vocabulary and a real rig's manifest, every unhappy shape refuses instead of inventing a row, a real rig built from the servo catalog is ACCEPTED by embodied's own validateManifest, and a prop is still refused as a heartbeating node on the rail — and that the run-time edge is DECLARED, so an installer offering this package also offers the one it degrades without.
     level: unit
     runner:
       kind: node-test
@@ -133,15 +134,19 @@ cases:
       files:
         - tests/engine-kind.test.js
     expected:
-      - embodied's KIND_VOCABULARY.prop and our pinned row are equal in both directions, and the row shape matches the drone row.
+      - The row comes from embodied's own module, matches the drone row's shape, and the package exports no vocabulary row and no confirm-exempt set of its own.
+      - The manifest names embodied under dependencies.optional.apps and nothing under required; the store's own dependency reader reads the same offer, keeps the flat compatibility key empty, and the generated marketplace.json block mirrors it.
+      - A fixture embodied declaring senses [channel-state] and acts [pose, wave, e-stop] at class 2 changes both the binding and a real rig's manifest, and the real sibling is unaffected.
+      - No embodied, no prop row, no CONFIRM_EXEMPT_ACTS and a module that throws each refuse with a reason naming embodied and a null capability manifest.
       - embodied's validateManifest accepts the skull rig manifest unchanged; the skull is safety class 2 (an 11 kg·cm servo), the two-axis eyes class 1.
-      - Every act in PROP_CONFIRM_EXEMPT is also exempt in embodied, and pose still requires a confirm on a kinetic rig.
+      - The confirm-exempt acts are e-stop and disarm, embodied exempts both, and pose still requires a confirm on a kinetic rig.
       - A prop heartbeat is refused by embodied's node fleet, so the kind is vocabulary only.
     prerequisites:
       - runner:node-test
-    sideEffects: none
+    sideEffects: fixture-write
     isolation:
       mode: disposable
+      cleanup: Each fixture packages root is a fresh mkdtemp directory holding one stand-in embodied module and is removed after the run; nothing outside the temporary directories is written and the real sibling package is only read.
     limits:
       timeoutMs: 30000
       maxMemoryMb: 256

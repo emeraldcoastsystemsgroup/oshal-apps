@@ -266,3 +266,4 @@ function round2(n) {
 function round4(n) {
     return Math.round(n * 10000) / 10000;
 }
+//# sourceMappingURL=sports-fantasy-winprob.js.map

@@ -21,6 +21,13 @@ DATE/TIME           | AUTHOR                      | DESCRIPTION
                     |                             | reuse it in the vector mapper. A shipped
                     |                             | browser helper is parity-tested against this
                     |                             | function, including the 79.9 m span ceiling.
+2026-09-16 09:00:00 | maintainer@emeraldcoastsystemsgroup.com | The vendored engine is the default.
+                    |                             | _resolve_engine_dir preferred a hard-coded
+                    |                             | operator-local scratchpad checkout over the
+                    |                             | tree shipped beside this file, so a box that
+                    |                             | carried that path answered from an
+                    |                             | uncertified engine. Order is now
+                    |                             | AERO_LAB_ENGINE_DIR, else this directory.
 
 aero-lab engine service -- the BUILD_CONTRACT section-5 worker.
 
@@ -79,23 +86,21 @@ def _log(msg: str) -> None:
 # switching trees mid-flight would report numbers from an engine other than
 # the one named in `capabilities`.
 # ---------------------------------------------------------------------------
-_DEFAULT_ENGINE_DIR = (
-    "C:/Users/you/AppData/Local/Temp/claude/c--Projects-oshal/"
-    "a6f28b94-bbf2-435a-9f7c-b5755938e4c5/scratchpad/aerosim"
-)
 _OWN_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def _resolve_engine_dir() -> str:
-    """@description Pick the aerosim tree: AERO_LAB_ENGINE_DIR, else the
-        documented scratchpad default, else this package's own vendored copy
-        (engine/aerosim ships with aero-lab so a fresh box still runs).
+    """@description Pick the aerosim tree: AERO_LAB_ENGINE_DIR when it is set,
+        else this package's own vendored copy (engine/aerosim ships with
+        aero-lab). The vendored snapshot is the DEFAULT, not a last resort --
+        it is the tree these numbers were certified against. This used to
+        prefer a hard-coded operator-local checkout, so a box that carried one
+        silently answered from an uncertified tree; reaching another tree is
+        now a deliberate AERO_LAB_ENGINE_DIR, never a guess.
     @returns Absolute path of the chosen engine dir."""
     env = os.environ.get("AERO_LAB_ENGINE_DIR", "").strip()
     if env:
         return os.path.abspath(env)
-    if os.path.isdir(os.path.join(_DEFAULT_ENGINE_DIR, "aerosim")):
-        return _DEFAULT_ENGINE_DIR
     return _OWN_DIR
 
 

@@ -50,6 +50,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | Exposure review round: the cards repeat EVERY degraded section, not just the asset directory. /exposure reports six side reads and four of them (protected-lot pins, protected-lot records, trailing peaks, strategy override) were previously painted as fact when they failed - worst case the pins, where the fallback is a no-op subtraction and the card would draw stops and trims over shares the autopilot is forbidden to sell while the foot claimed they were excluded. Now: a red 'Degraded' line on each card naming what could not be read and what that costs the figures below (a section the payload gains later is surfaced by both cards rather than dropped by both), and a failed protected-lot read suppresses the rules table entirely - the engine fails the same way, skipping the fire rather than acting on an unknown book. A failed peaks read is also called out in the rules foot, because every trailing stop is then anchored at average cost.
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | ADR-159 reaches the Exits card and the book switch. (a) A rule row the engine will not exit - a holding its own filled orders cannot account for, or a TRADING_CORE_SYMBOLS ring-fence - is greyed, badged, and says the engine's own sentence about why, instead of printing a stop price for a stop that will never fire; that was the one row where the absence of protection mattered and it looked exactly like the fourteen where it did not. (b) A row whose posture could not be READ keeps its prices and carries a quiet 'not known' pill: the rules shown are still the engine's own functions evaluated here, and what is unknown is only whether the engine will act on the result - blanking the row would hide protection that is probably there. (c) The book switch clears window.GOVERNANCE_BY_SYMBOL beside PINNED_BY_SYMBOL, to null rather than {} so a row reads NOT KNOWN until this book's own answer lands instead of inheriting the last account's.
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | Exposure review round 2: the five async card painters move out of renderAccountView into kickAccountCards(token, b). renderAccountView had grown to exactly the 50-line function limit, so the next line added to it would have broken the rule; the painters were already one list doing one job and read better named. No painter, token or ordering change - each still fills its own placeholder and re-checks stale(token) before it paints. The withheld-rules block also says that the SERVER withholds too (exits.rules comes back null when the protected-lot read failed), so the card is not the only thing standing between a consumer and stops drawn over ring-fenced shares.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com   | The Exits card shows BOTH cost bases wherever they disagree. The venue's average carries the broker's wash-sale adjustment - after a loss sale and a re-buy inside 30 days the disallowed loss is folded into the replacement shares - so the Avg and Stop columns were printing a cost the engine never paid, next to a 'Now' column the engine computes off its OWN cost (SEQ 7 / the payload's SEQ 9). The row read as a position about to be stopped out while the engine had already decided it was not. Each cell now prints the venue number with the engine's own beneath it whenever the two differ, the foot names the adjustment and counts the rows carrying one, and the not-in-force row shows it too - an off-hours paint is exactly when the operator goes looking. Both numbers arrive on the payload (engineBasisPx / engineStopPx); nothing here derives a basis, and nothing here decides whether a holding is managed - that stays the server's `governance`.
  */
 
 /* ── the view ──────────────────────────────────────────────────────────────── */
@@ -508,6 +509,7 @@ function exitsRulesHtml(x) {
     'Protected-lot shares are excluded (their own exits are real venue orders, listed above). ' +
     'A row badged <em>not managed</em> or <em>ring-fenced</em> is one the engine emits no exit for at all — the row says which, ' +
     'and no stop price is shown for it, because no stop would fire.' +
+    basisDivergenceNote(rows) +
     (exposureSectionDown(x, 'peaks')
       ? ' <span class="err">The stored trailing peaks could not be read, so every trailing stop above is anchored ' +
         'at average cost rather than the position\'s real high.</span>'
@@ -534,7 +536,8 @@ function exitRuleRowHtml(r) {
     return '<tr style="opacity:.6"><td><strong>' + esc(r.symbol) + '</strong>' + withheld.map(function (x) {
       return ' <span class="pill ' + (x.kind === 'unaccounted' ? 'unmanaged' : 'fenced') + '">' + esc(x.label) + '</span>'; }).join('') + '</td>' +
       '<td class="num">' + esc(r.qty) + '</td>' +
-      '<td class="num">' + money(r.avgEntryPrice) + '</td><td class="num">' + (r.currentPrice != null ? money(r.currentPrice) : '—') + '</td>' +
+      '<td class="num">' + money(r.avgEntryPrice) + engineBasisNote(r.avgEntryPrice, r.engineBasisPx) + '</td>' +
+      '<td class="num">' + (r.currentPrice != null ? money(r.currentPrice) : '—') + '</td>' +
       '<td colspan="4" class="foot" style="margin:0">' + esc(why) + '</td></tr>';
   }
   const trail = r.trailArmed ? ('armed · ' + money(r.trailStopPx)) : 'not armed';
@@ -546,11 +549,37 @@ function exitRuleRowHtml(r) {
   // the row keeps its prices and carries the doubt as a pill rather than pretending either answer.
   const doubt = blind ? ' <span class="pill unknown" title="' + esc(blindNote) + '">not known</span>' : '';
   return '<tr><td><strong>' + esc(r.symbol) + '</strong>' + doubt + '</td><td class="num">' + esc(r.qty) + '</td>' +
-    '<td class="num">' + money(r.avgEntryPrice) + '</td>' +
+    '<td class="num">' + money(r.avgEntryPrice) + engineBasisNote(r.avgEntryPrice, r.engineBasisPx) + '</td>' +
     '<td class="num">' + (r.currentPrice != null ? money(r.currentPrice) : '—') + '</td>' +
-    '<td class="num">' + money(r.stopPx) + '</td>' +
+    '<td class="num">' + money(r.stopPx) + engineBasisNote(r.stopPx, r.engineStopPx) + '</td>' +
     '<td class="num">' + money(r.takeProfitPx) + '</td>' +
     '<td>' + trail + '</td><td>' + now + '</td></tr>';
+}
+/* The engine's own cost beside the venue's, for one cell - '' when there is nothing to disagree
+   with (no engine basis for this holding) or when the two round to the same cent. It is a PRINT of
+   the server's number: this file never decides anything from it, least of all whether a holding is
+   managed, which is `governance` and only ever the server's. */
+function engineBasisNote(venue, engine) {
+  if (engine == null || venue == null) return '';
+  if (Math.abs(Number(venue) - Number(engine)) < 0.01) return '';
+  return '<div class="foot" style="margin:0;white-space:nowrap">engine ' + money(engine) + '</div>';
+}
+/* True when this row's two cost bases disagree - what the foot counts. */
+function rowBasisDiverges(r) {
+  return r.engineBasisPx != null && Math.abs(Number(r.avgEntryPrice) - Number(r.engineBasisPx)) >= 0.01;
+}
+/* The sentence under the table for the rows whose two cost bases disagree. The venue's average is
+   the wash-sale-ADJUSTED one, so on a name the engine re-bought inside 30 days it carries a loss the
+   engine's money never took; the engine measures its stop from its own cost and the card must say so
+   rather than print one number and act on the other. Silent nothing when no row diverges. */
+function basisDivergenceNote(rows) {
+  var n = (rows || []).filter(rowBasisDiverges).length;
+  if (!n) return '';
+  return ' <span class="warn">' + esc(n) + (n === 1 ? ' row shows two cost bases' : ' rows show two cost bases') +
+    ': the venue reports the wash-sale-ADJUSTED average, so after a loss sale and a re-buy inside 30 days the ' +
+    'disallowed loss rides on the replacement shares. <strong>Avg</strong> and <strong>Stop</strong> print the ' +
+    'venue\'s number with the engine\'s own cost beneath it \u2014 and the engine measures its stop from its own, ' +
+    'so the lower of the two stop prices is the one that fires.</span>';
 }
 
 /* The lots of the CURRENT paint — the delegated Release handler resolves a lotId against this array,

@@ -607,8 +607,20 @@ function loadLineup(season, leagueId) {
 // to visibly buy something.
 function matchupCard(m) {
   if (!m || m.meanFallback || m.winProbability === null) {
-    return '<div class="card"><h2>This week</h2><p class="muted">No opponent could be read for this ' +
-      'week, so the lineup below is simply the highest-projected legal one.</p></div>';
+    // WHY there is no opponent is not decoration. A bye and a failed schedule read leave the same
+    // empty matchup, and calling an ESPN outage a bye sends the reader somewhere useless.
+    var reason = m && m.opponentReason;
+    var why = reason === 'unreadable'
+      ? 'This week\u2019s schedule could not be read from ESPN' +
+        (m.scheduleError ? ' (' + esc(m.scheduleError) + ')' : '') +
+        ' \u2014 that is a read failure, not a week off.'
+      : (reason === 'bye'
+        ? 'You have a BYE this week \u2014 there is no opponent to beat.'
+        : (reason === 'not-scheduled'
+          ? 'The league schedule carries no fixture for this week.'
+          : 'No opponent could be read for this week.'));
+    return '<div class="card"><h2>This week</h2><p class="muted">' + why +
+      ' The lineup below is simply the highest-projected legal one.</p></div>';
   }
   var pct = function (p) { return (p * 100).toFixed(0) + '%'; };
   var safe = m.meanWinProbability;

@@ -39,6 +39,8 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — credential split/normalisation, private league reads (settings, teams, rosters, matchups) with the caller's cookies on exactly one request, and the public player-projection feed distilled to the fields a lineup decision needs.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Send the x-fantasy-filter header on the player feed. It is REQUIRED: without it ESPN returns its default page of 50 players, so a roster came back almost entirely unprojected — which reads as missing data, not as a truncated request. Only the limit VALUE is ignored (11,617 returned whatever is asked). Caught by running the real feed and reading the output; the unit guards could not see it.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Read the week's schedule (mMatchup) and resolve a team's opponent. Until now nothing in the package knew who you play, so a lineup could only be optimised against the field instead of against the one team whose score actually has to be beaten.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Report WHY a league read came back empty. `readLeagueSettings` returns null for an unreachable ESPN exactly as it does for a league ESPN refuses, and `opponentTeamFor` returns null for a bye exactly as it does for a schedule nobody could read, so a caller could only guess — from whether a credential was stored, and from nothing at all. The outcome variants carry the classified failure alongside the same values.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Keep the COMPLETED weeks' actual stat lines the same response already carries. distilProjections kept one week and dropped the rest, so a player's scoring history was thrown away on every refresh and the spread model had nothing but its positional prior to work from. Measured on the live feed 2026-09-16: a request for scoringPeriodId=3 returned 1,740 week-1 actual rows (1,348 with stats) alongside the projections — and 69,653 rows from the PRIOR season, which is why the season filter is not optional.
  *
  * @module sports-fantasy-espn
  */
@@ -48,12 +50,16 @@ exports.parseCredential = parseCredential;
 exports.cookieHeader = cookieHeader;
 exports.readLeague = readLeague;
 exports.readLeagueSettings = readLeagueSettings;
+exports.readLeagueSettingsOutcome = readLeagueSettingsOutcome;
 exports.readTeams = readTeams;
 exports.findOwnTeam = findOwnTeam;
 exports.distilProjections = distilProjections;
+exports.distilPlayerWeeks = distilPlayerWeeks;
 exports.fetchProjections = fetchProjections;
 exports.readMatchups = readMatchups;
 exports.opponentTeamFor = opponentTeamFor;
+exports.readMatchupsOutcome = readMatchupsOutcome;
+exports.opponentOutcomeFor = opponentOutcomeFor;
 const sports_espn_1 = require("./sports-espn");
 const FANTASY_API = 'https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl';
 /**
@@ -139,6 +145,21 @@ async function readLeagueSettings(season, leagueId, cred, opts = {}) {
     };
 }
 /**
+ * @description Read a league's settings and say WHY when nothing comes back. A caller that cannot
+ * tell "we never reached ESPN" from "ESPN refused this league" can only guess from whether a
+ * credential is stored, which is how a dead resolver came to be reported as "connect your ESPN
+ * account" to someone whose account was already connected.
+ * @param season - Season year.
+ * @param leagueId - League id.
+ * @param cred - The caller's cookies, or null for a public league.
+ * @param opts - HTTP options.
+ * @returns The settings, and the classified failure when there are none.
+ */
+async function readLeagueSettingsOutcome(season, leagueId, cred, opts = {}) {
+    const { value, failure } = await (0, sports_espn_1.readWithOutcome)(opts, (o) => readLeagueSettings(season, leagueId, cred, o));
+    return { settings: value, failure };
+}
+/**
  * @description Read every team in the league with its current roster and starting lineup.
  * @param season - Season year.
  * @param leagueId - League id.
@@ -221,13 +242,64 @@ function distilProjections(feed, season, week) {
     return out;
 }
 /**
+ * @description Keep every completed week's ACTUAL stat line the same response already carries.
+ *
+ * This is the half of the feed `distilProjections` throws away. That function is asked for one
+ * week and keeps one week, which is right for a lineup decision and wrong for everything that needs
+ * a player's history — and the history is the only thing that can make one player's spread differ
+ * from another's at the same position and projection. Without it every candidate gets the positional
+ * prior times his projection, two similar players get nearly identical spreads, and the
+ * win-probability objective has nothing to trade.
+ *
+ * Measured live 2026-09-16, one credential-free request for `scoringPeriodId=3`: 11,617 players,
+ * 1,740 rows with `statSourceId:0, statSplitTypeId:1, scoringPeriodId:1` (1,348 of them carrying
+ * stats), and zero extra calls needed to get them.
+ *
+ * THREE FILTERS, AND EACH ONE IS LOAD-BEARING:
+ *   - `seasonId` — the same response carried 69,653 rows from the PRIOR season on that run. Without
+ *     this filter last year's weeks would be mixed into this year's history, which is worse than no
+ *     history at all: it would look like evidence.
+ *   - `statSourceId === 0` — source 1 is ESPN's projection. A projection has no dispersion to
+ *     measure; feeding it back in would produce a spread estimated from a model's own smoothness.
+ *   - `statSplitTypeId === 1` and `scoringPeriodId >= 1` — split 0 / period 0 is the SEASON total,
+ *     which would enter the history as one enormous week.
+ * @param feed - The raw array from the players endpoint.
+ * @param season - Season whose weeks to keep.
+ * @returns One row per player per completed week that produced stats.
+ */
+function distilPlayerWeeks(feed, season) {
+    const out = [];
+    for (const entry of feed || []) {
+        const p = (entry && typeof entry === 'object' && 'player' in entry) ? entry.player : entry;
+        if (!p || typeof p !== 'object' || !Number.isFinite(Number(p.id)))
+            continue;
+        for (const row of p.stats || []) {
+            if (row?.seasonId !== season || row?.statSourceId !== 0 || row?.statSplitTypeId !== 1)
+                continue;
+            const week = Number(row.scoringPeriodId);
+            if (!Number.isFinite(week) || week < 1)
+                continue;
+            const stats = row.stats;
+            if (!stats || typeof stats !== 'object' || !Object.keys(stats).length)
+                continue;
+            out.push({ playerId: Number(p.id), week, stats: stats });
+        }
+    }
+    return out;
+}
+/**
  * @description Fetch and distil the public player projections for one week. No credential is used
  * or needed. The response is large and the season-level filter header is ignored by ESPN, so this
  * belongs in a cached daily job and never on a request path.
+ *
+ * ONE REQUEST, BOTH HALVES. The response carries the completed weeks' actual lines as well as the
+ * projections, so the scoring history costs nothing extra here and would cost a second ~40MB fetch
+ * per week if it were asked for separately.
  * @param season - Season year.
  * @param week - Scoring period.
  * @param opts - HTTP options; give this a long timeout.
- * @returns Distilled players keyed by id, or an empty map when the feed is unreachable.
+ * @returns The distilled players for the week and every completed week's actual lines; both empty
+ *          when the feed is unreachable.
  */
 async function fetchProjections(season, week, opts = {}) {
     const url = `${FANTASY_API}/seasons/${season}/players?scoringPeriodId=${week}&view=kona_player_info`;
@@ -239,8 +311,8 @@ async function fetchProjections(season, week, opts = {}) {
         'x-fantasy-filter': exports.PLAYER_FEED_FILTER,
     });
     if (!Array.isArray(feed))
-        return {};
-    return distilProjections(feed, season, week);
+        return { players: {}, weeks: [] };
+    return { players: distilProjections(feed, season, week), weeks: distilPlayerWeeks(feed, season) };
 }
 /**
  * @description Read the league's schedule so a lineup can be optimised against the one team whose
@@ -278,7 +350,8 @@ async function readMatchups(season, leagueId, cred, opts = {}) {
  * @param teamId - The team whose opponent is wanted.
  * @param week - Matchup period.
  * @returns The opponent's team id, or null on a bye, an unplayed week, or an unreadable schedule —
- *          all of which mean the same thing to a caller: optimise against nobody.
+ *          all of which mean the same thing to the OPTIMISER: play against nobody. They do not mean
+ *          the same thing to the person reading the screen; use `opponentOutcomeFor` for that.
  */
 function opponentTeamFor(matchups, teamId, week) {
     for (const m of matchups) {
@@ -291,3 +364,42 @@ function opponentTeamFor(matchups, teamId, week) {
     }
     return null;
 }
+/**
+ * @description Read the season's fixtures and say WHY when none come back. An empty schedule and an
+ * unreadable one are the same array, and telling a manager he has a bye when ESPN simply could not
+ * be read is a wrong reason attached to a right lineup.
+ * @param season - Season year.
+ * @param leagueId - League id.
+ * @param cred - The caller's cookies, or null for a public league.
+ * @param opts - HTTP options.
+ * @returns The fixtures, and the classified failure when the read produced none.
+ */
+async function readMatchupsOutcome(season, leagueId, cred, opts = {}) {
+    const { value, failure } = await (0, sports_espn_1.readWithOutcome)(opts, (o) => readMatchups(season, leagueId, cred, o));
+    return { matchups: value, failure };
+}
+/**
+ * @description Resolve a week's opponent and, when there is none, which kind of none. A fixture
+ * that exists with only one side is a bye; no fixture at all for that matchup period is a schedule
+ * that does not cover the week. Both are legitimate and neither is a failure — but they are also
+ * not the same sentence, and neither is a schedule the caller could not read at all.
+ * @param matchups - The season's fixtures.
+ * @param teamId - The team whose opponent is wanted.
+ * @param week - Matchup period.
+ * @returns The opponent id and the reason there is or is not one.
+ */
+function opponentOutcomeFor(matchups, teamId, week) {
+    for (const m of matchups) {
+        if (m.matchupPeriodId !== week)
+            continue;
+        if (m.homeTeamId === teamId) {
+            return m.awayTeamId === null
+                ? { opponentTeamId: null, reason: 'bye' }
+                : { opponentTeamId: m.awayTeamId, reason: 'opponent' };
+        }
+        if (m.awayTeamId === teamId)
+            return { opponentTeamId: m.homeTeamId, reason: 'opponent' };
+    }
+    return { opponentTeamId: null, reason: 'not-scheduled' };
+}
+//# sourceMappingURL=sports-fantasy-espn.js.map

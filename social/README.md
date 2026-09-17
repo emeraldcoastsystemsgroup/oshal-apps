@@ -7,6 +7,14 @@ connector token. Nothing posts until you click Publish (the `no-post` 428 gate).
 The Signals view reads your social-notification emails (LinkedIn / X / Facebook)
 straight from your connected inbox, so nothing is missed on a busy day.
 
+**LinkedIn publishing runs on the kernel's declared connector action** (`create-post` on
+`swarm-apps/connectors/linkedin.yaml`), not on a call this package makes itself: the parameters
+are checked against the declared schema before any credential work, the approval gate is the
+shared risky-write one, the credential is your own brokered token, and a `connector_action_audit`
+row is committed **before** the post is sent — if that audit trail is unavailable the publication is
+refused (503) rather than made unrecorded. X and Facebook Pages still publish through their own
+connector tokens in this package; neither connector declares a write action yet.
+
 Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 2, "skill with a surface" — only
 the surface carves):
 

@@ -9,6 +9,7 @@
 # 5   | maintainer@emeraldcoastsystemsgroup.com     | Route the Presentations tab to the package-owned lecture picker instead of the unmounted AI Office surface
 # 6   | maintainer@emeraldcoastsystemsgroup.com     | Align the package description with authoritative quiz grading and the live caller/teacher/admin material-approval boundary
 # 7   | maintainer@emeraldcoastsystemsgroup.com     | Add migration 037 for atomic append-only roster authorization audit facts
+# 8   | maintainer@emeraldcoastsystemsgroup.com     | Record what the dependency tiers mean for this package: both stay empty because nothing here reads another package, the empty connector list is what keeps the provider catalog out of a children's app, and the reasoning credentials are process-level rather than connectors
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL App Package — Little Monsters
@@ -131,7 +132,42 @@ skillProfiles:
     outputContract: markdown study notes, concept-first
 
 # ── ADR-085: dependencies ───────────────────────────────────────────────────
-# No app dependencies: everything LM leans on is a kernel skill (see `uses:` above).
+# Both tiers are EMPTY, and that is the ESTABLISHED answer rather than an undeclared one. Every
+# import and every fetch in this package was read: it pulls nothing from another PACKAGE and calls
+# no other package's mount. What it does reach is the kernel, through the skills in `uses:` above:
+#
+#   deck-generation  src-routes/education-pptx.ts:20   renderPptx   @/features/presentation-generation
+#   storage          src-routes/education-pptx.ts:22   saveContent  @/app/routes/storage-target
+#   voice            src-routes/education-voice-routes.ts:20        @/features/voice-providers
+#   rag              src-routes/education-tutor-routes.ts:199, education-study-model.ts:80,
+#                    education-material-storage.ts:192 + :204, education-lecture-transcript-routes.ts:89
+#
+# Three results that are easy to get backwards, so they are written down with what proved them:
+#
+#   * AI OFFICE (`presentations`) IS NOT A DEPENDENCY. The Presentations tab is this package's own
+#     picker (ui.static `lm-presentations` -> /api/education/presentation, served by
+#     tools/presentation.html, which fetches only /api/education/*), rendering through the KERNEL
+#     deck-generation engine. presentations/oshal-app.yaml states the same boundary from the other
+#     side: the engine "STAYS core ... (Little Monsters calls it too)" and only the SURFACE carved.
+#     The one link between the two packages is the `integrations.offers` hand-off below, and the
+#     framework resolves an offer whose target is not active to state:'unavailable'
+#     (features/swarm-apps/services/app-integrations.ts, resolveAppIntegrations) - one hand-off
+#     that does nothing, not a broken app. Store-wide this is the convention rather than a local
+#     choice: ~50 packages offer to `presentations` and none of them declares it as a dependency.
+#
+#   * NO CONNECTORS - AND THE EMPTY LIST IS LOAD-BEARING, NOT FILLER. `connectors` is declared in
+#     both tiers so the platform's connector allow-list is [] rather than ABSENT; absent means
+#     UNFILTERED (shared/app-dependencies), and the cockpit then pins the Connectors tile and the
+#     whole provider catalog inside a children's app (RibbonNav.js `connectorsAllowed`,
+#     cockpit-view-controller.js renderConnectorDiscoverView). Deleting either key re-opens that,
+#     which is why tests/lm-dependencies.test.cjs pins the declaration.
+#
+#   * THE CREDENTIALS THIS APP'S REASONING NEEDS ARE PROCESS-LEVEL, so they are not declarable here
+#     at all: GOOGLE_API_KEY / GEMINI_API_KEY behind the `gemini-tts` read-aloud voice
+#     (features/voice-providers/providers/gemini-tts-provider.ts), and ANTHROPIC_API_KEY on the
+#     image/PDF tutor path (src-routes/education-tutor-routes.ts:262). Text tutoring goes through
+#     the accountable bot boundary (executeBotOrInline) and carries no key of its own - deployment
+#     configuration, not an app/tool/connector prerequisite.
 dependencies:
   required:
     apps: []

@@ -9,14 +9,33 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Strict-CSP pins (ADR-136 D2 tail): no inline event-handler attribute, no javascript: URL, no eval / new Function / string timer anywhere in trading.html or tools/ui - comments are stripped before the scan so prose about a removed attribute cannot turn the guard red. Plus the policy the pins are written against, read from the kernel rather than described: buildStrictCsp gives script-src 'self' alone (no unsafe-inline / unsafe-hashes / unsafe-eval) while style-src keeps 'unsafe-inline', which is what makes this surface's style attributes legal, and cspMode maps OSHAL_STRICT_CSP=on to enforce.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | Close four gaps a review found in the SEQ 4 pins. (a) The inline-block test only PARSED whatever it found - "zero blocks is the goal" was a comment, not an assertion - so any new inline block that was not literally the old bootstrap shape passed green while breaking the surface under script-src 'self'; zero is now asserted. (b) A handler installed as a STRING at runtime (setAttribute('onclick', ...) or el.onclick = '...') is refused by the same directive and was invisible to the markup-attribute scan. (c) These pins read trading.html + tools/ui, which this package owns, but the shell also loads two scripts it does not; the set of external script sources is now pinned to a named allowlist, so widening the blast radius is a deliberate edit here. (d) The cspMode pin now covers the PRECEDENCE that decides whether an enforce-mode canary tests anything at all: OSHAL_CSP_REPORT_ONLY beats OSHAL_STRICT_CSP, and this deployment sets both, so the canary's real step is unsetting the report-only pin - not setting an enforce flag that is already on.
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | Round-3 review: the handler-attribute pin was case-sensitive and demanded a quote after '=', so ONCLICK="x()" and the unquoted onclick=x() (both legal HTML, both refused under script-src 'self') read as clean; and the runtime string-handler pin missed the bracket form el['onclick'] = '...' and a template-literal setAttribute(`onclick`, ...). Both are widened here. Also new: the cross-module globals the delegated listeners call at CLICK time (openTicket in ticket.js, setBookStrategy/resetBookStrategy/toggleBook in view-strategies.js, bookOf/navigate in app.js) are pinned from both ends - defined exactly once in the module named here, AND still called from a different module - because moving a handler from an attribute into a listener turned those calls into late-bound globals: a rename would be a silent ReferenceError on a money-adjacent button with every other spec green.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | Parse each tools/ui/*.js in the grammar the SHELL declares for it, read off trading.html's own <script> tags. connected-actions.js is loaded with type="module" and is a correct ES module; this check parsed every file as a classic script, where a top-level `import` is a SyntaxError, so it called a correct file broken and had been red on every run since that module landed. The classic half is unchanged - a file the markup does not load as a module is still parsed as a classic script, so one growing an `import` still fails here - and the module half is a real module-grammar parse rather than a skip. The map is asserted to land on files that exist, because a type="module" tag naming a missing file would shrink the strict half to nothing.
  */
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, existsSync } from 'fs';
 import * as path from 'path';
+import { parse } from 'acorn';
 import { buildStrictCsp, cspMode } from '@/features/security/hardening/strict-csp';
 
 const TOOLS = path.resolve(__dirname, '..', 'tools');
 const UI = path.join(TOOLS, 'ui');
+
+/**
+ * The grammar the SHELL declares for each module, read off its own <script> tags rather than
+ * assumed: a tag carrying type="module" is parsed by the browser as an ES module, every other one
+ * as a classic script. The two grammars refuse each other's code — a top-level `import` is a
+ * SyntaxError in a classic script — so a file has to be parsed as what the page loads it as, and
+ * a map derived from the markup cannot drift away from what ships the way a hand list can.
+ * @returns The `ui/<name>.js` files the shell loads with type="module".
+ */
+const declaredModules = (): Set<string> => {
+  const html = readFileSync(path.join(TOOLS, 'trading.html'), 'utf8');
+  return new Set(
+    [...html.matchAll(/<script\b[^>]*\ssrc="\/api\/trading\/ui\/([^"?]+)"[^>]*>/g)]
+      .filter((tag) => /\stype\s*=\s*["']module["']/i.test(tag[0]))
+      .map((tag) => tag[1]),
+  );
+};
 
 /**
  * Strip comments before scanning for handler attributes. A CHANGE LOG entry or a code comment that
@@ -57,13 +76,27 @@ describe('trading surface — every script parses', () => {
     expect(errors, errors.join(' | ')).toEqual([]);
   });
 
-  it('every tools/ui/*.js module is syntactically valid JS (classic script)', () => {
+  it('every tools/ui/*.js module parses in the grammar the shell loads it with', () => {
     const files = readdirSync(UI).filter((f) => f.endsWith('.js'));
     expect(files.length).toBeGreaterThan(0);
+    const modules = declaredModules();
+    // The map is only worth having if it lands on files that exist: a type="module" tag naming a
+    // file that is not here would quietly shrink the module half of this check to nothing, and a
+    // file's grammar would then be decided by an absence.
+    expect(
+      [...modules].filter((f) => !files.includes(f)),
+      'a type="module" tag names a file that is not in tools/ui',
+    ).toEqual([]);
     const errors: string[] = [];
     for (const f of files) {
       const src = readFileSync(path.join(UI, f), 'utf8');
-      try { new Function(src); } catch (e) { errors.push(`${f}: ${(e as Error).message}`); }
+      try {
+        // Module grammar for the ones the shell loads as modules; classic for the rest, which is
+        // what this check has always done — a classic file that grows a top-level `import` still
+        // fails here, because nothing moved it into the module set but the markup.
+        if (modules.has(f)) parse(src, { ecmaVersion: 'latest', sourceType: 'module' });
+        else new Function(src);
+      } catch (e) { errors.push(`${f}: ${(e as Error).message}`); }
     }
     expect(errors, errors.join(' | ')).toEqual([]);
   });

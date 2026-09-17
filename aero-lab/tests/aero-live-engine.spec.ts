@@ -43,8 +43,9 @@ const PACKAGE_DIR = path.resolve(__dirname, '..');
 const VENDORED_ENGINE_DIR = path.join(PACKAGE_DIR, 'engine');
 const PACKAGED_WORKER = path.join(VENDORED_ENGINE_DIR, 'aero_lab_worker.py');
 
-const RESOLVED_ENGINE_DIR = process.env.AERO_LAB_ENGINE_DIR
-  || 'C:/Users/you/AppData/Local/Temp/claude/c--Projects-oshal/a6f28b94-bbf2-435a-9f7c-b5755938e4c5/scratchpad/aerosim';
+// Same order the adapter resolves (engine-adapter.resolveEngineDir): a deliberate
+// AERO_LAB_ENGINE_DIR, else the tree vendored in this package. No operator-local default.
+const RESOLVED_ENGINE_DIR = process.env.AERO_LAB_ENGINE_DIR || VENDORED_ENGINE_DIR;
 
 /**
  * @description Find a Python 3.11 venv interpreter that can drive the engine. The vendored

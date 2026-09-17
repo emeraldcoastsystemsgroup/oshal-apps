@@ -44,6 +44,17 @@
  *                     |                             | queueing, timeouts and idle shutdown are unchanged;
  *                     |                             | a container built from a different engine tree is
  *                     |                             | refused with the exact reinstall command.
+ * 2026-09-16 09:00:00 | maintainer@emeraldcoastsystemsgroup.com | THE VENDORED ENGINE IS THE
+ *                     |                             | DEFAULT. resolveEngineDir preferred a hard-coded
+ *                     |                             | operator-local scratchpad checkout over the tree
+ *                     |                             | shipped inside the package, so a box that happened
+ *                     |                             | to carry that path answered from an uncertified
+ *                     |                             | upstream tree and 422'd every shipped preset, and a
+ *                     |                             | box without it had the operator's path quoted back
+ *                     |                             | in capability_unavailable and the install hint. The
+ *                     |                             | order is now opts -> AERO_LAB_ENGINE_DIR -> the
+ *                     |                             | vendored tree; with no vendored aerosim the
+ *                     |                             | package's own engine dir is still what gets named.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -79,7 +90,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AeroEngineAdapter = exports.DEFAULT_ENGINE_ADDR = exports.DEFAULT_ENGINE_DIR = exports.COMMAND_TIMEOUTS_MS = exports.AeroEngineError = void 0;
+exports.AeroEngineAdapter = exports.DEFAULT_ENGINE_ADDR = exports.COMMAND_TIMEOUTS_MS = exports.AeroEngineError = void 0;
 exports.buildAeroWorkerEnv = buildAeroWorkerEnv;
 exports.engineInstallHint = engineInstallHint;
 const fs = __importStar(require("fs"));
@@ -117,8 +128,6 @@ exports.COMMAND_TIMEOUTS_MS = {
     mission: 600_000,
     export: 300_000,
 };
-/** Documented default engine checkout on this box (BUILD_CONTRACT §5a). */
-exports.DEFAULT_ENGINE_DIR = 'C:/Users/you/AppData/Local/Temp/claude/c--Projects-oshal/a6f28b94-bbf2-435a-9f7c-b5755938e4c5/scratchpad/aerosim';
 /**
  * Documented default address of the engine container's bridge: the network alias
  * engine/container/compose.yaml gives it on the stack network. AERO_LAB_ENGINE_ADDR overrides.
@@ -172,12 +181,15 @@ function resolvePython(engineDir, override) {
 }
 /**
  * @description Resolve the aerosim checkout the worker runs against. Documented order
- * (§5a): explicit opts → AERO_LAB_ENGINE_DIR → the documented scratchpad checkout →
- * the engine tree VENDORED IN THIS PACKAGE. The last step is what makes a fresh box
- * work: the package ships engine/aerosim, and without this the adapter pinned the
- * scratchpad path on every box and reported capability_unavailable forever even though
- * a complete engine sat inside the package. A vendored candidate only counts when
- * engine/aerosim/__init__.py is actually there — never a bare directory.
+ * (§5a): explicit opts → AERO_LAB_ENGINE_DIR → the engine tree VENDORED IN THIS PACKAGE.
+ * The vendored snapshot is the DEFAULT, not a last resort: it is the tree the package's
+ * recorded numbers and its container image were certified against, and it is the only
+ * candidate that exists on every box. An operator-local checkout is reachable only by
+ * setting AERO_LAB_ENGINE_DIR deliberately — the adapter never guesses a path outside
+ * the package, because a box that happened to carry one answered from an uncertified
+ * tree and refused every shipped preset. When no candidate carries engine/aerosim the
+ * package's own engine dir is still returned, so the capability_unavailable reason names
+ * THIS install rather than a stranger's disk.
  * @param appPackageDir - This package's dir from the per-package context.
  * @param override - Explicit engine dir (opts), used verbatim when given.
  * @returns The engine dir to spawn the worker in.
@@ -187,9 +199,22 @@ function resolveEngineDir(appPackageDir, override) {
         return override;
     if (process.env.AERO_LAB_ENGINE_DIR)
         return process.env.AERO_LAB_ENGINE_DIR;
-    if (fs.existsSync(exports.DEFAULT_ENGINE_DIR))
-        return exports.DEFAULT_ENGINE_DIR;
-    return vendoredEngineDir(appPackageDir) || exports.DEFAULT_ENGINE_DIR;
+    const candidates = packageEngineCandidates(appPackageDir);
+    return vendoredEngineDir(appPackageDir) || candidates[0];
+}
+/**
+ * @description Every place this package's own engine/ tree can sit, most specific first:
+ * the per-package context dir, the load-time env fallback, then the compiled module's
+ * sibling. Never a path outside the package.
+ * @param appPackageDir - This package's dir from the per-package context.
+ * @returns Candidate engine dirs, always at least one.
+ */
+function packageEngineCandidates(appPackageDir) {
+    return [
+        appPackageDir ? path.join(appPackageDir, 'engine') : '',
+        LOAD_TIME_PACKAGE_DIR ? path.join(LOAD_TIME_PACKAGE_DIR, 'engine') : '',
+        path.resolve(__dirname, '../engine'),
+    ].filter(Boolean);
 }
 /**
  * @description The engine tree VENDORED in this package — what engine/install-engine.sh bakes
@@ -198,11 +223,7 @@ function resolveEngineDir(appPackageDir, override) {
  * @returns The package's engine/ dir, or null when no candidate carries engine/aerosim.
  */
 function vendoredEngineDir(appPackageDir) {
-    const vendored = [
-        appPackageDir ? path.join(appPackageDir, 'engine') : '',
-        LOAD_TIME_PACKAGE_DIR ? path.join(LOAD_TIME_PACKAGE_DIR, 'engine') : '',
-        path.resolve(__dirname, '../engine'),
-    ].filter(Boolean);
+    const vendored = packageEngineCandidates(appPackageDir);
     return vendored.find((dir) => fs.existsSync(path.join(dir, 'aerosim', '__init__.py'))) || null;
 }
 /**
@@ -659,4 +680,3 @@ class AeroEngineAdapter {
     }
 }
 exports.AeroEngineAdapter = AeroEngineAdapter;
-//# sourceMappingURL=engine-adapter.js.map

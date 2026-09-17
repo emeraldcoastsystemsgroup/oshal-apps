@@ -34,12 +34,15 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — teams, rosters, per-team schedules deduped into a season tape, scoreboard with inline book prices, game summary (injuries/predictor/ATS/form/news), and athlete + team season statistics for production-weighted availability.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Retry transient reads (5xx/429/network, never a 4xx) and fire onError once every attempt is exhausted. Measured live: eight consecutive reads from a fresh process in the same container all succeeded under 1.6s while the long-running api intermittently failed the identical read, and the failure reached the user as "your team has no games this week". A single attempt from a busy event loop is not a reliable read, and a failed read must never render as an answer.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Read a followed team's current head coach from the public roster envelope, refusing mismatched teams, ambiguous staff and unusable names.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Classify a failed read as transport / unavailable / refused, and give callers a way to capture it. Every accessor here degrades to null, which is right at runtime and loses the one thing the surface needs: on 2026-09-09 the box's resolver stopped answering, every ESPN read failed at once, and the fantasy half told the operator to connect an ESPN account he had already connected. Only a refusal is something a credential can fix; the reason string already carried the distinction and nothing read it.
  *
  * @module sports-espn
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NCAAF_REGULAR_WEEKS = exports.WEEK_TAPE_LEAGUES = exports.LEAGUE_PATHS = void 0;
 exports.getJson = getJson;
+exports.classifyFailure = classifyFailure;
+exports.readWithOutcome = readWithOutcome;
 exports.listTeams = listTeams;
 exports.parseHeadCoach = parseHeadCoach;
 exports.teamHeadCoach = teamHeadCoach;
@@ -130,6 +133,41 @@ async function getJson(url, opts, headers) {
 /** Backoff between attempts. */
 function sleep(ms) {
     return new Promise((resolve) => { setTimeout(resolve, ms); });
+}
+/**
+ * @description Classify a failure reason reported through `onError`. The reason is `HTTP <status>`
+ * when ESPN answered and the thrown error's message when it did not, so the PRESENCE of a status is
+ * the transport distinction — there is nothing else available to infer it from.
+ * @param reason - The reason string `getJson` reported.
+ * @returns The classified failure.
+ */
+function classifyFailure(reason) {
+    const matched = /^HTTP (\d{3})$/.exec(reason);
+    if (!matched)
+        return { kind: 'transport', reason, status: null };
+    const status = Number(matched[1]);
+    return { kind: status >= 500 || status === 429 ? 'unavailable' : 'refused', reason, status };
+}
+/**
+ * @description Run a read and capture the FIRST failure it reports, so a caller can answer with why
+ * rather than only with null. Every accessor in this module degrades to null or an empty result,
+ * which is the right runtime behaviour and is exactly what loses the reason; this restores it
+ * without changing any accessor's own contract, and the caller's own `onError` still fires.
+ * @param opts - The caller's options.
+ * @param run - Receives the options to pass to the read it performs.
+ * @returns The read's value, and the first failure it reported (null when none did).
+ */
+async function readWithOutcome(opts, run) {
+    const captured = [];
+    const value = await run({
+        ...opts,
+        onError: (url, reason) => {
+            if (!captured.length)
+                captured.push(classifyFailure(reason));
+            opts.onError?.(url, reason);
+        },
+    });
+    return { value, failure: captured.length ? captured[0] : null };
 }
 /**
  * @description List a league's teams.

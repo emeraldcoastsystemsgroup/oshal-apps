@@ -8,6 +8,7 @@
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | The pool double answers `connect()` as well as `query()`. Every one of the nine cases below had been red since the kernel moved its lazy trading bootstraps onto the advisory-locked path (ensurePinnedLotsSchema -> runRuntimeSchemaBootstrap -> applyLockedSchema), which checks out a dedicated client: the double answered only `query`, so `pinnedQtyBySymbol` threw `pool.connect is not a function`, ledgerGovernance caught it and answered `{}`, and every assertion read the fallback instead of the thing it was written to assert. Nothing here asserts less than before - the double now satisfies the collaborator contract the kernel actually has. No gate ran this file, which is why the drift was invisible.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Two ways the readout still lied, both driven through the REAL pinned-lot subtraction rather than described: the pool answers protected-lot rows, ledgerGovernance runs the kernel's own subtraction over them, and the answer that comes out is handed to the surface module in a vm - so these cases fail if either half is reverted. (1) A partially pinned symbol: the row prints the venue's 400 while the engine's sentence is about the 250 the autopilot can act on, and nothing reconciled them; the payload now carries both quantities and the explanation opens by saying which is which. (2) A symbol pinned in FULL is dropped by that subtraction before anything governs it, so it read NOT KNOWN - a position deliberately protected, shown as unexamined. It is asserted to read as protected lots, and, in the same render, a genuinely unanswered symbol is asserted to STILL read not known: this separates two things that shared a bucket, it does not empty the bucket.
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial. Since #486/#497 the engine emits NO order for a holding its own filled orders cannot account for, and none for a TRADING_CORE_SYMBOLS ring-fence - and the surface said nothing about either, so a position with no stop, no exit and no trim looked exactly like one under full management. Three boundaries are driven for real rather than described: (1) ledgerGovernance itself - the kernel's replay SQL over a pool that answers real order rows, the real pinned-lot subtraction and the real ring-fence parse - against the live book's own USO shape (0 buys / 4 sells, and USO:0); (2) exitRuleRows, the exported route builder, proving a withheld holding is marked inactive with NO wouldFireNow, because a stop price printed for a stop that will never fire is the silence the mark exists to break; (3) the two UI modules executed in a vm, proving a managed row is unbadged, a withheld one carries its reason IN THE OPEN and not only in a hover title, and - the case this repo keeps failing - that a missing answer reads NOT KNOWN instead of managed. The compiled twin is asserted to carry the same wiring, so a forgotten route rebuild cannot ship a surface whose server never answers.
  */
@@ -44,24 +45,29 @@ const pos = (symbol: string, qty: number, avg = 10): Position => ({
 function poolWith(
   fills: Record<string, Array<{ side: string; qty: number; px: number }>>, fail = false, pins: Record<string, number> = {},
 ) {
-  return {
-    query: async (text: string, params?: unknown[]) => {
-      if (fail) throw new Error('pool down');
-      if (/FROM oshal_trading_pinned_lots/i.test(text) && /GROUP BY symbol/i.test(text)) {
-        return { rows: Object.entries(pins).map(([symbol, q]) => ({ symbol, q })) };
-      }
-      if (/FROM oshal_trading_orders/i.test(text)) {
-        const wanted = new Set(((params?.[2] as string[]) ?? []).map((s) => s.toUpperCase()));
-        const rows = Object.entries(fills)
-          .filter(([symbol]) => !wanted.size || wanted.has(symbol.toUpperCase()))
-          .flatMap(([symbol, list]) => list.map((f) => ({
-            symbol: symbol.toUpperCase(), side: f.side, filled_qty: f.qty, filled_avg_price: f.px,
-          })));
-        return { rows };
-      }
-      return { rows: [] };
-    },
+  const query = async (text: string, params?: unknown[]) => {
+    if (fail) throw new Error('pool down');
+    if (/FROM oshal_trading_pinned_lots/i.test(text) && /GROUP BY symbol/i.test(text)) {
+      return { rows: Object.entries(pins).map(([symbol, q]) => ({ symbol, q })) };
+    }
+    if (/FROM oshal_trading_orders/i.test(text)) {
+      const wanted = new Set(((params?.[2] as string[]) ?? []).map((s) => s.toUpperCase()));
+      const rows = Object.entries(fills)
+        .filter(([symbol]) => !wanted.size || wanted.has(symbol.toUpperCase()))
+        .flatMap(([symbol, list]) => list.map((f) => ({
+          symbol: symbol.toUpperCase(), side: f.side, filled_qty: f.qty, filled_avg_price: f.px,
+        })));
+      return { rows };
+    }
+    return { rows: [] };
   };
+  // `connect()` is part of the contract, not a convenience. The kernel's lazy bootstrap
+  // (ensurePinnedLotsSchema -> runRuntimeSchemaBootstrap -> applyLockedSchema) checks out a
+  // dedicated client so its DDL runs inside one advisory-locked transaction, and a double that
+  // answers only `query` makes every call here die on `pool.connect is not a function` — which
+  // ledgerGovernance catches, answers `{}` for, and the assertions then read as "not known".
+  // The statements arrive here and go nowhere: this object is the whole database these cases have.
+  return { query, connect: async () => ({ query, release: () => { /* nothing is checked out */ } }) };
 }
 
 const ctxWith = (pool: ReturnType<typeof poolWith>) => ({ pool } as never);

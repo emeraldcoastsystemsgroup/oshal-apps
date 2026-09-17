@@ -17,6 +17,8 @@
     "cad-studio|routes/home-summary.js|createHomeSummaryRoutes|/api/cad-studio/home-summary|oidc|no-sql-write",
     "cad-studio|routes/package-smoke.js|createPackageSmokeRoutes|/api/cad-studio/_smoke|service|no-sql-write",
     "calendar|routes/home-summary.js|createHomeSummaryRoutes|/api/calendar/home-summary|oidc|no-sql-write",
+    "calendar|routes/meeting-brief-view.js|createMeetingBriefViewRoutes|/api/calendar/meeting-briefs|oidc|no-sql-write",
+    "calendar|routes/meeting-briefs.js|createMeetingBriefRoutes|/api/calendar/brief-collection|service|machine-write",
     "calendar|routes/package-smoke.js|createPackageSmokeRoutes|/api/calendar/_smoke|service|no-sql-write",
     "calendar|routes/review.js|createReviewRoutes|/api/calendar/review|oidc|no-sql-write",
     "calendar|routes/sync.js|createCalendarSyncRoutes|/api/calendar/sync|oidc|machine-write",

@@ -63,25 +63,41 @@ roles (`eye-gimbal` pan/tilt, `eyelids` upper/lower/left/right, `neck` yaw/pitch
 `prop` kind vocabulary. Axis keys are `<mechanism>.<role>`; angles are mechanism degrees inside
 each channel's limits; pan/yaw positive is the prop's right, tilt/pitch positive is up, lids 0 is
 open, jaw 0 is closed. `catalog/servos.json` holds servos and controller boards with a `source`
-line per row. The full contract and the models are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md);
+line per row. **This package OWNS those servo rows** — a servo bought once is described once — and
+Circuit Lab reads the SG90 row out of this file rather than describing the same part again
+(`circuit-lab/tests/shared-parts.test.js` fails if the row's identity, mass, price, pulse range,
+travel, speed, torque or currents move without it following). Changing a number here changes the
+answer there; deleting a row withholds it there, naming this package.
+The full contract and the models are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md);
 the wire protocol and the firmware posture are in [docs/CONTROLLER-PROTOCOL.md](docs/CONTROLLER-PROTOCOL.md).
 
 ## The `prop` kind
 
 `prop` is a first-class peripheral kind in **embodied**'s vocabulary (ADR-156 D6, folded in at
 animatronics 0.2.0 / embodied 0.15.0): kind, safety class floor, closed senses and acts, and the
-confirm-exempt set are decided there, and `GET /capabilities` names `embodied` as the owner. This
-package pins that row as data rather than importing the sibling at runtime, because store packages
-install one at a time and a rig must work on a box with no robotics package on it.
-`tests/engine-kind.test.js` imports embodied's real row, fails on any drift in either direction,
-and proves embodied's own `validateManifest` ACCEPTS a rig built from the servo catalog. What is
-still deliberately out: a prop does not enrol as a node on the swarm rail — that stays gated on the
-ADR-149 decision, and the same test pins the refusal.
+confirm-exempt set are decided there, and `GET /capabilities` names `embodied` as the owner. Since
+0.2.1 this package READS that row out of embodied's compiled `capability-manifest.js` beside it
+rather than keeping a copy — there is exactly one place the vocabulary is written down. Store
+packages install one at a time, so the read is guarded: with no embodied on the box there is no
+prop vocabulary and no capability manifest (`GET /rigs/:id/manifest` answers 503 naming the owner),
+and a rig, its poses, the rehearsal, the supply budget and the Web Serial stream all work anyway.
+`tests/engine-kind.test.js` points the package at a fixture packages root whose embodied declares a
+different row and requires the answer to change with it, pins every unhappy shape as a refusal with
+nothing invented in its place, and proves embodied's own `validateManifest` ACCEPTS a rig built from
+the servo catalog. What is still deliberately out: a prop does not enrol as a node on the swarm
+rail — that stays gated on the ADR-149 decision, and the same test pins the refusal.
+
+That read is a declared dependency, not a hidden one: the manifest names `embodied` under
+`dependencies.optional.apps`. Optional is an install-time OFFER that never blocks — installing
+Animatronics offers embodied alongside it, and declining still installs a package where every rig,
+pose, scenario, rehearsal, supply budget, arming and Web Serial stream works, with only the
+capability manifest withheld. `marketplace.json` mirrors that block; it is generated from the
+manifest by `scripts/gen-catalog-dependencies.mjs`, so change the manifest and regenerate.
 
 ## Tests
 
 ```bash
-node --test "tests/*-*.test.js"                                   # engine, protocol, seam, surface link — 32 cases, dependency-free
+node --test "tests/*-*.test.js"                                   # engine, protocol, seam, surface link — 35 cases, dependency-free
 OSHAL_CORE_DIR=C:/Projects/oshal node --test tests/routes.core.test.js    # the routes over loopback HTTP (needs a framework checkout)
 OSHAL_CORE_DIR=C:/Projects/oshal node --test tests/surface.core.spec.mjs   # the actual page in headless Chromium with a fake serial port
 ```

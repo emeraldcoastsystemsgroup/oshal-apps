@@ -1,3 +1,4 @@
+"use strict";
 /**
  * CHANGE LOG
  * -----------------------------------------------------------------------------
@@ -6,7 +7,6 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Add a confirmed, encrypted, owner-scoped Gmail reply outbox with request idempotency, atomic worker claims, and fail-closed ambiguous-delivery handling.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Make replay independent of source-row retention and verify every ciphertext field against the stored semantic digest before delivery.
  */
-"use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ensureReplyOutboxSchema = ensureReplyOutboxSchema;
 exports.runReplyOutboxBatch = runReplyOutboxBatch;

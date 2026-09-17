@@ -1,0 +1,51 @@
+# CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Register the meeting-brief agent's honesty, consent and delivery-parity evidence as runnable Test Lab cases.
+# CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Restate the registered evidence after the privacy fixes: the assembler cites recorded conversation instead of quoting it, the consent question is settled before anything is read, and the per-speaker consent gate decides which voices may be cited at all.
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Read package metadata without syncing a calendar, assembling a brief or contacting a provider.
+    level: integration
+    runner: { kind: smoke, smoke: package-readiness }
+    expected: [The installed package readiness marker satisfies the manifest assertions.]
+    prerequisites: []
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: safe-smoke
+  - id: meeting-brief-honesty
+    name: A brief never invents background
+    purpose: Exercise the compiled brief assembler with explicit synthetic material and no database.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/meeting-brief.test.js] }
+    expected:
+      - Every claim names the recorded row that produced it.
+      - Material that cannot be cited is dropped rather than rendered without a source.
+      - A meeting with no recorded material states that plainly instead of producing background.
+      - Recorded conversation is cited by its row id and never copied into the brief.
+      - The assembler is handed recorded words on purpose and renders none of them.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 20000 }
+    installation: never
+  - id: meeting-brief-agent
+    name: Consent before reading, delivery parity, and the ambient consent gates
+    purpose: Drive the compiled collector, surface read and real briefing service over synthetic SQL and loopback HTTP.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/meeting-briefs.core.test.js] }
+    expected:
+      - An owner who never enabled this source has nothing of theirs read, delivered or stored.
+      - The stored brief carries the exact bytes delivered, and the surface returns those bytes.
+      - With ambient capture off the transcript and review tables are never read.
+      - A voice that declined, was never asked, is a minor, or is unattributed is never cited.
+      - Neither the query, the delivered notification nor the stored row carries the recorded words.
+      - The scheduled handler returns only the bounded summary the scheduler accepts.
+    prerequisites: [runner:node-test, fixture:core-checkout]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/meeting-briefs.fixture.js]
+      cleanup: Synthetic SQL maps are discarded; loopback connections close; the composed briefing runtime is restored. No live database is used.
+    limits: { timeoutMs: 30000 }
+    installation: never

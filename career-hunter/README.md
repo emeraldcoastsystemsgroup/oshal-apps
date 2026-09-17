@@ -147,10 +147,28 @@ A bullet asserts; a story proves. **Strengthen** now walks your roles one at a t
 3. With no AI provider reachable the answer is kept **verbatim** with that same overlap match, so
    the review works on a box with no key at all. Each story records which path wrote it (`source`).
 
-Stories live on the profile as `roles[].stories[]` and surface three ways: `GET /stories` (the
-review state and the next question), `POST /stories/answer` (one answer, one role), and an
-`EVIDENCE:` line per role in the generation summary, which is how tailored resumes and covers cite
-them. A story the model flags as carrying no real evidence is kept but never cited.
+Stories live on the profile as `roles[].stories[]` and surface four ways: `GET /stories` (the
+review state and the next question), `POST /stories/answer` (one answer, one role), the `stories`
+readiness the Intelligent Career group's setup page reads, and an `EVIDENCE:` line per role in
+`profile.summary()` — the dense profile the **scorer** reads, not the generator. A story the model
+flags as carrying no real evidence is kept but never offered as proof.
+
+### Where the evidence goes (1.22.0)
+
+The review only pays off if something downstream shows it and cites it. Until 1.22.0 nothing did.
+
+- **The master resume document** (`resume base`, the document Resume Studio edits) carries each
+  role's stories with the bullet each one supports, and the studio renders the story **under** that
+  bullet. A story whose bullet a later edit rewrote is not dropped: it falls to the end of its role,
+  where you can see the evidence that edit is about to strand.
+- **A tailored packet** is generated from a prompt that carries the same evidence role by role, with
+  the rule that a role holding a story must spend one of its bullets on it. Every citation the model
+  returns is then verified against the story the profile actually holds **on the role it belongs
+  to** — an invented story, a weak one, or one moved to another employer is dropped rather than
+  trusted — and `application.json` records what survived as `stories_cited`.
+- A profile that has never been through the review builds a **byte-identical** prompt to the one this
+  package sent before. That is asserted, not assumed: `tests/career-story-evidence.test.mjs` compares
+  it against `PROMPT.format(...)` directly.
 
 ## Three board details that are not obvious from the code
 

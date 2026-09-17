@@ -6,6 +6,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com   | Refuse model attribution in the commit messages this push publishes. The operator's standing directive is that work identifies the LANE, never a model, and the core trunk has enforced it at push time since the 2026-09-12 history scrub (scripts/publish-gate.sh, run from its .githooks/pre-push). This repo had no push-time check at all: a harness session's default trailer and tool footer went straight into history, and the only way to notice was for someone to grep. Scope is exactly the commits this push publishes - history the remote already holds is out of scope by construction, because removing it is an operator-run rewrite and a gate that refused every push until then would halt all work. Enable with: git config core.hooksPath .githooks
 # 2 | maintainer@emeraldcoastsystemsgroup.com   | Scan the tracked tree at push time as well (SCAN_TREE now defaults to 1). Entry 1 shipped with the tree check off because this repo still carried 165 attributed lines and a hook that refused every push over content it did not introduce would have halted all work. Those lines are gone in this same change - the COLLABORATE.md bylines name the lane and the four Change Log AUTHOR cells name the house identity - so the hook now holds the tree clean instead of waiting for CI to notice. It runs the SPEC rather than the scanner, so one command proves both halves: every rule still red on its fixture, and this tree green.
+# 3 | maintainer@emeraldcoastsystemsgroup.com   | Run the store CI gate here too. store-ci.yml just lost its `pull_request:` trigger (PRIVATE repo, billed minutes) and security.yml was already workflow_dispatch-only, so that trigger was the LAST automatic gate in this repository: there is no root package.json, required status checks are unavailable on this plan, and nothing but prose referenced scripts/store-ci-local.sh. Replacing an enforced gate with a documented habit is strictly worse than what it replaced, so the habit gets teeth here. Note the hook itself is opt-in per clone (`git config core.hooksPath .githooks`) and was NOT configured on the operator's checkout when this landed - the attribution gate above was inert there too.
 # =============================================================================
 set -uo pipefail
 
@@ -112,4 +113,39 @@ if [ "$fail" -ne 0 ]; then
   say "ATTRIBUTION GATE FAILED. Work identifies the LANE, never a model (operator directive)."
   exit 1
 fi
+
+# ── 4. The store CI gate ─────────────────────────────────────────────────────
+# store-ci.yml is workflow_dispatch-only (PRIVATE repo, billed Actions minutes), and security.yml
+# already was. This hook is therefore the ONLY automatic gate left in the repository - there is no
+# root package.json, no required status check on this plan, and nothing else invokes
+# scripts/store-ci-local.sh. A documented habit is not a gate; this line is what makes it one.
+#
+#   OSHAL_STORE_CI_LOCAL=0        skip it entirely. An emergency valve, not a workflow. Same
+#                                 idiom as OSHAL_ATTRIBUTION_SCAN_TREE above.
+#   OSHAL_STORE_CI_ALLOW_SKIPS=1  accept checks that cannot run on this box (no kernel checkout,
+#                                 no disposable PostgreSQL, no symlink privilege). They are still
+#                                 printed. Without it, a check that did not run fails the push -
+#                                 which is the point: a skipped security suite is not a green one.
+RUN_STORE_CI=${OSHAL_STORE_CI_LOCAL:-1}
+GATE="$(git rev-parse --show-toplevel)/scripts/store-ci-local.sh"
+if [ "$RUN_STORE_CI" = "1" ]; then
+  say "store CI gate: every store-ci job, against this working tree (~2 min)"
+  if [ ! -f "$GATE" ]; then
+    say "  ✗ the store CI gate is missing ($GATE) - refusing rather than pushing unchecked"
+    exit 1
+  fi
+  GATE_ARGS=""
+  [ "${OSHAL_STORE_CI_ALLOW_SKIPS:-0}" = "1" ] && GATE_ARGS="--allow-skips"
+  if bash "$GATE" $GATE_ARGS >&2; then
+    say "  ✓ store CI gate passed"
+  else
+    say ""
+    say "STORE CI GATE FAILED. Fix it, or re-run with the prerequisite it named."
+    say "Never push with --no-verify: with store-ci.yml on workflow_dispatch, nothing else checks this."
+    exit 1
+  fi
+else
+  say "store CI gate: SKIPPED by OSHAL_STORE_CI_LOCAL=0 - nothing checked this push"
+fi
+
 exit 0

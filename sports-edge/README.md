@@ -294,6 +294,17 @@ every team model in the rest of this package.
   player actually scored under your rules.
 - **The ledger keeps the projected gain beside the actual one.** "Claimed +40, delivered +2" and
   "claimed +3, delivered +2" are very different tools, and a win rate alone hides that completely.
+- **Each player's completed weeks, accumulated from the same response** (0.9.0). The feed a refresh
+  already fetches carries every finished week's ACTUAL stat line beside the projections — measured
+  live 2026-09-16, one credential-free request for `scoringPeriodId=3` returned 11,617 players and
+  1,740 week-1 rows, 1,348 of them with stats. Those weeks are stored raw (never as points: a point
+  total does not exist until a league's rules are applied, and the table is shared by every league on
+  the box) and scored per league when a lineup is built, so a player's spread is measured from his
+  own scores and shrunk toward the positional prior rather than being that prior times his
+  projection. Without it two backs projected at 13.2 and 13.1 came out at spreads of 7.26 and 7.21
+  and the win-probability objective had nothing to trade — which is exactly what the first live run
+  produced: posture underdog, 40.4% to win, and zero variance swaps. The prior season rides in the
+  same response (22,243 rows on that run), so the season filter is not optional.
 
 ### Routes
 
@@ -334,7 +345,7 @@ This remains a deployment-wide public news archive. It does not change the owner
 teams, use private ESPN Fantasy cookies, or turn archived news into a model adjustment. That last
 step still needs the measurement described in [backlog A](BACKLOG.md#a-the-archived-wires-are-written-but-never-read).
 
-The AI Test Lab registers all eleven shipped test suites and the unchanged `package-readiness`
+The AI Test Lab registers all twelve shipped test suites and the unchanged `package-readiness`
 smoke through [tests/test-lab.yaml](tests/test-lab.yaml). The Node suites use packaged source and
 synthetic data only. The eleven-case coach unit suite runs the actual compiled refresh, provider client
 and store calls with fixture HTTP, World and persistence boundaries; it covers missing/changed
@@ -345,6 +356,23 @@ and checks route contracts; it is not a browser acceptance test.
 Run the package suites with `node --test sports-edge/tests/*.test.js` from the store root, or use
 the installed Test Lab's isolated Node runner. Local registration alone does not imply execution,
 and the readiness smoke remains separate from these offline assertions.
+
+### Telling an unreachable ESPN from an unconnected account (0.8.0)
+
+Every ESPN read degrades to null rather than throwing, which is right at runtime and used to lose
+the one thing the screen needed: WHY nothing came back. A failed read is now classified from what
+the client already recorded — `transport` when no HTTP response was produced at all, `unavailable`
+when ESPN answered 5xx or 429, `refused` for any other 4xx — and only a refusal is something a
+credential can fix. `GET /fantasy/lineup` and `POST /fantasy/link` answer **503** naming the
+transport for the first two, and keep the connect-your-account message for the third. The same
+distinction runs one layer up: the lineup response says whether the missing opponent is a bye, a
+week the schedule does not cover, or a schedule that could not be read, and the matchup card
+renders each differently instead of calling all three a bye.
+
+This closed the 2026-09-09 report, where the box's resolver stopped answering, every ESPN read
+failed at once, and the app told the operator to paste cookies he had already pasted.
+`tests/sports-fantasy-transport.test.js` drives the compiled route with a fetch stub that throws
+and asserts both halves; it is offline and needs no framework checkout.
 
 Phase 1 odds maker, complete and proven against live data. Fantasy (0.2.0) is built and its models
 are guarded, but its private-league path has NOT been exercised end to end against a real league

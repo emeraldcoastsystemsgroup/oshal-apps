@@ -1,0 +1,56 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register the package's shipped suites: the existing metadata-only readiness smoke, and the framework-coupled LinkedIn publish-rail guard that proves the audit row commits before the provider call and that no-connection and approval-denial refuse without publishing.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Retain the existing metadata-only installation probe without running a business workflow.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed social metadata satisfies its existing manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: linkedin-publish-audit
+    name: LinkedIn publish rail audit discipline
+    purpose: >-
+      Drive the compiled publish rail against the framework's own connector-action executor and the
+      shipped LinkedIn connector definition, with only the database pool and the provider socket
+      replaced by synthetic doubles, to prove the write is recorded before it happens and refused
+      when it cannot be.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/publish.core.test.js
+    expected:
+      - The approved text is sent to the declared create-post action under the caller's own brokered credential, and the caller-scoped audit row is written before the provider call.
+      - An unavailable audit trail refuses the publication and contacts no provider; the post text itself never enters the audit trail.
+      - A caller with no connection, a caller whose credential is gone, and a publish without explicit confirmation are each refused with nothing published.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/publish-core.fixture.js
+      cleanup: >-
+        The runner removes the disposable container and staged files; the database pool and the
+        provider socket are in-memory doubles and the global fetch override is restored per attempt.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never

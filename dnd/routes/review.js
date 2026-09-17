@@ -1,11 +1,4 @@
 "use strict";
-/**
- * CHANGE LOG
- * -----------------------------------------------------------------------------
- * SEQ | AUTHOR | DESCRIPTION
- * -----------------------------------------------------------------------------
- * 1 | maintainer@emeraldcoastsystemsgroup.com | Add saved campaign evidence and a native review surface for explicit connected planning.
- */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -41,7 +34,13 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createReviewRoutes = createReviewRoutes;
-
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Add saved campaign evidence and a native review surface for explicit connected planning.
+ */
 const express_1 = require("express");
 const path = __importStar(require("path"));
 function createReviewRoutes(ctx) {
@@ -49,3 +48,4 @@ function createReviewRoutes(ctx) {
     router.get('/', (_req, res) => { res.setHeader('Cache-Control', 'no-store'); res.sendFile(path.join(ctx.appPackageDir, 'tools/review.html')); });
     return router;
 }
+//# sourceMappingURL=review.js.map

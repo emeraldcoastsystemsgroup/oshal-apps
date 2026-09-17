@@ -61,11 +61,13 @@ The package therefore runs the engine in its own container:
 
 The worker resolves the aerosim tree in this order:
 
-1. `AERO_LAB_ENGINE_DIR` (env) — set by the Node adapter;
-2. the documented dev-box scratchpad
-   `C:/Users/you/AppData/Local/Temp/claude/c--Projects-oshal/a6f28b94-bbf2-435a-9f7c-b5755938e4c5/scratchpad/aerosim`
-   (the live tree a concurrent reality-upgrade workflow edits);
-3. **this directory** — the vendored snapshot, so a fresh clone still runs.
+1. `AERO_LAB_ENGINE_DIR` (env) — set by the Node adapter, and the only way to reach a
+   tree outside this package (e.g. a concurrently-edited upstream checkout);
+2. **this directory** — the vendored snapshot, which is the default on every box.
+
+An operator-local path is never guessed: before 1.2.1 a documented dev-box scratchpad sat
+between those two steps, so a box that happened to carry it silently answered from an
+uncertified tree.
 
 Python resolves as `AERO_LAB_PYTHON`, else `<engineDir>/.venv/Scripts/python.exe`
 (win32) / `<engineDir>/.venv/bin/python`. Never a system python — the pins are

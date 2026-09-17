@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR                                    | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | ADR-141 D7: a tailored packet cites the story review's evidence. The prompt carries each role's recorded stories and the bullet each one supports, every citation the model returns is verified against the story the profile actually holds on the role it actually belongs to, and the packet records what was cited. A profile with no stories builds exactly the prompt it built before.
+
 """Generate a powerful, tailored resume + cover letter for one job, as PDF.
 
 Pipeline: pull the job + the candidate's full career_db -> ask the LLM to select and sharpen
@@ -527,6 +533,176 @@ def _prep_profile(prof: dict, include_oshal: bool) -> dict:
     return doc
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# ADR-141 D7 — stories are the evidence a tailored packet cites.
+#
+# The story review (stories.py) records, per role, what the candidate actually said and which of
+# that role's bullets it supports. A bullet asserts; the story proves. These functions put that
+# evidence in front of the generator and then VERIFY what comes back: a citation survives only when
+# it names a story the profile really holds, on the role it really belongs to. Nothing here can
+# invent evidence, and a profile with no stories produces the prompt it produced before.
+# ─────────────────────────────────────────────────────────────────────────────
+_STORY_PROMPT_CHARS = 700
+_STORY_PER_ROLE = 2
+
+
+def _norm_key(text) -> str:
+    """@description Comparison form for a title, org or citation: whitespace-collapsed lowercase."""
+    return re.sub(r"\s+", " ", str(text or "")).strip().lower()
+
+
+def _usable_stories(role: dict) -> list:
+    """
+    @description The stories on one role that may be offered as evidence — recorded, non-empty, and
+    not flagged by the review as carrying none. A weak story is never handed to a generator as proof.
+    @param role - One profile role.
+    @returns Story records in recorded order, bounded for the prompt.
+    """
+    items = role.get("stories")
+    if not isinstance(items, list):
+        return []
+    usable = [s for s in items
+              if isinstance(s, dict) and str(s.get("story") or "").strip() and not s.get("weak")]
+    return usable[:_STORY_PER_ROLE]
+
+
+def story_evidence_suffix(prof: dict) -> str:
+    """
+    @description The EVIDENCE block appended to the generation prompt: every role that carries a
+    story, the bullet each story supports, and the rule that such a role must spend one of its
+    bullets on it. Returns '' when the profile holds no stories, so a candidate who has not been
+    through the review gets exactly the prompt this module sent before.
+    @param prof - The loaded career profile.
+    @returns The prompt suffix, or ''.
+    """
+    blocks = []
+    for role in (prof or {}).get("roles") or []:
+        if not isinstance(role, dict):
+            continue
+        usable = _usable_stories(role)
+        if not usable:
+            continue
+        lines = [f"ROLE: {str(role.get('title') or '').strip()} at {str(role.get('org') or '').strip()}"]
+        for story in usable:
+            if story.get("title"):
+                lines.append(f'  STORY "{str(story["title"])[:120]}"')
+            if story.get("bullet"):
+                lines.append(f'    supports the bullet: "{str(story["bullet"])[:300]}"')
+            lines.append(f"    in the candidate's own words: {str(story['story'])[:_STORY_PROMPT_CHARS]}")
+        blocks.append("\n".join(lines))
+    if not blocks:
+        return ""
+    return (
+        "\n\nEVIDENCE THE CANDIDATE TOLD YOU, role by role — their own words, recorded in the story "
+        "review. This is the proof behind the bullets:\n"
+        + "\n".join(blocks)
+        + "\n\nUSE IT: for every role listed above, at least ONE of that role's resume bullets must be "
+        "drawn from its story, and the cover letter's proof points must come from these stories where "
+        "one fits. Add NOTHING the story does not say, and NEVER move a story to a different role. In "
+        "each \"experience\" entry return ONE more key:\n"
+        '  "story_evidence": ["the exact STORY title you drew from, copied from the list above — or '
+        'that story\'s opening sentence when it has no title; [] when you drew from none"]\n'
+    )
+
+
+def _match_role(entry: dict, roles: list) -> dict:
+    """
+    @description The profile role a generated experience entry belongs to, by employer then title.
+    An entry that cannot be resolved to exactly one role gets no citation: evidence must never be
+    attributed to a role the candidate did not tell it about.
+    @param entry - One generated experience entry.
+    @param roles - The profile's roles.
+    @returns The matching role, or {}.
+    """
+    org, title = _norm_key(entry.get("org")), _norm_key(entry.get("title"))
+    pool = [r for r in roles if org and _norm_key(r.get("org")) == org] or list(roles)
+    exact = [r for r in pool if title and _norm_key(r.get("title")) == title]
+    if exact:
+        return exact[0]
+    return pool[0] if len(pool) == 1 else {}
+
+
+def _cited_story(citation, role: dict) -> dict:
+    """
+    @description The story a citation names, or {} when the role carries no such story. A model may
+    cite by the story's title or by its opening words; anything else is DROPPED rather than trusted,
+    the same anti-invention rule stories.py applies to bullets.
+    @param citation - What the model returned.
+    @param role - The role the entry resolved to.
+    @returns The story record, or {}.
+    """
+    wanted = _norm_key(citation)
+    if not wanted:
+        return {}
+    for story in _usable_stories(role):
+        title, text = _norm_key(story.get("title")), _norm_key(story.get("story"))
+        if title and wanted == title:
+            return story
+        if text and (text.startswith(wanted[:200]) or wanted.startswith(text[:200])):
+            return story
+    return {}
+
+
+def collect_story_citations(data: dict, prof: dict) -> list:
+    """
+    @description Verify the packet's story citations against the profile, then remove the key from
+    the resume so the record says which evidence was used while the rendered document keeps the
+    exact shape the templates already speak.
+    @param data - The parsed generation result; the resume's story_evidence keys are removed here.
+    @param prof - The loaded career profile.
+    @returns [{role, org, title, bullet, story}] for every citation the profile actually holds.
+    """
+    roles = [r for r in ((prof or {}).get("roles") or []) if isinstance(r, dict)]
+    entries = ((data or {}).get("resume") or {}).get("experience")
+    if not isinstance(entries, list):
+        return []
+    cited = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        claimed = entry.pop("story_evidence", None)
+        if not isinstance(claimed, list) or not roles:
+            continue
+        role = _match_role(entry, roles)
+        if not role:
+            continue
+        for citation in claimed[:_STORY_PER_ROLE]:
+            story = _cited_story(citation, role)
+            if story:
+                cited.append({
+                    "role": str(role.get("title") or ""),
+                    "org": str(role.get("org") or ""),
+                    "title": str(story.get("title") or ""),
+                    "bullet": str(story.get("bullet") or ""),
+                    "story": str(story.get("story") or ""),
+                })
+    return cited
+
+
+def build_prompt(prof: dict, company: str, title: str, location: str, description: str,
+                 include_oshal: bool = False) -> str:
+    """
+    @description The exact user prompt generate_for sends for one posting: the gated career DB, the
+    posting, the open-source suffix when that is opted in, and the story-evidence block when the
+    profile holds stories. Extracted so the prompt is provable without a database or a renderer.
+    @param prof - The loaded career profile.
+    @param company - The employer name as it may appear in the documents.
+    @param title - The posting title.
+    @param location - The posting location.
+    @param description - The posting description.
+    @param include_oshal - Whether the personal open-source work is opted in.
+    @returns The prompt text.
+    """
+    prompt = PROMPT.format(
+        profile=json.dumps(_prep_profile(prof, include_oshal), indent=1)[:120000],
+        company=company, title=title, location=location or "n/a",
+        description=(description or "(no description)")[:6000],
+    )
+    if include_oshal:
+        prompt += _OSHAL_PROMPT_SUFFIX
+    return prompt + story_evidence_suffix(prof)
+
+
 def generate_for(posting_id: int, include_oshal: bool = False) -> dict:
     """Generate a tailored resume + cover for one job, pulling from the (possibly
     enriched) career DB and tailoring to THIS posting. New experience the candidate
@@ -559,16 +735,14 @@ def generate_for(posting_id: int, include_oshal: bool = False) -> dict:
         # framing_notes — yet the prompt still ordered the model to render those roles, forcing
         # omission (gaps) or reconstruction from memory (fabrication). The full DB is ~13k
         # tokens; the generation model holds 200k+.
-        prompt = PROMPT.format(
-            profile=prof_json,
-            company=company_doc, title=title, location=row["location"] or "n/a",
-            description=(row["description"] or "(no description)")[:6000],
-        )
-        if include_oshal:
-            prompt += _OSHAL_PROMPT_SUFFIX
+        prompt = build_prompt(prof, company_doc, title, row["location"] or "",
+                              row["description"] or "", include_oshal)
         data = enrich.parse_json(enrich.complete(sys_prompt, prompt, max_tokens=8000))
         if not data or "resume" not in data:
             raise RuntimeError("AI did not return a usable resume/cover.")
+        # Verify the story citations BEFORE the dash sanitiser rewrites the text they are matched
+        # against, and strip the key so the templates see the shape they already speak.
+        stories_cited = collect_story_citations(data, prof)
         data = _sanitize(data)   # remove em/en dashes the model slipped in (reviewer "AI tell")
         # Second pass: a senior editor rewrites the COVER to a higher quality bar (specific,
         # JD-mapped, professional) WITHOUT adding facts. Falls back to the draft on any error.
@@ -610,7 +784,8 @@ def generate_for(posting_id: int, include_oshal: bool = False) -> dict:
         (outdir / "application.json").write_text(
             json.dumps({"posting_id": posting_id, "req": row["ats_job_id"],
                         "company": company_doc, "title": title, "include_oshal": include_oshal,
-                        "url": row["url"], "generated": data}, indent=2), encoding="utf-8")
+                        "url": row["url"], "stories_cited": stories_cited,
+                        "generated": data}, indent=2), encoding="utf-8")
 
         # NEVER downgrade an already-applied (or later) job back to 'generated' on regen, and NEVER
         # touch its applied_at — that would silently drop or rewrite the applied record. If it's

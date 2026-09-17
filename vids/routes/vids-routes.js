@@ -481,3 +481,4 @@ void mountConnectedActions({app:'vids',element,contextForOffer:()=>{const notes=
 </script>
 </body>
 </html>`;
+//# sourceMappingURL=vids-routes.js.map

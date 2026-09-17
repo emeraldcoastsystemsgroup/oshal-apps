@@ -3,6 +3,7 @@
 # SEQ                 | AUTHOR                      | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped test suite with explicit sealed-runner prerequisites; preserve readiness smoke (1.4.1).
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2, ADR-157 S3: classify the hourly rebaseline tick as a system service. runDueRebaselineTick calls listEnabledRebaselinePoliciesSystem inside runWithSystemIdentity — every owner's enabled policy, not the caller's — and dispatches each under the ownerSub the policy row carries, so the run is application-wide and a per-person activation would repeat the whole sweep once per activating person. No `requires:` is declared: this package imports no ADR-149 authorization catalog, and the loader refuses a `requires` naming a permission no catalog defines.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — venture-plan ("Venture Plan")
@@ -67,7 +68,7 @@ description: >-
   Bots supply assumptions with a source, a band and a confidence; a deterministic engine does
   every calculation. Every number is either computed and traceable, or visibly a labelled guess
   you should go replace with a quote.
-version: 1.4.1
+version: 1.4.2
 status: active
 scope: person
 
@@ -277,8 +278,14 @@ routes:
 # package's UTC nightly/weekly slot owns cadence and idempotency, so repeated ticks reserve at most
 # one run per due venture/slot.
 schedules:
+  # ADR-157: a SYSTEM service. The tick evaluates EVERY owner's enabled policy under the system
+  # identity and dispatches each one against the ownerSub its own row carries; nothing in the run
+  # comes from whoever turned it on. A swarm administrator activates it once for the application.
+  # Classifying it does not widen it — the owner's enabled/dryRun/slot/cap gates are still the
+  # spending authority, and execute=true only crosses the outer tick gate.
   - id: rebaseline-policy-tick
     cron: "7 * * * *"
+    runsAs: system
     target: service-route
     route: /api/venture-rebaseline/tick
     handler: runScheduledRebaselineTick

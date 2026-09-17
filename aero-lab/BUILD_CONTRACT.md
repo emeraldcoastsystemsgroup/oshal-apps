@@ -47,10 +47,12 @@ without waiting on each other.
 
 ### The engine being packaged
 
-Lives at (scratchpad, session `a6f28b94-...`):
+The authoritative tree is the snapshot **vendored in this package** at `engine/`
+(`engine/aerosim/`, fingerprint `603cf4c5e8d9e4c9`). An upstream working checkout is
+reachable only by setting `AERO_LAB_ENGINE_DIR` at it deliberately:
 
 ```
-C:/Users/you/AppData/Local/Temp/claude/c--Projects-oshal/a6f28b94-bbf2-435a-9f7c-b5755938e4c5/scratchpad/aerosim
+AERO_LAB_ENGINE_DIR=<path-to-an-aerosim-checkout>
 ```
 
 Python 3.11 venv at `<engineDir>/.venv/Scripts/python.exe`. Survived a 5-round adversarial
@@ -632,8 +634,12 @@ spawned lazily on first engine call, killed after 10 min idle, restarted on cras
 
 ### 5a. Process contract (agent B implements the Node side in `src-routes/engine-adapter.ts`)
 
-- **Engine dir:** `process.env.AERO_LAB_ENGINE_DIR`, default (documented, works on this box):
-  `C:/Users/you/AppData/Local/Temp/claude/c--Projects-oshal/a6f28b94-bbf2-435a-9f7c-b5755938e4c5/scratchpad/aerosim`
+- **Engine dir:** `process.env.AERO_LAB_ENGINE_DIR` when set, else the engine tree
+  **vendored in this package** (`<packageDir>/engine`, resolved from `ctx.appPackageDir`, the
+  load-time env fallback, then the compiled module's sibling — the same three-candidate pattern
+  as the worker script). There is no operator-local default: the adapter never resolves a path
+  outside the package on its own, because a box that happened to carry one answered from an
+  uncertified tree and refused every shipped preset.
 - **Python:** `process.env.AERO_LAB_PYTHON`, else `<engineDir>/.venv/Scripts/python.exe`
   (win32), else `<engineDir>/.venv/bin/python`. If neither exists → every capability false,
   `engine.present: false`, routes 503. Never fall back to a system `python`.

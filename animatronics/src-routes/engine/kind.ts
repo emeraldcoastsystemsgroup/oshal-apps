@@ -25,7 +25,29 @@
  *                     |                             | MODULE_NOT_FOUND. tests/engine-kind.test.js imports embodied's
  *                     |                             | real row and fails on ANY drift, which is what makes this a
  *                     |                             | pinned copy rather than a fork.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | THE COPY IS GONE — the row is now READ from embodied at run
+ *                     |                             | time, which is what the core BACKLOG entry asked for and what
+ *                     |                             | entry 2 stopped short of. A frozen literal that a test holds
+ *                     |                             | equal to embodied's is still a second declaration of one
+ *                     |                             | vocabulary: change embodied's row and this package went on
+ *                     |                             | reporting the old one until someone noticed the test. Now
+ *                     |                             | `loadPropVocabulary` resolves embodied's COMPILED
+ *                     |                             | capability-manifest module beside this package and reads
+ *                     |                             | `KIND_VOCABULARY.prop` and `CONFIRM_EXEMPT_ACTS` out of it, so
+ *                     |                             | there is exactly one place the senses, the acts, the class
+ *                     |                             | floor and the confirm rule are written down. The
+ *                     |                             | MODULE_NOT_FOUND worry that motivated the copy is answered
+ *                     |                             | without one: the resolve is a file check plus a guarded
+ *                     |                             | require, and a box without embodied gets an HONEST refusal —
+ *                     |                             | no vocabulary, no capability manifest, and `/capabilities`
+ *                     |                             | saying which package owns the row — instead of a local
+ *                     |                             | invention. Nothing else in the package depends on it: a rig,
+ *                     |                             | its poses, the rehearsal, the supply budget and the Web Serial
+ *                     |                             | stream all work with embodied absent.
  */
+
+import fs from 'node:fs';
+import path from 'node:path';
 
 import type { RigSpec } from './rig-contract';
 
@@ -33,38 +55,98 @@ import type { RigSpec } from './rig-contract';
 export const PROP_KIND = 'prop';
 
 /**
- * @description The package that OWNS the `prop` vocabulary. Named in the capabilities response so
- * a reader of this API can see that the senses and acts below are not this package's invention —
- * they are one row of the swarm's peripheral vocabulary, and the place to change them is there.
+ * @description The package that OWNS the `prop` vocabulary. Named in the capabilities response and
+ * in every refusal, so a reader of this API can see that the senses and acts below are not this
+ * package's invention — they are one row of the swarm's peripheral vocabulary, and the place to
+ * change them is there.
  */
 export const PROP_VOCABULARY_OWNER = 'embodied';
 
-/**
- * @description `embodied`'s `KIND_VOCABULARY.prop`, pinned here as data.
- *
- * WHY A COPY AND NOT AN IMPORT: store packages install one at a time into `deployed-apps/`, so a
- * `require('../../embodied/...')` resolves only where embodied happens to be installed and throws
- * MODULE_NOT_FOUND everywhere else — it would make an animatronic rig unusable without a robotics
- * package. The copy is safe because it cannot drift: `tests/engine-kind.test.js` imports
- * embodied's real row and refuses any difference, in either direction.
- *
- * Change it THERE, never here.
- */
-export const PROP_VOCABULARY = Object.freeze({
-  senses: Object.freeze(['channel-state', 'controller-hello', 'supply']),
-  acts: Object.freeze(['pose', 'scenario', 'look-at', 'jog', 'arm', 'disarm', 'e-stop']),
-  minSafetyClass: 1 as const,
-});
+/** @description The owner's compiled vocabulary module, relative to the packages root. */
+export const EMBODIED_VOCABULARY_MODULE = 'routes/engine/nodes/capability-manifest.js';
+
+/** @description One kind's row as embodied writes it. */
+export interface PropVocabularyRow {
+  senses: readonly string[];
+  acts: readonly string[];
+  minSafetyClass: number;
+}
+
+/** @description The shape this module reads out of embodied's compiled module. Nothing more. */
+interface EmbodiedVocabularyModule {
+  KIND_VOCABULARY?: Record<string, PropVocabularyRow | undefined>;
+  CONFIRM_EXEMPT_ACTS?: unknown;
+}
 
 /**
- * @description The acts a prop can take that never wait for a confirm — embodied's
- * `CONFIRM_EXEMPT_ACTS` narrowed to this kind's vocabulary. `disarm` is in it for the same reason
- * `e-stop` is: it REMOVES authority, and an act that removes authority must not be able to be
- * blocked by a dialog. This package's own rail is STRICTER than the kind's floor — it answers 428
- * to an unconfirmed `arm` at every safety class, where the vocabulary only demands a confirm from
- * class 2 up. A kind is a minimum, never a ceiling.
+ * @description The result of binding to embodied's row: the row itself and this kind's
+ * confirm-exempt acts, or the reason there is no vocabulary on this box.
  */
-export const PROP_CONFIRM_EXEMPT: ReadonlySet<string> = new Set(['e-stop', 'disarm']);
+export type PropVocabularyBinding =
+  | { ok: true; row: PropVocabularyRow; confirmExempt: ReadonlySet<string>; module: string }
+  | { ok: false; reason: string; module: string };
+
+/**
+ * @description Where store packages sit beside each other — this package's parent directory. The
+ * compiled module lives at `<package>/routes/engine/kind.js`, so the packages root is three up.
+ * @returns The absolute packages root.
+ */
+export function defaultPackagesRoot(): string {
+  return path.resolve(__dirname, '..', '..', '..');
+}
+
+const bindings = new Map<string, PropVocabularyBinding>();
+
+/**
+ * @description Read embodied's compiled `prop` row. Fail-closed on every unhappy shape: a missing
+ * package, a module that throws, a `KIND_VOCABULARY` without the row, a row missing its lists or
+ * its class floor, or an owner module with no `CONFIRM_EXEMPT_ACTS` all refuse rather than
+ * substitute a local guess — a vocabulary this package made up would be exactly the second
+ * declaration this binding exists to remove.
+ * @param packagesRoot - Where the packages are installed side by side (defaults to this package's parent).
+ * @returns The binding, or the reason there is none.
+ */
+function readBinding(packagesRoot: string): PropVocabularyBinding {
+  const file = path.join(packagesRoot, PROP_VOCABULARY_OWNER, ...EMBODIED_VOCABULARY_MODULE.split('/'));
+  if (!fs.existsSync(file)) {
+    return { ok: false, reason: `${PROP_VOCABULARY_OWNER} is not installed beside this package, so the ${PROP_KIND} vocabulary is unavailable`, module: file };
+  }
+  try {
+    const owner = require(file) as EmbodiedVocabularyModule;
+    const row = owner.KIND_VOCABULARY ? owner.KIND_VOCABULARY[PROP_KIND] : undefined;
+    if (!row || !Array.isArray(row.senses) || !Array.isArray(row.acts) || typeof row.minSafetyClass !== 'number') {
+      return { ok: false, reason: `${PROP_VOCABULARY_OWNER} carries no usable KIND_VOCABULARY.${PROP_KIND} row`, module: file };
+    }
+    const exempt = owner.CONFIRM_EXEMPT_ACTS;
+    if (!(exempt instanceof Set)) {
+      return { ok: false, reason: `${PROP_VOCABULARY_OWNER} carries no CONFIRM_EXEMPT_ACTS set`, module: file };
+    }
+    return {
+      ok: true,
+      row: Object.freeze({ senses: Object.freeze([...row.senses]), acts: Object.freeze([...row.acts]), minSafetyClass: row.minSafetyClass }),
+      confirmExempt: new Set(row.acts.filter((act) => exempt.has(act))),
+      module: file,
+    };
+  } catch (error) {
+    return { ok: false, reason: `${PROP_VOCABULARY_OWNER}'s vocabulary module could not be read: ${(error as Error).message}`, module: file };
+  }
+}
+
+/**
+ * @description This package's binding to embodied's `prop` row. Successful bindings are cached
+ * (the module is immutable once loaded); a refusal is NOT, so installing embodied later is picked
+ * up without a restart.
+ * @param packagesRoot - Where the packages are installed side by side (defaults to this package's parent).
+ * @returns The binding, or the reason there is none.
+ */
+export function loadPropVocabulary(packagesRoot?: string): PropVocabularyBinding {
+  const root = packagesRoot ?? defaultPackagesRoot();
+  const cached = bindings.get(root);
+  if (cached) return cached;
+  const binding = readBinding(root);
+  if (binding.ok) bindings.set(root, binding);
+  return binding;
+}
 
 /** @description The manifest shape — embodied's `CapabilityManifest`, narrowed to kind `prop`. */
 export interface PropCapabilityManifest {
@@ -81,20 +163,26 @@ export interface PropCapabilityManifest {
 export const KINETIC_STALL_KGCM = 10;
 
 /**
- * @description The capability manifest a rig would enrol with.
+ * @description The capability manifest a rig would enrol with, built from the OWNER's row. This
+ * package's own rail is stricter than the row's floor — it answers 428 to an unconfirmed `arm` at
+ * every safety class, where the vocabulary only demands a confirm from class 2 up. A kind is a
+ * minimum, never a ceiling.
  * @param nodeId - The rig's node id (short lowercase identifier).
  * @param rig - The rig.
  * @param stallKgCm - The strongest servo's stall torque, from the catalog (0 when unknown).
- * @returns The manifest.
+ * @param packagesRoot - Where the packages are installed side by side (defaults to this package's parent).
+ * @returns The manifest, or null when the vocabulary's owner is not installed.
  */
-export function capabilityManifestFor(nodeId: string, rig: RigSpec, stallKgCm: number): PropCapabilityManifest {
+export function capabilityManifestFor(nodeId: string, rig: RigSpec, stallKgCm: number, packagesRoot?: string): PropCapabilityManifest | null {
+  const binding = loadPropVocabulary(packagesRoot);
+  if (!binding.ok) return null;
   return {
     nodeId,
     kind: PROP_KIND,
     model: `${rig.controller.board}/${rig.channels.length}ch`,
     safetyClass: stallKgCm >= KINETIC_STALL_KGCM ? 2 : 1,
-    senses: [...PROP_VOCABULARY.senses],
-    acts: [...PROP_VOCABULARY.acts],
+    senses: [...binding.row.senses],
+    acts: [...binding.row.acts],
     envelope: {
       channels: rig.channels.length,
       maxDegPerS: rig.channels.reduce((m, c) => Math.max(m, c.maxDegPerS), 0),

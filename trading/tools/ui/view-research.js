@@ -23,6 +23,7 @@
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-143 D5: the movers meta line reports WHICH source produced the board and, when it was the vendor's screener, the vendor's OWN last_updated beside oshal's request time - the two are different claims and the surface must not merge them. mvSourceWords names the screener board in plain words instead of falling through to a bare "Source: ..." echo.
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Log opened at 1.10.3 - this file predates the log and its earlier history is in git. Sub-tab race close-out (ADR-136 D2 tail): loadScoreboard and loadFeed now capture RENDER_TOKEN and tabGen() before their first await and bail after it, matching loadMovers and loadWatchlistPanel; loadAlgos is a plain function because it awaits nothing (its caller ignores the return). No handler attribute existed here and none is introduced - every action stays a delegated data-* listener.
  */
 
@@ -369,7 +370,9 @@ async function loadMovers() {
 function mvMetaHtml(j) {
   const src = mvSourceWords(j.source), bits = [];
   if (src) bits.push(esc(src));
-  if (j.asOf) bits.push('as of ' + esc(fmtDate(j.asOf)));
+  /* The vendor's own stamp and oshal's request time are DIFFERENT claims — both are shown, labelled. */
+  if (j.lastUpdated) bits.push('vendor updated ' + esc(fmtDate(j.lastUpdated)));
+  if (j.asOf) bits.push('read ' + esc(fmtDate(j.asOf)));
   if (j.universeCount != null) bits.push(esc(String(j.universeCount)) + ' symbols scanned');
   let html = bits.join(' &middot; ');
   if (j.note && String(j.note) !== String(src)) html += '<span style="display:block;margin-top:2px">' + esc(j.note) + '</span>';
@@ -377,6 +380,7 @@ function mvMetaHtml(j) {
 }
 function mvSourceWords(source) {
   const s = String(source || '').toLowerCase();
+  if (s === 'alpaca screener') return 'Source: Alpaca screener (whole US-equity board).';
   if (/iex|eod|end.?of|prev|close/.test(s)) return 'End-of-last-session data (free IEX feed), not intraday.';
   if (s === 'live' || s === 'intraday' || s === 'realtime') return 'Intraday data.';
   return source ? 'Source: ' + source : '';

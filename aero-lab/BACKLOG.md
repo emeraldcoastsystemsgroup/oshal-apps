@@ -35,7 +35,7 @@ chain the default and regenerate the recorded outputs with explicit provenance.
 
 ---
 
-## B. Engine resolution needs an operator decision
+## B. Engine resolution — CLOSED 2026-09-16 (the vendored engine is the default)
 
 The package points at an engine tree via `AERO_LAB_ENGINE_DIR`. Two trees exist and they disagree:
 
@@ -44,18 +44,24 @@ The package points at an engine tree via `AERO_LAB_ENGINE_DIR`. Two trees exist 
 | vendored snapshot (`aero-lab/engine/`) | `603cf4c5e8d9e4c9` | runs 3 of 4 presets, reproduces the recorded numbers |
 | live upstream checkout | `0a9aaab7ff87f747` | **refuses all four presets** |
 
-The documented default resolution points at the upstream checkout, so **a cockpit started on a box
-that has it will 422 on every preset.**
+**Closed (1.2.1):** the documented resolution pointed at an operator-local scratchpad checkout
+*before* the vendored tree, so a box that happened to carry that path 422'd on every preset, and
+a box without it had that stranger's path quoted back in `capability_unavailable` and in the
+engine-container install hint. Both resolvers — `src-routes/engine-adapter.ts`
+`resolveEngineDir()` and `engine/service.py` `_resolve_engine_dir()` — now resolve
+**explicit option → `AERO_LAB_ENGINE_DIR` → the tree vendored in this package**, and no
+absolute operator-local path is left anywhere in the package. Reaching the upstream tree is a
+deliberate `AERO_LAB_ENGINE_DIR`, never a guess.
 
-Since 1.2.0 this applies only to a local worker. An api running in Docker cannot see the
-scratchpad path and has no engine venv, so it uses the package's engine container, which is built
-from the vendored `engine/` tree (`ENGINE_DIR=/opt/aero-lab/engine` inside it). The upstream tree
-is picked only by a natively-run api or spec on a box that has the scratchpad, or when
-`AERO_LAB_ENGINE_DIR` points at it.
+Guarded by `tests/aero-engine-dir-resolution.spec.ts`: the adapter's resolution order over a
+real filesystem (vendored wins, the env override still wins, and with no vendored `aerosim` the
+refusal names *this* package's engine dir rather than a path outside it), the real
+`engine/service.py` resolver driven in a subprocess, and a scan of every shipped file in the
+package for an absolute user-home path.
 
-**Done when:** either `AERO_LAB_ENGINE_DIR` defaults to the vendored engine, or the package is
-re-vendored once the engine settles. The surface already displays the engine fingerprint, so which
-tree answered is never a guess — that part is fine.
+Since 1.2.0 a deployed api uses the package's engine container, built from the vendored tree
+(`ENGINE_DIR=/opt/aero-lab/engine`); the upstream tree is picked only by a natively-run api or
+spec whose `AERO_LAB_ENGINE_DIR` points at it.
 
 *Not a defect:* one of the live tree's refusals is **honest**. The R7 winner claims a 441.8 Wh/kg
 pack while the certified cell catalogue (LG INR21700 M50) delivers 229.0 Wh/kg — ratio 1.929,

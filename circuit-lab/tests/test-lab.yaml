@@ -13,6 +13,7 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Register the assistant-rail suite: the manifest's surface.ops and jarvisMode, the page's context op and circuit_action vocabulary under the contract's caps, the digest cap on a 200-part circuit; the browser suite drives the rail through the real core client (11 cases).
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 0.8.0 (BACKLOG B2, B7, B9): register the canvas-geometry suite (bends, group turns); the contract case covers a wire's bend points and the solver knobs; the board model covers turned footprints, shorts and jumper lengths; the solver suite 52 cases (the knobs written into the deck, a hard-switched inductor refused at the defaults and solved with gear); the browser suite 15 cases.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Rename the drifted framework-checkout prerequisites to the Test Lab's own vocabulary so these cases can run: node-test cases declare fixture:core-checkout (the sealed Node profile runs on the oshal image, where /app is the checkout); browser cases declare harness:oshal-core-root and core:dependencies, as create does. A case that imports core's tests/fixtures, which the image does not ship, also declares harness:core-test-fixtures and stays pending with that exact reason instead of an unknown name.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | A shared row's owner is not always installed, and these cases now say so. The driver-catalog and routes-http cases described a fixed five rows, which is the environment this repository happens to have; the Lab runs a package case against a snapshot of ONE package directory, where the SG90's owner is absent and four rows is the correct answer. The shared-parts case gains the guard for that environment - the package copied alone into an empty directory and its own catalog suite run there - and declares the temporary tree it writes.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -86,6 +87,7 @@ cases:
         - tests/routes.core.test.js
     expected:
       - 401 without a caller, 404 across owners, 400 with the field for bad input, 422 for a refused circuit, 503 naming install-engine.sh when the bridge is gone.
+      - /capabilities and /catalog/drivers serve the rows the environment implies and name every row an absent owner withheld in an unresolved block, so a dropped part row is never silent.
       - A board laid out for the switched-LED example places its five electrical parts with five jumpers and implies the schematic's nets; PUT with one jumper fewer derives four wires and still agrees; a wire added on the schematic regenerates five jumpers over the kept placements.
     prerequisites:
       - runner:node-test
@@ -198,7 +200,7 @@ cases:
     installation: never
   - id: driver-catalog
     name: Shaft-driver catalog
-    purpose: Prove the catalog of motors, servos and steppers (catalog/drivers.json) — every row's nameplate validates against the part contract with the field named when it drifts, rows filter by type, every row says where its numbers came from, and the motors embodied's parts model names are present with the same name, mass and price (read-only cross-package import of embodied/routes/engine/design/parts-model.js).
+    purpose: Prove the catalog of motors, servos and steppers (catalog/drivers.json) — every row's nameplate validates against the part contract with the field named when it drifts, rows filter by type, every row says where its numbers came from, and the motors embodied's parts model names are present with the same name, mass and price (read-only cross-package import of embodied/routes/engine/design/parts-model.js). The row count asserted is the one the environment implies — a shared row whose owner is not installed is withheld on purpose, so the case reads which owners are there rather than pinning five.
     level: unit
     runner:
       kind: node-test
@@ -206,12 +208,37 @@ cases:
       files:
         - tests/driver-catalog.test.js
     expected:
-      - Five rows load; a stall current of 0 or an unknown nameplate key fails the load naming drivers[i].props.<key>; the two embodied fit motors match embodied's own name, mass and price.
+      - Every declared row loads except one whose owner package is not installed beside this one, which is withheld with a reason naming the owner and nothing put in its place; with Animatronics present that is all five rows, and installed alone it is the four this package owns outright.
+      - A stall current of 0 or an unknown nameplate key fails the load naming drivers[i].props.<key>; the two embodied fit motors match embodied's own name, mass and price.
     prerequisites:
       - runner:node-test
     sideEffects: none
     isolation:
       mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: shared-parts
+    name: A part another package owns is READ, not restated
+    purpose: Prove the shared-part row (catalog/drivers.json sharedPart) against real package trees on disk. The SG90 is animatronics' row - identity, mass, price, source and the pulse, travel, speed, torque and current block - and this lab declares only the operating point it solves at and the reflected rotor inertia. Against the real tree the resolved row equals animatronics' own row read back through animatronics' own loader; against a fixture packages root whose owner declares different numbers the answer moves with it, which a frozen copy could not do. Store packages install one at a time, so an absent or unanswerable owner withholds that one row with a reason naming the owner while every row this package owns outright still loads, and restating an owned field or choosing an operating point outside the owner's voltage window is refused at load with the field named.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/shared-parts.test.js
+    expected:
+      - The resolved SG90 row carries the owner's name, mass, price and source line, and its pulse, travel, speed, torque and current nameplate fields are derived from the owner's numbers in this lab's units.
+      - A fixture owner declaring different numbers changes the resolved row; an absent owner withholds it naming animatronics and leaves the other four rows loading.
+      - Restating name, massG, approxUsd, source or an owned nameplate field is refused naming drivers[0].<field>, and a nominalVolts outside the owner's window is refused naming drivers[0].nameplate.nominalVolts.
+      - This package copied ALONE into an empty directory, with no sibling packages, still passes its own tests/driver-catalog.test.js in a child process; putting back the assumption that the owner is always installed makes that isolated run fail, which is also what proves the child's verdict is read at all.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Every fixture packages root and every single-package copy is a fresh mkdtemp directory removed after the run; the child node --test process runs inside that copy with no network and no database, and the repository tree is only read.
     limits:
       timeoutMs: 30000
       maxMemoryMb: 256

@@ -14,3 +14,4 @@ function satHomeSummary(fleet, catalog, now = Date.now()) {
     items.push({ text: 'Shared simulation registry; resets with the API process. TLE records are loaded inputs, not orbit-quality certification.', tone: 'neutral', fix: 'sat-ops' });
     return { metrics, tiles: metrics, items, partial: false, asOf: new Date(now).toISOString() };
 }
+//# sourceMappingURL=home-summary.js.map

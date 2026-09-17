@@ -441,4 +441,3 @@ function createCalendarRoutes(ctx) {
     registerDelete(router, ctx);
     return router;
 }
-//# sourceMappingURL=switchboard-calendar-routes.js.map

@@ -612,9 +612,24 @@ but answering wrongly is worse than one that is down, because only the down one 
    check, not a replacement for package runtime tests, route audits, or compiled-output parity.
 
 `scripts/security/rebuild-store-routes.mjs --check-only --store <store> --framework <core>`
-is the compiler's low-level compile-only mode. It skips output synchronization and legacy
-JavaScript factory reconciliation. Use the core wrapper above for release checks: it runs
-this tool only inside disposable committed exports, protecting working files even if interrupted.
+compiles every package in the one shared framework program and then compares each committed
+`routes/**/*.js` with the bytes that program emits for its `src-routes` source. It writes nothing:
+a mismatch is reported, named file by file with the first line that differs, and the run exits 1.
+Regenerate with the same command minus `--check-only`, which rewrites exactly the files that drifted.
+
+The comparison adds no formatting rules of its own. It applies the two the rebuild already applies -
+the package-local `sourceMappingURL` policy (a package with its own `src-routes/tsconfig.json` that
+does not set `sourceMap: true` has the trailer stripped; every other package keeps it) and a
+line-ending fold, so a CRLF working copy of an LF blob is not reported as drift. Everything else,
+including the final newline, is compared exactly.
+
+A module the manifest mounts that no TypeScript source emits - a hand-written legacy route - is
+checked for its declared factory export and named in the run output as not byte-compared, never
+silently skipped. The rebuild keeps such a module; an unsourced module no manifest route names is
+still removed as stale.
+
+Use the core wrapper above for release checks: it runs this tool only inside disposable committed
+exports, protecting working files even if interrupted.
 
 ### Package-audit rollout
 

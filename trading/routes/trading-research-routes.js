@@ -7,7 +7,7 @@
  *
  *   GET    /api/trading/research/:symbol  → quote + fundamentals + news + EDGAR filings/events + next earnings
  *   GET    /api/trading/symbols/search    → market-wide type-ahead over the Alpaca asset directory (no book)
- *   GET    /api/trading/reports/movers    → the honest bounded movers board (oshal's universe + your watchlist)
+ *   GET    /api/trading/reports/movers    → whole-market movers (Alpaca screener), falling back to the bounded board
  *   GET    /api/trading/watchlist         → the caller's watchlist (per USER, not per book) with best-effort quotes
  *   POST   /api/trading/watchlist         → add { symbol, note? } (201; re-adding updates the note)
  *   DELETE /api/trading/watchlist/:symbol → remove
@@ -20,6 +20,14 @@
  * reachable ('world-calendar'); otherwise it is a reporting-cadence estimate off the last item-2.02
  * 8-K and is labelled 'cadence-estimate' — never presented as the calendar. EDGAR is keyless and
  * requires the contact User-Agent; the ticker→CIK table is cached in-module for 24h.
+ *
+ * The movers board has TWO sources and says which one it used (ADR-143 D5). With a key configured,
+ * winners/losers come from the vendor's `screener/stocks/movers` and active from
+ * `screener/stocks/most-actives` — the whole US-equity board, labelled "Alpaca screener", carrying
+ * the vendor's own `last_updated` rather than a freshness claim of oshal's. 'volatile' has no
+ * screener board and stays on the bounded daily-bar computation. Any screener failure — no key, a
+ * non-200, an unusable body, an empty board — falls THROUGH to that same bounded report, so the
+ * surface degrades instead of blanking.
  *
  * Watchlist quotes come from the SELECTED book's market-data rail (paper: Alpaca; live: Schwab).
  * dayChangePct is null: the rail is a closes-only source that cannot say which bar is yesterday's
@@ -34,6 +42,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — GET /research/:symbol (five independently guarded sections: quote via latestTrade/latestPrice, fundamentalsSummary, recentNews 7d/25, EDGAR submissions → latest 10-K/10-Q + 12 decoded 8-Ks + events, earnings from the world calendar else a labelled cadence estimate), the per-user FORCE-RLS watchlist (GET with book-rail quotes / POST 201 upsert / DELETE), GET /lots + POST /lots/:id/release (428 confirm-gated) over the kernel pinned-lot store; TradingError → its status/code else logger.error + 502.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-143 D5: GET /reports/movers gains the Alpaca REST screener as a SECOND, labelled source — winners/losers from screener/stocks/movers, active from screener/stocks/most-actives, over the whole US-equity board instead of the ~30-symbol bounded universe. The payload carries source 'Alpaca screener', the vendor's own last_updated verbatim, and the filter that ran (minimum price / asset directory) as a stated note; 'volatile' keeps the bounded daily-bar board because the vendor has no such kind. Every screener failure shape (no key, non-200, unusable body, empty board) falls through to the bounded report, which is unchanged — the surface degrades, never blanks.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Add GET /symbols/search (400 query_required, limit capped 25, searchSymbols over the market-wide asset directory — no book) and GET /reports/movers (kind ∈ winners|losers|volatile|active, 400 kind_invalid, limit default 15/cap 50) over the honest bounded universe DEFAULT_UNIVERSE ∪ the caller's watchlist — one daily-bar batch fetch of 30 bars, the PURE computeMovers ranking (trading-movers.ts), best-effort per-row names, an empty batch → an honest empty board with a note, never a fabricated row.
  *
  * @module trading-research-routes
@@ -72,6 +81,10 @@ const MOVERS_SOURCE = 'oshal universe + your watchlist';
 const MOVERS_NOTE = 'End-of-last-session daily closes on the free IEX feed — not intraday real-time.';
 /** What an empty batch says instead of inventing rows. */
 const MOVERS_UNAVAILABLE_NOTE = 'Market data unavailable right now.';
+/** Ask the screener for more rows than the board shows, because the stated filters remove some. */
+const MOVERS_SCREENER_OVERFETCH = 3;
+/** What the screener board actually spans — printed beside the vendor's label, never implied. */
+const MOVERS_SCREENER_SCOPE = 'Whole US-equity board from the Alpaca screener.';
 const EMPTY_FILINGS = { summary: { latest10K: null, latest10Q: null, recent8K: [] }, resultsDates: [] };
 /**
  * @description Resolve the caller's sub or answer 401 — shared by every handler.
@@ -400,23 +413,80 @@ async function nameFor(symbol) {
 }
 /**
  * @description Attach best-effort names to the returned rows only (≤ limit cheap cached lookups).
- * @param rows - The ranked rows.
- * @returns The rows with a name (or null) each.
+ * Shape-agnostic on purpose: a screener row carries nulls where the vendor said nothing, which the
+ * pure bounded row type does not allow — and casting those to a number would be a lie in the types.
+ * @param rows - The ranked rows (anything carrying a symbol).
+ * @returns The same rows, each with a name (or null).
  */
 async function withNames(rows) {
     return Promise.all(rows.map(async (row) => ({ ...row, name: await nameFor(row.symbol) })));
 }
 /**
- * @description Build one movers board: the bounded universe, a single daily-bar batch, the PURE
- * ranking, and best-effort names for only the returned rows. Never fabricates — a symbol with no
- * bars is absent, and an empty batch is an honest empty board with a note.
+ * @description The movers board: the whole-market screener when it answers, the bounded daily-bar
+ * board when it does not. The fallback is unconditional — every screener failure shape lands here,
+ * so the surface degrades to a smaller honest board and never to a blank one.
+ * @param ctx - App context (pool).
+ * @param s - Caller sub.
+ * @param kind - The board.
+ * @param limit - Max rows.
+ * @returns The board payload, labelled with the source that actually produced it.
+ */
+async function moversReport(ctx, s, kind, limit) {
+    return (await screenerMoversReport(kind, limit)) ?? boundedMoversReport(ctx, s, kind, limit);
+}
+/**
+ * @description The whole-market board from the vendor's REST screener, or null to fall back. Returns
+ * null for 'volatile' (the vendor has no such board), for every screener failure, and for an empty
+ * board — an empty answer is a fallback trigger, not a result worth showing.
+ * @param kind - The board.
+ * @param limit - Max rows.
+ * @returns The screener payload, or null when the caller must fall back.
+ */
+async function screenerMoversReport(kind, limit) {
+    if (kind === 'volatile' || !(0, trading_1.marketDataConfigured)())
+        return null;
+    const top = limit * MOVERS_SCREENER_OVERFETCH;
+    const board = kind === 'active'
+        ? await (0, trading_1.screenerMostActives)('volume', top)
+        : await (0, trading_1.screenerMovers)(kind === 'winners' ? 'gainers' : 'losers', top);
+    if (!board || !board.rows.length)
+        return null;
+    const rows = board.rows.slice(0, limit).map((r) => ({
+        symbol: r.symbol, price: r.price, changePct: r.changePct, dayVolume: r.dayVolume, volatilityPct: null,
+    }));
+    return {
+        kind, source: trading_1.SCREENER_LABEL, asOf: new Date().toISOString(), lastUpdated: board.lastUpdated,
+        filter: board.filter, rows: await withNames(rows), note: screenerNote(kind, board.filter),
+    };
+}
+/**
+ * @description State exactly what filtered the screener board, per board — the minimum price cannot
+ * apply to most-actives rows, which the vendor sends without a price, and the asset-directory filter
+ * does not run at all when the directory is unreachable. Both are said, never implied.
+ * @param kind - The board.
+ * @param filter - What the screener reported it applied.
+ * @returns The surface note.
+ */
+function screenerNote(kind, filter) {
+    const price = kind === 'active'
+        ? `Most-active rows carry the vendor's volume and no price, so the $${filter.minPrice} minimum could not be applied to them.`
+        : `Filtered to symbols the vendor priced at $${filter.minPrice} or above.`;
+    const directory = filter.assetDirectory
+        ? 'Limited to the active tradable asset directory.'
+        : 'The asset directory was unreachable, so that filter did not run.';
+    return `${MOVERS_SCREENER_SCOPE} ${price} ${directory}`;
+}
+/**
+ * @description Build the bounded movers board: the bounded universe, a single daily-bar batch, the
+ * PURE ranking, and best-effort names for only the returned rows. Never fabricates — a symbol with
+ * no bars is absent, and an empty batch is an honest empty board with a note.
  * @param ctx - App context (pool).
  * @param s - Caller sub.
  * @param kind - The board.
  * @param limit - Max rows.
  * @returns The board payload.
  */
-async function moversReport(ctx, s, kind, limit) {
+async function boundedMoversReport(ctx, s, kind, limit) {
     const universe = await moversUniverse(ctx, s);
     const base = { kind, source: MOVERS_SOURCE, asOf: new Date().toISOString(), universeCount: universe.length };
     const bars = await (0, trading_1.barsBatchOhlcv)(universe, '1Day', MOVERS_BARS);

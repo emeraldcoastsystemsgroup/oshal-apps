@@ -33,12 +33,47 @@
 # 27 | maintainer@emeraldcoastsystemsgroup.com     | Narrow the spaces glob to tests/spaces-*.test.js: the new upload-identity.core.test.js drives the compiled router over real HTTP with express + multer resolved from a framework checkout (OSHAL_CORE_DIR), which this bare-checkout job does not have — same *.core.test.js convention as cad-studio and circuit-lab. Run locally with the framework checkout present.
 # 28 | maintainer@emeraldcoastsystemsgroup.com     | Run the animatronics package's dependency-free suites (engine, protocol, prop-kind seam, Web Serial link) with the house one-glob contract; routes.core and surface.core stay local with the framework checkout.
 # 29 | maintainer@emeraldcoastsystemsgroup.com     | Keep the scan-to-print core suite out of this bare-checkout job by NAME rather than by widening the glob. `tests/*-*.test.js` matched upload-identity.core.test.js only because that filename carried a hyphen, and that suite resolves express, multer and request-identity.ts from a framework checkout (OSHAL_CORE_DIR) this job does not have. The house contract is one glob per package (check-store-test-discovery.mjs enforces it), and every other package on tests/*-*.test.js already keeps its core suites hyphen-free - cad-studio and animatronics use routes.core.test.js, and a hyphenated one uses .core.spec.mjs. scan-to-print now matches: the file is identity.core.test.js beside routes.core.test.js and freshness.core.test.js. Glob unchanged.
+# 30 | maintainer@emeraldcoastsystemsgroup.com     | Run the calendar package's brief-honesty suite. The meeting-brief agent's only dangerous power is a confident sentence nobody recorded, so the guard that matters is the citation-or-drop rule and the fixed no-prior-context sentence, asserted against the COMPILED pure model. NOTE THE PATH: this names one file rather than a glob, because the package's other suite (meeting-briefs.core.test.js) resolves core from a framework checkout this bare-checkout job does not have; it runs in the framework-coupled gate.
 # 30 | maintainer@emeraldcoastsystemsgroup.com     | Hold every package-owned engine container to the pattern BUILDING-EXTENSIONS.md now documents. Four packages (aero-lab, cad-studio, circuit-lab, embodied) arrived at the same shape independently and nothing kept them or the doc in step: the compose project must be the package's own and asserted after `up` (an inherited COMPOSE_PROJECT_NAME put the first one in the core project, where the next core deploy swept it), no `oshal.tier` label (Prometheus' docker_sd selector), no published host port, and a stale container refused with the install command rather than answered with stale results. Mutation-proved, and the gate also runs against this repository's real compose files, installers and doc so the fixtures cannot pass while the shipped engines diverge.
 
 # 31 | maintainer@emeraldcoastsystemsgroup.com     | Run the attribution guard, and land it GREEN. The operator's standing directive is that work identifies the LANE, never a model; core has enforced it in the tree and at push time since the 2026-09-12 history scrub and this repo enforced it nowhere, so recurrence was invisible until someone grepped - and it had recurred in 165 lines. The gate ships with the tree already clean rather than red on arrival: a gate that fails on every PR from the day it lands trains everyone to ignore red, which is the opposite of a guard. The bylines were rewritten to name the lane and the Change Log AUTHOR columns to name the house identity; no pattern was narrowed to the files that tripped it. See CONTRIBUTING.md.
+# 32 | maintainer@emeraldcoastsystemsgroup.com     | Run the catalog dependency-mirror mutation suite beside the catalog gate. marketplace.json copies each manifest's dependency block and nothing ever compared the two, so the whole tiered-dependency migration left all 61 catalog entries on the pre-tier flat shape - creative-studio advertising one dependency where its manifest lists four, and the launchers advertising as required the apps they merely route to. The block is generated now, and this is the guard that keeps it generated.
+# 33 | maintainer@emeraldcoastsystemsgroup.com     | Drop the `pull_request:` trigger and move the gate on-box. This repository is PRIVATE, so every run is billed, and this workflow is the org's largest line item: ~30 jobs, each billed rounded UP to a whole minute, 217 runs in the first sixteen days of September (100% pull_request) at ~18.9 billed minutes apiece - ~4,100 minutes to date, on a pace for ~7,700 a month (~$62 at the published $0.008/min Linux rate). That is the SPEND, not the percentage of the limit the operator's 75% warning was measured against: the included-minutes allowance cannot be read, because the Actions billing endpoints return Not Found for this token and plan. Skipped jobs are excluded from the figure - they never allocate a runner. Removing a trigger without replacing the gate would just delete the checks, so this lands with scripts/store-ci-local.sh: it PARSES this file rather than restating it, mirrors every job in declaration order, enforces the same `needs:` gating (a failed test-discovery/catalog-parity BLOCKS the package checks instead of letting them report green), fails any suite whose TAP summary shows zero tests, and refuses to run at all when it meets a job, command or glob it has no policy for. A check that could not run exits NON-ZERO (`--allow-skips` is the deliberate opt-out) - the first cut printed "never treat SKIPPED as green" and then exited 0, which on any clone without a sibling kernel checkout silently dropped the little-monsters security suite, kalshi and career-hunter. Wired into .githooks/pre-push, which is now the only automatic gate here; workflow_dispatch stays for a deliberate cloud run.
+# 34 | maintainer@emeraldcoastsystemsgroup.com     | Run the trading package's Vitest specs. `grep -rn "trading" .github/workflows/` returned NOTHING and scripts/security/framework-coupled.vitest.config.mjs includes only lora/tests and vids/tests, so seventeen spec files for the package that places real orders with the operator's money ran in no gate at all - two guards landed on 2026-09-16 that would never have executed on a push, and ten cases had been failing on main since the kernel moved its lazy trading bootstraps onto the advisory-locked path with nobody able to see it. The specs need a framework checkout for their @/ alias, which no other job here has, so this job checks the (public) framework out and calls one script: scripts/run-trading-specs.mjs, which refuses a spec tree naming the LIVE trading database, refuses an environment already pointing at it, pins the child to a DSN that cannot connect, and fails a run that executed zero tests. The step before it drives that script over disposable fixture packages so the gate's own refusals are proven rather than assumed. Trigger unchanged: this file stays workflow_dispatch and scripts/store-ci-local.sh mirrors the new job like every other.
+# 35 | maintainer@emeraldcoastsystemsgroup.com     | Check every scheduled service's ADR-157 activation declaration. A deterministic service-route schedule of a protected application now runs only under a principal a person activated, and the class it may be activated as is the one its manifest proposes - so an undeclared schedule is one nobody can turn on, which is the same silent nothing the ADR exists to end (five of them had been refused on the operator's box every tick since 2026-09-10 with one unread ERROR line each). The second half matters more: a `requires:` naming a permission the package's own imported authorization catalog does not define makes the KERNEL LOADER refuse the whole manifest, so a mistyped permission does not break the job, it takes the application down at install. Structural discovery, not a list - a package is covered the moment it declares target: service-route - and the mutation suite beside it proves the gate goes red for each shape rather than being trusted to.
+
 name: store-ci
+
+# MANUAL ONLY - do not add pull_request / push / schedule here.
+#
+# PRIVATE repository: Actions minutes are billed, and this workflow is the most expensive thing
+# in the org. It fans out to ~30 jobs, and GitHub bills each JOB rounded UP to a full minute - so
+# a run whose real wall time is a few minutes is billed at roughly nineteen.
+#
+# Measured over the first sixteen days of September 2026: 217 runs, every one of them a
+# `pull_request` event, ~18.9 billed minutes each = ~4,100 billed minutes, on a pace for ~7,700 a
+# month (~$62 at the published $0.008/min Linux rate). Basis: per-job started_at/completed_at from
+# actions/runs/{id}/jobs over a 55-run sample, each job rounded up to a minute, with `skipped` jobs
+# EXCLUDED - they never allocate a runner. That is the SPEND. It is not the percentage of the
+# limit the operator's 75% warning was measured against: the included-minutes allowance could not
+# be read, because the Actions billing endpoints return Not Found for this token and plan.
+#
+# security.yml and scripts/publish-store.sh already carry this same constraint; this file was the
+# hole.
+#
+# THE GATE IS NOW LOCAL: `bash scripts/store-ci-local.sh` runs every job below against the
+# working tree, in the same order, honouring the same `needs:` gating, before you push. It does
+# not restate this file - it PARSES it, and refuses to run when it meets a job, command or glob
+# it has no policy for, so the local gate cannot quietly drift away from this one.
+#
+# It is wired into .githooks/pre-push, which is the ONLY automatic gate this repository has left.
+# That hook is opt-in per clone and does nothing until you run, once:
+#     git config core.hooksPath .githooks
+# Without that line there is no gate here at all. See CONTRIBUTING.md.
+#
+# Use workflow_dispatch for a deliberate cloud run (a second opinion on clean Linux runners, or
+# a check that genuinely needs a service container).
 on:
-  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -86,6 +121,28 @@ jobs:
         run: node scripts/check-catalog.mjs
       - name: Mutation-test catalog drift detection
         run: node --test scripts/check-catalog.test.mjs
+      - name: Mutation-test the generated catalog dependency mirror
+        run: node --test scripts/gen-catalog-dependencies.test.mjs
+
+  service-activations:
+    name: every scheduled service declares the principal it runs as
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # ADR-157. A deterministic service-route schedule runs under a principal a person activated,
+      # and the class it may be activated as is the one its manifest proposes. Both halves of this
+      # gate fail at INSTALL rather than here if they are missed: an unclassified schedule cannot be
+      # activated at all (it skips forever, silently, which is the failure ADR-157 exists to end),
+      # and a `requires` naming a permission the package's own catalog does not define makes the
+      # kernel loader refuse the WHOLE manifest — taking the app down, not just the job. Structural
+      # discovery, not a list: a package is covered the moment it declares target: service-route.
+      - name: Check every scheduled service's activation declaration
+        run: node scripts/check-service-activations.mjs
+      - name: Mutation-test the scheduled-service declaration gate
+        run: node --test scripts/check-service-activations.test.mjs
 
   engine-container-pattern:
     name: package-owned engine containers follow the documented pattern
@@ -112,6 +169,23 @@ jobs:
           node-version: '22'
       - name: Refuse model attribution in tracked files
         run: node --test scripts/check-no-model-attribution.test.mjs
+
+  store-ci-local:
+    name: the local gate's own exit-code contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # scripts/store-ci-local.sh is the gate now, so the way IT fails is release-critical. Its
+      # first cut printed "never treat SKIPPED as green" and exited 0 anyway, which on any clone
+      # without a sibling kernel checkout silently dropped the little-monsters SECURITY suite,
+      # kalshi and career-hunter. These cases drive the real runner over a disposable fixture
+      # store and pin both halves: a prerequisite-missing run is non-zero, and --allow-skips
+      # returns zero while still naming what did not run.
+      - name: Pin the local gate's skip and exit-code contract
+        run: node --test scripts/store-ci-local.test.mjs
 
   little-monsters:
     name: little-monsters security suites
@@ -537,6 +611,26 @@ jobs:
         working-directory: sports-edge
         run: node --test "tests/*.test.js"
 
+  calendar:
+    name: calendar package suites
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # The meeting-brief agent assembles a brief in the background and sends it as a
+      # notification. Its failure mode is not a crash: it is a plausible sentence about a
+      # conversation nobody had. The assembler is therefore import-free arithmetic over recorded
+      # rows, and this suite asserts the rules that make it trustworthy against the COMPILED
+      # module the framework mounts - every claim cites the row that produced it, an uncitable
+      # candidate is DROPPED rather than softened, recorded words are quoted and never
+      # paraphrased, and an empty history renders the one fixed sentence instead of background.
+      - name: Run calendar brief-honesty suite
+        working-directory: calendar
+        run: node --test tests/meeting-brief.test.js
+
   scan-to-print:
     name: scan-to-print package suites
     needs: [test-discovery, catalog-parity]
@@ -651,3 +745,43 @@ jobs:
       - name: Run animatronics engine, protocol and surface suites
         working-directory: animatronics
         run: node --test "tests/*-*.test.js"
+
+  trading:
+    name: trading package specs, against a framework checkout
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      # The trading specs are Vitest, and they resolve @/ (plus express, js-yaml and acorn) out of
+      # a framework checkout — trading/vitest.config.mjs is where that mapping lives. Every other
+      # job here is bare-checkout plain node, which is exactly why this package had no job at all
+      # and its 17 spec files ran nowhere. The framework is PUBLIC, so no token is involved.
+      - name: Check out the framework the specs resolve against
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: emeraldcoastsystemsgroup/oshal
+          ref: main
+          path: framework
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: framework/package-lock.json
+      - name: Provide the framework checkout's locked Vitest
+        run: npm ci --legacy-peer-deps --no-audit --no-fund --prefix framework
+      # These cases drive the gate script itself over disposable fixture packages with a REAL
+      # Vitest: no spec files is non-zero, a suite that declares no cases is non-zero, a spec
+      # naming the live trading database is refused before Vitest starts, and a passing fixture
+      # still returns zero. They run BEFORE the real specs so a broken gate fails as a gate.
+      - name: Pin the trading gate's zero-test and live-database refusals
+        env:
+          OSHAL_FRAMEWORK: framework
+        run: node --test scripts/run-trading-specs.test.mjs
+      # This is the package that places real orders with the operator's money. The runner refuses
+      # any spec tree that names the live trading database, refuses an environment already pointing
+      # at it, pins the child to a DSN that cannot connect to anything, and fails a run that
+      # executed zero tests.
+      - name: Run every trading spec with the live-database refusal in force
+        env:
+          OSHAL_FRAMEWORK: framework
+        run: node scripts/run-trading-specs.mjs

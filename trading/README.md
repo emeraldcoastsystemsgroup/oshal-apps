@@ -68,6 +68,33 @@ Deep links: `?view=accounts|strategies|research|reports` for the four top-level 
 Legacy `?tab=` links (`journal`, `perf`, `lab`, `studio`, `tuning`, `accounts`, `reco`, `algos`,
 `capture`, `summary`) still resolve — they map onto the view above that now holds that content.
 
+### The two cost bases, both on the screen (1.17.0)
+
+A US brokerage reports the **wash-sale-adjusted** average. Close a name at a loss, re-buy it inside
+30 days, and the disallowed loss is folded into the replacement shares overnight — so the venue's
+average is a price the engine never paid, and a stop measured from it reads 5-18% under water on a
+position that is flat or up. The engine already refuses that stop: it replays its own filled orders
+for the book, and a stop the venue basis wants is vetoed when the engine's own cost says the
+position is not past the line.
+
+The card, though, still printed the venue's average and a stop price derived from it, next to a
+"Now" column computed off the engine's cost — the divergence was corrected out of sight, and the row
+said the opposite of what the engine had decided. Each `GET /exposure` exit-rule row now carries the
+other number too:
+
+| field | what it is |
+|---|---|
+| `avgEntryPrice` | the **venue's** average, wash-sale adjustment included |
+| `stopPx` | the stop measured from it — the one the veto suppresses |
+| `engineBasisPx` | the **engine's** own average cost, replayed from its own filled orders; `null` when its ledger does not cover the quantity held |
+| `engineStopPx` | the stop measured from that — the price the stop actually fires at whenever the venue average is the higher of the two |
+
+The Exits card prints the venue number with the engine's own beneath it in the **Avg** and **Stop**
+cells wherever the two differ by a cent or more, counts those rows in the foot and names the
+adjustment there. Where the two agree — no wash sale to adjust for — the card adds nothing. Where
+the engine has no cost of its own, both fields are `null` and the card says nothing rather than
+inventing a second basis; that holding is the **not managed** case above.
+
 ### Positions the engine will not trade (1.15.0, ADR-159)
 
 The engine reads the **venue's** positions and manages what it finds there, so a share bought by
@@ -315,10 +342,19 @@ expected date from the world calendar when it has one, otherwise an estimate fro
 cadence, labelled as such), plus **Buy** (opens the ticket pre-filled on the selected account) and
 **Watch**. The per-user **watchlist** (`GET`/`POST /api/trading/watchlist`,
 `DELETE /api/trading/watchlist/:symbol`) is yours alone (owner row-level security) and feeds the
-movers report. *Market movers* (`GET /api/trading/reports/movers?kind=winners|losers|volatile|active`)
-ranks the platform universe **plus your watchlist** from daily bars and says so on the surface — on
-the free IEX feed the bars are end-of-day, so this is a canned report over that set, not a
-whole-market screener (see the BACKLOG entry). The other Research sub-tabs — *Recommendations*,
+*bounded* movers board described below — the Alpaca screener board does not read it at all.
+*Market movers* (`GET /api/trading/reports/movers?kind=winners|losers|volatile|active`)
+has **two sources and names the one it used** (1.17.0, ADR-143 D5). With an Alpaca key configured,
+*winners*, *losers* and *most active* come from the vendor's REST screener over the whole US-equity
+board, labelled "Alpaca screener" and stamped with the **vendor's own** `last_updated` rather than a
+freshness claim of oshal's; the board states the filters that ran (a $5 minimum price —
+`TRADING_MOVERS_MIN_PRICE` — against the price the vendor sent, and the active tradable asset
+directory), and most-active rows carry the vendor's volume with **no** price, which the note says
+rather than back-filling one. *Most volatile* has no screener board and stays on the bounded
+computation. Every screener failure — no key, a non-200, an unusable body, an empty board — falls
+through to that bounded report: the platform universe **plus your watchlist** ranked from
+end-of-last-session daily bars on the free IEX feed, said plainly on the surface. The board degrades;
+it never blanks. The other Research sub-tabs — *Recommendations*,
 *Algorithms*, *Capture & signals* — are the pre-existing research tools moved under this view.
 
 ### Event playbooks — the Anthropic IPO plan (1.7.0, ADR-136 D6)
@@ -411,6 +447,16 @@ lists; a reminder sequence for them is in the BACKLOG.
   leg is armed best-effort *after* the order, and a scheduler failure there is a warning, never a
   refusal, because that order has already gone to the venue.)
 
+### API changed in 1.17.0 (whole-market movers, ADR-143 D5)
+
+- `GET /api/trading/reports/movers` — unchanged request, richer answer. `source` is now either
+  `Alpaca screener` or `oshal universe + your watchlist`, and the screener payload adds
+  `lastUpdated` (the vendor's own stamp, verbatim, null when it sent none) and `filter`
+  (`{ minPrice, assetDirectory }` — what actually ran). `universeCount` appears only on the bounded
+  board, because a whole-market board has no scanned-universe count to report.
+- No new route, no new permission, and nothing in the request changes: a caller that ignores the new
+  fields keeps working, and `kind=volatile` behaves exactly as before.
+
 ## Strategy Studio (conversational design + refine-in-place)
 
 The **Strategy Studio** tab is a chat (typed or spoken) with the trading-analyst bot.
@@ -431,6 +477,127 @@ Going live stays human-gated: the studio result's **Apply live…** button runs 
 same percent-of-profile prompt + `confirm:true` gate as the Lab's Apply, and refining
 a strategy that is currently applied never touches the live override (it keeps its
 embedded snapshot until re-applied — the response says so explicitly).
+
+## The bot's book facts (1.16.0, ADR-090 specialist context)
+
+A protected bot-node run is **tool-less** — the worker gets no tools and no workspace — so the
+accountable `trading-analyst` cannot fetch its own numbers. `createTradingRoutes` therefore
+registers a **specialist-context reader** with the kernel (`uses: specialist-context`, so a
+framework that predates the channel refuses this package rather than installing the bot blind).
+Before every signed dispatch the controller runs that reader under the **ticket owner's** own
+authority and appends a closed set of scalar facts to the prompt.
+
+What it reports, **one book per key** and never summed across books
+(`src-routes/trading-book-facts.ts`). The keys are fixed slots — `paper`, then `live`, `live2`,
+`live3`, `live4` — filled in `listBooks` order, which puts the legacy `live` book (the engine's
+book) first:
+
+| key | meaning |
+|---|---|
+| `<slot>.present` | whether a book occupies this slot at all |
+| `<slot>.equity_today` | that book's equity **recorded today (ET)**, or `null` |
+| `<slot>.equity_recorded_today` | whether THAT book has today's snapshot |
+| `<slot>.equity_prior_close` | that book's prior session's recorded close |
+| `<slot>.day_change` / `<slot>.day_change_pct` | derived only when both ends are that book's real figures |
+| `<slot>.realized_today_net/_trades/_wins/_losses` | that book's closes today, on the ENGINE's own cost |
+| `books.live` / `books.paper` | how many books of each kind the owner actually has |
+| `books.unreported` | books no slot could take — non-zero means the bot is not seeing everything |
+| `facts.complete` | false when the budget, a store failure, or an unreported book cut the read short |
+
+Four rules it does not bend:
+
+- **One book per key.** The operator has THREE live books. Grouping them behind a single freshness
+  gate is what cost him the answer on 2026-09-15: the engine book had a recorded equity of
+  42,758.05 while its two sibling accounts had not been snapshotted since the previous session, and
+  a figure that reported only when EVERY member was fresh reported nothing at all. A stale sibling
+  now costs that sibling's keys and nothing else. A live slot is never filled by a paper book, so
+  paper money can never be read as real.
+- **It never calls the venue.** The registry's deadline is 2000 ms and it *throws* on expiry, while
+  the obvious helper (`tradableSessionDetailed()`) spends up to 8000 ms on the venue clock. Equity
+  comes from the recorded daily-equity series the autopilot and the ledger reads already write. A
+  closed market, or a venue unreachable all session, means no snapshot today — which reads `null`
+  with `equity_recorded_today: false`, never a stale figure and never `0`.
+- **It works to its own 1200 ms budget, enforced by a race**, and returns whatever is known with
+  `facts.complete: false` rather than letting a wedged query take the dispatch down.
+- **It never throws.** A refused read is a dead ticket and a silent thread; unknown facts are not.
+
+The slot set is fixed because the kernel takes the fact keys ONCE, at route-mount time, for every
+owner at once, and then refuses any read whose keys are not exactly that set. A key therefore
+cannot carry an owner's own book ref (`b-6690e236`) even though the kernel's key grammar would
+accept one — the declaration is made long before any owner's books are known. Four live slots
+covers the operator's three accounts with one spare; a fifth is counted in `books.unreported` and
+drops `facts.complete` rather than being silently dropped.
+
+Today's realized comes from `realizedReport()` in `src-routes/trading-realized.ts` — the same
+function `GET /realized` serves, so the surface and the bot cannot disagree about the same day.
+
+**Operational dependency:** the kernel authorizes the read as
+`{ app: intelligent-trades, kind: tools, operation: trading_book_facts }`. This package has no
+authorization catalog, so under `OSHAL_APPLICATION_AUTHORIZATION_MODE=enforce` that decision needs
+an `@app-admin` assignment for the ticket's owner (Users → Access). Without it the read is denied
+and the dispatch fails closed — the same provisioning every catalog-less package needs.
+
+Guard: `tests/trading-specialist-context.spec.ts` (real registry, real mounter, real manifest).
+
+```bash
+OSHAL_FRAMEWORK=<oshal-checkout> node <oshal-checkout>/node_modules/vitest/vitest.mjs run   --config vitest.config.mjs tests/trading-specialist-context.spec.ts
+```
+
+## The bot's market facts (1.18.0, the other half of the same channel)
+
+The book half above answers "how did **we** do". It could not answer "how did the **market** do",
+and that gap had a visible cost: asked for today's market performance, the accountable bot reported
+the operator's equity to the cent and, in the same answer, said *"the worker couldn't access
+real-time index or market-mover data."*
+
+Nothing was broken. The paper key entitles the vendor's screener, the screener ships in the
+framework, and `GET /reports/movers` has used it since 1.17.0. The bot simply could not reach any
+of it — **a tool-less worker cannot call a route**, and the fact set, which is the only thing it
+*can* see, carried no market number at all. 1.18.0 declares them
+(`src-routes/trading-market-facts.ts`):
+
+| key | meaning |
+|---|---|
+| `market.spy_change_pct` / `market.qqq_change_pct` / `market.dia_change_pct` | each index proxy's day change, from its own two daily closes |
+| `market.top_gainer_pct` | the best percent on the whole-market screener board, after the shipped price and asset-directory filters |
+| `market.top_loser_pct` | the worst percent on the same board |
+| `market.screener_available` | whether the whole-market board answered at all |
+| `market.age_seconds` | how old the figures are — `0` when freshly read, the real age when served from cache |
+| `market.complete` | true only when all three proxies priced AND the screener answered |
+
+Both halves are registered as ONE declaration (`TRADING_SPECIALIST_FACT_KEYS`, 62 of the kernel's
+64-key cap) and read **in parallel**, so the market numbers cost no additional wall-clock time
+against the registry's 2000 ms deadline.
+
+**Scalars only, so no symbols.** The kernel's `SpecialistFact` is `number | boolean | null` by
+design — the channel carries no raw content. A *named* mover ("NVDA +7.2%") is a string and cannot
+cross it. What crosses is the shape of the session: direction from the three proxies, dispersion
+from the board's extremes. The bot is never told which ticker produced them and must not imply it.
+Naming movers to the bot would mean widening the kernel's fact type, which is a framework decision,
+not a package one.
+
+Three rules, for the same reason the book half has its own:
+
+- **No key, no network.** `marketDataConfigured()` is checked first, so a deployment with no market
+  credential spends nothing and reaches nothing — it reads all-null immediately.
+- **Cache first, and stale beats nothing.** A good read is held for 60 s. A refresh that misses the
+  budget is still answered from the last good snapshot with its **real age** on `market.age_seconds`,
+  so a cached number is never passed off as live. Past 15 minutes the snapshot is dropped: at that
+  age "unknown" is honest and "stale" is a lie about the session. Measured from the box, the vendor
+  answers in 56-85 ms warm and **1324 ms on a cold connection** — which is why the refresh that
+  loses the race is not abandoned, but left to fill the cache for the next dispatch.
+- **It never throws, and never fabricates.** A failed leg costs its own figures and sets
+  `market.complete: false`. A field the vendor did not send stays `null`; a flat session reads `0`
+  because it *is* zero.
+
+Guard: `tests/trading-market-facts.spec.ts` — the screener half over a REAL `node:http` vendor on
+127.0.0.1 via `ALPACA_SCREENER_BASE_URL`, plus the no-key, budget, cache-age and never-fabricate
+cases. The declaration itself is proven through the real registry in
+`tests/trading-specialist-context.spec.ts`.
+
+```bash
+OSHAL_FRAMEWORK=<oshal-checkout> node scripts/run-trading-specs.mjs
+```
 
 ## What stays in the OSHAL framework (ADR-093)
 

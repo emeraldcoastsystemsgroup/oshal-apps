@@ -129,3 +129,32 @@ one that unblocks it.
 shows projected-versus-actual gain **and** the realised win rate against the P(win) the optimiser
 claimed, not just a win rate. The second number is the one that says whether the objective change in
 0.6.0 paid for itself.
+
+## F. The player-weeks round trip is real code with no CI that runs it against a real server
+
+`sports_fantasy_player_weeks` (0.9.0) is a new table, and the guard that proves the lineup route
+writes it and reads it back doubles the round trip: `tests/sports-fantasy-history.test.js` serves
+the INSERT and the SELECT from memory, decoding the parameters the store's own statements actually
+send. That is enough to prove the ROUTE wiring — which is what shipped broken — and it is not
+enough to prove PostgreSQL accepts the statements, because a double cannot refuse a bad one.
+
+The real half exists and passes: `tests/postgres/player-weeks-contract.mjs` runs the shipped
+migration, the runtime self-heal DDL over the migrated schema, the chunked upsert and its
+idempotence over a real primary key, the JSONB round trip, and the read's season / week-exclusive /
+roster bounds, reading every row back over a second connection. Verified 2026-09-16 against a
+disposable `postgres:16-alpine` on 127.0.0.1:55491 — 1,007 rows across 3 chunks, 236ms, all seven
+clauses PASS; deleting the `ON CONFLICT` clause turns it red with `duplicate key value violates
+unique constraint "sports_fantasy_player_weeks_pkey"`, so the server is genuinely enforcing.
+
+**Nothing runs it automatically.** The sports-edge CI job is `node --test "tests/*.test.js"` with no
+framework checkout, no `npm install` and no service container, so it has neither a `pg` driver nor a
+database. Adding a case that SKIPS without one is worse than this entry: the local gate exits
+non-zero on a skip, and the sanctioned skip list does not include this package. The double is
+recorded, with this file named as its real companion, in the core repository's
+`docs/governance/real-boundary-regression-audit.md`.
+
+**Done when:** the sports-edge store-ci job gains a PostgreSQL service container and a step that
+runs `tests/postgres/player-weeks-contract.mjs` against it, `scripts/store-ci-local.mjs` learns the
+env var as a capability so a workstation without a database is reported as an explicit skip rather
+than a silent pass, the sanctioned-skip list in `CONTRIBUTING.md` is extended to name it, and the
+audit row moves from "outstanding" to the companion file.

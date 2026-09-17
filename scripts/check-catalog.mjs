@@ -6,6 +6,7 @@
  * -----------------------------------------------------------------------------
  * 2026-08-06 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Add the zero-dependency catalog integrity gate: every package manifest has exactly one catalog entry, mirrored identity/version/suite/displayName/source fields agree, the retired archive URL is forbidden, and the generated README is current.
  * 2026-08-06 00:10:00 | maintainer@emeraldcoastsystemsgroup.com   | Export the checker and allow fixture-only README-generation suppression so mutation tests can prove fail-closed drift detection without invoking repository-local generator code from a temporary tree.
+ * 2026-09-16 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Mirror each manifest's dependency block too. It was the one field the catalog copied and the gate did not check, so the whole tiered-dependency migration left marketplace.json on the pre-tier flat shape unnoticed - creative-studio advertising one dependency where its manifest lists four, and the launchers advertising as hard dependencies the apps they merely route to. A manifest whose block cannot be read is a problem, never a silent "no dependencies".
  *
  * Usage: node scripts/check-catalog.mjs
  */
@@ -14,6 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { readManifestDependencies, sameDependencies } from './manifest-dependencies.mjs';
 
 const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const CURRENT_SCHEMA = 'https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/adr/085-remote-app-packages-and-registries.md';
@@ -83,6 +85,16 @@ export function catalogProblems(repositoryRoot = REPOSITORY_ROOT, { checkGenerat
       else if (String(entry[key]) !== manifestValue) {
         problems.push(`${directory}: catalog ${key}=${JSON.stringify(entry[key])}, manifest ${key}=${JSON.stringify(manifestValue)}`);
       }
+    }
+
+    const mirrored = readManifestDependencies(manifestText, `${directory}/oshal-app.yaml`);
+    if (mirrored.problems.length) problems.push(...mirrored.problems);
+    else if (!sameDependencies(entry.dependencies ?? null, mirrored.dependencies)) {
+      problems.push(
+        `${directory}: catalog dependencies=${JSON.stringify(entry.dependencies ?? null)}, `
+        + `manifest dependencies=${JSON.stringify(mirrored.dependencies)} `
+        + '(run node scripts/gen-catalog-dependencies.mjs)',
+      );
     }
 
     for (const key of ['type', 'url', 'path', 'ref']) {

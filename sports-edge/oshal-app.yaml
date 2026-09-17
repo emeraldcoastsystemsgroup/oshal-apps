@@ -1,6 +1,8 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — sports-edge ("Sports Edge")
 # 0.7.1 | maintainer@emeraldcoastsystemsgroup.com | Add provider-derived coach subjects through the existing World cooldown and register every offline package suite.
+# 0.8.0 | maintainer@emeraldcoastsystemsgroup.com | Tell an unreachable ESPN apart from an unconnected caller: a league read that never reached ESPN answers 503 naming the transport instead of 403 "connect ESPN Fantasy", and the matchup card says whether the missing opponent is a bye or a schedule nobody could read.
+# 0.9.0 | maintainer@emeraldcoastsystemsgroup.com | Accumulate every completed week's actual stat line from the response the refresh already makes, and score it under the league's own rules as each player's `pointsHistory`. The spread model had no producer for that field, so every spread was a positional prior times a projection.
 #
 # An odds maker you point at ONE TEAM. Operator, 2026-09-06, after seeing the broad-sweep design:
 # "this isn't a broad market sweep ... pick a team and fan out from there. first follow the players
@@ -82,7 +84,7 @@ description: >-
   allowed to stake anything. The Fantasy tab reads your ESPN league, scores ESPN'''s raw projections
   with YOUR league'''s own rules, and sets the lineup with the best chance of beating the team you
   actually play that week — which is not always the highest-projected one.
-version: 0.7.1
+version: 0.9.0
 status: active
 uses: [test-catalog, app-dependencies]
 testing:
@@ -214,6 +216,7 @@ migrations:
   - migrations/002-sports-fantasy.sql
   - migrations/003-sports-line-history.sql
   - migrations/004-sports-world-subjects.sql
+  - migrations/005-sports-fantasy-player-weeks.sql
 
 # ─────────────────────────────────────────────────────────────────────────────
 # COCKPIT UI SURFACE — one ribbon icon opens the followed-teams page: your teams, their next

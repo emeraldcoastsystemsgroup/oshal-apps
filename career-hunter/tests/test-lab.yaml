@@ -4,6 +4,8 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register real Career palette proof and every existing suite with explicit harness prerequisites.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Register actual board/search navigation, responsive results, filters, loading and unchanged submission-confirmation boundaries.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register the ADR-141 D7 story-evidence suite: the master document, the studio preview and the tailored-packet citation contract run in the same existing Python-and-engine harness.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Say that the story-evidence contract now drives the real generate_for. The earlier expectation covered the prompt and the verifier as separate pieces, so a reader could not tell that the packet itself — the thing the done-when names — was unguarded.
 version: 1
 cases:
   - id: package-readiness
@@ -123,11 +125,15 @@ cases:
         - tests/career-resume-extraction-limits.test.mjs
         - tests/career-storage-contract.test.mjs
         - tests/career-stories.test.mjs
+        - tests/career-story-evidence.test.mjs
         - tests/career-targets-classify.test.mjs
     expected:
       - >-
         Existing Python and SQLite fixtures preserve storage identity, extraction limits, story evidence and
         remote-only behavior.
+      - >-
+        The real generate_for writes a packet whose application.json records the verified story citations, and
+        whose prompt carried the evidence block; an invented citation never reaches the record.
     prerequisites:
       - runner:node
       - runner:python

@@ -27,6 +27,7 @@
  * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: retire the generic connector-credential carrier from comms-bot dispatch. Drafting and signal organization now receive only caller text or controller-fetched signal rows; deterministic publish/profile operations continue resolving the exact connector token at their immediate API boundary.
  *
  * @module social-routes * 2026-09-05 23:30:00 | maintainer@emeraldcoastsystemsgroup.com | ADR-141 readiness (1.1.0): GET /readiness answers the Intelligent Career group's "Connect Facebook" and "articles you want to comment on" steps from the caller's own connection rows and the last 30 days of captured social signals — no Graph call, no token leaves the box; asked in the user's session by the kernel setup dashboard.
+ * 2026-09-16 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | LinkedIn publishing leaves this module for the DECLARED connector action: POST /post delegates to social-publish.publishToLinkedIn, which runs the kernel's create-post write action — schema-validated params, the shared approval gate, the caller's own brokered token, and a connector_action_audit 'attempt' row that must commit BEFORE the provider call, so an unavailable audit trail refuses the publication instead of posting unrecorded. The bespoke fetch() to /v2/ugcPosts, which left no audit row at all, is gone; the caller's request body is threaded through so the executor's own confirm gate decides the write.
  */
 
 import { Router, type Request, type Response, type RequestHandler } from 'express';
@@ -37,6 +38,7 @@ import { BotNodeClient, createRegistryEndpointResolver } from '@/features/agent-
 import { getValidAccessToken } from '@/app/routes/connectors-routes';
 import { executeBotOrInline } from '@/app/routes/inline-bot-execution';
 import { confirmationRequiredPayload, hasExplicitWriteConfirmation } from '@/shared/security/explicit-write-confirmation';
+import { publishToLinkedIn } from './social-publish';
 
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -92,27 +94,6 @@ async function publishToX(ctx: AppContext, sub: string, text: string): Promise<R
   const j = (await r.json().catch(() => ({}))) as { data?: { id?: string } };
   if (r.status >= 200 && r.status < 300) return { ok: true, target: 'twitter', tweetId: j?.data?.id ?? null };
   return { ok: false, code: 502, status: r.status, error: JSON.stringify(j).slice(0, 300) };
-}
-
-/** Publish approved text to LinkedIn via the connector token (UGC Posts / w_member_social). */
-async function publishToLinkedIn(ctx: AppContext, sub: string, text: string): Promise<Record<string, unknown>> {
-  const token = await getValidAccessToken(ctx.pool, sub, 'linkedin');
-  if (!token) return { ok: false, code: 409, error: 'no_linkedin_connection', message: 'Connect LinkedIn at /utilities first.' };
-  const authorId = (await ctx.pool.query("SELECT account_id FROM oshal_connections WHERE user_sub = $1 AND provider = 'linkedin'", [sub])).rows[0]?.account_id;
-  if (!authorId) return { ok: false, code: 409, error: 'reconnect', message: 'Missing LinkedIn author id — reconnect at /utilities.' };
-  const body = {
-    author: `urn:li:person:${authorId}`,
-    lifecycleState: 'PUBLISHED',
-    specificContent: { 'com.linkedin.ugc.ShareContent': { shareCommentary: { text }, shareMediaCategory: 'NONE' } },
-    visibility: { 'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' },
-  };
-  const r = await fetch('https://api.linkedin.com/v2/ugcPosts', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Restli-Protocol-Version': '2.0.0' },
-    body: JSON.stringify(body),
-  });
-  if (r.status >= 200 && r.status < 300) return { ok: true, target: 'linkedin', postId: r.headers.get('x-restli-id') };
-  return { ok: false, code: 502, status: r.status, error: (await r.text()).slice(0, 300) };
 }
 
 /** The caller's numeric X user id (the API's source id for timeline + follow), or null. */
@@ -307,11 +288,11 @@ export function createSocialRoutes(ctx: AppContext): Router {
     if (!text) { res.status(400).json({ error: 'text required' }); return; }
     if (!hasExplicitWriteConfirmation(body)) { res.status(428).json(confirmationRequiredPayload('no-post', 'Publishing a social post')); return; }
     try {
-      const result = target === 'twitter' || target === 'x'
+      const result: Record<string, unknown> = target === 'twitter' || target === 'x'
         ? await publishToX(ctx, sub, text)
         : target === 'facebook'
           ? await publishToFacebook(ctx, sub, text)
-          : await publishToLinkedIn(ctx, sub, text);
+          : { ...(await publishToLinkedIn(ctx, sub, text, body)) };
       res.status(result.ok ? 200 : ((result.code as number) || 502)).json(result);
     } catch (err) {
       logger.error({ err, target }, 'Post failed');

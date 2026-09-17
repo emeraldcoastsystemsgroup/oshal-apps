@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.tallyRealized = tallyRealized;
 exports.applyEngineRealized = applyEngineRealized;
 exports.priceOrdersOnEngineCost = priceOrdersOnEngineCost;
+exports.realizedReport = realizedReport;
 const trading_engine_cost_basis_1 = require("@/app/trading-engine-cost-basis");
 const round2 = (n) => Math.round(n * 100) / 100;
 /**
@@ -57,5 +58,42 @@ async function priceOrdersOnEngineCost(ctx, sub, bookId, rows) {
     const symbols = [...new Set(rows.filter((r) => r.side === 'sell').map((r) => String(r.symbol)))];
     const sales = symbols.length ? await (0, trading_engine_cost_basis_1.engineRealizedForBook)(ctx, sub, bookId, symbols) : new Map();
     return applyEngineRealized(rows, sales);
+}
+/**
+ * @description Tally one book's realized P&L on the engine's own cost: every filled sell in the
+ *   last 30 days, re-priced by engineRealizedForBook, split into today and the 30-day record, with
+ *   the venue's own net riding alongside labelled. Book-scoped and owner-scoped by the query's own
+ *   (user_sub, book_id) predicate - an unscoped read would mix a paper book into a live figure.
+ *   This is the whole body of GET /realized, extracted so the route and the trading specialist's
+ *   facts cannot report different numbers for the same day.
+ * @param ctx - App context (pool).
+ * @param sub - Owner sub.
+ * @param bookId - The book whose closes are tallied; it alone scopes the query.
+ * @param mode - The book kind, echoed back as `mode` for the surface's response shape.
+ * @returns The realized report for that book.
+ */
+async function realizedReport(ctx, sub, bookId, mode = '') {
+    // Closes are priced on the ENGINE's own cost: the stored realized_pnl uses the venue's wash-sale-
+    // adjusted average and counts each disallowed loss twice. The venue's net rides along, labelled.
+    const closes = (await ctx.pool.query(`SELECT order_id::text AS order_id, upper(symbol) AS symbol, realized_pnl,
+            (created_at::date = CURRENT_DATE) AS today
+       FROM oshal_trading_orders
+      WHERE user_sub=$1 AND book_id=$2 AND side='sell' AND status='filled'
+        AND created_at >= now() - interval '30 days'`, [sub, bookId])).rows;
+    const sales = closes.length
+        ? await (0, trading_engine_cost_basis_1.engineRealizedForBook)(ctx, sub, bookId, [...new Set(closes.map((c) => c.symbol))])
+        : new Map();
+    const engine = (c) => sales.get(c.order_id)?.realizedPnl ?? null;
+    const venueNet = (list) => round2(list.reduce((s, c) => s + Number(c.realized_pnl ?? 0), 0));
+    const todays = closes.filter((c) => c.today);
+    const today = tallyRealized(todays.map(engine));
+    const d30 = tallyRealized(closes.map(engine));
+    const winRate = (r) => (r.trades ? Math.round((r.wins / r.trades) * 100) : null);
+    return {
+        mode, basis: 'engine',
+        today: { ...today, winRatePct: winRate(today) },
+        last30d: { ...d30, winRatePct: winRate(d30) },
+        venueNet: { today: venueNet(todays), last30d: venueNet(closes) },
+    };
 }
 //# sourceMappingURL=trading-realized.js.map

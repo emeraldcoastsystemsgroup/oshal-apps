@@ -52,7 +52,7 @@ Now a poller owned by this package keeps a snapshot warm:
 
 ### What Jarvis gets
 
-Version **1.5.0** registers **Kalshi playable hands** in Jarvis briefing settings. You can
+Version **1.6.0** registers **Kalshi playable hands** in Jarvis briefing settings. You can
 disable delivery or choose its frequency and voice, bubble, or main-screen channel. The
 untouched defaults remain enabled, as updates arrive, with voice. Jarvis must be open and
 voice requires browser audio permission. Kalshi's existing alert thresholds and `notifyJarvis`
@@ -227,13 +227,35 @@ W-L record line; `GET /api/kalshi/alerts` returns `record`). It is a paper recor
 places an order.
 
 **Trends (1.2.0).** The **Trends** tab is the ledger as a trader watches it: four books (paper/real ×
-manual/auto — Real · auto is not built and the tile says so), KPI tiles (paper P&L on one contract per
-pick, what settled last, the strategy closest to beating the market's Brier, the next forward-test
-verdict), a cumulative P&L line per strategy, and rolling hit-rate vs breakeven small multiples.
+manual/auto — Real · auto is not built and the tile says so), KPI tiles, a cumulative P&L line per
+strategy, and rolling hit-rate vs breakeven small multiples.
 `GET /api/kalshi/trends?days=30` serves the series (`src-routes/kalshi-trends.ts`, read-only, no
 framework imports). Charts are inline SVG with a legend, crosshair tooltips and a table twin each;
 series hues come from a fixed strategy→slot map validated for colour-vision deficiency on the light
 and dark surfaces.
+
+**The Paper · auto book is a bankroll (1.6.0).** It used to be a sum of one-contract P&Ls, which is
+not the number anyone asks for. Every graded row is now replayed as a **paper** fill of the
+quarter-Kelly fraction the ledger already recorded with it (`kalshi_predictions.stake_fraction`),
+earning `pnl_per_contract` over what the contract actually cost — the ask **plus** Kalshi's taker fee,
+because that is what leaves the bankroll. The tile, the hero KPI and a new **Paper bankroll** curve
+all read that number, and all three say *paper*: no order is placed from this book, and a pick
+pre-registered at zero stake leaves the curve flat by design (`sized` says how many rows moved money).
+The book walks **every strategy together in grading order** and is deliberately not cut by the Trends
+window — a bankroll that restarted whenever someone picked "last 30 days" would be a different book
+each time it was looked at. The start is deployment config: `KALSHI_PAPER_BANKROLL_START`, default
+$1,000. The per-contract P&L line is unchanged and still sits beside it.
+
+**Pops — price since announced (1.6.0).** The **Alerts** tab's *Since announced* column shows, for an
+alert whose market has **not** settled, where the price is now against the ask you were quoted, on the
+side that was picked: `GET /api/kalshi/alerts/pops` (`src-routes/kalshi-pops.ts`, read-only, no
+framework imports — the framework's `getCandles` is injected by the route). It is a separate request
+from `/alerts` on purpose: this one talks to Kalshi, and the alert history must render whether or not
+the exchange answers. The read is **bounded** (12 markets per request), **spaced** (≥350 ms between
+candle reads, the clock held in a per-process cache so two open surfaces queue instead of bursting)
+and **cached** (5 minutes) against the shared ~3 rps public tier; a market that rate-limits or has no
+tape is counted as unavailable and logged, never thrown, and the surface says how many it left for
+the next refresh. A settled alert shows its outcome, not a move.
 
 **The contrarian forward test (1.1.2).** "Bet against ourselves at the extremes" is pre-registered as
 the zero-stake strategy `contrarian-extreme`: for every scan hand with our P >= .90 or <= .10, the

@@ -264,3 +264,4 @@ function assembleAggregate(acc, windowDays) {
 }
 /** Round to cents. */
 function round(n) { return Math.round(n * 100) / 100; }
+//# sourceMappingURL=finance-plaid.js.map

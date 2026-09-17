@@ -30,6 +30,7 @@
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 0.6.0: firmware in the loop (outputs) — an Arduino Uno part whose sketch is compiled with avr-gcc and run in avr8js inside the engine container; its output pins are PWL sources in the same transient (the engine image gains the AVR toolchain, the Arduino core and node).
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 0.6.0: the assistant rail — surface.ops [context, custom, notify] so the cockpit relay forwards the surface-bridge (the page publishes what it shows, takes circuit_action edits from Jarvis, renders notices), and jarvisMode: delegate so Jarvis hands circuit questions to the concierge and answers in the chat.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 0.8.0 (BACKLOG B2, B7, B9): a wire takes several bends (route.points; double-click to add or remove, drag to move) and R turns a multi-selection about its centre; breadboard parts turn (vertical footprints) and the board is drawn to the BB830 geometry with jumpers as straight wires at their length in mm and shorted parts named; the solver's reltol, gmin and method in the run settings and on circuit-run (a choice is never retried over); the canvas ignores keys while the Breadboard view shows.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 0.8.2 (core BACKLOG 2026-09-14, "one parts model"): a catalog row may name another package as the OWNER of a real part and READ it. The SG90 was described twice — animatronics publishes it with its identity, mass, price, source and pulse / travel / speed / torque / current block, and this catalog restated it with a different name and a different price. The row now declares only what this lab adds (the operating point it solves at, the reflected rotor inertia) and reads the rest from the owner's catalog file as data; an absent owner withholds that one row naming the owner rather than inventing a substitute.
 name: circuit-lab
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
 displayName: Circuit Lab
@@ -40,7 +41,7 @@ description: >-
   transient: waveforms, per-part readings, warnings, and gears that turn on the canvas at their
   solved speed. Ask the concierge for a change in plain words and it edits the same circuit
   through the package's tools, so the person, the bot and any MCP client iterate on one design.
-version: 0.8.1
+version: 0.8.2
 status: active
 scope: person
 
@@ -75,7 +76,7 @@ dependencies:
     tools: []
     connectors: []
   optional:
-    apps: []
+    apps: [animatronics]   # owns the SG90 catalog row this lab READS; absent, that one row is withheld
     tools: []
     connectors: []
 

@@ -4,7 +4,9 @@
   has ALREADY authorized on the Connections page. Self-contained iframe page (served by
   createIdentityRoutes at /api/identity/). It reads the existing /api/connect/list (the
   single source of truth for the catalog + connection state — no token is ever returned)
-  and renders one grid grouped by purpose, with three actions per provider:
+  and /api/connect/liveness (whether the provider still HONORS each stored grant - a row can
+  hold a refresh token the provider has already revoked, which no stored field can show) and
+  renders one grid grouped by purpose, with three actions per provider:
     • Open    — deep-link straight into the provider (Gmail, LinkedIn, …).
     • Reconnect — re-run consent when a stored login has expired.
     • Connect — start consent for a provider not yet connected.
@@ -525,6 +527,28 @@ const searchInput = $('identitySearch');
 const filters = $('identityFilters');
 let allProviders = [];
 let activeFilter = 'all';
+/**
+ * Per-provider liveness verdicts from /api/connect/liveness, keyed by provider id:
+ * { status: 'ok' | 'needs_reconnect' | 'unknown', detail }. Empty until the probe answers, and
+ * left empty when it cannot - a probe failure must never repaint a working account red.
+ */
+let liveness = {};
+
+/**
+ * Has the PROVIDER stopped honoring this connection's stored grant? The connection list's
+ * `expired` flag cannot see this case: it means "lapsed AND nothing left to renew it", and a
+ * revoked grant keeps its refresh token, so `expired` stays false for it forever. Only a real
+ * refresh against the provider settles it, which is what /api/connect/liveness does.
+ */
+function grantRejected(p) {
+  return !!p.connected && !!liveness[p.id] && liveness[p.id].status === 'needs_reconnect';
+}
+
+/** Is this account broken - lapsed with nothing to renew it, or rejected by the provider? */
+function accountIsDead(p, c) { return !!c.expired || grantRejected(p); }
+
+/** Does this provider need the user's attention - is any of its accounts broken? */
+function needsAttention(p) { return (p.connections || []).some((c) => accountIsDead(p, c)); }
 
 /** Where "Open" deep-links to per provider (public app URLs — presentation data only). */
 const OPEN_URLS = {
@@ -603,11 +627,11 @@ function cardFor(p) {
   };
   const icon = p.id === 'any-llm' ? 'codicon-hubot' : (iconByCategory[p.category] || 'codicon-plug');
   let pill = '<span class="pill off">Not connected</span>';
-  const anyExpired = (p.connections || []).some((c) => c.expired);
+  const anyExpired = needsAttention(p);
   if (p.connected) pill = anyExpired ? '<span class="pill exp">Reconnect</span>' : '<span class="pill ok">Connected</span>';
   const accts = (p.connections || []).map((c) => {
     const nm = esc(c.label || c.account || 'account');
-    return `<div class="acct">${c.isDefault ? '<span class="star" title="Default">★</span>' : ''}${nm}${c.tenantId ? '<span class="shared">shared</span>' : ''}${c.expired ? ' <span class="err">· expired</span>' : ''}</div>`;
+    return `<div class="acct">${c.isDefault ? '<span class="star" title="Default">★</span>' : ''}${nm}${c.tenantId ? '<span class="shared">shared</span>' : ''}${accountIsDead(p, c) ? ' <span class="err">· expired</span>' : ''}</div>`;
   }).join('');
   return `
     <div class="card">
@@ -629,7 +653,7 @@ function wire(container) {
 }
 
 function countExpired(providers) {
-  return providers.filter((p) => (p.connections || []).some((c) => c.expired)).length;
+  return providers.filter(needsAttention).length;
 }
 
 function renderMetrics(providers) {
@@ -647,7 +671,7 @@ function renderMetrics(providers) {
 
 function providerMatches(p) {
   const query = (searchInput?.value || '').trim().toLowerCase();
-  const expired = (p.connections || []).some((c) => c.expired);
+  const expired = needsAttention(p);
   if (activeFilter === 'connected' && !p.connected) return false;
   if (activeFilter === 'needs-attention' && !(expired || (p.connected && !p.configured))) return false;
   if (activeFilter === 'available' && p.connected) return false;
@@ -689,6 +713,27 @@ function renderProviders() {
   wire(main);
 }
 
+/**
+ * Ask the server whether each provider will still honor its stored grant (a real refresh probe,
+ * cached server-side for 15 minutes) and re-render. This only ever ADDS honesty: a probe that
+ * fails or answers `unknown` leaves the row-derived flags exactly as they were.
+ */
+async function loadLiveness() {
+  try {
+    const r = await fetch('/api/connect/liveness', { credentials: 'include' });
+    if (!r.ok) return;
+    const j = await r.json();
+    const verdicts = {};
+    (j.providers || []).forEach((x) => { verdicts[x.provider] = { status: x.status, detail: x.detail || '' }; });
+    liveness = verdicts;
+    renderMetrics(allProviders);
+    renderProviders();
+  } catch (e) {
+    // Never blank a page that already rendered; say why in the console instead.
+    console.warn('identity: liveness probe failed', e);
+  }
+}
+
 /** Load the catalog + connection state and render the grid grouped by purpose. */
 async function load() {
   let providers;
@@ -700,6 +745,7 @@ async function load() {
     allProviders = providers;
     renderMetrics(allProviders);
     renderProviders();
+    await loadLiveness();
     return;
   } catch (e) {
     main.innerHTML = `<div class="panel"><div class="err">Couldn't load connections: ${esc(e.message)}</div></div>`;

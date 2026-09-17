@@ -299,4 +299,3 @@ function createInboxRoutes(ctx) {
     });
     return router;
 }
-//# sourceMappingURL=switchboard-inbox-routes.js.map

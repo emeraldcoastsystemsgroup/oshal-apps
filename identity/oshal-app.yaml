@@ -3,6 +3,7 @@
 # SEQ                 | AUTHOR                      | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.1.1: register every shipped test and preserve the existing readiness smoke for versioned Test Lab discovery.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: the hub asks whether each provider still HONORS its stored grant, so a revoked login reaches Need attention instead of sitting green forever.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — identity ("Identity Hub")
@@ -46,7 +47,7 @@ description: >-
   LinkedIn, your smart-home app, and more, reconnect a login that's expired, or connect
   a new one. Plus an optional access review that flags what needs attention. OSHAL never
   shows or hands back a password — this launches accounts you've already authorized.
-version: 1.1.1
+version: 1.2.0
 testing:
   version: 1
   catalog: tests/test-lab.yaml

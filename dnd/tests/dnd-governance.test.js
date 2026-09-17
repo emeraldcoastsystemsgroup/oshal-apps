@@ -8,6 +8,7 @@
  * 2026-07-21 22:43:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Enforce the repository-wide 800-line decomposition threshold and sub-50-line function rule for every D&D JavaScript module and regression guard.
  * 2026-08-06 02:43:35 | maintainer@emeraldcoastsystemsgroup.com     | Keep historical Roger-authored entries valid while requiring every new automation-owned change to use the approved project maintainer identity.
  * 2026-08-13 11:20:00 | maintainer@emeraldcoastsystemsgroup.com     | Accept the SEQ header the repository standardized on, and the "use strict" prologue a compiled route carries, alongside the historical DATE/TIME form. The authorship rules — the approved-identity allowlist and the refusal of tool bylines — are untouched; only the column format widened. Without this the guard rejects every new file written to the current standard, which is what it did to routes/package-smoke.js.
+ * 2026-09-16 15:36:37 | maintainer@emeraldcoastsystemsgroup.com     | Assert a generated route's Change Log on the TypeScript file a person writes, not on the compiled output. routes/*.js emitted from src-routes/*.ts is a build artifact of the store's canonical one-pass rebuild, and where the compiler hoists the CommonJS export prologue above the source's leading comment - it does so for 25 already-verified route modules elsewhere in the store - this guard rejected output nobody typed. Entry 5 widened the same regex for the same reason; asserting the source ends the pattern instead of repeating it. Hand-written routes, lib, ui, migrations and tests are unchanged.
  */
 
 'use strict';
@@ -85,8 +86,21 @@ function filesBelow(relativeDir, extension) {
   });
 }
 
+/**
+ * @description Resolve the file whose Change Log a person actually maintains.
+ * @param {string} relativePath - Package-relative path being governed.
+ * @returns {string} The TypeScript source for a compiled route, otherwise the path itself.
+ */
+function authoredSourceOf(relativePath) {
+  const compiled = /^routes\/(.+)\.js$/.exec(relativePath);
+  if (!compiled) return relativePath;
+  const source = `src-routes/${compiled[1]}.ts`;
+  return fs.existsSync(path.join(ROOT, source)) ? source : relativePath;
+}
+
 /** @description Assert the exact block header and every author entry in a JS or SQL file. */
-function assertBlockHeader(relativePath) {
+function assertBlockHeader(governedPath) {
+  const relativePath = authoredSourceOf(governedPath);
   const source = sourceOf(relativePath);
   const header = source.slice(0, source.indexOf('*/') + 2);
   assert.match(source, /^(?:"use strict";\n)?\/\*\*\n \* CHANGE LOG\n \* -{77}\n \* (?:SEQ|DATE\/TIME)\s+\| AUTHOR\s+\| DESCRIPTION\n \* -{77}/, relativePath);

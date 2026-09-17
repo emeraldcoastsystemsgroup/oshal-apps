@@ -1,5 +1,8 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register all package behavior suites and the new fixture-only coach refresh proof, preserving the readiness smoke.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register the fantasy transport suite: the compiled lineup route driven with a throwing fetch, so an unreachable ESPN can never again be reported as a missing connection.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register the scoring-history suite: the matched underdog/favourite pair each with a history-withheld companion, plus the feed extraction and the store statements' scope.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Say that the scoring-history suite now drives the registered lineup route itself. The earlier expectations were all one level below the defect, so a catalog reader could not tell that reverting the route wiring left them green.
 version: 1
 cases:
   - id: package-readiness
@@ -222,6 +225,56 @@ cases:
     expected:
       - Lineups maximize matchup win probability with legal positions.
       - Opponent identity and scoring distributions remain consistent.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: sports-fantasy-transport
+    name: Fantasy read-failure reporting
+    purpose: >-
+      Drive the compiled lineup route with a synthetic transport that throws, proving an unreachable
+      ESPN is reported as a transport fault while a refusal keeps its credential message.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sports-fantasy-transport.test.js
+    expected:
+      - A read that never reaches ESPN is answered as a transport fault, with or without a stored credential.
+      - A refusal still names the credential or the league.
+      - A failed schedule read and a bye render different surface copy.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: sports-fantasy-history
+    name: Fantasy scoring history
+    purpose: Accumulate completed weeks from the player feed and feed them to the spread model.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sports-fantasy-history.test.js
+    expected:
+      - Completed weeks are kept per player; projections, season totals and prior seasons are not.
+      - Weekly points are computed from the league's own scoring rules.
+      - An underdog moves to the volatile player and a favourite to the steady one.
+      - Withholding the history returns the highest-projected lineup unchanged.
+      - The history read is scoped to one season, the weeks already played, and the roster.
+      - The registered GET /fantasy/lineup handler itself stores the completed weeks and reads them back.
+      - That same route serves the volatile player to an underdog, and the highest-projected lineup when nothing was played.
     prerequisites:
       - runner:node-test
     sideEffects: none

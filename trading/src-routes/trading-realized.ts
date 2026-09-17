@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Realized P&L for the trading surfaces on the engine's own cost (core engineRealizedForBook). The stored realized_pnl uses the venue's wash-sale-adjusted average and counts each disallowed loss twice; the Day P&L tile, the win record and the order cards read these figures instead. The venue's figure travels alongside as venue_realized_pnl.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | realizedReport(): the whole GET /realized body - the 30-day close selection, the engine re-pricing and the today/30d tallies - extracted verbatim from the route so the specialist-context facts read the SAME numbers the surface reads. Two sources of truth for a money figure is how the surface and the bot end up disagreeing about the same day.
  */
 import type { AppContext } from '@/app/composition/app-context';
 import { engineRealizedForBook, type EngineRealizedSale } from '@/app/trading-engine-cost-basis';
@@ -89,4 +90,58 @@ export async function priceOrdersOnEngineCost<T extends RealizedOrderRow>(
   const symbols = [...new Set(rows.filter((r) => r.side === 'sell').map((r) => String(r.symbol)))];
   const sales = symbols.length ? await engineRealizedForBook(ctx, sub, bookId, symbols) : new Map<string, EngineRealizedSale>();
   return applyEngineRealized(rows, sales);
+}
+
+/** One side of the realized report: a tally plus the win rate the surfaces render. */
+export interface RealizedWindow extends RealizedTally { winRatePct: number | null }
+
+/** The GET /realized body, now also the specialist facts' source for today's realized P&L. */
+export interface RealizedReport {
+  mode: string;
+  basis: 'engine';
+  today: RealizedWindow;
+  last30d: RealizedWindow;
+  venueNet: { today: number; last30d: number };
+}
+
+/**
+ * @description Tally one book's realized P&L on the engine's own cost: every filled sell in the
+ *   last 30 days, re-priced by engineRealizedForBook, split into today and the 30-day record, with
+ *   the venue's own net riding alongside labelled. Book-scoped and owner-scoped by the query's own
+ *   (user_sub, book_id) predicate - an unscoped read would mix a paper book into a live figure.
+ *   This is the whole body of GET /realized, extracted so the route and the trading specialist's
+ *   facts cannot report different numbers for the same day.
+ * @param ctx - App context (pool).
+ * @param sub - Owner sub.
+ * @param bookId - The book whose closes are tallied; it alone scopes the query.
+ * @param mode - The book kind, echoed back as `mode` for the surface's response shape.
+ * @returns The realized report for that book.
+ */
+export async function realizedReport(
+  ctx: Pick<AppContext, 'pool'>, sub: string, bookId: string, mode = '',
+): Promise<RealizedReport> {
+  // Closes are priced on the ENGINE's own cost: the stored realized_pnl uses the venue's wash-sale-
+  // adjusted average and counts each disallowed loss twice. The venue's net rides along, labelled.
+  const closes = (await ctx.pool.query(
+    `SELECT order_id::text AS order_id, upper(symbol) AS symbol, realized_pnl,
+            (created_at::date = CURRENT_DATE) AS today
+       FROM oshal_trading_orders
+      WHERE user_sub=$1 AND book_id=$2 AND side='sell' AND status='filled'
+        AND created_at >= now() - interval '30 days'`,
+    [sub, bookId])).rows as Array<{ order_id: string; symbol: string; realized_pnl: string | null; today: boolean }>;
+  const sales = closes.length
+    ? await engineRealizedForBook(ctx, sub, bookId, [...new Set(closes.map((c) => c.symbol))])
+    : new Map<string, EngineRealizedSale>();
+  const engine = (c: { order_id: string }): number | null => sales.get(c.order_id)?.realizedPnl ?? null;
+  const venueNet = (list: typeof closes): number => round2(list.reduce((s, c) => s + Number(c.realized_pnl ?? 0), 0));
+  const todays = closes.filter((c) => c.today);
+  const today = tallyRealized(todays.map(engine));
+  const d30 = tallyRealized(closes.map(engine));
+  const winRate = (r: { trades: number; wins: number }): number | null => (r.trades ? Math.round((r.wins / r.trades) * 100) : null);
+  return {
+    mode, basis: 'engine',
+    today: { ...today, winRatePct: winRate(today) },
+    last30d: { ...d30, winRatePct: winRate(d30) },
+    venueNet: { today: venueNet(todays), last30d: venueNet(closes) },
+  };
 }

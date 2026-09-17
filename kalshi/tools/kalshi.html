@@ -301,6 +301,13 @@
     <div class="books" id="tr-books"></div>
     <div class="kpis" id="tr-kpis"></div>
     <figure class="viz">
+      <figcaption><b>Paper bankroll</b> <span class="meta">&mdash; PAPER MONEY, never an order: every pick replayed at the quarter-Kelly stake the ledger recorded, against the starting bankroll. A zero-stake forward test stays flat by design.</span> <button class="viz-toggle" data-toggle="tr-bank">Table</button></figcaption>
+      <div class="viz-legend" id="tr-bank-legend"></div>
+      <div class="viz-plot" id="tr-bank-plot"></div>
+      <div class="viz-tip" id="tr-bank-tip" hidden></div>
+      <div class="viz-table" id="tr-bank-table" hidden></div>
+    </figure>
+    <figure class="viz">
       <figcaption><b>Cumulative P&amp;L per contract</b> <span class="meta">— one contract on every pick at the ask, fees included, graded at settlement</span> <button class="viz-toggle" data-toggle="tr-pnl">Table</button></figcaption>
       <div class="viz-legend" id="tr-pnl-legend"></div>
       <div class="viz-plot" id="tr-pnl-plot"></div>
@@ -315,7 +322,7 @@
     </figure>
     <p class="explain" id="tr-empty" style="display:none">No graded predictions in this window yet.</p>
     <p class="explain">
-      <b>What the books mean.</b> <b>Paper · auto</b> is the ledger: every strategy's every pick, one contract at the ask, graded when the market settles — the record the Scorecard rules on.
+      <b>What the books mean.</b> <b>Paper · auto</b> is the ledger, sized: every strategy's every pick replayed at the quarter-Kelly stake recorded with it, against a <b>paper</b> bankroll, graded when the market settles — the record the Scorecard rules on. It is paper money throughout; no order is ever placed from it, and a pick registered at zero stake moves the bankroll not at all.
       <b>Paper · manual</b> is you, on the demo exchange. <b>Real · manual</b> is you, on the live exchange, confirm-gated. <b>Real · auto</b> does not exist: an autopilot needs a PROVEN strategy first.
       <b>Days to verdict</b> is how long, at the observed grading pace, until a forward test has the 30 settled picks the Scorecard needs.
     </p>
@@ -326,14 +333,17 @@
       <h2>Alert history <span class="meta" style="text-transform:none;font-weight:400">— each hand is announced ONCE, the first time it clears your floor</span></h2>
       <div class="meta" id="alert-record" style="margin-bottom:8px"></div>
       <table style="width:100%">
-        <thead><tr><th>When</th><th>Market</th><th>Hand</th><th class="num">Net edge</th><th>Outcome</th><th>Sent via</th></tr></thead>
+        <thead><tr><th>When</th><th>Market</th><th>Hand</th><th class="num">Net edge</th><th>Outcome</th><th>Since announced</th><th>Sent via</th></tr></thead>
         <tbody id="alert-rows"></tbody>
       </table>
+      <div class="meta" id="alert-pops-note" style="margin-top:8px"></div>
       <div class="meta" id="alerts-empty" style="margin-top:8px">Nothing yet. When the background scan finds a hand that clears your alert floor, it lands in your Jarvis feed and is listed here.</div>
     </div>
     <p class="explain">
       Alerts are <b>first-seen</b>: the scan re-finds the same hand every cycle, so re-announcing it would train you to ignore it.
       <b>Outcome</b> is the settlement grade of the hand exactly as announced — WIN or LOSS, and the P&amp;L of one contract bought at the alerted ask, fees included.
+      <b>Since announced</b> is the same hand's price move while it is still OPEN: the ask you were quoted versus the latest candle on the same side, in cents, green when the market moved toward the pick.
+      It is read from Kalshi's public candles, which are shared and rate-limited, so a busy refresh prices the newest alerts first and says below the table how many it left for the next one.
       It is a paper record (an alert never places an order) and the same grades feed the Scorecard tab.
       Change the floor, the strength, or the daily cap on the <b>Settings</b> tab. <b>Jarvis</b> gets these in his feed —
       ask him "what did the Kalshi scan find?" and he answers from what actually happened, not a fresh scan.
@@ -615,6 +625,44 @@
       'avg ' + esc(avg) + ' per contract, ' + esc(total) + ' had you bought one contract on each · ' +
       rec.open + ' still open · ' + rec.alerted + ' announced. Paper: alerts never place orders.';
   }
+  /* "Pops": where an OPEN hand's price is now versus the ask it was announced at, on the side we
+     picked. Fetched SEPARATELY from /alerts because this one talks to Kalshi — the table must
+     render whether or not the exchange answers, so the cell starts as an ellipsis and either fills
+     in or falls back to an em dash. Never shown for a settled hand: that one has an outcome. */
+  function popCell(p) {
+    var c = Number(p.moveCents);
+    if (!isFinite(c)) return '\u2014';
+    var sign = c > 0 ? '+' : (c < 0 ? '\u2212' : '');
+    var colour = c > 0 ? 'var(--green)' : (c < 0 ? 'var(--red)' : 'var(--dim)');
+    return '<span style="color:' + colour + '"><b>' + sign + Math.abs(c).toFixed(1) + '\u00a2</b></span>' +
+      ' <span class="meta">' + Math.round(p.announcedPrice * 100) + '\u00a2 \u2192 ' + Math.round(p.currentPrice * 100) + '\u00a2</span>';
+  }
+  function settlePendingPopCells() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-pop-ticker]'), function (td) {
+      if (td.textContent === '\u2026') td.textContent = '\u2014';
+    });
+  }
+  function loadPops() {
+    return fetch('/api/kalshi/alerts/pops', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d || !d.pops) { settlePendingPopCells(); return; }
+        var by = {};
+        d.pops.forEach(function (p) { by[p.ticker] = p; });
+        Array.prototype.forEach.call(document.querySelectorAll('[data-pop-ticker]'), function (td) {
+          var p = by[td.getAttribute('data-pop-ticker')];
+          if (p) td.innerHTML = popCell(p);
+        });
+        settlePendingPopCells();
+        var note = $('alert-pops-note');
+        if (note) {
+          note.textContent = d.deferred
+            ? d.deferred + ' more open alert' + (d.deferred === 1 ? '' : 's') + ' not priced this refresh \u2014 Kalshi\u2019s public candles are rate-limited; refresh again in a moment.'
+            : '';
+        }
+      })
+      .catch(function () { settlePendingPopCells(); });
+  }
   function loadAlerts() {
     return fetch('/api/kalshi/alerts', { credentials: 'same-origin' })
       .then(function (r) { return r.ok ? r.json() : { alerts: [] }; })
@@ -631,6 +679,9 @@
             (d.side ? ' <span class="side-' + esc(d.side) + '">' + esc(String(d.side).toUpperCase()) + '</span>' : '') + '</td>' +
             '<td class="num edge-pos">+' + ((Number(a.edge_net) || 0) * 100).toFixed(1) + '¢</td>' +
             outcomeCell(a) +
+            (a.settled === true
+              ? '<td class="meta">\u2014</td>'
+              : '<td class="meta" data-pop-ticker="' + esc(a.ticker) + '">\u2026</td>') +
             '<td class="meta">' + esc(a.channel || 'none') + (a.delivered ? '' : ' <span style="color:var(--amber)">(not delivered)</span>') + '</td>';
           var cell=document.createElement('td'), review=document.createElement('button');
           review.type='button';review.className='btn';review.textContent='Review';
@@ -643,6 +694,10 @@
         $('alerts-empty').style.display = rows.length ? 'none' : '';
         renderAlertRecord(b.record);
         setBadge('badge-alerts', rows.length ? String(rows.length) : '', '');
+        // Prices the OPEN rows afterwards, never in front of them: a rate-limited exchange
+        // read must not be able to hold up the alert history it annotates.
+        if (document.querySelector('[data-pop-ticker]')) loadPops();
+        else { var note = $('alert-pops-note'); if (note) note.textContent = ''; }
       })
       .catch(function () { /* the tab just stays empty */ });
   }
@@ -890,6 +945,9 @@
     document.body.classList.toggle('viz-dark', dark);
   }
   function usd(v) { v = Number(v) || 0; return (v < 0 ? '\u2212$' : '+$') + Math.abs(v).toFixed(2); }
+  /* A bankroll is a LEVEL, not a delta — printing it with usd()'s leading +/− would read as a gain. */
+  function money(v) { v = Number(v) || 0; return '$' + v.toFixed(2); }
+  function pctSigned(v) { return (v === null || v === undefined || !isFinite(v)) ? '\u2014' : (v >= 0 ? '+' : '\u2212') + Math.abs(v * 100).toFixed(1) + '%'; }
   function pct0(v) { return v === null || v === undefined ? '\u2014' : Math.round(v * 100) + '%'; }
   function niceTicks(min, max, count) {
     var span = (max - min) || 1, raw = span / count, mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10)), norm = raw / mag;
@@ -915,6 +973,7 @@
     var withDays = strategies.filter(function (s) { return s.days && s.days.length; });
     $('tr-empty').style.display = withDays.length ? 'none' : '';
     if (withDays.length) $('tr-empty').textContent = 'No graded predictions in this window yet.';
+    renderBankChart(withDays, d);
     renderPnlChart(withDays);
     renderHitMultiples(withDays);
   }
@@ -927,7 +986,10 @@
   function renderBooks(b) {
     var el = $('tr-books'); el.innerHTML = '';
     var pa = b.paperAuto || {}, pm = b.paperManual || {}, lm = b.liveManual || {}, la = b.liveAuto || {};
-    el.appendChild(bookTile('Paper \u00b7 auto', 'on', usd(pa.pnl), (pa.predictions || 0) + ' picks \u00b7 ' + (pa.graded || 0) + ' graded \u00b7 ' + (pa.strategies || 0) + ' strategies', pa.note || ''));
+    el.appendChild(bookTile('Paper \u00b7 auto', 'on', money(pa.bankroll),
+      'PAPER bankroll from ' + money(pa.bankrollStart) + ' \u00b7 ' + pctSigned(pa.bankrollReturn) + ' \u00b7 ' +
+      (pa.sized || 0) + ' of ' + (pa.graded || 0) + ' graded picks sized \u00b7 ' + (pa.strategies || 0) + ' strategies',
+      pa.note || ''));
     el.appendChild(bookTile('Paper \u00b7 manual', pm.orders ? 'on' : '', (pm.orders || 0) + ' orders', (pm.contracts || 0) + ' contracts \u00b7 $' + (Number(pm.notional) || 0).toFixed(2) + ' notional', pm.note || ''));
     el.appendChild(bookTile('Real \u00b7 manual', lm.orders ? (lm.blocked === lm.orders ? 'warn' : 'on') : '', (lm.orders || 0) + ' orders', (lm.blocked || 0) + ' blocked \u00b7 ' + (lm.contracts || 0) + ' contracts \u00b7 $' + (Number(lm.notional) || 0).toFixed(2) + ' notional', lm.note || ''));
     el.appendChild(bookTile('Real \u00b7 auto', '', 'not built', '', la.note || ''));
@@ -955,9 +1017,15 @@
       if (s.graded < d.minGraded && s.daysToVerdict !== null && (next === null || s.daysToVerdict < next.days)) next = { strategy: s.strategy, days: s.daysToVerdict, graded: s.graded };
       if (s.graded < d.minGraded && s.daysToVerdict === null && s.pending > 0 && !waiting) waiting = { strategy: s.strategy, pending: s.pending };
     });
-    // The hero is the ledger's own sum (the same number as the Paper · auto book), not a float walk.
+    // The hero is the BOOK's own bankroll (paper money, sized by the ledger's recorded Kelly stake),
+    // read straight off the Paper · auto book so the tile and the hero can never disagree.
+    var pa = (d.books && d.books.paperAuto) || {};
+    el.appendChild(kpiTile('hero', 'Paper bankroll — sized, paper money, no order placed', money(pa.bankroll),
+      'from ' + money(pa.bankrollStart) + ' \u00b7 ' + pctSigned(pa.bankrollReturn) + ' \u00b7 ' + (pa.sized || 0) + ' of ' + (pa.graded || 0) + ' graded picks sized',
+      (Number(pa.bankrollReturn) || 0) >= 0 ? 'up' : 'down'));
+    // The ledger's own sum (the same number as before the book became a bankroll), not a float walk.
     var ledgerPnl = d.books && d.books.paperAuto && typeof d.books.paperAuto.pnl === 'number' && !$('tr-window').value ? d.books.paperAuto.pnl : total;
-    el.appendChild(kpiTile('hero', 'Paper P&L, one contract on every pick', usd(ledgerPnl), lastDay ? usd(lastPnl) + ' on ' + lastDay : '', lastPnl >= 0 ? 'up' : 'down'));
+    el.appendChild(kpiTile('', 'Paper P&L, one contract on every pick', usd(ledgerPnl), lastDay ? usd(lastPnl) + ' on ' + lastDay : '', lastPnl >= 0 ? 'up' : 'down'));
     el.appendChild(kpiTile('', 'Graded on ' + (lastDay || '\u2014'), String(lastN), lastN ? lastW + ' won \u00b7 ' + (lastN - lastW) + ' lost' : 'nothing settled yet', ''));
     el.appendChild(kpiTile('', 'Closest to beating the market (Brier gap)', best ? (best.gap > 0 ? '+' : '') + best.gap.toFixed(4) : '\u2014', best ? best.strategy + ' over ' + best.n + ' graded \u00b7 negative = beating it' : 'needs 30 graded', best && best.gap < 0 ? 'up' : ''));
     el.appendChild(kpiTile('', 'Next verdict', next ? (next.days === 0 ? 'due now' : '~' + next.days + ' day' + (next.days === 1 ? '' : 's')) : (waiting ? 'waiting' : '—'),
@@ -1028,6 +1096,18 @@
     var h = '<table><thead><tr>' + header.map(function (c) { return '<th>' + esc(c) + '</th>'; }).join('') + '</tr></thead><tbody>';
     rows.forEach(function (r) { h += '<tr>' + r.map(function (c, i) { return '<td' + (i ? ' class="num"' : '') + '>' + esc(c) + '</td>'; }).join('') + '</tr>'; });
     el.innerHTML = h + '</tbody></table>';
+  }
+  /* The bankroll curve: the Paper · auto book as a trader reads it. Same hues as the P&L chart,
+     same table twin. The y-axis is dollars of PAPER bankroll, so it starts at the configured start
+     rather than at zero: lineChart seeds its y-range with yMin, so anchoring on the START is what
+     makes "above or below the money you began with" the thing the eye reads. */
+  function renderBankChart(strategies, d) {
+    var series = strategies.map(function (s) { return { name: s.strategy, color: seriesColor(s.strategy), points: s.days.map(function (p) { return { t: Date.parse(p.day), y: Number(p.bankroll) || 0 }; }) }; });
+    lineChart($('tr-bank-plot'), $('tr-bank-tip'), series, { yFmt: money, yMin: Number(d.bankrollStart) || 0, label: 'Paper bankroll by strategy — paper money, sized by the recorded Kelly stake' });
+    legendInto($('tr-bank-legend'), series);
+    var rows = []; strategies.forEach(function (s) { s.days.forEach(function (p) { rows.push([p.day, s.strategy, money(p.bankroll)]); }); });
+    rows.sort(function (a, b) { return a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0; });
+    tableInto($('tr-bank-table'), ['Day', 'Strategy', 'Paper bankroll'], rows);
   }
   function renderPnlChart(strategies) {
     var series = strategies.map(function (s) { return { name: s.strategy, color: seriesColor(s.strategy), points: s.days.map(function (p) { return { t: Date.parse(p.day), y: p.cumPnl, n: p.n, wins: p.wins, pnl: p.pnl }; }) }; });

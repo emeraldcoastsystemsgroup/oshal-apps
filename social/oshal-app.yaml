@@ -26,7 +26,7 @@ description: >-
   input — then publishes to multiple platforms at once (LinkedIn + Facebook + X).
   AI drafting runs on the comms bot; publishing uses your per-user connector
   tokens. Human-approved — nothing posts until you click Publish.
-version: 1.3.0
+version: 1.4.0
 status: active
 
 source:
@@ -47,6 +47,11 @@ smoke:
       jsonPointer: /package
       rejectValues: [noop, stub, empty]
     requiresAi: false
+
+# The installer fingerprints and registers these recipes; execution retains each prerequisite.
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 
 # Runtime connector allow-list — the platforms this app publishes to + the mailbox
 # whose Social category feeds the Signals view, all via the per-user broker.
@@ -79,6 +84,7 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - test-catalog
 
 # Per-app skin (approved palette) — light-blue so the social workspace reads distinct.
 theme: light-blue

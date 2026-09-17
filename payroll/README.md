@@ -1,6 +1,7 @@
 <!-- CHANGE LOG
 SEQ | AUTHOR | DESCRIPTION
 1 | maintainer@emeraldcoastsystemsgroup.com | Document complete package test registration and honest isolated execution boundaries (2.3.1).
+2 | maintainer@emeraldcoastsystemsgroup.com | Point every backlog reference at the package-owned queue in BACKLOG.md, which core handed over, and name the guard that keeps the two honest.
 -->
 # payroll — run payroll for your team, ADP-style
 
@@ -71,7 +72,7 @@ mandatory 37% above $1M; and employer FICA/FUTA/SUTA including a configurable FU
 
 Indiana and North Carolina are deliberately absent with reasons recorded in `KNOWN_UNSUPPORTED`.
 Local/city taxes, state disability and paid-leave contributions, reciprocity, and multi-state
-allocation are not modelled — see the backlog.
+allocation are not modelled — see [the package backlog](BACKLOG.md).
 
 ## Tax year 2026 (OBBBA)
 
@@ -125,8 +126,20 @@ the $100,000 next-business-day rule).
 send. Verified state tables cover **four states plus the nine with no wage income tax**; every other
 state falls back to an operator-entered rate *with a warning*. No local or city taxes, no state
 disability/paid-leave contributions, no employee self-service, no 1099 contractor path, no PTO
-accrual engine, and no segregation of duties (one login is still the whole company). The backlog
-records each with a done-when.
+accrual engine, and no segregation of duties (one login is still the whole company).
+[BACKLOG.md](BACKLOG.md) records each with a done-when.
+
+## Backlog
+
+[BACKLOG.md](BACKLOG.md) is the canonical queue of deferred work for this package, and the only
+one — the core repository keeps no payroll queue, only the shared framework dependencies the app
+installs against. Sixteen numbered items, each with a status, the reason it was deferred, and a
+done-when. **The numbers are permanent:**
+[ADR-123](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/adr/123-payroll-app.md)
+cites them by number, so a finished item keeps its place with what it shipped rather than being
+deleted. Anything commissioned from that queue ships with a primary-source citation wherever the
+answer is legally material, a focused calculation or isolation guard, and clean-tenant output
+evidence.
 
 ## Try it
 
@@ -143,6 +156,11 @@ supplemental thresholds, the gross↔net identity under both bonus methods, host
 both confirm gates with the database provably untouched, void-run negation of every signed column,
 and a sweep proving no payroll query reaches the database without a tenant predicate. Wired as the
 `payroll` store-ci job.
+
+One suite there is not about arithmetic: `payroll-backlog-queue.test.mjs` reads the shipped
+README and [BACKLOG.md](BACKLOG.md) off disk and fails if the queue loses an item number ADR-123
+cites, if an unfinished item has no done-when, if a handed-over subject disappears, or if any
+paragraph here mentions the queue without linking to it.
 
 ## v2.1 — pay and file
 
@@ -212,7 +230,7 @@ operator cannot tell it is wrong.**
 
 ## AI Test Lab registration
 
-Version 2.3.1 declares `test-catalog` and [tests/test-lab.yaml](tests/test-lab.yaml). Installation registers all 13 shipped Node test files as separate unit-suite cases, plus the existing `package-readiness` smoke case. Registration does not execute these suites.
+Version 2.3.1 declares `test-catalog` and [tests/test-lab.yaml](tests/test-lab.yaml). Installation registers the 13 shipped product test files as separate unit-suite cases, plus the existing `package-readiness` smoke case. Registration does not execute these suites. The fourteenth test file, `tests/payroll-backlog-queue.test.mjs`, asserts this repository's own documentation rather than installed behavior, so it runs in store CI and is deliberately not a Lab case.
 
 The local Lab can run 13 suites in its sealed Node sandbox. They exercise the committed compiled modules with synthetic inputs; route/store suites use explicit router, database, logger, vault or bot stubs. They do not establish real HTTP, database/RLS, browser, provider, payment or deployment acceptance.
 

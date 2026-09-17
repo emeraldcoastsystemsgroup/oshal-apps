@@ -64,3 +64,4 @@ function homeSnapshotSummary(index, scenes, failed = false) {
     const items = [{ text: 'Review home configuration', detail, tone: 'neutral', fix: 'home-dashboard', actions: [{ integration: 'prepare-document', context: { title: 'Home configuration review', notes } }] }];
     return { metrics, tiles: metrics, items, partial: failed, asOf: new Date().toISOString() };
 }
+//# sourceMappingURL=home-summary.js.map
