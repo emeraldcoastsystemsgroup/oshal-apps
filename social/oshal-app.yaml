@@ -26,7 +26,7 @@ description: >-
   input — then publishes to multiple platforms at once (LinkedIn + Facebook + X).
   AI drafting runs on the comms bot; publishing uses your per-user connector
   tokens. Human-approved — nothing posts until you click Publish.
-version: 1.4.0
+version: 1.4.1
 status: active
 
 source:
@@ -68,13 +68,18 @@ readiness:
     readyPointer: /signals/ready
     detailPointer: /signals/detail
 
+# ── Cross-package prerequisites: what this package actually reaches ─────────
+# OPTIONAL, NOT REQUIRED: tools/social-composer.html:102 links to /api/email/inbox — Intelligent
+# Communication is what the composer points at when it explains that X, Facebook and LinkedIn no
+# longer expose a timeline. Without that package the link 404s; drafting, publishing and the
+# Signals view are unaffected.
 dependencies:
   required:
     apps: []
     tools: []
     connectors: []
   optional:
-    apps: []
+    apps: [email-summarizer]   # the composer links to its inbox as the "feed"; absent, that one link 404s
     tools: []
     connectors: [linkedin, twitter, meta-business, facebook, google]
 

@@ -24,7 +24,7 @@ description: >-
   Google Nest); the home-bot reads your real devices + scenes via your connector
   token and turns "turn off the living room lights" into the right commands.
   Destructive actions (locks, garage, thermostat) are confirmed first.
-version: 1.2.0
+version: 1.2.1
 status: active
 
 source:
@@ -47,13 +47,20 @@ smoke:
     requiresAi: false
 
 # Runtime connector allow-list — the hubs this app drives via the per-user broker.
+# ── Cross-package prerequisites: what this package actually reaches ─────────
+# ALL OPTIONAL — the ribbon frames five sibling surfaces:
+#   drone    oshal-app.yaml:125  /api/drone/app      sat-ops  :130  /api/sat/app  (mount is /api/sat)
+#   pumpkin  oshal-app.yaml:135  /api/pumpkin/app    spaces   :140  /api/spaces/app
+#   camera   oshal-app.yaml:145  /api/camera/app
+# An absent target leaves that one tab empty. The dashboard, /api/home, the workflow and the
+# smart-home control path do not read any of them, so none is required.
 dependencies:
   required:
     apps: []
     tools: []
     connectors: []
   optional:
-    apps: []
+    apps: [drone, sat-ops, pumpkin, spaces, camera]   # five tabs FRAME these apps' own surfaces; absent, that tab is empty and the dashboard works
     tools: []
     connectors: [smartthings, google-home]
 

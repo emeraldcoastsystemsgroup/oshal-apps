@@ -1,7 +1,7 @@
 {
   "profileVersion": 1,
   "app": "switchboard",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "sourceSha": "0000000000000000000000000000000000000000",
   "status": "pending",
   "auditedAt": null,

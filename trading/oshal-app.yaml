@@ -55,7 +55,7 @@ description: >-
   reason over it, and place the trade through your broker (Alpaca) — with a full decision
   trail from every order back to the signal that triggered it. Paper-trade and live-trade as
   two separate books. Cash equities. No crypto.
-version: 1.18.0
+version: 1.18.1
 status: active
 
 source:
@@ -77,13 +77,17 @@ smoke:
       rejectValues: [noop, stub, empty]
     requiresAi: false
 
+# ── Cross-package prerequisites: what this package actually reaches ─────────
+# OPTIONAL, NOT REQUIRED: oshal-app.yaml:376 frames /api/world/app in the World tab. Signals,
+# decisions, orders and the broker adapters never read it, so an absent World leaves one empty
+# tab and changes nothing else.
 dependencies:
   required:
     apps: []
     tools: []
     connectors: []
   optional:
-    apps: []
+    apps: [world]   # the World tab FRAMES world's own surface; absent, that tab is empty
     tools: []
     connectors: []
 

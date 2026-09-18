@@ -30,7 +30,7 @@ description: >-
   tools, your profile picture, your LinkedIn and Facebook presence, and the
   documents you print into the swarm — with a setup page that shows what is
   connected and what still needs you.
-version: 1.0.1
+version: 1.1.0
 status: active
 scope: public
 theme: daylight
@@ -50,8 +50,24 @@ dependencies:
       - portrait-studio
       - social
       - print-ingest
+    connectors: []
   optional:
     apps: []
+    # The runtime connector allow-list. A group carries no code, so it reads no credential
+    # itself — but its toolbar borrows the MEMBERS' surfaces, and inside this front door those
+    # surfaces are where a person connects an account (social-accounts sits in the bottom tray;
+    # career-settings holds the engine keys). So the allow-list is the union of the members' own
+    # declared lists, in member order, and nothing beyond them:
+    #   career-hunter    anthropic, firecrawl, google, twilio
+    #   portrait-studio  google, microsoft
+    #   social           linkedin, twitter, meta-business, facebook, google
+    #   print-ingest     (declares none)
+    # DECLARED rather than absent because absent means UNFILTERED: it pinned the Connectors tile
+    # and offered the entire platform provider catalog — banking, crypto, infrastructure —
+    # inside a job-search front door (RibbonNav.js connectorsAllowed). Optional, like every
+    # member's own list: the group installs and opens with none of them connected, and the setup
+    # page is what reports each one unready.
+    connectors: [anthropic, firecrawl, google, twilio, microsoft, linkedin, twitter, meta-business, facebook]
 
 # ── Toolbar — borrowed by reference ──────────────────────────────────────────
 # `group:` bands render in first-appearance order; `section: bottom` is the pinned

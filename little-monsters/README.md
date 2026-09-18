@@ -4,7 +4,13 @@ Voice-first ADHD study companion for K‑12 students: record lectures, auto-gene
 flashcards and quizzes, and chat with a Socratic tutor grounded in each class's
 approved materials and the student's own private uploads via RAG.
 
-Current store release: **1.0.9 (`ready`)**. Private dashboards and roster
+Package version: **1.3.3**. Named student/teacher/admin structural roles and the test
+catalog are included; installed migration and live acceptance are separate release steps.
+1.3.3 reads the OIDC issuer from the verified `req.oidc.idTokenClaims` before the filtered
+`req.oidc.user` view (express-openid-connect strips `iss` from `user` by default), which
+1.3.2 did not: on a live box every real browser session failed 401 while the mock-OIDC suites
+stayed green. Both identity readers now share one exported `resolveSessionIssuer`.
+Private dashboards and roster
 management enforce student/teacher/tenant-admin boundaries. Identity is bound to
 the verified OIDC `(iss, sub)` pair, and the release gate mounts the compiled
 runtime bytes against disposable PostgreSQL for two-school positive and negative cases.
@@ -22,9 +28,10 @@ prove the format.
 | `personas/` | The 6 education bots + the shared `education-foundation` persona. |
 | `migrations/` | The app's 17 install migrations (`019`–`021`, `024`–`037`) plus explicit opt-in teardown, applied idempotently on activation. |
 | `ui/education.css` | Shared CSS for the app's surfaces. |
-| `routes/` | 36 compiled-JS Express route modules, mounted in-process at activation. **Produced by the build — see [BUILD.md](BUILD.md).** |
+| `routes/` | 40 compiled-JS modules, including route factories and authorization helpers. **Produced by the build — see [BUILD.md](BUILD.md).** |
 | `tools/` | 36 bundled surfaces, helper scripts, visual assets, and tool modules. |
-| `tests/` | Playwright browser/e2e coverage and eight dependency-free security suites (68 tests). |
+| `tests/` | Nine dependency-free security/documentation suites (76 tests), the core-backed structural-role suite, and registered legacy browser/Vitest suites with explicit pending prerequisites. |
+| `authorization.yaml` | Imported structural roles and explicit HTTP, bot and tutor handoff permission bindings; existing school record checks remain authoritative. |
 
 ## Dependencies
 
@@ -72,7 +79,13 @@ node --test "C:/Projects/oshal-apps/little-monsters/tests/*.test.cjs"
 See [BUILD.md](BUILD.md) for the artifact contract and [the local runbook](docs/runbook.md) for
 the restart and port-35457 verification sequence.
 
-## Security boundaries in 1.0.9
+## Security boundaries
+
+The package now declares named **student**, **teacher** and **admin** structural roles for
+Access Administration. These open functions while existing issuer-bound roster, school,
+enrollment and ownership checks continue to restrict every record. Installing a catalog never
+grants a role or changes a student's school role. See [roles and record access](docs/authorization.md)
+for the adoption boundary, exact test registration and pending live acceptance work.
 
 - OIDC accounts resolve by exact issuer plus subject. Email can claim only an unbound,
   same-tenant roster placeholder (or a one-time same-tenant legacy row) under transaction locks.
@@ -104,7 +117,7 @@ committed:
 node --test "tests/*.test.cjs"
 ```
 
-It runs all eight `tests/*.test.cjs` suites (68 tests): issuer binding,
+It runs all nine `tests/*.test.cjs` suites (76 tests): issuer binding,
 dashboard/roster/tutor authorization, lecture artifact containment, study-set ownership,
 calendar/notification/material and authoritative-progress controls, documentation contracts,
 immutable roster audit, plus final-SQL/transaction TOCTOU guards. Store CI separately mounts the

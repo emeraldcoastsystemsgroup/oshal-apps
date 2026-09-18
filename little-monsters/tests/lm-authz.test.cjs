@@ -11,6 +11,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Decompose the in-memory class and write SQL dispatchers to preserve the under-50-line governance boundary without changing test semantics.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Stub the shared untrusted-content encoder used by the compiled tutor containment boundary.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Exercise minimized identity projections and transaction-local roster audit writes.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Supply the package activation adapter-registration seam while retaining compiled record-boundary coverage.
  *
  * Little Monsters authorization closure.
  *
@@ -436,7 +437,9 @@ function makeRes() {
 }
 
 async function call(pool, method, routePath, request) {
-  const router = createEducationRoutes({ pool, appPackageDir: PKG });
+  const resources = new Map();
+  const router = createEducationRoutes({ pool, appPackageDir: PKG,
+    authorization: { registerResource: (name, adapter) => resources.set(name, adapter) } });
   const handler = router.routes.get(`${method} ${routePath}`);
   assert.ok(handler, `compiled router must register ${method} ${routePath}`);
   const res = makeRes();

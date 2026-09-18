@@ -11,6 +11,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Add fail-closed lecture authorization, strict input validation, content-derived audio formats, safe projections, and symlink-aware class-workspace containment.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Resolve the principal issuer through education-access resolveSessionIssuer (verified idTokenClaims first) instead of a private user.iss read: real browser sessions carry no iss on req.oidc.user, so every lecture read returned 401 and this reader could drift from the identity reader
  * -----------------------------------------------------------------------------
  *
  * @module education-lecture-security
@@ -26,6 +27,7 @@ import { createChildLogger } from '@/shared/logger';
 import {
   assertClassAccess,
   EducationAccessError,
+  resolveSessionIssuer,
   type AuthedStudent,
 } from './education-access';
 
@@ -33,7 +35,6 @@ const logger = createChildLogger({ module: 'education-lecture-security' });
 const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const SAFE_FILE_TOKEN = /^[a-z0-9-]+$/;
-const MOCK_OIDC_ISSUER = 'urn:oshal:mock-oidc';
 const ARTIFACT_EXTENSIONS = new Set(['flac', 'json', 'm4a', 'md', 'mp3', 'ogg', 'txt', 'wav', 'webm']);
 
 /** @description A content-derived, allowlisted audio container. */
@@ -293,21 +294,18 @@ function identityClaim(value: unknown, maxLength: number): string | null {
   return normalized.length > 0 && normalized.length <= maxLength ? normalized : null;
 }
 
-/** Return whether the explicit local mock identity provider is enabled. */
-function mockOidcEnabled(): boolean {
-  const configured = String(process.env.MOCK_OIDC || '').trim().toLowerCase();
-  return configured === 'true' || configured === '1' || configured === 'yes';
-}
-
-/** Read the verified issuer/subject pair without provisioning or role promotion. */
+/**
+ * Read the verified issuer/subject pair without provisioning or role promotion. The
+ * issuer comes from the shared education-access reader (verified idTokenClaims before
+ * the filtered user view, mock fallback only under MOCK_OIDC) so the two cannot drift.
+ */
 function authenticatedPrincipal(req: Request): { issuer: string; subject: string } {
   const oidc = (req as any).oidc;
   if (!oidc || typeof oidc.isAuthenticated !== 'function' || !oidc.isAuthenticated()) {
     throw new EducationAccessError('Not authenticated', 401);
   }
   const subject = identityClaim(oidc.user?.sub, 255);
-  const issuer = identityClaim(oidc.user?.iss, 2048)
-    || (mockOidcEnabled() ? MOCK_OIDC_ISSUER : null);
+  const issuer = resolveSessionIssuer(oidc);
   if (!subject || !issuer) {
     throw new EducationAccessError('Authenticated OIDC identity is missing issuer or subject', 401);
   }

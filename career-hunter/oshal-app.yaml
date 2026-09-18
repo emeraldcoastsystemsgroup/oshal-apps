@@ -24,6 +24,7 @@
 # 20 | maintainer@emeraldcoastsystemsgroup.com | Release shared portal palettes across thirteen existing screens and an honest package Test Lab catalog as version 1.20.0.
 # 21 | maintainer@emeraldcoastsystemsgroup.com | Release connected Job Board/open search views, responsive result-first controls and bounded retryable board reads as version 1.21.0.
 # 22 | maintainer@emeraldcoastsystemsgroup.com | Release the ADR-141 D7 evidence half as version 1.22.0. The story review already recorded a defensible story per job title; nothing downstream could show it or cite it. The master resume document now carries each role's stories with the bullet each one supports, and the Resume Studio renders the story UNDER that bullet (a story whose bullet an edit rewrote falls to the end of its role rather than disappearing). A tailored packet's prompt carries the same evidence role by role with the rule that a role holding a story must spend a bullet on it, every citation the model returns is verified against the story the profile actually holds ON THE ROLE it belongs to (an invented story, a weak one, or one moved to another employer is dropped), and application.json records what was cited. A profile that has never been through the review builds a byte-identical prompt to before.
+# 23 | maintainer@emeraldcoastsystemsgroup.com | Declare the runtime connector allow-list as version 1.23.0. `dependencies.connectors` was ABSENT, and absent does not mean empty: the cockpit reads it as UNFILTERED, pins the Connectors tile and offers every provider in the platform catalog inside this app (RibbonNav.js connectorsAllowed, cockpit-view-controller.js renderConnectorDiscoverView). The four ids below are the complete set this package's own code reads a caller-owned credential for, each cited at the block; LinkedIn is deliberately not among them because the Profile Studio applies a profile change through desktop browser control, not an API credential.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — career-hunter (Career Hunter)
@@ -64,7 +65,7 @@ description: >-
   posting against your private career profile, and turns the best fits into a human-in-the-loop
   application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume +
   cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.
-version: 1.22.0
+version: 1.23.0
 
 # ── ADR-139 artifact exchange — this app as a "Send to…" DESTINATION ─────────
 # Any document anywhere in the swarm (files browser, another app) can be sent
@@ -127,14 +128,11 @@ smoke:
 # never installed unasked; a portrait-studio uninstall is no longer blocked by this app, it is
 # reported as an optional dependent instead.
 #
-# `connectors:` is deliberately ABSENT, not []. The key doubles as this app's runtime
-# connector allow-list — PRESENT means "this is the complete set my surfaces may offer",
-# and [] means "offer none". This app reaches at least four provider ids today (anthropic +
-# firecrawl in career-settings-routes/career-engine-dispatch, google + twilio in
-# career-digest), and the LinkedIn rail may add more, so an empty or partially-guessed list
-# would silently strip working connectors off the settings surface. Absent = unfiltered =
-# today's behaviour. Declaring the accurate allow-list is worth doing as its own audited
-# change, not as a side effect of a ribbon edit.
+# `connectors:` is DECLARED below, and the audited change that entry 23 records is what this
+# comment used to defer. The key doubles as this app's runtime connector allow-list — PRESENT
+# means "this is the complete set my surfaces may offer", [] means "offer none", and ABSENT
+# means UNFILTERED: the cockpit pins the Connectors tile and puts the whole platform provider
+# catalog inside this app. The four ids are cited at the block itself.
 # ── ADR-141 per-user readiness — what the Intelligent Career group's setup page asks ──
 # Each probe runs AS THE SIGNED-IN USER (the owning route admits a browser session) and
 # reads this app's own store; a step is done only when readyPointer resolves to true.
@@ -169,12 +167,31 @@ dependencies:
   required:
     apps: []
     tools: []
+    connectors: []
   optional:
     # portrait-studio is a cross-app tile plus an opportunistic headshot picker, never a runtime.
     # tools/career-profile-studio.html:243 says so in the code - "If the app isn't installed (404)
     # the button never appears and upload still works" - and the probe at :247 hides the button.
     apps: [portrait-studio]
     tools: []
+    # The runtime connector allow-list. Every id is one THIS package's own code reads a
+    # caller-owned credential for, and nothing else is:
+    #   anthropic  routes/career-settings-routes.js:24 and routes/career-engine-dispatch.js:83
+    #   firecrawl  read exactly provider IN ('anthropic','firecrawl') out of oshal_connections,
+    #              and bin/oshal-jobhunter.js:281/:284 broker those two into the engine.
+    #              firecrawl has no platform connector spec today — its key is pasted on this
+    #              app's own Settings card and stored as a provider row. It is named here so the
+    #              allow-list covers every credential this package reads, and so a firecrawl
+    #              connector, if one is ever published, is offerable here instead of filtered out.
+    #   google     routes/career-digest.js:95 reads provider IN ('google','twilio'); :142 sends
+    #   twilio     the digest through the user's own Google token and :165 texts through their
+    #              own Twilio connection.
+    # All four are OPTIONAL because the app installs and runs with none of them connected: the
+    # digest reports itself unready and the engine falls back to the default kernel LLM.
+    # LinkedIn is deliberately absent — the Profile Studio plans and approves a profile change
+    # and then applies it through desktop browser control ("no LinkedIn edit API exists", see the
+    # ribbon comment below), so it never reads a LinkedIn credential.
+    connectors: [anthropic, firecrawl, google, twilio]
 
 # Guests may browse read-only; every write is gated. (Was hardcoded Tier A in core —
 # the literal left with this carve. Request only; grants come from the operator, D4.)

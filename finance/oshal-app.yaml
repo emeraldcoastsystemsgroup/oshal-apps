@@ -3,6 +3,7 @@
 # SEQ                 | AUTHOR                      | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1: register every shipped test and preserve the existing readiness smoke for versioned Test Lab discovery.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: declare the three apps the ribbon FRAMES (optional — an absent target leaves one tab empty, it does not break finance).
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — finance ("Finance")
@@ -43,7 +44,7 @@ description: >-
   Link your banks and brokerages (via Plaid — OSHAL never sees your bank password)
   and see everything in one place: net worth, accounts, holdings, and spending, with
   a plain-English brief. Read-only — nothing is traded or moved. No crypto.
-version: 1.2.1
+version: 1.2.2
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -75,14 +76,23 @@ smoke:
     requiresAi: false
 
 # Plaid links on the app's own surface (not the connector hub) → empty connector
-# allow-list is correct; no app/tool deps.
+# allow-list is correct; no TOOL deps. The app deps below are the framed tabs, not data reads.
+# ── Cross-package prerequisites: what this package actually reaches ─────────
+# ALL OPTIONAL — this is a launcher. Three ribbon tabs frame another package's surface:
+#   intelligent-trades  oshal-app.yaml:162  iframeUrl: /api/trading/     (NOTE the mount is /api/trading)
+#   world               oshal-app.yaml:167  iframeUrl: /api/world/app
+#   kalshi              oshal-app.yaml:172  iframeUrl: /api/kalshi/
+# A framed target that is not installed leaves that one tab empty; finance's own surface, routes
+# and workflows are unaffected. REQUIRED would mean install refuses to orphan them, which is the
+# defect gen-catalog-dependencies.mjs had to fix when the launchers advertised route-to targets
+# as hard dependencies — so these are declared where games, life, system and create declare theirs.
 dependencies:
   required:
     apps: []
     tools: []
     connectors: []
   optional:
-    apps: []
+    apps: [intelligent-trades, world, kalshi]   # three tabs FRAME these apps' own surfaces; absent, that tab is empty and the rest of finance works
     tools: []
     connectors: []
 

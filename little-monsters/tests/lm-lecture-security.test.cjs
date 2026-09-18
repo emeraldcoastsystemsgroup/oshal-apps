@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Add compiled lecture route guards for issuer-bound authorization, strict inputs, safe artifacts, zero-side-effect denials, and the protected route matrix.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Exercise lecture generation through the caller-scoped, tool-disabled bot boundary with fenced transcript input.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Cross the real session shape for the lecture reader: iss on idTokenClaims only (express-openid-connect default) resolves; iss nowhere is 401 before any query.
  * -----------------------------------------------------------------------------
  *
  * Dependency-free node:test coverage over the compiled lecture modules mounted
@@ -290,6 +291,43 @@ test('lecture identity lookup binds the subject to its verified OIDC issuer', as
   const lookup = pool.calls.find((call) => /external_issuer = \$1/i.test(call.sql));
   assert.deepEqual(lookup.params, ['https://different-issuer.example.test/', 'oidc-teacher-a']);
   assert.equal(writeQueries(pool).length, 0);
+});
+
+test('lecture identity resolves the issuer from idTokenClaims when the filtered user carries none', async () => {
+  const previousMock = process.env.MOCK_OIDC;
+  delete process.env.MOCK_OIDC;
+  try {
+    // express-openid-connect's default identityClaimFilter: iss lives on idTokenClaims only.
+    const pool = makePool();
+    const req = requestFor('oidc-teacher-a', {
+      oidc: {
+        isAuthenticated: () => true,
+        user: { email: 'teacher@school.example', name: 'Teacher A', sub: 'oidc-teacher-a' },
+        idTokenClaims: { iss: TEST_ISSUER, aud: 'client-id', iat: 1, exp: 2, sub: 'oidc-teacher-a' },
+      },
+    });
+    const actor = await security.resolveLectureActor(req, pool);
+    assert.equal(actor.studentId, TEACHER_A);
+    assert.equal(actor.tenantId, TENANT_A);
+    const lookup = pool.calls.find((call) => /external_issuer = \$1/i.test(call.sql));
+    assert.deepEqual(lookup.params, [TEST_ISSUER, 'oidc-teacher-a']);
+    assert.equal(writeQueries(pool).length, 0);
+
+    const noIssuer = makePool();
+    await assert.rejects(
+      security.resolveLectureActor(requestFor('oidc-teacher-a', {
+        oidc: {
+          isAuthenticated: () => true,
+          user: { email: 'teacher@school.example', name: 'Teacher A', sub: 'oidc-teacher-a' },
+        },
+      }), noIssuer),
+      (error) => error.status === 401 && /missing issuer or subject/.test(error.message),
+    );
+    assert.equal(noIssuer.calls.length, 0);
+  } finally {
+    if (previousMock === undefined) delete process.env.MOCK_OIDC;
+    else process.env.MOCK_OIDC = previousMock;
+  }
 });
 
 test('artifact writer is random, exclusive, and contained; persisted escapes fail closed', () => {

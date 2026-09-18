@@ -67,7 +67,7 @@ description: >-
   hidden scenes (the kitchen, a studio) are plain data the discovery never reads;
   a drone that reports itself lost recovers by a global search and its registered
   trail back to the pad. Deterministic, no hardware — every view says simulated.
-version: 0.16.0
+version: 0.16.1
 
 # ADR-139 — "Send to…" destination: a Spaces scan built into this engine's scene shape becomes a
 # scenario this owner can reset a world onto (BACKLOG B23). The endpoint redeems the handle as the
@@ -103,13 +103,20 @@ smoke:
     requiresAi: false
 
 # No connector allow-list: the only inputs are the person's own simulated world and their clicks.
+# ── Cross-package prerequisites: what this package actually reaches ─────────
+# OPTIONAL, NOT REQUIRED: tools/embodied.js:216 (drone parts) and :258 (arm parts) POST a part's
+# CAD body to /api/cad-studio/models. Both already handle 404/401/403 as "CAD Studio is not
+# installed on this swarm"; the part list, the mass budget and the simulation do not depend on it.
+# NOTE the shape this is NOT: the engine's own src-routes/engine/drone/ and engine/world/ are
+# subdirectories of THIS package, not the `drone` and `world` store packages — `../drone/quad-model`
+# from engine/physics/ resolves inside embodied. A name-keyed sweep reads those as edges; they are not.
 dependencies:
   required:
     apps: []
     tools: []
     connectors: []
   optional:
-    apps: []
+    apps: [cad-studio]   # the Open in CAD Studio buttons POST to it; absent, they report and the designs still render
     tools: []
     connectors: []
 

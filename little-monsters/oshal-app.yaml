@@ -10,6 +10,7 @@
 # 6   | maintainer@emeraldcoastsystemsgroup.com     | Align the package description with authoritative quiz grading and the live caller/teacher/admin material-approval boundary
 # 7   | maintainer@emeraldcoastsystemsgroup.com     | Add migration 037 for atomic append-only roster authorization audit facts
 # 8   | maintainer@emeraldcoastsystemsgroup.com     | Record what the dependency tiers mean for this package: both stay empty because nothing here reads another package, the empty connector list is what keeps the provider catalog out of a children's app, and the reasoning credentials are process-level rather than connectors
+# 9   | maintainer@emeraldcoastsystemsgroup.com     | Import student, teacher and admin structural roles and register existing and new package tests
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL App Package — Little Monsters
@@ -30,7 +31,13 @@ description: >-
   generate flashcards and authoritative quizzes, and chat with a Socratic tutor
   grounded only in caller-owned or teacher/admin-approved class material through
   per-material RAG collections.
-version: 1.3.1
+version: 1.3.3
+authorization:
+  version: 1
+  catalog: authorization.yaml
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 
 # ADR-139 wave 1 — "Send to…" destination (open mode): an image or PDF from anywhere in the
 # swarm lands in the Tutor as the pending attachment ("here's my homework"), riding the chat's
@@ -101,6 +108,8 @@ smoke:
 # can never again be broken at mount by a core-side prune (which is exactly how it lost
 # google-calendar, and how `notifications` was pruned).
 uses:
+  - application-authorization
+  - test-catalog
   - deck-generation
   - voice
   - rag

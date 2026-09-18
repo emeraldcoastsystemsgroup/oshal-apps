@@ -10,7 +10,7 @@ kernel-resident manifest. What's here is the complete app:
 |---|---|
 | `oshal-app.yaml` | Complete manifest (bots, UI, routes, 17 migrations, workflow, theme, settings, and kernel-skill declarations; no app dependency). |
 | `personas/` | The 6 bots + `education-foundation`. |
-| `routes/*.js` | **COMPILED IN** — 36 education route modules, compiled from the 36 files in `src-routes/` with `@/` framework imports preserved (resolved at runtime by the loader's alias registration). Core-relative requires were rewritten to `@/app/routes/...`. |
+| `routes/*.js` | **COMPILED IN** — 40 modules compiled from `src-routes/`, including structural authorization adapters, with `@/` framework imports preserved (resolved at runtime by the loader's alias registration). Core-relative requires were rewritten to `@/app/routes/...`. |
 | `src-routes/*.ts` | The TypeScript sources (the developer-readable source of truth). |
 | `tools/` | 36 bundled student/teacher surfaces, helper scripts, visual assets, and tool modules (including 20 HTML surfaces). |
 | `migrations/` | The 17 install migrations (019–021 and 024–037; 022–023 are historical gaps) + `uninstall.sql` (explicit opt-in teardown). |
@@ -27,8 +27,12 @@ node scripts/oshal-app.js build C:\Projects\oshal-apps\little-monsters --framewo
 ```
 
 It copies the sources in transiently (collision-guarded), compiles with plain tsc (@/ preserved),
-harvests, verifies self-containment + factories, and cleans up. The 36-module artifact was
-release-validated on 2026-08-06, followed by all 68 dependency-free package security tests.
+harvests, verifies self-containment + factories, and cleans up. The earlier 36-module artifact was
+release-validated on 2026-08-06, followed by its then-current 68 dependency-free package security tests.
+Version 1.3.3 contains 40 source modules and registers the current nine compiled security suites
+(80 tests) plus the core-backed structural-role suite in AI Test Lab. Rebuild before running the
+compiled suites; source-only success is not deployed evidence. See [roles and record access](docs/authorization.md)
+for the reviewed catalog-migration sequence and still-pending live acceptance.
 The required store CI gate separately runs the mounted two-tenant PostgreSQL authorization proof.
 
 ## Known integration gaps (framework work, tracked in ADR-085)

@@ -28,6 +28,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Retain current editor selection and manual feature drafts across delayed responses; register the actual-page lifecycle suite.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 0.2.0: revolve, sweep and loft feature types (BACKLOG B1). The engine tree changed, so the engine build hash changes: re-run engine/install-engine.sh after updating.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 0.2.0: per-feature time budget (settings.featureBudgetMs, refusal code budget_exceeded) and POST /models/{id}/cancel with Stop rebuild in the studio (BACKLOG B5); register the stubbed-kernel worker suite.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 0.2.1: declare the Scan to Print prerequisite the contour intake already had (optional — the studio works without it).
 name: cad-studio
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
 displayName: CAD Studio
@@ -39,7 +40,7 @@ description: >-
   and re-exports STEP, STL, hidden-line drawing views and a report. Ask the
   concierge for a change in plain words and it edits the same list through the
   package's tools, so the person, the bot and any MCP client iterate on one model.
-version: 0.2.0
+version: 0.2.1
 status: active
 scope: person
 
@@ -68,13 +69,18 @@ smoke:
 
 # No connector allow-list: the inputs are the person's own numbers, outlines and files; the
 # engine is a container on the stack network that nothing outside the box can reach.
+# ── Cross-package prerequisites: what this package actually reaches ─────────
+# OPTIONAL, NOT REQUIRED: tools/cad-studio.js:411 fetches /api/scan-to-print/jobs/<id>/artifacts/contours
+# to open a finished scan as a B-rep part. The studio is fully usable without Scan to Print —
+# that one intake path reports "Scan to Print did not provide outlines for this job" and every
+# other base kind (box, cylinder, sketch, uploaded mesh) is unaffected.
 dependencies:
   required:
     apps: []
     tools: []
     connectors: []
   optional:
-    apps: []
+    apps: [scan-to-print]   # owns the scan outlines this studio imports; absent, that one intake button reports it
     tools: []
     connectors: []
 

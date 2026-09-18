@@ -31,7 +31,7 @@ description: >-
   Make prompted short-form videos (TikTok / YouTube Shorts / Instagram Reels) from an idea.
   Shape the style, tone, length, captions and voiceover; the director storyboards it and the
   studio renders a real .mp4 with voiceover and captions, saved to your Files storage.
-version: 1.5.0
+version: 1.5.1
 status: active
 
 # Per-app skin (approved palette) — sakura so the media studio reads distinct.
@@ -64,13 +64,17 @@ uses:
   - storage          # video-routes.js saves finished MP4s through the kernel storage target
   - app-dependencies # compatibility floor for the tiered dependencies block (ADR-085 addendum)
 
+# ── Cross-package prerequisites: what this package actually reaches ─────────
+# OPTIONAL, NOT REQUIRED: tools/video.html:461 reads /api/create/brand-kit to offer the "in brand
+# colours" chip. The chip stays hidden when the read returns nothing, so storyboarding, generation
+# and the series lifecycle are identical without Create.
 dependencies:
   required:
     apps: []
     tools: []
     connectors: []
   optional:
-    apps: []
+    apps: [create]   # owns the brand kit the brand chips read; absent, the chips stay hidden
     tools: []
     connectors: []
 

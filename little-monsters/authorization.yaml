@@ -1,0 +1,338 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Import named school roles with explicit HTTP, bot and tutor handoff bindings; existing roster relationships still restrict every record.
+# Own scope describes the caller and their existing school relationships, not every school record.
+# Teacher and admin structural grants also require a current issuer-bound teacher/admin roster row.
+# No wildcard HTTP binding: unknown paths, tool operations and jobs remain denied.
+version: 1
+resources:
+  learner:
+    scopes: [own]
+  teaching:
+    scopes: [own]
+permissions:
+  app.open:
+    resource: learner
+    effect: read
+    minimumTier: viewer
+  study.read:
+    resource: learner
+    effect: read
+    minimumTier: viewer
+  study.create:
+    resource: learner
+    effect: write
+    minimumTier: editor
+  study.change:
+    resource: learner
+    effect: write
+    minimumTier: editor
+  study.delete:
+    resource: learner
+    effect: write
+    minimumTier: editor
+  study.generate:
+    resource: learner
+    effect: execute
+    minimumTier: editor
+  class.create:
+    resource: learner
+    effect: write
+    minimumTier: editor
+  class.enroll:
+    resource: learner
+    effect: write
+    minimumTier: editor
+  material.create:
+    resource: learner
+    effect: write
+    minimumTier: editor
+  material.share:
+    resource: learner
+    effect: write
+    minimumTier: editor
+  material.delete:
+    resource: learner
+    effect: write
+    minimumTier: editor
+  lecture.create:
+    resource: learner
+    effect: write
+    minimumTier: editor
+  lecture.export:
+    resource: learner
+    effect: export
+    minimumTier: editor
+  tutor.execute:
+    resource: learner
+    effect: execute
+    minimumTier: editor
+  teaching.read:
+    resource: teaching
+    effect: read
+    minimumTier: viewer
+  class.change:
+    resource: teaching
+    effect: write
+    minimumTier: editor
+  class.delete:
+    resource: teaching
+    effect: write
+    minimumTier: editor
+  roster.change:
+    resource: teaching
+    effect: write
+    minimumTier: editor
+  assignment.create:
+    resource: teaching
+    effect: write
+    minimumTier: editor
+  material.moderate:
+    resource: teaching
+    effect: write
+    minimumTier: editor
+  class-study.generate:
+    resource: teaching
+    effect: execute
+    minimumTier: editor
+roles:
+  student:
+    tier: editor
+    grants:
+      - { permission: app.open, scope: own }
+      - { permission: study.read, scope: own }
+      - { permission: study.create, scope: own }
+      - { permission: study.change, scope: own }
+      - { permission: study.delete, scope: own }
+      - { permission: study.generate, scope: own }
+      - { permission: class.create, scope: own }
+      - { permission: class.enroll, scope: own }
+      - { permission: material.create, scope: own }
+      - { permission: material.share, scope: own }
+      - { permission: material.delete, scope: own }
+      - { permission: lecture.create, scope: own }
+      - { permission: lecture.export, scope: own }
+      - { permission: tutor.execute, scope: own }
+  teacher:
+    tier: editor
+    sensitive: true
+    grants:
+      - { permission: app.open, scope: own }
+      - { permission: study.read, scope: own }
+      - { permission: study.create, scope: own }
+      - { permission: study.change, scope: own }
+      - { permission: study.delete, scope: own }
+      - { permission: study.generate, scope: own }
+      - { permission: class.create, scope: own }
+      - { permission: class.enroll, scope: own }
+      - { permission: material.create, scope: own }
+      - { permission: material.share, scope: own }
+      - { permission: material.delete, scope: own }
+      - { permission: lecture.create, scope: own }
+      - { permission: lecture.export, scope: own }
+      - { permission: tutor.execute, scope: own }
+      - { permission: teaching.read, scope: own }
+      - { permission: class.change, scope: own }
+      - { permission: class.delete, scope: own }
+      - { permission: roster.change, scope: own }
+      - { permission: assignment.create, scope: own }
+      - { permission: material.moderate, scope: own }
+      - { permission: class-study.generate, scope: own }
+  admin:
+    tier: admin
+    sensitive: true
+    grants:
+      - { permission: app.open, scope: own }
+      - { permission: study.read, scope: own }
+      - { permission: study.create, scope: own }
+      - { permission: study.change, scope: own }
+      - { permission: study.delete, scope: own }
+      - { permission: study.generate, scope: own }
+      - { permission: class.create, scope: own }
+      - { permission: class.enroll, scope: own }
+      - { permission: material.create, scope: own }
+      - { permission: material.share, scope: own }
+      - { permission: material.delete, scope: own }
+      - { permission: lecture.create, scope: own }
+      - { permission: lecture.export, scope: own }
+      - { permission: tutor.execute, scope: own }
+      - { permission: teaching.read, scope: own }
+      - { permission: class.change, scope: own }
+      - { permission: class.delete, scope: own }
+      - { permission: roster.change, scope: own }
+      - { permission: assignment.create, scope: own }
+      - { permission: material.moderate, scope: own }
+      - { permission: class-study.generate, scope: own }
+bindings:
+  http:
+    - {id: delete-classes-classid, method: DELETE, path: /classes/:classId, allOf: [app.open, class.delete]}
+    - {id: delete-classes-classid-students-studentid, method: DELETE, path: /classes/:classId/students/:studentId, allOf: [app.open, roster.change]}
+    - {id: delete-flashcards-cards-cardid, method: DELETE, path: /flashcards/cards/:cardId, allOf: [app.open, study.delete]}
+    - {id: delete-flashcards-sets-setid, method: DELETE, path: /flashcards/sets/:setId, allOf: [app.open, study.delete]}
+    - {id: delete-materials-materialid, method: DELETE, path: /materials/:materialId, allOf: [app.open, material.delete]}
+    - {id: get-mount-root, method: GET, path: /, allOf: [app.open, study.read]}
+    - {id: head-mount-root, method: HEAD, path: /, allOf: [app.open, study.read]}
+    - {id: get-arcade, method: GET, path: /arcade, allOf: [app.open]}
+    - {id: head-arcade, method: HEAD, path: /arcade, allOf: [app.open]}
+    - {id: get-assignments, method: GET, path: /assignments, allOf: [app.open, study.read]}
+    - {id: head-assignments, method: HEAD, path: /assignments, allOf: [app.open, study.read]}
+    - {id: get-calendar, method: GET, path: /calendar, allOf: [app.open, study.read]}
+    - {id: head-calendar, method: HEAD, path: /calendar, allOf: [app.open, study.read]}
+    - {id: get-calendar-google-pull, method: GET, path: /calendar/google/pull, allOf: [app.open, study.read]}
+    - {id: head-calendar-google-pull, method: HEAD, path: /calendar/google/pull, allOf: [app.open, study.read]}
+    - {id: get-calendar-google-status, method: GET, path: /calendar/google/status, allOf: [app.open, study.read]}
+    - {id: head-calendar-google-status, method: HEAD, path: /calendar/google/status, allOf: [app.open, study.read]}
+    - {id: get-catalog, method: GET, path: /catalog, allOf: [app.open, study.read]}
+    - {id: head-catalog, method: HEAD, path: /catalog, allOf: [app.open, study.read]}
+    - {id: get-citations, method: GET, path: /citations, allOf: [app.open]}
+    - {id: head-citations, method: HEAD, path: /citations, allOf: [app.open]}
+    - {id: get-class, method: GET, path: /class, allOf: [app.open]}
+    - {id: head-class, method: HEAD, path: /class, allOf: [app.open]}
+    - {id: get-class-tool-keys, method: GET, path: /class-tool-keys, allOf: [app.open, study.read]}
+    - {id: head-class-tool-keys, method: HEAD, path: /class-tool-keys, allOf: [app.open, study.read]}
+    - {id: get-classes, method: GET, path: /classes, allOf: [app.open, study.read]}
+    - {id: head-classes, method: HEAD, path: /classes, allOf: [app.open, study.read]}
+    - {id: get-classes-classid-info, method: GET, path: /classes/:classId/info, allOf: [app.open, study.read]}
+    - {id: head-classes-classid-info, method: HEAD, path: /classes/:classId/info, allOf: [app.open, study.read]}
+    - {id: get-classes-classid-materials, method: GET, path: /classes/:classId/materials, allOf: [app.open, study.read]}
+    - {id: head-classes-classid-materials, method: HEAD, path: /classes/:classId/materials, allOf: [app.open, study.read]}
+    - {id: get-classes-classid-share-requests, method: GET, path: /classes/:classId/share-requests, allOf: [app.open, teaching.read]}
+    - {id: head-classes-classid-share-requests, method: HEAD, path: /classes/:classId/share-requests, allOf: [app.open, teaching.read]}
+    - {id: get-classes-classid-shared-materials, method: GET, path: /classes/:classId/shared-materials, allOf: [app.open, study.read]}
+    - {id: head-classes-classid-shared-materials, method: HEAD, path: /classes/:classId/shared-materials, allOf: [app.open, study.read]}
+    - {id: get-classes-classid-students, method: GET, path: /classes/:classId/students, allOf: [app.open, teaching.read]}
+    - {id: head-classes-classid-students, method: HEAD, path: /classes/:classId/students, allOf: [app.open, teaching.read]}
+    - {id: get-dashboard, method: GET, path: /dashboard, allOf: [app.open]}
+    - {id: head-dashboard, method: HEAD, path: /dashboard, allOf: [app.open]}
+    - {id: get-education-css, method: GET, path: /education.css, allOf: [app.open]}
+    - {id: head-education-css, method: HEAD, path: /education.css, allOf: [app.open]}
+    - {id: get-files, method: GET, path: /files, allOf: [app.open]}
+    - {id: head-files, method: HEAD, path: /files, allOf: [app.open]}
+    - {id: get-flashcard-builder, method: GET, path: /flashcard-builder, allOf: [app.open]}
+    - {id: head-flashcard-builder, method: HEAD, path: /flashcard-builder, allOf: [app.open]}
+    - {id: get-flashcards, method: GET, path: /flashcards, allOf: [app.open]}
+    - {id: head-flashcards, method: HEAD, path: /flashcards, allOf: [app.open]}
+    - {id: get-flashcards-hub, method: GET, path: /flashcards-hub, allOf: [app.open]}
+    - {id: head-flashcards-hub, method: HEAD, path: /flashcards-hub, allOf: [app.open]}
+    - {id: get-flashcards-sets, method: GET, path: /flashcards/sets, allOf: [app.open, study.read]}
+    - {id: head-flashcards-sets, method: HEAD, path: /flashcards/sets, allOf: [app.open, study.read]}
+    - {id: get-flashcards-sets-setid-cards, method: GET, path: /flashcards/sets/:setId/cards, allOf: [app.open, study.read]}
+    - {id: head-flashcards-sets-setid-cards, method: HEAD, path: /flashcards/sets/:setId/cards, allOf: [app.open, study.read]}
+    - {id: get-formula-lab, method: GET, path: /formula-lab, allOf: [app.open]}
+    - {id: head-formula-lab, method: HEAD, path: /formula-lab, allOf: [app.open]}
+    - {id: get-games-2048-index-html, method: GET, path: /games/2048/index.html, allOf: [app.open]}
+    - {id: head-games-2048-index-html, method: HEAD, path: /games/2048/index.html, allOf: [app.open]}
+    - {id: get-games-flashcards-index-html, method: GET, path: /games/flashcards/index.html, allOf: [app.open]}
+    - {id: head-games-flashcards-index-html, method: HEAD, path: /games/flashcards/index.html, allOf: [app.open]}
+    - {id: get-games-milkshake-maker-index-html, method: GET, path: /games/milkshake-maker/index.html, allOf: [app.open]}
+    - {id: head-games-milkshake-maker-index-html, method: HEAD, path: /games/milkshake-maker/index.html, allOf: [app.open]}
+    - {id: get-games-quiz-arena-index-html, method: GET, path: /games/quiz-arena/index.html, allOf: [app.open]}
+    - {id: head-games-quiz-arena-index-html, method: HEAD, path: /games/quiz-arena/index.html, allOf: [app.open]}
+    - {id: get-games-school-dash-index-html, method: GET, path: /games/school-dash/index.html, allOf: [app.open]}
+    - {id: head-games-school-dash-index-html, method: HEAD, path: /games/school-dash/index.html, allOf: [app.open]}
+    - {id: get-games-snake-index-html, method: GET, path: /games/snake/index.html, allOf: [app.open]}
+    - {id: head-games-snake-index-html, method: HEAD, path: /games/snake/index.html, allOf: [app.open]}
+    - {id: get-icons-png, method: GET, path: /icons.png, allOf: [app.open]}
+    - {id: head-icons-png, method: HEAD, path: /icons.png, allOf: [app.open]}
+    - {id: get-index-html, method: GET, path: /index.html, allOf: [app.open]}
+    - {id: head-index-html, method: HEAD, path: /index.html, allOf: [app.open]}
+    - {id: get-lectures, method: GET, path: /lectures, allOf: [app.open, study.read]}
+    - {id: head-lectures, method: HEAD, path: /lectures, allOf: [app.open, study.read]}
+    - {id: get-lectures-lectureid, method: GET, path: /lectures/:lectureId, allOf: [app.open, study.read]}
+    - {id: head-lectures-lectureid, method: HEAD, path: /lectures/:lectureId, allOf: [app.open, study.read]}
+    - {id: get-lectures-lectureid-audio, method: GET, path: /lectures/:lectureId/audio, allOf: [app.open, study.read]}
+    - {id: head-lectures-lectureid-audio, method: HEAD, path: /lectures/:lectureId/audio, allOf: [app.open, study.read]}
+    - {id: get-lectures-lectureid-slides, method: GET, path: /lectures/:lectureId/slides, allOf: [app.open, study.read]}
+    - {id: head-lectures-lectureid-slides, method: HEAD, path: /lectures/:lectureId/slides, allOf: [app.open, study.read]}
+    - {id: get-lm-voice-js, method: GET, path: /lm-voice.js, allOf: [app.open]}
+    - {id: head-lm-voice-js, method: HEAD, path: /lm-voice.js, allOf: [app.open]}
+    - {id: get-logo-256-png, method: GET, path: /logo-256.png, allOf: [app.open]}
+    - {id: head-logo-256-png, method: HEAD, path: /logo-256.png, allOf: [app.open]}
+    - {id: get-logo-96-png, method: GET, path: /logo-96.png, allOf: [app.open]}
+    - {id: head-logo-96-png, method: HEAD, path: /logo-96.png, allOf: [app.open]}
+    - {id: get-logo-png, method: GET, path: /logo.png, allOf: [app.open]}
+    - {id: head-logo-png, method: HEAD, path: /logo.png, allOf: [app.open]}
+    - {id: get-mascot-js, method: GET, path: /mascot.js, allOf: [app.open]}
+    - {id: head-mascot-js, method: HEAD, path: /mascot.js, allOf: [app.open]}
+    - {id: get-mascot-png, method: GET, path: /mascot.png, allOf: [app.open]}
+    - {id: head-mascot-png, method: HEAD, path: /mascot.png, allOf: [app.open]}
+    - {id: get-materials-materialid-file, method: GET, path: /materials/:materialId/file, allOf: [app.open, study.read]}
+    - {id: head-materials-materialid-file, method: HEAD, path: /materials/:materialId/file, allOf: [app.open, study.read]}
+    - {id: get-me, method: GET, path: /me, allOf: [app.open, study.read]}
+    - {id: head-me, method: HEAD, path: /me, allOf: [app.open, study.read]}
+    - {id: get-my-day, method: GET, path: /my-day, allOf: [app.open]}
+    - {id: head-my-day, method: HEAD, path: /my-day, allOf: [app.open]}
+    - {id: get-my-monsters, method: GET, path: /my-monsters, allOf: [app.open]}
+    - {id: head-my-monsters, method: HEAD, path: /my-monsters, allOf: [app.open]}
+    - {id: get-notifications, method: GET, path: /notifications, allOf: [app.open, study.read]}
+    - {id: head-notifications, method: HEAD, path: /notifications, allOf: [app.open, study.read]}
+    - {id: get-presentation, method: GET, path: /presentation, allOf: [app.open]}
+    - {id: head-presentation, method: HEAD, path: /presentation, allOf: [app.open]}
+    - {id: get-quiz, method: GET, path: /quiz, allOf: [app.open]}
+    - {id: head-quiz, method: HEAD, path: /quiz, allOf: [app.open]}
+    - {id: get-recorder, method: GET, path: /recorder, allOf: [app.open]}
+    - {id: head-recorder, method: HEAD, path: /recorder, allOf: [app.open]}
+    - {id: get-rewards, method: GET, path: /rewards, allOf: [app.open, study.read]}
+    - {id: head-rewards, method: HEAD, path: /rewards, allOf: [app.open, study.read]}
+    - {id: get-status, method: GET, path: /status, allOf: [app.open, study.read]}
+    - {id: head-status, method: HEAD, path: /status, allOf: [app.open, study.read]}
+    - {id: get-stem-helpers, method: GET, path: /stem-helpers, allOf: [app.open]}
+    - {id: head-stem-helpers, method: HEAD, path: /stem-helpers, allOf: [app.open]}
+    - {id: get-student-studentid-dashboard, method: GET, path: /student/:studentId/dashboard, allOf: [app.open, study.read]}
+    - {id: head-student-studentid-dashboard, method: HEAD, path: /student/:studentId/dashboard, allOf: [app.open, study.read]}
+    - {id: get-teacher, method: GET, path: /teacher, allOf: [app.open, teaching.read]}
+    - {id: head-teacher, method: HEAD, path: /teacher, allOf: [app.open, teaching.read]}
+    - {id: get-teacher-classes, method: GET, path: /teacher/classes, allOf: [app.open, teaching.read]}
+    - {id: head-teacher-classes, method: HEAD, path: /teacher/classes, allOf: [app.open, teaching.read]}
+    - {id: get-teacher-classes-classid-analytics, method: GET, path: /teacher/classes/:classId/analytics, allOf: [app.open, teaching.read]}
+    - {id: head-teacher-classes-classid-analytics, method: HEAD, path: /teacher/classes/:classId/analytics, allOf: [app.open, teaching.read]}
+    - {id: get-timelines, method: GET, path: /timelines, allOf: [app.open]}
+    - {id: head-timelines, method: HEAD, path: /timelines, allOf: [app.open]}
+    - {id: get-tutor, method: GET, path: /tutor, allOf: [app.open]}
+    - {id: head-tutor, method: HEAD, path: /tutor, allOf: [app.open]}
+    - {id: get-voice-config, method: GET, path: /voice-config, allOf: [app.open, study.read]}
+    - {id: head-voice-config, method: HEAD, path: /voice-config, allOf: [app.open, study.read]}
+    - {id: get-voice-settings, method: GET, path: /voice-settings, allOf: [app.open]}
+    - {id: head-voice-settings, method: HEAD, path: /voice-settings, allOf: [app.open]}
+    - {id: patch-classes-classid, method: PATCH, path: /classes/:classId, allOf: [app.open, class.change]}
+    - {id: patch-flashcards-cards-cardid, method: PATCH, path: /flashcards/cards/:cardId, allOf: [app.open, study.change]}
+    - {id: patch-notifications-id-read, method: PATCH, path: /notifications/:id/read, allOf: [app.open, study.change]}
+    - {id: post-assignments, method: POST, path: /assignments, allOf: [app.open, assignment.create]}
+    - {id: post-assignments-with-events, method: POST, path: /assignments-with-events, allOf: [app.open, assignment.create]}
+    - {id: post-calendar, method: POST, path: /calendar, allOf: [app.open, study.create]}
+    - {id: post-calendar-google-push, method: POST, path: /calendar/google/push, allOf: [app.open, study.change]}
+    - {id: post-check-reminders, method: POST, path: /check-reminders, allOf: [app.open, study.change]}
+    - {id: post-classes, method: POST, path: /classes, allOf: [app.open, class.create]}
+    - {id: post-classes-classid-enroll, method: POST, path: /classes/:classId/enroll, allOf: [app.open, class.enroll]}
+    - {id: post-classes-classid-leave, method: POST, path: /classes/:classId/leave, allOf: [app.open, class.enroll]}
+    - {id: post-classes-classid-students, method: POST, path: /classes/:classId/students, allOf: [app.open, roster.change]}
+    - {id: post-enroll, method: POST, path: /enroll, allOf: [app.open, roster.change]}
+    - {id: post-flashcards-generate, method: POST, path: /flashcards/generate, allOf: [app.open, class-study.generate]}
+    - {id: post-flashcards-review, method: POST, path: /flashcards/review, allOf: [app.open, study.change]}
+    - {id: post-flashcards-sets, method: POST, path: /flashcards/sets, allOf: [app.open, study.create]}
+    - {id: post-flashcards-sets-setid-cards, method: POST, path: /flashcards/sets/:setId/cards, allOf: [app.open, study.create]}
+    - {id: post-lectures-lectureid-audio, method: POST, path: /lectures/:lectureId/audio, allOf: [app.open, lecture.create]}
+    - {id: post-lectures-lectureid-pptx, method: POST, path: /lectures/:lectureId/pptx, allOf: [app.open, lecture.export]}
+    - {id: post-materials, method: POST, path: /materials, allOf: [app.open, material.create]}
+    - {id: post-materials-materialid-approve, method: POST, path: /materials/:materialId/approve, allOf: [app.open, material.moderate]}
+    - {id: post-materials-materialid-deny, method: POST, path: /materials/:materialId/deny, allOf: [app.open, material.moderate]}
+    - {id: post-materials-materialid-share-request, method: POST, path: /materials/:materialId/share-request, allOf: [app.open, material.share]}
+    - {id: post-notify, method: POST, path: /notify, allOf: [app.open, study.change]}
+    - {id: post-process-lecture, method: POST, path: /process-lecture, allOf: [app.open, lecture.create]}
+    - {id: post-process-transcript, method: POST, path: /process-transcript, allOf: [app.open, lecture.create]}
+    - {id: post-quiz-results, method: POST, path: /quiz-results, allOf: [app.open, study.change]}
+    - {id: post-quiz-generate, method: POST, path: /quiz/generate, allOf: [app.open, study.generate]}
+    - {id: post-rewards-equip, method: POST, path: /rewards/equip, allOf: [app.open, study.change]}
+    - {id: post-rewards-open, method: POST, path: /rewards/open, allOf: [app.open, study.change]}
+    - {id: post-students, method: POST, path: /students, allOf: [app.open, roster.change]}
+    - {id: post-tutor-chat, method: POST, path: /tutor-chat, allOf: [app.open, tutor.execute]}
+    - {id: post-upload-material, method: POST, path: /upload-material, allOf: [app.open, material.create]}
+    - {id: post-xp, method: POST, path: /xp, allOf: [app.open, study.change]}
+  bots:
+    - {id: ed000000-0000-0000-0000-000000000001, allOf: [app.open, lecture.create]}
+    - {id: ed000000-0000-0000-0000-000000000002, allOf: [app.open, tutor.execute]}
+    - {id: ed000000-0000-0000-0000-000000000003, allOf: [app.open, study.generate]}
+    - {id: ed000000-0000-0000-0000-000000000004, allOf: [app.open, material.create]}
+    - {id: ed000000-0000-0000-0000-000000000005, allOf: [app.open, tutor.execute]}
+    - {id: ed000000-0000-0000-0000-000000000006, allOf: [app.open, tutor.execute]}
+  artifactActions:
+    - {id: tutor, allOf: [app.open, tutor.execute]}

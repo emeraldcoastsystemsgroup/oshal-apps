@@ -23,6 +23,7 @@
  * 13  | roger.murphy@agenticfederal.us              | Extracted enrolled-gated class materials routes
  * 14  | roger.murphy@emeraldcoastsystemsgroup.com   | Bound package asset paths to the mounting application context
  * 15  | maintainer@emeraldcoastsystemsgroup.com     | Closed tenant/authz gaps and decomposed class, roster, tutor, assignment, progress, dashboard, and schema boundaries
+ * 16  | maintainer@emeraldcoastsystemsgroup.com     | Register structural learner and teaching adapters before the package becomes available
  * ---------------------------------------------------------------------------
  *
  * @module education-routes
@@ -79,6 +80,7 @@ const education_study_routes_1 = require("./education-study-routes");
 const education_teacher_routes_1 = require("./education-teacher-routes");
 const education_tutor_routes_1 = require("./education-tutor-routes");
 const education_schema_1 = require("./education-schema");
+const education_authorization_1 = require("./education-authorization");
 const logger = (0, logger_1.createChildLogger)({ module: 'education-routes' });
 /** Canonical XP award table and level calculator retained as public route exports. */
 var education_progress_1 = require("./education-progress");
@@ -155,6 +157,7 @@ function mountEducationFeatureRoutes(router, ctx) {
 }
 /** Create and compose all Little Monsters education API and UI routes. */
 function createEducationRoutes(ctx) {
+    (0, education_authorization_1.registerEducationAuthorization)(ctx);
     if (ctx.appPackageDir)
         packageToolsRoot = path.join(ctx.appPackageDir, 'tools');
     const router = (0, express_1.Router)();

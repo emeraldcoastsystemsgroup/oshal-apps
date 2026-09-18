@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Guard issuer-bound OIDC linking, tenant bootstrap closure, migration 032, rollback visibility, and collision-resistant RAG names
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | Cross the real session SHAPE: express-openid-connect keeps iss on idTokenClaims and strips it from user, and 1.3.2 read only user.iss, so every real browser session was 401 while the mock-OIDC suites stayed green. Guards the shared resolveSessionIssuer reader and its fail-closed cases.
  * -----------------------------------------------------------------------------
  *
  * Dependency-free node:test coverage over the compiled module the package loads.
@@ -168,6 +169,23 @@ function oidcRequest({ issuer, sub, email = 'student@school.example', name = 'St
   };
 }
 
+// The shape express-openid-connect attaches by default: identityClaimFilter strips iss (with
+// aud/iat/exp/...) from req.oidc.user and keeps every verified claim on req.oidc.idTokenClaims.
+// This is what a real Google/Entra/Keycloak browser session looks like; the PAT and MOCK_OIDC
+// rails build req.oidc by hand with iss on user and no idTokenClaims (oidcRequest above).
+function browserSessionRequest({ issuer, sub, email = 'student@school.example', name = 'Student' }) {
+  return {
+    oidc: {
+      isAuthenticated: () => true,
+      user: {
+        email, email_verified: true, family_name: 'Student', given_name: 'A', name,
+        picture: 'https://photos.example/p', sub,
+      },
+      idTokenClaims: { iss: issuer, aud: 'client-id', iat: 1, exp: 2, sub, email, name },
+    },
+  };
+}
+
 function dataWrites(pool) {
   return pool.calls.filter(({ sql }) => /^(INSERT|UPDATE|DELETE)\b/i.test(sql));
 }
@@ -280,6 +298,77 @@ test('missing subject or issuer fails unless the safe mock issuer is explicitly 
     assert.equal(resolved.tenantId, access.DEFAULT_TENANT_ID);
     assert.equal(state.students[0].external_issuer, 'urn:oshal:mock-oidc');
   });
+});
+
+test('a real browser session resolves the issuer from idTokenClaims and adopts the legacy row', async () => {
+  await withMockOidc(undefined, async () => {
+    const legacy = student({ external_issuer: null, external_id: 'browser-subject' });
+    const state = makeState({
+      mappings: [{ domain: 'school.example', tenant_id: TENANT_A }],
+      students: [legacy],
+    });
+    const pool = makePool(state);
+    const resolved = await access.resolveAuthedStudent(
+      browserSessionRequest({ issuer: ISSUER_A, sub: 'browser-subject' }), pool,
+    );
+    assert.equal(resolved.studentId, legacy.student_id);
+    assert.deepEqual(pool.calls[0].params, [ISSUER_A, 'browser-subject']);
+    assert.equal(legacy.external_issuer, ISSUER_A);
+  });
+});
+
+test('a session with no issuer on user or idTokenClaims is 401 before any query', async () => {
+  await withMockOidc(undefined, async () => {
+    const filteredOnly = {
+      oidc: {
+        isAuthenticated: () => true,
+        user: { email: 'student@school.example', name: 'Student', sub: 'browser-subject' },
+      },
+    };
+    const noIssuerAnywhere = {
+      oidc: {
+        isAuthenticated: () => true,
+        user: { email: 'student@school.example', name: 'Student', sub: 'browser-subject' },
+        idTokenClaims: { sub: 'browser-subject', aud: 'client-id' },
+      },
+    };
+    // idTokenClaims is the only authority when present: a blank protocol issuer there does not
+    // fall back to a user.iss (the kernel's getAuthenticatedPrincipalIssuer rule).
+    const presentInvalid = {
+      oidc: {
+        isAuthenticated: () => true,
+        user: { iss: ISSUER_A, sub: 'browser-subject' },
+        idTokenClaims: { iss: '   ', sub: 'browser-subject' },
+      },
+    };
+    for (const request of [filteredOnly, noIssuerAnywhere, presentInvalid]) {
+      const pool = makePool(makeState());
+      await assert.rejects(
+        access.resolveAuthedStudent(request, pool),
+        (err) => err instanceof access.EducationAccessError && err.status === 401
+          && /missing issuer or subject/.test(err.message),
+      );
+      assert.equal(pool.calls.length, 0);
+    }
+  });
+});
+
+test('resolveSessionIssuer is the one exported issuer reader and every source read goes through it', () => {
+  assert.equal(typeof access.resolveSessionIssuer, 'function');
+  assert.equal(access.resolveSessionIssuer({ user: { sub: 's' }, idTokenClaims: { iss: ISSUER_A } }), ISSUER_A);
+  assert.equal(access.resolveSessionIssuer({ user: { iss: ISSUER_A, sub: 's' } }), ISSUER_A);
+  assert.equal(access.resolveSessionIssuer({ user: { iss: ISSUER_A }, idTokenClaims: {} }), null);
+  assert.equal(access.resolveSessionIssuer({ user: { iss: ISSUER_A }, idTokenClaims: null }), null);
+  assert.equal(access.resolveSessionIssuer({ user: { sub: 's' } }), null);
+  assert.equal(access.resolveSessionIssuer({ user: { iss: 'x'.repeat(2049) } }), null);
+  assert.equal(access.resolveSessionIssuer(null), null);
+  assert.equal(access.resolveSessionIssuer(undefined), null);
+  const sourceRoot = path.join(PKG, 'src-routes');
+  const readers = fs.readdirSync(sourceRoot)
+    .filter((name) => name.endsWith('.ts') && name !== 'education-access.ts')
+    .filter((name) => /\.iss\b/.test(fs.readFileSync(path.join(sourceRoot, name), 'utf8')
+      .replace(/^\s*\*.*$/gm, '')));
+  assert.deepEqual(readers, []);
 });
 
 test('default-school bootstrap closes as soon as any domain mapping exists', async () => {

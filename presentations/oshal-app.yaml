@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 2.11.2: register every shipped test and preserve the existing readiness smoke for versioned Test Lab discovery.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 2.12.0: read the person's Create brand kit in their own session: the nearest built-in look is badged and picked when nothing else chose one, the brand name fills an empty cover byline and AI drafts can use the brand voice.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 2.12.1: declare the Create prerequisite the brand-kit read already had (optional — without it the studio keeps its own looks).
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — presentations (AI Office: deck / document / workbook studio)
@@ -32,7 +33,7 @@ description: >-
   Phone-friendly: dictate instead of typing, resume recent files in one tap, and drive
   edits with tap chips. My files is a real file browser - click a file for
   download, open-in-provider, or edit-and-regenerate. Saves to Dropbox, Google Drive, OneDrive, or OSHAL local.
-version: 2.12.0
+version: 2.12.1
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -81,13 +82,20 @@ uses:
 
 # Runtime connector allow-list — where artifacts save (ADR-108 delivery adapters) and
 # the mailboxes the approval-gated email leg sends over.
+# ── Cross-package prerequisites: what this package actually reaches ─────────
+# OPTIONAL, NOT REQUIRED: tools/presentations.html:728 reads /api/create/brand-kit to badge the
+# nearest built-in look and fill an empty cover byline. Its own catch says it: "No Create access
+# or no kit: the studio keeps its own looks." The renderer still draws all ten looks.
+# AI OFFICE IS NOT A DEPENDENCY OF ITS CALLERS, EITHER — the deck-generation engine is a KERNEL
+# skill, and the ~41 packages that offer to `presentations` do so through integrations.offers,
+# which resolves to state:'unavailable' when this app is absent (see little-monsters).
 dependencies:
   required:
     apps: []
     tools: []
     connectors: []
   optional:
-    apps: []
+    apps: [create]   # owns the brand kit the look-picker badges; absent, the built-in looks are used unchanged
     tools: []
     connectors: [dropbox, github, google-drive, google, microsoft]
 

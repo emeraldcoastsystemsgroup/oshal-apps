@@ -23,7 +23,7 @@ description: >-
   whole crew from one group shot placed in a scene as a superhero team.
   Take the photo with your camera or upload one, crop the head (or every
   head), pick a style, generate.
-version: 1.15.0
+version: 1.15.1
 status: active
 # Deployment-wide tile visibility (the little-monsters lesson: person-scope hid
 # the installed row from every other user). Portrait DATA stays strictly
@@ -82,13 +82,17 @@ readiness:
     readyPointer: /portrait/ready
     detailPointer: /portrait/detail
 
+# ── Cross-package prerequisites: what this package actually reaches ─────────
+# OPTIONAL, NOT REQUIRED: tools/portrait-studio.html:329 reads /api/create/brand-kit to offer the
+# "brand colours" chip. The code already hides the chip when the read does not return a kit, so
+# without Create — or without access to it — the studio is the same studio minus one shortcut.
 dependencies:
   required:
     apps: []
     tools: []
     connectors: []
   optional:
-    apps: []
+    apps: [create]   # owns the brand kit the brand chips read; absent, the chips stay hidden
     tools: []
     connectors: [google, microsoft]
 

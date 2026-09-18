@@ -24,12 +24,14 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Bind accounts to the verified OIDC issuer and subject, serialize placeholder adoption, and fail closed on identity or tenant ambiguity
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Replace 32-bit RAG collection fragments with deterministic 96-bit SHA-256 identity digests
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Minimize every identity query and mutation result to the exact fields required by authorization
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Read the issuer from the verified idTokenClaims before the filtered user view through one exported helper: express-openid-connect strips iss from req.oidc.user by default, so every real browser session failed 401 and legacy rows never adopted an issuer; only the PAT and MOCK_OIDC rails put iss on user
  * ---------------------------------------------------------------------------
  *
  * @module education-access
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.EducationAccessError = exports.DEFAULT_TENANT_ID = void 0;
+exports.resolveSessionIssuer = resolveSessionIssuer;
 exports.resolveAuthedStudent = resolveAuthedStudent;
 exports.hasClassAccess = hasClassAccess;
 exports.assertClassAccess = assertClassAccess;
@@ -117,9 +119,32 @@ function mockOidcEnabled() {
     return value === 'true' || value === '1' || value === 'yes';
 }
 /**
- * @description Pull the IdP identity off the request. Works for Microsoft Entra,
- * Keycloak, and the mock-OIDC dev user — all expose `req.oidc.user` with the
- * standard OIDC claims. A principal is the exact `(iss, sub)` pair; an issuer
+ * @description Resolve the verified issuer of an authenticated session the way the
+ * kernel's `getAuthenticatedPrincipalIssuer` does. express-openid-connect's default
+ * identityClaimFilter strips `iss` (with aud/iat/exp/...) from the presentation view
+ * `req.oidc.user` and keeps it on the verified `req.oidc.idTokenClaims`, so a real
+ * browser session carries the issuer ONLY there; the PAT and MOCK_OIDC rails build
+ * `req.oidc` by hand with `iss` on `user` and no `idTokenClaims`. When `idTokenClaims`
+ * is present it is the only authority — an invalid protocol issuer there fails closed
+ * instead of falling back to the filtered user. The synthetic mock issuer applies only
+ * while the explicit local MOCK_OIDC middleware is enabled. Every issuer read in this
+ * package goes through here so the readers cannot drift from each other.
+ * @param oidc - the `req.oidc` object a trusted authentication rail attached
+ * @returns the bounded verified issuer, or null when the session carries none
+ */
+function resolveSessionIssuer(oidc) {
+    if (!oidc)
+        return null;
+    const verified = oidc.idTokenClaims !== undefined
+        ? normalizedClaim(oidc.idTokenClaims?.iss, 2048)
+        : normalizedClaim(oidc.user?.iss, 2048);
+    return verified || (mockOidcEnabled() ? MOCK_OIDC_ISSUER : null);
+}
+/**
+ * @description Pull the IdP identity off the request. Works for Google, Microsoft
+ * Entra, Keycloak, and the mock-OIDC dev user — the profile claims live on
+ * `req.oidc.user`, the issuer on the verified `idTokenClaims` (see
+ * `resolveSessionIssuer`). A principal is the exact `(iss, sub)` pair; an issuer
  * fallback exists only for the explicitly enabled local MOCK_OIDC middleware.
  * @param req - Express request carrying the express-openid-connect session
  * @returns the normalized issuer-bound principal, or null when unauthenticated
@@ -130,7 +155,7 @@ function readIdentity(req) {
         return null;
     const u = oidc.user || {};
     const sub = normalizedClaim(u.sub, 255);
-    const issuer = normalizedClaim(u.iss, 2048) || (mockOidcEnabled() ? MOCK_OIDC_ISSUER : null);
+    const issuer = resolveSessionIssuer(oidc);
     if (!sub || !issuer) {
         throw new EducationAccessError('Authenticated OIDC identity is missing issuer or subject', 401);
     }

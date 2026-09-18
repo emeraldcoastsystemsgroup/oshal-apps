@@ -37,7 +37,7 @@ description: >-
   printer. The geometry is deterministic — silhouettes carve a voxel grid, the
   grid becomes the mesh and the drawing — and the same occupancy grid accepts
   depth and LiDAR input, so it is the building block a scanner plugs into.
-version: 0.5.0
+version: 0.5.1
 status: active
 scope: person
 
@@ -77,13 +77,18 @@ artifacts:
 
 # No connector allow-list: the inputs are the person's own photos / files and their own printer
 # host (a URL + API key they enter here, held as owner-key ciphertext), not per-user OAuth.
+# ── Cross-package prerequisites: what this package actually reaches ─────────
+# OPTIONAL, NOT REQUIRED: tools/scan-to-print.js:378 POSTs the reconstructed contours to
+# /api/cad-studio/models. The code already treats an absent CAD Studio as a normal outcome —
+# a 404/401/403 becomes "CAD Studio is not installed on this swarm" and the job, its drawing,
+# its STL and its printer hand-off are untouched. Capture and print never need CAD Studio.
 dependencies:
   required:
     apps: []
     tools: []
     connectors: []
   optional:
-    apps: []
+    apps: [cad-studio]   # the Open in CAD Studio hand-off POSTs to it; absent, that button reports and nothing else changes
     tools: []
     connectors: []
 

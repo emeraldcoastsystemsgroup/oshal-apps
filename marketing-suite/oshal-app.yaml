@@ -37,7 +37,7 @@ description: >-
   your social presence and the signals you follow, and the graphics, decks and
   clips a launch needs — with a setup page that shows what is armed and what
   still needs you.
-version: 1.0.0
+version: 1.1.0
 status: active
 scope: public
 theme: midnight
@@ -59,8 +59,28 @@ dependencies:
       - brand-graphics
       - presentations
       - video
+    connectors: []
   optional:
     apps: []
+    # The runtime connector allow-list. A group carries no code, so it reads no credential
+    # itself — but its toolbar borrows the MEMBERS' surfaces, and inside this front door those
+    # surfaces are where a person connects an account (social-accounts sits in the bottom tray;
+    # the campaign board's setup steps open the member that owns each channel). So the
+    # allow-list is the union of the members' own declared lists, in member order, and nothing
+    # beyond them:
+    #   marketing-engine  linkedin, mastodon, bluesky, resend, google, google-search-console,
+    #                     posthog, twitter, meta-business
+    #   switchboard       google, outlook, twilio, linkedin, twitter, meta-business, facebook, slack
+    #   social            linkedin, twitter, meta-business, facebook, google
+    #   brand-graphics    (declares none)
+    #   presentations     dropbox, github, google-drive, google, microsoft
+    #   video             (declares none)
+    # DECLARED rather than absent because absent means UNFILTERED: it pinned the Connectors tile
+    # and offered the entire platform provider catalog — banking, crypto, infrastructure —
+    # inside a marketing front door (RibbonNav.js connectorsAllowed). Optional, like every
+    # member's own list: the group installs and opens with none of them connected, and the setup
+    # page is what reports each one unready.
+    connectors: [linkedin, mastodon, bluesky, resend, google, google-search-console, posthog, twitter, meta-business, outlook, twilio, facebook, slack, dropbox, github, google-drive, microsoft]
 
 # ── Toolbar — borrowed by reference ──────────────────────────────────────────
 # `group:` bands render in first-appearance order; `section: bottom` is the

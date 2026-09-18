@@ -43,7 +43,7 @@
       "suite": "ai-home",
       "displayName": "Little Monsters",
       "description": "Voice-first ADHD study companion for K-12: lecture capture, flashcards, authoritative quizzes, and a Socratic tutor grounded in caller-owned or teacher/admin-approved class material.",
-      "version": "1.3.1",
+      "version": "1.3.3",
       "theme": "little-monsters",
       "dependencies": {
         "apps": [],
@@ -223,7 +223,7 @@
       "suite": "ai-finance",
       "displayName": "Finance",
       "description": "Link your banks and brokerages via Plaid and see everything in one place — net worth, accounts, holdings, spending — with a plain-English brief. Read-only aggregation; money movement is explicit-confirm gated.",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "theme": "forest",
       "dependencies": {
         "apps": [],
@@ -235,7 +235,11 @@
           "connectors": []
         },
         "optional": {
-          "apps": [],
+          "apps": [
+            "intelligent-trades",
+            "world",
+            "kalshi"
+          ],
           "tools": [],
           "connectors": []
         }
@@ -442,19 +446,32 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "Reads openings from employers' own public ATS job feeds into a shared corpus, scores every posting against your private career profile, and turns the best fits into a human-in-the-loop application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume + cover letter. Any document in the swarm can be sent here (ADR-139 Send to…) and absorbed into your profile. Single-tenant, multi-user (per-user isolation); multi-tenant ready.",
-      "version": "1.22.0",
+      "version": "1.23.0",
       "dependencies": {
         "apps": [],
         "tools": [],
+        "connectors": [
+          "anthropic",
+          "firecrawl",
+          "google",
+          "twilio"
+        ],
         "required": {
           "apps": [],
-          "tools": []
+          "tools": [],
+          "connectors": []
         },
         "optional": {
           "apps": [
             "portrait-studio"
           ],
-          "tools": []
+          "tools": [],
+          "connectors": [
+            "anthropic",
+            "firecrawl",
+            "google",
+            "twilio"
+          ]
         }
       },
       "source": {
@@ -474,7 +491,7 @@
       "suite": "ai-productivity",
       "displayName": "AI Office",
       "description": "One outline, three artifacts — a themed PowerPoint deck, Word document, or live Excel workbook. Ten shared looks, twenty layouts, fully editable in Microsoft Office, Google Workspace or LibreOffice; saves to Dropbox, Google Drive, OneDrive, or OSHAL local. A guided visual start walks you from artifact to look to outline — or talk to the Guide, open a file, or type one line and AI drafts it all. Phone-friendly: dictate instead of typing, resume recent files in one tap, drive edits with tap chips. My files is a real file browser - click a file for download, open-in-provider, or edit-and-regenerate. The deck-generation engine stays framework-resident (kernel skill); this package is the studio surface.",
-      "version": "2.12.0",
+      "version": "2.12.1",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -492,7 +509,9 @@
           "connectors": []
         },
         "optional": {
-          "apps": [],
+          "apps": [
+            "create"
+          ],
           "tools": [],
           "connectors": [
             "dropbox",
@@ -562,7 +581,7 @@
       "suite": "ai-creative",
       "displayName": "Portrait Studio",
       "description": "Create portraits from camera or uploaded photos with presets and backdrops. Imported roles separately control viewing, reading, creating, editing, deleting and exporting your portraits. Group scenes and passport or print exports remain available within assigned permissions. See the package authorization guide for connected-email and legacy-image availability.",
-      "version": "1.15.0",
+      "version": "1.15.1",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -577,7 +596,9 @@
           "connectors": []
         },
         "optional": {
-          "apps": [],
+          "apps": [
+            "create"
+          ],
           "tools": [],
           "connectors": [
             "google",
@@ -602,7 +623,7 @@
       "suite": "ai-home",
       "displayName": "Smart Home",
       "description": "Your smart home, one surface — read device state and scenes across SmartThings and Google Home, ask the home bot to run a routine, and let scheduled 'morning routine' tickets drive the house. The home-bot node, home-data store, and the scheduler's home-control branch stay framework-resident; this package is the surface over them.",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "theme": "forest",
       "dependencies": {
         "apps": [],
@@ -617,7 +638,13 @@
           "connectors": []
         },
         "optional": {
-          "apps": [],
+          "apps": [
+            "drone",
+            "sat-ops",
+            "pumpkin",
+            "spaces",
+            "camera"
+          ],
           "tools": [],
           "connectors": [
             "smartthings",
@@ -642,7 +669,7 @@
       "suite": "ai-productivity",
       "displayName": "Social",
       "description": "Draft, review, and publish across your networks from one surface - the comms bot drafts a post in your voice, you approve, and it publishes on your per-user LinkedIn / X / Facebook token (nothing posts until you click Publish). The Signals view reads your social-notification emails straight from your connected inbox. The comms + social-writer nodes, the inbox-ingest Signals engine, and the kernel-resident LinkedIn AI Content Assistant stay framework-resident; this package is the surface over them.",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -660,7 +687,9 @@
           "connectors": []
         },
         "optional": {
-          "apps": [],
+          "apps": [
+            "email-summarizer"
+          ],
           "tools": [],
           "connectors": [
             "linkedin",
@@ -1153,7 +1182,7 @@
       "suite": "ai-creative",
       "displayName": "Video Studio",
       "description": "Make prompted short-form videos (TikTok / YouTube Shorts / Instagram Reels) from an idea - the director bot storyboards it and the studio renders a real .mp4 with voiceover and captions, saved to your Files storage; a series is written by the screenplay-writer, approval-gated on the script, then rendered one episode at a time on the remote Vids node. The series conductor engine, the video-generation slice, the video-director + screenplay-writer inline nodes, and the shared vids-operator desktop worker stay framework-resident; this package is the surface over them.",
-      "version": "1.5.0",
+      "version": "1.5.1",
       "theme": "sakura",
       "dependencies": {
         "apps": [],
@@ -1165,7 +1194,9 @@
           "connectors": []
         },
         "optional": {
-          "apps": [],
+          "apps": [
+            "create"
+          ],
           "tools": [],
           "connectors": []
         }
@@ -1303,7 +1334,7 @@
       "suite": "ai-finance",
       "displayName": "Intelligent Trades",
       "description": "Signal-justified stock trading (ADR-052). Capture a market signal, let the trading-analyst reason it into a decision tree, and execute through the provider-agnostic BrokerAdapter (Alpaca paper / Schwab live) - every order FK-bound to its justifying decision and signals. Dual paper/live books, PAPER-ONLY by default; the env-level live gate (TRADING_LIVE_ENABLED + explicit confirm) and the whole autopilot/engine stay framework-resident - this package is the four route surfaces (/api/trading, /autopilot, /lab, /trading-charts), the cockpit surface + vendored chart lib, the trading_* operator tools, and the analyst/feed-bot manifest. NOTE: package directory is 'trading' (install trading); the registered app name stays intelligent-trades.",
-      "version": "1.18.0",
+      "version": "1.18.1",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -1315,7 +1346,9 @@
           "connectors": []
         },
         "optional": {
-          "apps": [],
+          "apps": [
+            "world"
+          ],
           "tools": [],
           "connectors": []
         }
@@ -1550,7 +1583,7 @@
       "suite": "ai-productivity",
       "displayName": "Switchboard",
       "description": "Every line, one board. Switchboard pulls your mail, DMs, texts, calls, and social mentions into a single prioritized stream — the Today board — so you triage your whole day in one place instead of app-hopping. The Streams desk manages your outbound posts CMS-style: drafts move through review, approval, scheduling, and publish with per-channel variants and revision history. Reads run on your own connector tokens; ranking and drafting run on the communications bot with cost captured per user. Nothing is sent or posted without your say-so.",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "theme": "forest",
       "dependencies": {
         "apps": [],
@@ -1571,7 +1604,9 @@
           "connectors": []
         },
         "optional": {
-          "apps": [],
+          "apps": [
+            "feeds"
+          ],
           "tools": [],
           "connectors": [
             "google",
@@ -1602,7 +1637,7 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "One front door for your job search: the board, search, resume and strengthen tools, your profile picture, your LinkedIn and Facebook presence, and the documents you print into the swarm — with a setup page that shows what is connected and what still needs you. An ADR-141 application GROUP: no code of its own, four member apps bound by one toolbar of borrowed surfaces.",
-      "version": "1.0.1",
+      "version": "1.1.0",
       "theme": "daylight",
       "dependencies": {
         "apps": [
@@ -1611,16 +1646,39 @@
           "social",
           "print-ingest"
         ],
+        "connectors": [
+          "anthropic",
+          "firecrawl",
+          "google",
+          "twilio",
+          "microsoft",
+          "linkedin",
+          "twitter",
+          "meta-business",
+          "facebook"
+        ],
         "required": {
           "apps": [
             "career-hunter",
             "portrait-studio",
             "social",
             "print-ingest"
-          ]
+          ],
+          "connectors": []
         },
         "optional": {
-          "apps": []
+          "apps": [],
+          "connectors": [
+            "anthropic",
+            "firecrawl",
+            "google",
+            "twilio",
+            "microsoft",
+            "linkedin",
+            "twitter",
+            "meta-business",
+            "facebook"
+          ]
         }
       },
       "source": {
@@ -1834,7 +1892,7 @@
       "suite": "ai-productivity",
       "displayName": "Marketing",
       "description": "One front door for taking a product to market: the campaign board with its consent gates and weekly scorecard, the compose desk and scheduled calendar, your social presence and the signals you follow, and the graphics, decks and clips a launch needs — with a setup page that shows what is armed and what still needs you. An ADR-141 application GROUP: no code of its own, six member apps bound by one toolbar of borrowed surfaces.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "theme": "midnight",
       "dependencies": {
         "apps": [
@@ -1845,6 +1903,25 @@
           "presentations",
           "video"
         ],
+        "connectors": [
+          "linkedin",
+          "mastodon",
+          "bluesky",
+          "resend",
+          "google",
+          "google-search-console",
+          "posthog",
+          "twitter",
+          "meta-business",
+          "outlook",
+          "twilio",
+          "facebook",
+          "slack",
+          "dropbox",
+          "github",
+          "google-drive",
+          "microsoft"
+        ],
         "required": {
           "apps": [
             "marketing-engine",
@@ -1853,10 +1930,30 @@
             "brand-graphics",
             "presentations",
             "video"
-          ]
+          ],
+          "connectors": []
         },
         "optional": {
-          "apps": []
+          "apps": [],
+          "connectors": [
+            "linkedin",
+            "mastodon",
+            "bluesky",
+            "resend",
+            "google",
+            "google-search-console",
+            "posthog",
+            "twitter",
+            "meta-business",
+            "outlook",
+            "twilio",
+            "facebook",
+            "slack",
+            "dropbox",
+            "github",
+            "google-drive",
+            "microsoft"
+          ]
         }
       },
       "source": {
@@ -2048,7 +2145,7 @@
       "suite": "ai-engineering",
       "displayName": "Scan to Print",
       "description": "Photograph an object from its six sides (or film it, or import a LiDAR point cloud), enter one ruler measurement, and get a third-angle engineering drawing with overall dimensions, a watertight STL/OBJ you can rotate in the browser, and a one-click job on your own OctoPrint, Klipper/Moonraker or PrusaLink printer. The geometry is deterministic — silhouettes carve a voxel grid, the grid becomes the mesh and the drawing — and the same occupancy grid accepts depth and LiDAR input, so it is the building block a scanner plugs into.",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2059,7 +2156,9 @@
           "connectors": []
         },
         "optional": {
-          "apps": [],
+          "apps": [
+            "cad-studio"
+          ],
           "tools": [],
           "connectors": []
         }
@@ -2081,7 +2180,7 @@
       "suite": "ai-home",
       "displayName": "Embodied Swarm",
       "description": "Drones are the eyes, a detached rolling six-axis arm is the hands, the swarm plans and you hold command — and the machine knows only what its sensors have seen. This is the simulation environment for that machine: the room starts entirely unknown; a base LiDAR and a mini drone's LiDAR map it into a 3-D occupancy grid (the drone exploring frontier to frontier), surfaces and objects are discovered from the map alone, plans are drafted against those discovered ids and rehearsed on a clone, you execute behind a confirm, every kinetic step is re-validated live against the map (unknown space blocks everything), the wrist camera looks before and after each grasp, the drone re-scans to verify, and a 3-D view shows the mapped voxels, the arm model and the simulated pictures. The drone can go first and blind: its upward ranger clears the climb, its pose is an estimate that drifts by a deterministic odometry model, and every sweep is registered scan-to-map (point-to-plane against the exact hit points the map kept) before it is integrated — a 10 cm error comes back under a millimetre, a registration that will not converge grounds the drone, the pad re-anchors it, and a true strike on something unmapped puts it down. The drone carries a chosen SENSOR SET: the 3-D LiDAR we would buy, or the 2-D ring plus downward depth camera of the drone we print — which flies in its own scan plane, holds altitude on a nadir ranger, registers in the plane against walls at any height, and explores by where its camera will learn the most. The drone we print is also a PARTS MODEL: sizing by momentum theory at the summed mass budget, every printed part a CAD Studio program (open it there for STEP, STL and drawings), the bought parts with approximate prices — the hardware design's tables are generated from it. A taught fridge door the arm pulls open against a 60 N seal is kept. The drone's TRUE pose can run on a physics plant: a package-owned MuJoCo engine container flies the printed drone's parts model (MJCF generated from it) under gusts with real contacts, and every guard, the map and the registration are unchanged; the first training task (hover and one leg) ships with its PID baseline, and a trained policy may fly the plant only after its recorded flight has passed this world's guards — the certification gate. The engine container is also a node on the swarm rail: it heartbeats in the way a drone node does and a world can run on it, so a real drone node slots in behind the same primitives. Named hidden scenes (the kitchen, a studio) are plain data the discovery never reads; a drone that reports itself lost recovers by a global search and its registered trail back to the pad. Deterministic, no hardware — every view says simulated.",
-      "version": "0.16.0",
+      "version": "0.16.1",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2092,7 +2191,9 @@
           "connectors": []
         },
         "optional": {
-          "apps": [],
+          "apps": [
+            "cad-studio"
+          ],
           "tools": [],
           "connectors": []
         }
@@ -2114,7 +2215,7 @@
       "suite": "ai-engineering",
       "displayName": "CAD Studio",
       "description": "A real CAD kernel (Open CASCADE via CadQuery) the swarm can drive iteratively. Start from a box, a cylinder, a sketch, the outlines of a Scan to Print job or an uploaded STL; add holes, bosses, pockets, sketch extrusions, revolves, sweeps, lofts, fillets, chamfers, shells and cut planes as an ordered feature list; every edit rebuilds the part and re-exports STEP, STL, hidden-line drawing views and a report. Ask the concierge for a change in plain words and it edits the same list through the package's tools, so the person, the bot and any MCP client iterate on one model.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2125,7 +2226,9 @@
           "connectors": []
         },
         "optional": {
-          "apps": [],
+          "apps": [
+            "scan-to-print"
+          ],
           "tools": [],
           "connectors": []
         }
@@ -2147,7 +2250,7 @@
       "suite": "ai-engineering",
       "displayName": "Circuit Lab",
       "description": "A local circuit and mechanism lab the swarm can drive. Place batteries, resistors, LEDs, capacitors, switches, transistors, op-amps, relays, regulators, a 555, a sequenced pin, an H-bridge, signal sources, DC motors, gears and loads on a schematic, wire them, and a real SPICE solver (ngspice, in the package's engine container) runs the transient: waveforms, per-part readings, warnings, and gears that turn on the canvas at their solved speed. Ask the concierge for a change in plain words and it edits the same circuit through the package's tools, so the person, the bot and any MCP client iterate on one design.",
-      "version": "0.8.2",
+      "version": "0.8.3",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2159,7 +2262,8 @@
         },
         "optional": {
           "apps": [
-            "animatronics"
+            "animatronics",
+            "cad-studio"
           ],
           "tools": [],
           "connectors": []

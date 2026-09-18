@@ -1,0 +1,362 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register all shipped suites, the new structural-role boundary and existing readiness smoke; legacy fixture gaps remain explicit.
+version: 1
+cases:
+  - id: lm-authz
+    name: Little Monsters authz
+    purpose: Run the shipped dependency-free lm-authz suite over package sources and compiled route artifacts.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-authz.test.cjs
+    expected:
+      - >-
+        The existing package security or documentation contract passes using only synthetic records and local
+        fixtures.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Tests own only synthetic memory and temporary fixture directories; their cleanup hooks close and
+        remove those fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: lm-calendar-material-progress-security
+    name: Little Monsters calendar material progress security
+    purpose: >-
+      Run the shipped dependency-free lm-calendar-material-progress-security suite over package sources and
+      compiled route artifacts.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-calendar-material-progress-security.test.cjs
+    expected:
+      - >-
+        The existing package security or documentation contract passes using only synthetic records and local
+        fixtures.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Tests own only synthetic memory and temporary fixture directories; their cleanup hooks close and
+        remove those fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: lm-dependencies
+    name: Little Monsters dependencies
+    purpose: Run the shipped dependency-free lm-dependencies suite over package sources and compiled route artifacts.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-dependencies.test.cjs
+    expected:
+      - >-
+        The existing package security or documentation contract passes using only synthetic records and local
+        fixtures.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Tests own only synthetic memory and temporary fixture directories; their cleanup hooks close and
+        remove those fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: lm-doc-contract
+    name: Little Monsters doc contract
+    purpose: Run the shipped dependency-free lm-doc-contract suite over package sources and compiled route artifacts.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-doc-contract.test.cjs
+    expected:
+      - >-
+        The existing package security or documentation contract passes using only synthetic records and local
+        fixtures.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Tests own only synthetic memory and temporary fixture directories; their cleanup hooks close and
+        remove those fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: lm-identity-security
+    name: Little Monsters identity security
+    purpose: >-
+      Run the shipped dependency-free lm-identity-security suite over package sources and compiled route
+      artifacts.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-identity-security.test.cjs
+    expected:
+      - >-
+        The existing package security or documentation contract passes using only synthetic records and local
+        fixtures.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Tests own only synthetic memory and temporary fixture directories; their cleanup hooks close and
+        remove those fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: lm-lecture-security
+    name: Little Monsters lecture security
+    purpose: >-
+      Run the shipped dependency-free lm-lecture-security suite over package sources and compiled route
+      artifacts.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-lecture-security.test.cjs
+    expected:
+      - >-
+        The existing package security or documentation contract passes using only synthetic records and local
+        fixtures.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Tests own only synthetic memory and temporary fixture directories; their cleanup hooks close and
+        remove those fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: lm-roster-audit
+    name: Little Monsters roster audit
+    purpose: Run the shipped dependency-free lm-roster-audit suite over package sources and compiled route artifacts.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-roster-audit.test.cjs
+    expected:
+      - >-
+        The existing package security or documentation contract passes using only synthetic records and local
+        fixtures.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Tests own only synthetic memory and temporary fixture directories; their cleanup hooks close and
+        remove those fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: lm-study-authz
+    name: Little Monsters study authz
+    purpose: Run the shipped dependency-free lm-study-authz suite over package sources and compiled route artifacts.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-study-authz.test.cjs
+    expected:
+      - >-
+        The existing package security or documentation contract passes using only synthetic records and local
+        fixtures.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Tests own only synthetic memory and temporary fixture directories; their cleanup hooks close and
+        remove those fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: lm-toctou-authz
+    name: Little Monsters toctou authz
+    purpose: Run the shipped dependency-free lm-toctou-authz suite over package sources and compiled route artifacts.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-toctou-authz.test.cjs
+    expected:
+      - >-
+        The existing package security or documentation contract passes using only synthetic records and local
+        fixtures.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Tests own only synthetic memory and temporary fixture directories; their cleanup hooks close and
+        remove those fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: structural-roles
+    name: Student and teaching structural roles
+    purpose: >-
+      Exercise the real core catalog, preview/apply, resource adapters and HTTP guard with synthetic school
+      identities.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/authorization/catalog.test.cjs
+    expected:
+      - A student can study and upload without teaching, roster, moderation or platform management rights.
+      - >-
+        Teaching needs both a named structural grant and a current exact issuer/subject teacher or admin
+        roster row.
+      - >-
+        Deny, revocation, unknown routes, missing identity relationships and cross-issuer matches remain
+        refused.
+      - Every shipped HTTP route, HEAD request, game file, bot and test suite has an explicit catalog binding.
+    prerequisites:
+      - runner:node-test
+      - core:dependencies
+      - harness:oshal-core-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/authorization/fixture.cjs
+        - src-routes/education-authorization.ts
+        - src-routes/education-access.ts
+        - authorization.yaml
+      cleanup: >-
+        Close the owned loopback HTTP server and discard synthetic in-memory policy and roster fixtures; no
+        provider, live database or account writes.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: legacy-unit-fixtures
+    name: Legacy education unit fixtures
+    purpose: >-
+      Inventory four pre-carve Vitest suites whose imports still need migration to package-local source
+      fixtures.
+    level: unit
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/unit/education-serve-file.spec.ts
+        - tests/unit/lm-flashcards-security.spec.ts
+        - tests/unit/lm-logic.spec.ts
+        - tests/unit/lm-rewards-routes.spec.ts
+    expected:
+      - >-
+        Reward, flashcard and response-lifecycle behavior is checked after the obsolete core-relative imports
+        are migrated.
+    prerequisites:
+      - runner:vitest
+      - fixture:legacy-education-import-migration
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Fixture migration must retain owned loopback server and temporary state cleanup before this suite
+        becomes executable.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: education-browser-workflows
+    name: Education browser and access workflows
+    purpose: >-
+      Inventory existing full-stack Playwright scenarios; several toggle applications or create school
+      fixtures and require an explicitly isolated stack.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/add-class-e2e.spec.ts
+        - tests/demo-mode-browser.spec.ts
+        - tests/education-access-control.spec.ts
+        - tests/education-class-bank-materials.spec.ts
+        - tests/education-e2e.spec.ts
+        - tests/education-teacher-analytics.spec.ts
+        - tests/little-monsters-e2e.spec.ts
+        - tests/little-monsters-pages-browser.spec.ts
+    expected:
+      - >-
+        Student, teacher, class bank, material and navigation workflows are exercised against an isolated
+        school stack after fixture and assertion review.
+    prerequisites:
+      - runner:playwright
+      - browser:chromium
+      - fixture:disposable-school-stack
+      - fixture:school-role-seeds
+      - fixture:legacy-browser-review
+    sideEffects: external-write
+    isolation:
+      mode: live
+      cleanup: >-
+        Use a dedicated disposable stack; reset its seeded database and app activation after the reviewed run.
+        Never point these legacy specs at a personal or shared deployment.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1024
+    installation: never
+  - id: package-readiness
+    name: Little Monsters package readiness
+    purpose: Retain the existing metadata-only service-authenticated readiness probe.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - >-
+        The existing readiness endpoint identifies the Little Monsters package without reading learner data or
+        invoking providers.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 10000
+      maxMemoryMb: 128
+    installation: safe-smoke
