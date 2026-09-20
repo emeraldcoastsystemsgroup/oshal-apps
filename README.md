@@ -55,7 +55,7 @@ All **61 packages**, shelved by ADR-097 suite. Versions and status come from
 | **Intelligent Career** | [`career-hunter/`](career-hunter/) | 1.23.0 | ready | Reads openings from employers' own public ATS job feeds into a shared corpus, scores every posting against your private career profile, and turns the best fits into a human-in-the-loop application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume + cover letter. |
 | **Intelligent Career** | [`intelligent-career/`](intelligent-career/) | 1.1.0 | ready | One front door for your job search: the board, search, resume and strengthen tools, your profile picture, your LinkedIn and Facebook presence, and the documents you print into the swarm — with a setup page that shows what is connected and what still needs you. |
 | **Job Apply** | [`job-apply/`](job-apply/) | 1.1.0 | ready | Submit an approved, packet-ready job application by driving your real browser on a desktop worker node — push a ticket, it queues, the career-hunter worker submits it, and the ticket passes or fails. |
-| **Print Ingest** | [`print-ingest/`](print-ingest/) | 0.3.0 | ready | Print a document to the swarm and decide where it belongs. |
+| **Print Ingest** | [`print-ingest/`](print-ingest/) | 0.3.1 | ready | Print a document to the swarm and decide where it belongs. |
 | **World Intelligence** | [`world/`](world/) | 1.2.1 | ready | Shared world intelligence (ADR-061 Layer B) - multi-source news feeds classified into a bias-aware sentiment graph (political + economic + outlet-kind axes), entity co-mention graph, and historical series. |
 
 ### AI Finance

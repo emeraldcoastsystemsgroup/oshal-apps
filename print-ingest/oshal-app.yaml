@@ -18,7 +18,7 @@ description: >-
   Print a document to the swarm and decide where it belongs. Everything lands in
   one inbox with a recommended filing — a bot's corpus, the swarm's shared
   knowledge, or private to you — and nothing is written until you approve it.
-version: 0.3.0
+version: 0.3.1
 
 # ADR-139 wave 1 — "Send to…" destination: any document becomes a print-inbox intake
 # (extracted to text on the kernel rail, then the normal dedupe/rules/approval queue).
@@ -101,6 +101,51 @@ workflow:
   name: Print Queue
   pipeline: graph
   workerBot: print-ingest-bot
+  # `pipeline: graph` without a processDefinition does NOT run a graph. It falls through
+  # dispatch routing to manifest-worker and runs workerBot alone, so the approval gate the
+  # comment above promises never existed — the human confirmation step was silently absent.
+  # This is the graph that actually delivers it: the bot classifies and proposes, the gate
+  # suspends the run for a human, and only then does the ticket deliver.
+  processDefinition:
+    name: Print Queue
+    nodeGraph:
+      nodes:
+        - id: n-start
+          type: start
+          title: Start
+          config:
+            triggerMode: manual
+        - id: n-classify
+          type: execute-agent
+          title: Classify the document and propose a destination
+          config:
+            agentBinding: print-ingest-bot
+            workType: authored
+        - id: n-approve
+          type: approval-gate
+          title: Confirm the destination
+          config:
+            gateState: approval_required
+        - id: n-deliver
+          type: deliver
+          title: Deliver
+          config:
+            deliveryMode: standard
+      edges:
+        - id: e-start-classify
+          source: n-start
+          target: n-classify
+        - id: e-classify-approve
+          source: n-classify
+          target: n-approve
+        - id: e-approve-deliver
+          source: n-approve
+          target: n-deliver
+      topologicalOrder:
+        - n-start
+        - n-classify
+        - n-approve
+        - n-deliver
 
 # ── The bot that owns the domain (ADR-036) ──────────────────────────────────
 # Reason-only concierge: it classifies and proposes. It never files anything —

@@ -12,6 +12,7 @@ async function main() {
   const suites = [
     ['classify', require('./classify.spec.js')],
     ['fanout', require('./fanout.spec.js')],
+    ['workflow', require('./workflow.spec.js')],
   ];
   let failed = 0;
   for (const [name, run] of suites) {

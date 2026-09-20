@@ -2006,7 +2006,7 @@
       "suite": "ai-knowledge",
       "displayName": "Print Ingest",
       "description": "Print a document to the swarm and decide where it belongs. Everything lands in one inbox with a recommended filing — a bot's corpus, the swarm's shared knowledge, or private to you — and nothing is written until you approve it.",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "dependencies": {
         "apps": [],
         "tools": [],
