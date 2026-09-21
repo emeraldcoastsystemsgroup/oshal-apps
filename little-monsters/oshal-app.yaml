@@ -31,7 +31,8 @@ description: >-
   generate flashcards and authoritative quizzes, and chat with a Socratic tutor
   grounded only in caller-owned or teacher/admin-approved class material through
   per-material RAG collections.
-version: 1.3.3
+version: 1.3.4
+
 authorization:
   version: 1
   catalog: authorization.yaml
@@ -239,10 +240,6 @@ bots:
     persona: personas/writing-coach.yaml
     role: education/writing
     capabilities: [writing-feedback, essay-structure, grammar-guidance, rubric-analysis]
-
-# Shared persona layered underneath every bot in this app.
-foundation:
-  persona: personas/education-foundation.yaml
 
 # NOTE: no toolsDir. The field is DECLARED-BUT-DEAD in the framework — nothing in core consumes it,
 # so bundled tool JS under tools/ is not callable (ADR-085 D12). The loader WARNs on it and the field

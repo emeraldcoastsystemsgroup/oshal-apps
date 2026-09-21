@@ -29,7 +29,8 @@ description: >-
   the swarm's shared price history, watch routes for a fare drop, and book via a deep-link
   handoff. Hotels and cars are deep-link handoffs today. Other swarm bots can ask it to plan a
   trip or check a fare on a traveller's behalf.
-version: 1.2.0
+version: 1.2.1
+
 status: active
 
 # Guest tier REQUEST (ADR-085 D4): travel was core Tier-A (deep-link handoff, does not
@@ -88,9 +89,6 @@ bots:
       - trip-itinerary-planning
       - traveller-preference-learning
       - booking-handoff
-
-foundation:
-  persona: personas/travel-foundation.yaml
 
 # (toolsDir dropped at the carve: the field is inert — D12 — and the kernel dir it
 #  pointed at held only the surface html, which now ships in this package's tools/.)

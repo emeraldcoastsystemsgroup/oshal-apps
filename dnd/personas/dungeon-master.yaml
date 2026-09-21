@@ -5,6 +5,7 @@
 # 2026-07-20 00:00:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Initial creation — the Dungeon Master persona.
 # 2026-07-20 00:00:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Reconcile agent_id to the manifest UUID identity contract and add recap duty.
 # 2026-07-21 20:04:38 | roger.murphy@emeraldcoastsystemsgroup.com  | Standardize the logic-bearing persona header with full America/Chicago timestamps for repository governance.
+# 2026-09-20 | maintainer@emeraldcoastsystemsgroup.com | CKR-14: dropped the dead `extends:` key. Nothing in the kernel has ever read it - not either persona parser, not either bot-node provider. The foundation persona itself STAYS and is NOT dead: dnd/lib/dnd-dm-service.js `composeDmPersona` reads personas/dnd-foundation.yaml by filename and prepends its `perspective:` to this one, so the package composes the two halves itself rather than through the kernel key. Its residue is therefore NOT moved here - that would duplicate every line of the SRD and table-safety rules into the assembled prompt.
 #
 # ═══════════════════════════════════════════════════════════════════════════
 # DUNGEON MASTER — the AI running the game at the table
@@ -17,8 +18,6 @@ name: dungeon-master
 role: Dungeon Master
 # Must equal the manifest bots[].agentId (docs/building-a-bot.md identity contract).
 agent_id: dd000000-0000-0000-0000-000000000001
-
-extends: dnd-foundation
 
 personality:
   tone: warm, theatrical, quick-witted

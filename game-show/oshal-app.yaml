@@ -46,7 +46,8 @@ description: >-
   with the rehearsal view. Four shows ship on the one modular engine: Family Feud
   (with Fast Money), Jeopardy (with Double Jeopardy), Wheel of Fortune, and Whammy;
   the host can also play their OWN questions, no AI required.
-version: 0.11.0
+version: 0.11.1
+
 status: active
 
 # The app TILE is public so every signed-in player sees it in the ribbon (a
@@ -128,10 +129,6 @@ bots:
     persona: personas/host-mc.yaml
     role: games/game-show-host
     capabilities: [hosting, survey-generation, answer-judging, contestant-interview, banter, text-to-speech]
-
-# Shared persona layered underneath the host.
-foundation:
-  persona: personas/game-show-foundation.yaml
 
 # ─────────────────────────────────────────────────────────────────────────────
 # UI SURFACES — the show is the app. Every surface is a VIEW over the room's live

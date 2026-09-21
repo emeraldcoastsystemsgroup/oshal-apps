@@ -47,7 +47,8 @@ description: >-
   sentiment graph (political + economic + outlet-kind axes), entity co-mention graph,
   and historical series. Ask the analyst "what's the press saying about X" and get a
   structured, bias-contextualized read, not a misleading average.
-version: 1.2.1
+version: 1.2.2
+
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -135,9 +136,6 @@ bots:
       - news-ingestion
       - entity-extraction
       - bias-analysis
-
-foundation:
-  persona: personas/world-foundation.yaml
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TOOLS — the world_* capability set. Each is a thin cli over the local /api/world
