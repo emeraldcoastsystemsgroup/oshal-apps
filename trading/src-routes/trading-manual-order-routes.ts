@@ -49,6 +49,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Cash-account settlement (ADR-134 D8): settlementCheck() runs in sizeManualOrder AFTER the guardrails, for cash-type books only (kernel settlementApplies) — a BUY funded by unsettled proceeds is 422 settlement_blocked { message, settlesOn, settlement } under 'refuse' (the same WHY-before-confirm pattern as guardrails; the engine re-checks at execution) or a `warning` under 'warn'; a SELL of a symbol bought while proceeds were unsettled gets the kernel's good-faith-violation advisory as a `warning` (never a block). Sized gains warning?/settlement?; the response carries `settlement` and MERGES warnings with the protected-entry scheduleWarning (' · ') instead of overwriting one with the other.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | Review fix: the recent-buys read behind the good-faith advisory logs its failure at error (it swallowed it with a bare catch that returned [], so the advisory could vanish on a SELL with no trace); the advisory still degrades to none — a read failure never blocks a sell.
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 D4 follow-up (the store half of the minute-precision kernel): the ORDER SHAPE is passed to validateFireAt(fireAt, new Date(), { orderType, extendedHours, timeInForce }) and to createDatedOrder (extendedHours + timeInForce), so a pre/post-market fire time is judged against the venue's rule (LIMIT + extended hours + DAY) instead of being refused for want of the shape — the kernel fails closed without it. ensureEventSchedule now also compares the stored cron/timezone with EVENT_PLANS_CRON/EVENT_PLANS_TIMEZONE, so a leg left on the retired 5-minute cron is RE-CREATED (create-or-replace keeps id/status/executionCount) the first time an existing user schedules a protected or timed order — without it their timed orders would fire only every 5th minute. The createSchedule call itself is byte-identical. Consequence worth naming: a user whose leg is stale-but-active no longer short-circuits, so a TIMED order now refuses (503 scheduler_unavailable when the service is absent, 502 when the create itself fails) where 1.10.0 accepted it onto the retired cadence — nothing is at the venue yet and a timed order with no current leg would never fire. A PROTECTED order is unchanged: its leg is armed best-effort after the order and a failure there stays a warning.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | Export ensureEventSchedule, with the 503 message as an argument. ADR-136 D5 arms an earnings rule onto the SAME per-user trading-events leg, and a rule armed without it is never looked at again — so the earnings-rule route needs this exact function, staleness check included, not a second copy that would drift from it the way the event playbooks’ own arm already has. The message is a parameter because the existing sentence names a protected entry’s exits and a timed order’s fire, neither of which is why an earnings rule needs the leg; the default keeps both existing call sites byte-identical.
  *
  * @module trading-manual-order-routes
  */
@@ -283,10 +284,14 @@ async function mintManualDecision(ctx: AppContext, sub: string, book: TradingBoo
  * existing user's timed order would fire only on the old cadence's minutes. Config lives in the kernel
  * (EVENT_PLANS_CRON ← env TRADING_EVENTS_CRON, EVENT_PLANS_TIMEZONE) — never re-declared here.
  * @param sub - Caller sub.
+ * @param unavailable - The 503's message, so a caller with a different stake in the leg (an earnings
+ *   rule is never looked at again without it) says its own reason instead of a protected entry's.
+ * @returns Resolves once the caller's leg exists on the current cadence.
+ * @throws TradingError 503 when the scheduler is absent — nothing is created.
  */
-async function ensureEventSchedule(sub: string): Promise<void> {
+export async function ensureEventSchedule(sub: string, unavailable: string = SCHEDULER_UNAVAILABLE): Promise<void> {
   const svc = getTradingScheduleService();
-  if (!svc) throw new TradingError(503, 'scheduler_unavailable', SCHEDULER_UNAVAILABLE);
+  if (!svc) throw new TradingError(503, 'scheduler_unavailable', unavailable);
   const taskType = eventPlanTaskType(sub);
   const mine = await svc.listSchedules({ ownerSub: sub, scope: 'mine' });
   if (mine.some((r) => r.taskType === taskType && r.ownerSub === sub && r.status === 'active' && r.cron === EVENT_PLANS_CRON && r.timezone === EVENT_PLANS_TIMEZONE)) return;

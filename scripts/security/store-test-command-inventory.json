@@ -6,6 +6,7 @@
     ".|node --test scripts/app-dependency-declarations.test.mjs",
     ".|node --test scripts/check-connector-declarations.test.mjs",
     ".|node --test scripts/check-engine-container-pattern.test.mjs",
+    ".|node --test scripts/check-forced-rls.test.mjs",
     ".|node --test scripts/check-service-activations.test.mjs",
     ".|node --test scripts/check-no-model-attribution.test.mjs",
     ".|node --test scripts/check-no-public-secret-fallback.test.mjs email-summarizer/tests/session-crypto.test.mjs finance/tests/session-crypto.test.mjs youtube-kids/tests/session-crypto.test.mjs",

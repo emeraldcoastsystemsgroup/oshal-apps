@@ -171,6 +171,24 @@ jobs:
       - name: Mutation-test the engine-container gate
         run: node --test scripts/check-engine-container-pattern.test.mjs
 
+  forced-rls:
+    name: every walled package table is FORCEd, not only ENABLEd
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # PostgreSQL exempts a table's OWNER from its own row security unless the table is FORCEd,
+      # and the api both owns every public table and is the role that reads them. ENABLE alone
+      # therefore installs a policy that reads as protection in every audit and never runs. The
+      # gate replays each package's migration set rather than grepping for the word, because the
+      # four create_project* tables were enabled inside an EXECUTE format() loop.
+      - name: Refuse a migration that enables row security without forcing it
+        run: node scripts/check-forced-rls.mjs
+      - name: Mutation-test the forced row-security gate
+        run: node --test scripts/check-forced-rls.test.mjs
+
   attribution:
     name: no model attribution
     runs-on: ubuntu-latest

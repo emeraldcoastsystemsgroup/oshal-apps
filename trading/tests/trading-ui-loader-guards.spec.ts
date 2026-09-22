@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial - the sub-tab / navigation race contract for the Trading surface (ADR-136 D2 tail). Every "async function load*" in tools/ui is discovered from source and must be classified here (tab-scoped, view-scoped or state-only); an unclassified new loader fails, so the contract cannot be silently widened. Tab-scoped loaders must capture RENDER_TOKEN and tabGen() BEFORE their first await and re-check stale()/tabStale() after it; view-scoped loaders must capture RENDER_TOKEN (or take a token parameter) and re-check stale(). The two ordering pins that actually bit: loadRosterTab bails before it writes BOOKS or fills the live strategy pickers, and the roster's Start/Stop resolves the enable flag from BOOKS at click time rather than from a value baked into the markup.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Close the discovery hole a review found: loaders() only sees a column-0 "async function load*", so a loader written as "const loadX = async () => ...", an indented declaration or a class method would have escaped classification entirely and shipped unguarded while every test stayed green. The alternate spellings are now rejected outright, which makes the column-0 convention an enforced contract rather than an accident of the current file.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Round-3 review: the "re-checks after the await" pin was a substring test on the post-await slice, so a loader that called stale(token) AFTER its innerHTML write - one that overpainted first and only then noticed - stayed green. It is now an ORDERING test against the paint: the bail must appear before the loader's first innerHTML write, which is the failure the guard exists to prevent.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Classify loadEarningsRulesCard (view-earnings-rules.js, ADR-136 D5) as view-scoped. It paints #earningsRulesCard, which the account view owns, so the render token alone is its guard — the same classification as the timed-orders and protected-lots cards beside it.
  */
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'fs';
@@ -28,7 +29,7 @@ const TAB_SCOPED = [
 /** View-scoped loaders paint into a node the view owns; the render token alone is the guard. */
 const VIEW_SCOPED = [
   'loadKpisAndPositions', 'loadRealized', 'loadPerfSummary', 'loadSignalModel',
-  'loadEventPlanCard', 'loadLotsCard', 'loadDatedCard',
+  'loadEventPlanCard', 'loadLotsCard', 'loadDatedCard', 'loadEarningsRulesCard',
 ];
 /** State-only: writes module state and paints NOTHING, so it has no stale paint to guard against. */
 const STATE_ONLY = ['loadBooks'];

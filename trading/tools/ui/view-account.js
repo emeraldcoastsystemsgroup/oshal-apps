@@ -16,6 +16,11 @@
  * ADR-138: the 'Protected lots' card (GET /lots) lists this account's ring-fenced purchases with a
  * Release action, and publishes window.PINNED_BY_SYMBOL so the positions table can mark 'pinned N'.
  *
+ * ADR-136 D5: the 'Earnings rules' card (GET /events/rules) lists this account's standing "when this
+ * name reports, act on what it filed" rules with an Arm form and a Cancel, and says when the server's
+ * watcher is off. It is painted by loadEarningsRulesCard() in view-earnings-rules.js; only the
+ * placeholder and the kick live here.
+ *
  * ADR-136 D4: the 'Timed orders' card (GET /dated) lists this account's scheduled operator orders with
  * a Cancel action (POST /dated/:id/cancel) until they fire; fired/expired/cancelled rows stay as history.
  * The card's footnote states the leg's as-built cadence — a fire at its own MINUTE, 7:00 AM–7:59 PM ET
@@ -51,6 +56,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | ADR-159 reaches the Exits card and the book switch. (a) A rule row the engine will not exit - a holding its own filled orders cannot account for, or a TRADING_CORE_SYMBOLS ring-fence - is greyed, badged, and says the engine's own sentence about why, instead of printing a stop price for a stop that will never fire; that was the one row where the absence of protection mattered and it looked exactly like the fourteen where it did not. (b) A row whose posture could not be READ keeps its prices and carries a quiet 'not known' pill: the rules shown are still the engine's own functions evaluated here, and what is unknown is only whether the engine will act on the result - blanking the row would hide protection that is probably there. (c) The book switch clears window.GOVERNANCE_BY_SYMBOL beside PINNED_BY_SYMBOL, to null rather than {} so a row reads NOT KNOWN until this book's own answer lands instead of inheriting the last account's.
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | Exposure review round 2: the five async card painters move out of renderAccountView into kickAccountCards(token, b). renderAccountView had grown to exactly the 50-line function limit, so the next line added to it would have broken the rule; the painters were already one list doing one job and read better named. No painter, token or ordering change - each still fills its own placeholder and re-checks stale(token) before it paints. The withheld-rules block also says that the SERVER withholds too (exits.rules comes back null when the protected-lot read failed), so the card is not the only thing standing between a consumer and stops drawn over ring-fenced shares.
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | The Exits card shows BOTH cost bases wherever they disagree. The venue's average carries the broker's wash-sale adjustment - after a loss sale and a re-buy inside 30 days the disallowed loss is folded into the replacement shares - so the Avg and Stop columns were printing a cost the engine never paid, next to a 'Now' column the engine computes off its OWN cost (SEQ 7 / the payload's SEQ 9). The row read as a position about to be stopped out while the engine had already decided it was not. Each cell now prints the venue number with the engine's own beneath it whenever the two differ, the foot names the adjustment and counts the rows carrying one, and the not-in-force row shows it too - an off-hours paint is exactly when the operator goes looking. Both numbers arrive on the payload (engineBasisPx / engineStopPx); nothing here derives a basis, and nothing here decides whether a holding is managed - that stays the server's `governance`.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 D5: the Earnings rules card. The kernel's earnings-reaction rule store has existed since 2026-09-06 with no way for a person to reach it - a rule could only be created or read by calling the module - so this view gains the #earningsRulesCard placeholder and kickAccountCards gains its painter. The card itself lives in view-earnings-rules.js rather than here, on the same reasoning that carved the event playbooks out to view-events.js: this file is already the largest on the surface and a card that owns a form belongs with its own form.
  */
 
 /* ── the view ──────────────────────────────────────────────────────────────── */
@@ -87,6 +93,7 @@ async function renderAccountView(token) {
       '<div id="exitsCard"></div>' +                                    // venue exits + autopilot rules (ADR-136 /exposure), filled async
       '<div id="lotsCard"></div>' +                                     // protected lots (ADR-138), filled async
       '<div id="datedCard"></div>' +                                    // timed orders (ADR-136 D4), filled async; empty when none
+      '<div id="earningsRulesCard"></div>' +                            // earnings-reaction rules (ADR-136 D5), filled async; always painted - arming the first one starts here
       '<div class="panel" id="focus"><div class="foot" style="padding:22px 6px;text-align:center">Select a position above to open its chart, signal model and order ticket.</div></div>' +
       '<div id="viewTabs"></div>';
     wireAccountHeader();
@@ -121,6 +128,7 @@ function kickAccountCards(token, b) {
   loadLotsCard(token);            // #lotsCard + PINNED_BY_SYMBOL <- /lots (ADR-138)
   renderExposureCards(token);     // #mixCard + #exitsCard <- /exposure (ADR-136)
   loadDatedCard(token);           // #datedCard     <- /dated (ADR-136 D4)
+  loadEarningsRulesCard(token);   // #earningsRulesCard <- /events/rules (ADR-136 D5)
 }
 
 /* ── account header ────────────────────────────────────────────────────────── */

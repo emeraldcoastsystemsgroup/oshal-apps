@@ -48,6 +48,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-138 single-stock research: register the /research/:symbol + /watchlist + /lots route family (trading-research-routes.ts) right after the event-plan routes — research reads, the per-user watchlist, and the operator's view/release over the kernel pinned-lot store.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Register the book-scoped specialist-context reader (ADR-090 uses: specialist-context) synchronously from this factory, through the activation-scoped port the manifest route mounter injects. A protected bot-node run is TOOL-LESS, so this append is the accountable trading bot's ONLY data channel: without it the bot is asked how the book did today and has no numbers to answer with. Facts live in trading-book-facts.ts - scalars only, one slot per BOOK (paper, live, live2...) so a stale sibling cannot withhold another book, computed for the ticket's OWNER, and venue-free so market hours and a venue outage cannot decide whether the dispatch happens.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | Declare the MARKET half of the fact set alongside the book half (trading-market-facts.ts), so the registration is TRADING_SPECIALIST_FACT_KEYS and the read is readTradingSpecialistFacts. The book half alone is why the accountable bot could report the operator's equity to the cent and, in the same answer, say it could not access index or market-mover data: the screener ships in the kernel and GET /reports/movers already uses it, but a tool-less worker can never call a route, and no market number was declared on the one channel it can see. The market half reads SPY/QQQ/DIA day moves and the whole-market screener's extremes in PARALLEL with the book half, so the declaration costs no additional wall-clock time against the registry's 2000 ms deadline.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 D5 earnings-reaction rules: register the /events/rules route family (trading-earnings-rule-routes.ts) right after the event playbooks — the operator's surface over the kernel rule store, which until now could only be reached by calling the module, so no person could arm, see or stop a rule. Book-scoped query-first like every 2026-09-03-audited route.
  *
  * @module trading-routes
  */
@@ -69,6 +70,7 @@ import { registerTradingAlgoRoutes, registerTradingTuningRoutes } from './tradin
 import { registerTradingAccountRoutes } from './trading-accounts-routes';
 import { registerTradingManualOrderRoutes } from './trading-manual-order-routes';
 import { registerTradingEventPlanRoutes } from './trading-event-plan-routes';
+import { registerTradingEarningsRuleRoutes } from './trading-earnings-rule-routes';
 import { registerTradingResearchRoutes } from './trading-research-routes';
 import { TRADING_SPECIALIST_FACT_KEYS, readTradingSpecialistFacts } from './trading-market-facts';
 
@@ -179,6 +181,8 @@ export function createTradingRoutes(ctx: AppContext): Router {
   registerTradingManualOrderRoutes(router, ctx);
   // ADR-136 D6: event playbooks — the IPO watch/entry/exit plans (before the generic flow).
   registerTradingEventPlanRoutes(router, ctx);
+  // ADR-136 D5: earnings-reaction rules — arm/list/cancel over the kernel rule store (before the generic flow).
+  registerTradingEarningsRuleRoutes(router, ctx);
   // ADR-138: single-stock research, the per-user watchlist, and pinned lots (before the generic flow).
   registerTradingResearchRoutes(router, ctx);
   registerTradingBookReadRoutes(router, ctx, apiDir);

@@ -9,6 +9,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Make a skip reach the EXIT CODE, and offer the kernel checkout to every suite. Entry 1 printed "a skipped check is not a green one" and then exited 0, so on any layout without a sibling ../oshal checkout — which is every fresh clone — the little-monsters SECURITY suite, kalshi and career-hunter were all skipped and the run still reported success to the hook and to `$?`. A check that did not run now fails the run; `--allow-skips` is the deliberate opt-out and still names every skip. Also export OSHAL_CORE_DIR wherever a kernel checkout resolves: the two real-Multer resume cases skip on a runner that has none, so a workstation can now run two cases store-ci itself cannot. STORE_CI_LOCAL_ROOT lets the guard spec drive this over a fixture store.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Carry store-ci's new service-activations job: one `check` policy entry for scripts/check-service-activations.mjs. The gate REFUSES to run when it meets a command it has no policy for, so the entry is what keeps the ADR-157 declaration check from being a job this mirror cannot see.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Carry store-ci's new connector-declaration check: one `check` policy entry for scripts/check-connector-declarations.mjs. The gate REFUSES to run when it meets a command it has no policy for, so without this entry the check that keeps every package's connector allow-list DECLARED would be a step this mirror cannot see - and an undeclared package hands its users the entire provider catalog.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Carry store-ci's new forced-row-security check: one `check` policy entry for scripts/check-forced-rls.mjs. The gate REFUSES to run when it meets a command it has no policy for, so without this entry the job that refuses a migration enabling row security without FORCEing it would be a step this mirror cannot see - and PostgreSQL exempts the table OWNER, which is the role the api connects as, so an unforced table carries a policy that never once executes.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -138,6 +139,7 @@ const POLICY = [
   { match: /^node\s+scripts\/check-engine-container-pattern\.mjs$/, kind: 'check' },
   { match: /^node\s+scripts\/check-service-activations\.mjs$/, kind: 'check' },
   { match: /^node\s+scripts\/check-connector-declarations\.mjs$/, kind: 'check' },
+  { match: /^node\s+scripts\/check-forced-rls\.mjs$/, kind: 'check' },
   { match: /^node\s+scripts\/check-store-separation\.mjs\s+\.$/, kind: 'check' },
   { match: /^node\s+scripts\/check-no-public-secret-fallback\.mjs\s+\.$/, kind: 'check' },
   { match: /^node\s+--test\s+/, kind: 'test' },

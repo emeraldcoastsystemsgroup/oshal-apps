@@ -5,10 +5,12 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — ADR-134 D8 cash-account settlement, the store half (source pins; the behaviour itself is proven by the kernel's real-DB spec tests/unit/trading-settlement.spec.ts, which drives placeDecisionOrder for both refusals). Pins: sizeManualOrder runs the settlement pre-check AFTER the guardrails and only through the kernel helpers (settlementApplies / buildSettlementView / settlementViolation / gfvAdvisory — no store-side arithmetic), answers 422 settlement_blocked with settlesOn + settlement, and merges a settlement warning with the scheduler warning instead of overwriting it; GET /account answers `settlement`; GET /accounts books[] carries accountType + settlementPolicy; PATCH accepts settlementPolicy ONLY as 'refuse' | 'warn' | null (400 settlement_policy_invalid); the ticket sizes against SETTLED cash on a cash account and renders the unsettled figure + settlement day; the account header offers default/refuse/warn (never off) on cash accounts. Every user-facing label derives from the server payload — no typed 'T+1'.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Review fix guard: the manual-order route has no silent `.catch(() =>` — the recent-buys read behind the good-faith advisory logs its failure at error and every `.catch((err) => …)` in settlementCheck logs the err.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-134 D8 gap 2 (the ledger-only label), guarded by EXECUTING the ticket rather than pinning its source: ticket.js is run in a vm with a stub surface and the rendered context line / order summary are read back, so a `source: 'ledger'` view must carry the “your broker reports no settled figure” sentence and the “Settled cash (from oshal history)” row, while a `source: 'venue'` view renders the same bytes it always did. The kernel's SettlementView.source is read out of the framework checkout so the three values the surface branches on cannot drift from the kernel's own union.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import * as path from 'path';
+import vm from 'vm';
 
 const src = (f: string) => readFileSync(path.resolve(__dirname, '..', f), 'utf8');
 
@@ -93,9 +95,9 @@ describe('the ticket (tools/ui/ticket.js)', () => {
     expect(tkt).toContain('const s = tktSettlement(); if (s) return Math.max(0, tktNum(s.settledCash));');
   });
   it('renders settled vs unsettled with the settlement day, labels the summary row, and shows a mint warning in step 3', () => {
-    expect(tkt).toContain("return 'Settled to spend: <b>' + (a != null ? money(a) : '&mdash;') + '</b>' + (un ? ' &middot; ' + esc(un) : '');");
+    expect(tkt).toContain("if (tktSettlement()) return 'Settled to spend: <b>' + (a != null ? money(a) : '&mdash;') + '</b>' + (un ? ' &middot; ' + esc(un) : '') +");
     expect(tkt).toContain("return money(s.unsettledCash) + ' unsettled' + (s.settlesOn && s.settlesOn.words ? ', settles ' + s.settlesOn.words : '');");
-    expect(tkt).toContain("row(tktSettlement() ? 'Settled cash' : 'Available to spend'");
+    expect(tkt).toContain("row(tktSettlement() ? (tktLedgerOnly() ? 'Settled cash (from oshal history)' : 'Settled cash') : 'Available to spend'");
     expect(tkt).toContain("const warn = d.warning ? '<div class=\"warn\" style=\"font-size:13px;margin-bottom:10px\">' + esc(d.warning) + '</div>' : '';");
     // The 422 message is shown verbatim: api() throws Error(j.message) and tktReview writes err into formErr.
     expect(tkt).toContain("if (err || !j || !j.decisionId) { t.formErr = err || 'The server did not return a decision.'; tktRenderStep(); return; }");
@@ -112,5 +114,106 @@ describe('the account header (tools/ui/view-account.js)', () => {
     expect(va).not.toMatch(/opt\('off'/);
     expect(va).toContain("api('/accounts/books/' + encodeURIComponent(b.bookId), jbody('PATCH', { settlementPolicy: policy }))");
     expect(va).toContain("const ss = $('acctSettle'); if (ss) ss.onchange = () => setSettlementPolicy(ss.value || null);");
+  });
+});
+
+/**
+ * The framework checkout the package's `@/` alias resolves to — the SAME rule vitest.config.mjs uses.
+ * The kernel's own SettlementView is read from it so the surface's three `source` branches are
+ * checked against the kernel's union rather than against a value retyped here; with no framework
+ * checkout the read throws and the guard goes RED (a skipped guard is not a guard).
+ */
+const FRAMEWORK = process.env.OSHAL_FRAMEWORK || path.resolve(__dirname, '..', '..', '..', 'oshal');
+const KERNEL_SETTLEMENT = readFileSync(path.resolve(FRAMEWORK, 'src/app/trading-settlement.ts'), 'utf8');
+
+const TKT_SRC = src('tools/ui/ticket.js');
+
+/** The settlement view GET /account answers, as the ticket receives it. */
+interface SettlementFixture {
+  accountType: string; policy: string; cash: number; settledCash: number;
+  unsettledCash: number; settlesOn: { iso: string; words: string } | null;
+  source: string; settlementDays: number;
+}
+
+/** A cash book with $8,000 of unsettled proceeds, split by `source` (the only field that varies). */
+function view(source: string): SettlementFixture {
+  return {
+    accountType: 'cash', policy: 'refuse', cash: 10000, settledCash: 2000, unsettledCash: 8000,
+    settlesOn: { iso: '2026-09-08', words: 'Tue Sep 8' }, source, settlementDays: 1,
+  };
+}
+
+/**
+ * @description Run ticket.js in a vm with a stubbed surface and render BOTH places the settled figure
+ * is shown — the step-2 context line and the order summary — for one settlement view.
+ * @param settlement - The `settlement` object GET /account answered (null for no view at all).
+ * @returns The rendered context line and the summary's innerHTML.
+ */
+function render(settlement: SettlementFixture | null): { ctx: string; summary: string } {
+  const host = { innerHTML: '' };
+  const out = { ctx: '' };
+  const sandbox: Record<string, unknown> = {
+    console, window: {}, document: { querySelectorAll: () => [] },
+    esc: (v: unknown) => String(v == null ? '' : v),
+    money: (n: unknown) => '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    $: (id: string) => (id === 'tktSummary' ? host : null),
+    STATUS: { guardrails: {}, bookEnabled: true, liveEnabled: true },
+    STATE: { positions: [] }, UNIVERSE: {}, MODE: 'live', BOOK: 'live', DISP: 'Live (legacy account)',
+    closeTicket: () => undefined, navigate: () => undefined, focus: () => undefined,
+    api: async () => ({}), jbody: () => ({}), spinner: () => '', st: () => '',
+    __out: out, __settlement: settlement,
+  };
+  vm.createContext(sandbox);
+  // One script: `let TKT` is a top-level lexical binding, so the driver has to share the ticket's
+  // own script scope to assign it — exactly what the page does when it opens the ticket.
+  vm.runInContext(`${TKT_SRC}
+    TKT = tktFresh('MSFT');
+    TKT.funds = { cash: 10000, buyingPower: 10000, equity: 50000, settlement: __settlement };
+    __out.ctx = tktCtxInner(2);
+    tktRenderSummary();
+  `, sandbox, { filename: 'ticket.js' });
+  return { ctx: out.ctx, summary: host.innerHTML };
+}
+
+describe('ADR-134 D8 gap 2 — a ledger-derived settled figure says so on the ticket', () => {
+  it("the kernel still answers exactly the three sources the surface branches on", () => {
+    expect(KERNEL_SETTLEMENT).toContain("source: 'venue' | 'ledger' | 'n/a';");
+  });
+
+  it('a ledger-derived split names its source in the context line and in the summary row', () => {
+    const { ctx, summary } = render(view('ledger'));
+    expect(ctx, 'the settled figure is still the headline').toContain('Settled to spend: <b>$2,000.00</b>');
+    expect(ctx, 'and the unsettled figure with its date').toContain('$8,000.00 unsettled, settles Tue Sep 8');
+    expect(ctx, 'the derivation is stated, not implied').toContain('oshal order history');
+    expect(ctx, 'and why there is no venue figure to use instead').toContain('your broker reports no settled figure');
+    expect(ctx, 'and what that costs the number').toContain('a sale made outside oshal is not counted here');
+    expect(summary, 'the summary row carries the same qualification').toContain('Settled cash (from oshal history)');
+  });
+
+  it("a venue-reported split renders exactly what it always did — no note, no relabelled row", () => {
+    const { ctx, summary } = render(view('venue'));
+    expect(ctx).toBe('Settled to spend: <b>$2,000.00</b> &middot; $8,000.00 unsettled, settles Tue Sep 8');
+    expect(ctx).not.toContain('oshal order history');
+    expect(summary).toContain('Settled cash');
+    expect(summary).not.toContain('from oshal history');
+  });
+
+  it('a margin book (no settlement view at all) is untouched — no settled wording anywhere', () => {
+    const { ctx, summary } = render(null);
+    expect(ctx).toBe('Available to spend: <b>$10,000.00</b>');
+    expect(summary).toContain('Available to spend');
+    expect(summary).not.toContain('Settled');
+    expect(summary).not.toContain('oshal order history');
+  });
+
+  it('names no broker — the branch is the kernel view\u2019s `source`, so any venue without a settled figure lands here', () => {
+    const tkt = src('tools/ui/ticket.js');
+    const helpers = tkt.slice(tkt.indexOf('function tktLedgerOnly('), tkt.indexOf('/* % mode: the dollar amount'));
+    expect(helpers).toContain("return !!s && s.source === 'ledger';");
+    expect(helpers).not.toMatch(/alpaca|schwab/i);
+  });
+
+  it('ticket.js still parses as a classic script', () => {
+    expect(() => new Function(TKT_SRC)).not.toThrow();
   });
 });

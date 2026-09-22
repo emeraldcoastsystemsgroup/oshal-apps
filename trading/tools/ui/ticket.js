@@ -41,12 +41,18 @@
  * $Y unsettled, settles <day>", and a 422 settlement_blocked from the mint is shown verbatim (the
  * server says WHY before confirm; the engine re-checks at execution). A `warning` on the mint (policy
  * warn, or the good-faith advisory on a sell) is rendered in step 3 — advisory, never a block.
+ * The view's `source` says where the split came from and the ticket PRINTS it: 'venue' is the broker's
+ * own settled figure, 'ledger' means the broker reports none and the figure is derived from this
+ * book's own oshal order history (every Alpaca cash book — Alpaca exposes no settled/unsettled
+ * split), so a sale made outside oshal is not counted and the operator is told so rather than left
+ * to read a derived number as the broker's own.
  *
  * CHANGE LOG
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Log opened at 1.10.1 — this file predates the log and its earlier history is in git. ADR-136 D4 follow-up (the minute-precision kernel): the WHEN block drops the retired five-minute grid (the time input is step=60 min=07:00 max=19:59, the kernel's own cron-derived window), tktWhenError() echoes the venue pre/post-market rule and NAMES which of its three conditions is still unmet, and the TIF select + the extended-hours box repaint the validity line through tktLiveUpdate so it cannot read “Ready to review” after the change that made the chosen minute unacceptable.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-134 D8 gap 2: the ticket says where the settled/unsettled split came from. Alpaca exposes no settled figure, so a cash-type Alpaca book's split is derived from this book's own oshal order ledger — and the surface rendered it as “Settled to spend” with nothing to distinguish it from a figure the broker itself reported, which is a derived number read as an authoritative one. tktLedgerOnly()/tktSourceNote() read the kernel view's own `source` field (never a broker name — any venue that reports no settled figure lands here), the step 1/2 context line carries the sentence, and the order summary labels the row “Settled cash (from oshal history)”. A 'venue' source renders byte-identically to before.
  */
 
 /* Plain-word price rules → the order types the venue already runs. `tif` is the rule's default. */
@@ -96,6 +102,17 @@ function tktAvailable() {
 function tktUnsettledWords() {
   const s = tktSettlement(); if (!s || !(tktNum(s.unsettledCash) > 0)) return '';
   return money(s.unsettledCash) + ' unsettled' + (s.settlesOn && s.settlesOn.words ? ', settles ' + s.settlesOn.words : '');
+}
+/* Whether the settled/unsettled split is DERIVED from this book's own oshal order history rather than
+   reported by the broker — the kernel view's own `source` field, so any venue that exposes no settled
+   figure (Alpaca does not) lands here without the surface naming a broker. */
+function tktLedgerOnly() {
+  const s = tktSettlement(); return !!s && s.source === 'ledger';
+}
+/* The sentence that says so, in words, wherever a ledger-derived figure is shown; '' on a venue figure. */
+function tktSourceNote() {
+  if (!tktLedgerOnly()) return '';
+  return 'Worked out from this account’s own oshal order history — your broker reports no settled figure, so a sale made outside oshal is not counted here.';
 }
 /* % mode: the dollar amount the operator's percent of available funds works out to (client-computed). */
 function tktPctDollars() {
@@ -474,7 +491,7 @@ function tktRenderSummary() {
   const held = tktHeld();
   const fundsRow = TKT.side === 'sell'
     ? row('You hold', held ? shares(Math.floor(held.qty)) : '—')
-    : row(tktSettlement() ? 'Settled cash' : 'Available to spend', tktAvailable() != null ? money(tktAvailable()) : '—');
+    : row(tktSettlement() ? (tktLedgerOnly() ? 'Settled cash (from oshal history)' : 'Settled cash') : 'Available to spend', tktAvailable() != null ? money(tktAvailable()) : '—');
   const protW = TKT.side === 'buy' ? tktProtWords() : '';
   box.innerHTML = '<div class="summary-box">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b>Order summary</b>' +
@@ -647,8 +664,9 @@ function tktCtxInner(step) {
     return 'You hold <b>' + esc(h.qty) + '</b> share' + (h.qty === 1 ? '' : 's') + (h.avg != null ? ' (avg ' + tktPx(h.avg) + ')' : '') +
       (step === 2 ? ' &middot; <a href="#" id="tktSellAll">Sell all</a>' : '');
   }
-  const a = tktAvailable(), un = tktUnsettledWords();
-  if (tktSettlement()) return 'Settled to spend: <b>' + (a != null ? money(a) : '&mdash;') + '</b>' + (un ? ' &middot; ' + esc(un) : '');
+  const a = tktAvailable(), un = tktUnsettledWords(), note = tktSourceNote();
+  if (tktSettlement()) return 'Settled to spend: <b>' + (a != null ? money(a) : '&mdash;') + '</b>' + (un ? ' &middot; ' + esc(un) : '') +
+    (note ? '<br />' + esc(note) : '');
   return 'Available to spend: <b>' + (a != null ? money(a) : '&mdash;') + '</b>';
 }
 function tktSizeInputHtml() {

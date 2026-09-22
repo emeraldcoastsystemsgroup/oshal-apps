@@ -333,6 +333,16 @@ a block. Margin accounts and paper are unchanged. The fleet default is
 *Unsettled buys* control (server default / refuse / warn only) — only the server env can turn the
 guard off. The engine re-checks at execution, so the autopilot meets the same wall.
 
+Where the settled figure comes from is **on the surface** (1.19.1): brokers that report their own
+settled/unsettled split (Schwab) are used directly, and a broker that reports none — Alpaca exposes
+no settled figure at all — leaves oshal deriving the split from *this book's own order ledger*. That
+is a weaker number, because a sale made outside oshal is not in the ledger and therefore is not
+counted as unsettled, so the ticket says so in words (*"Worked out from this account's own oshal
+order history — your broker reports no settled figure, so a sale made outside oshal is not counted
+here"*) and labels the order-summary row **Settled cash (from oshal history)**. A venue-reported
+figure renders exactly as before. Nothing is reconciled against a venue activities feed: the label
+is the honest statement of what the number is, not a claim that it matches the broker's books.
+
 ### Research a stock, watchlist, market movers (1.8.0–1.9.0, ADR-138)
 
 The **Research** view's first sub-tab, *Research a stock*, puts one symbol on one screen
@@ -374,6 +384,51 @@ Event playbooks** and on the account page (arm / disarm / delete). Routes: `GET`
 /api/trading/events/plans/:id/arm` (428 without confirm) and `/disarm`. Not automated, by design: the
 Schwab Conditional Offer to Purchase and its post-pricing confirmation are manual steps the dry run
 lists; a reminder sequence for them is in the BACKLOG.
+
+### Earnings rules — react to what a company actually filed (1.19.0, ADR-136 D5)
+
+An **earnings rule** is a standing instruction on one account and one **held** name: *when this
+company reports, read what it filed and act*. The engine has owned the state machine since
+2026-09-06 — the held-names-only EDGAR watch for an 8-K carrying **item 2.02**, the accountable
+analyst's read of the company's own filed numbers, and the mapped order through the single order path
+— but it could only be reached by calling the module. 1.19.0 is the operator's half: the account page
+gains an **Earnings rules** card that arms, lists and cancels one.
+
+Arming asks for the name (picked from what the account holds), what to do on a **beat**, a **miss**
+and an **in-line** print, the size (percent of the position, a share count, or a dollar amount), an
+optional expected print date, and the date the rule stops. It is confirm-gated — a fired rule places
+a real order. The card then shows each rule's status, the last thing the engine recorded on its
+timeline, a link to the filing it locked on to, and a Cancel while the rule is still active; a rule
+that ended `fired_short` is marked **TRUNCATED**, which is the engine's own word for shares having
+moved without the intent completing.
+
+Two things the card states rather than implies. **Beat and miss are judged against the company's own
+filed numbers** — the prior-year period and its own prior guidance — never Street consensus, because
+oshal ingests no consensus feed; the sentence comes from the server on every response. And the
+**watcher's posture** is printed whenever it is off: an armed rule is stored and inert while either
+`TRADING_EVENT_PLANS` or `TRADING_EARNINGS_RULES` (default `false`) is off, and the card says which.
+On a **view-only** account the warning is precise rather than comfortable: a rule that decides to BUY
+is refused by the engine (409 `book_disabled`, because a rule's decisions are authored by
+`event-rule`, not by the operator) and the rule ends there, while a rule that decides to SELL still
+runs.
+
+Arming ensures the per-user `trading-events` leg **before** the rule is stored, on the same
+create-or-replace the timed orders use — a rule armed without that leg would never be looked at
+again, so a missing scheduler answers 503 and stores nothing.
+
+### API added in 1.19.0 (earnings rules, ADR-136 D5)
+
+- `GET /api/trading/events/rules` — the selected book's rules, newest first, plus `enabled` (both
+  executor gates folded into one), `note` (why not, when it is false), `limits`
+  (`{ maxDays, windowBeforeDays, windowAfterDays }`) and `basis` (the beat/miss sentence).
+- `POST /api/trading/events/rules` — arms one. Body: `{ confirm: true, rule: { symbol, onBeat,
+  onMiss, onInline, sizing: { mode, value }, expectedAt?, expiresAt } }`. 428 `confirm_required`
+  without the flag, 400 for a rule that holds on every outcome or carries a bad expiry/size, 409
+  `rule_exists` when this book already has an active rule for that symbol, 503
+  `scheduler_unavailable` before anything is stored. 201 answers `{ rule, scheduled, enabled, note,
+  basis, warning }`.
+- `POST /api/trading/events/rules/:id/cancel` — disarms an active rule (409 `rule_not_active` once it
+  is terminal; terminal rows stay in the list as history).
 
 ### API added in 1.6.0
 

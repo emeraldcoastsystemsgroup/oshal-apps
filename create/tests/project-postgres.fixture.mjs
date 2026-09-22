@@ -4,6 +4,8 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Own one uniquely labeled, port-isolated disposable PostgreSQL container using only an existing local image.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Allow a two-connection synthetic runtime pool to reproduce actual authorization nesting without changing installed configuration.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Apply the brand kit migration (twice, for idempotency) and clear its table between cases.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Apply the migrations AS the application role, so the fixture reproduces the installed condition instead of a friendlier one. On the installed database the api OWNS these tables and is the role that reads them, and PostgreSQL exempts a table owner from its own row security unless the table is FORCEd - measured live 2026-09-21, the exact-owner policy was installed and never filtered a row. This fixture migrated as the superuser, so the app role was never the owner, RLS applied to it whatever the tables said, and the suites above could not have seen the defect. Running the migrations under SET ROLE on one dedicated client (never the shared admin pool, whose connections are reused) makes the app role the owner and puts that boundary back.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Apply migration 004 as well, so every suite on this fixture reads the policy shape that actually installs: the exact-owner rule with both identity arms. A fixture that stops one migration short of the declared set proves a schema nobody runs.
  */
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -25,6 +27,28 @@ function removeContainer(name, token) {
   assert.equal(inspected.Config.Labels['oshal.create-project-fixture'], token);
   docker(['rm', '--force', '--volumes', name]);
   assert.equal(docker(['container', 'ls', '--all', '--filter', `name=^/${name}$`, '--format', '{{.ID}}']), '');
+}
+
+/**
+ * Apply each declared migration twice, as the APPLICATION role, on one dedicated client. SET ROLE
+ * is connection state, so it must never run on a pooled connection the rest of the fixture reuses.
+ * Applying them as create_fixture_app is what makes that role the table OWNER - the installed
+ * condition, under which a table that is only ENABLEd (never FORCEd) exempts the reader entirely.
+ */
+async function applyMigrations(admin, files) {
+  const client = await admin.connect();
+  try {
+    await client.query('SET ROLE create_fixture_app');
+    for (const file of files) {
+      const sql = await readFile(resolve(packageRoot, file), 'utf8');
+      await client.query(sql); await client.query(sql);
+    }
+    const owners = await client.query(`SELECT count(*)::int AS other FROM pg_tables
+      WHERE schemaname='public' AND tableowner <> 'create_fixture_app'`);
+    assert.equal(owners.rows[0].other, 0, 'the fixture must leave every table owned by the application role');
+  } finally {
+    try { await client.query('RESET ROLE'); } finally { client.release(); }
+  }
 }
 
 async function ready(pool) {
@@ -55,12 +79,11 @@ export async function startPostgres(registerCleanup, options = {}) {
   const common = { host: '127.0.0.1', port: Number(address.split(':')[1]), database: 'postgres', connectionTimeoutMillis: 1000, query_timeout: 10000, max: 6 };
   admin = new Pool({ ...common, user: 'postgres', password: 'isolated-fixture-only' });
   await ready(admin);
-  const migration = await readFile(resolve(packageRoot, 'migrations/001-create-projects.sql'), 'utf8');
-  await admin.query(migration); await admin.query(migration);
-  const brandMigration = await readFile(resolve(packageRoot, 'migrations/002-create-brand-kits.sql'), 'utf8');
-  await admin.query(brandMigration); await admin.query(brandMigration);
   await admin.query("CREATE ROLE create_fixture_app LOGIN PASSWORD 'isolated-app-only' NOSUPERUSER NOBYPASSRLS");
-  await admin.query('GRANT USAGE ON SCHEMA public TO create_fixture_app; GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO create_fixture_app');
+  await admin.query('GRANT USAGE,CREATE ON SCHEMA public TO create_fixture_app');
+  await applyMigrations(admin, ['migrations/001-create-projects.sql', 'migrations/002-create-brand-kits.sql',
+    'migrations/003-force-row-level-security.sql', 'migrations/004-owner-policy-standard-identity-arm.sql']);
+  await admin.query('GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO create_fixture_app');
   pool = new Pool({ ...common, max: options.poolMax ?? common.max, user: 'create_fixture_app', password: 'isolated-app-only' });
   return { admin, pool, evidence };
 }

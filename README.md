@@ -64,7 +64,7 @@ All **61 packages**, shelved by ADR-097 suite. Versions and status come from
 |---|---|---|---|---|
 | **Daily Trade Recap** | [`daily-trade-recap/`](daily-trade-recap/) | 1.2.1 | ready | Review saved trade-recap work and receive owner-qualified recorded-report updates in Jarvis. |
 | **Finance** | [`finance/`](finance/) | 1.2.2 | ready | Link your banks and brokerages via Plaid and see everything in one place — net worth, accounts, holdings, spending — with a plain-English brief. |
-| **Intelligent Trades** | [`trading/`](trading/) | 1.18.1 | ready | Signal-justified stock trading (ADR-052). |
+| **Intelligent Trades** | [`trading/`](trading/) | 1.19.1 | ready | Signal-justified stock trading (ADR-052). |
 | **Kalshi Prediction Markets** | [`kalshi/`](kalshi/) | 1.6.0 | ready | Find mispriced event contracts on Kalshi (ADR-094). |
 | **Payroll** | [`payroll/`](payroll/) | 2.3.1 | ready | Run payroll for your team, ADP-style, then pay, file and RECONCILE from the same place. |
 | **Sports Edge** | [`sports-edge/`](sports-edge/) | 0.9.0 | ready | Follow a team and really know its next game, then set the fantasy lineup with the best chance of beating the team you actually play this week. |
@@ -77,7 +77,7 @@ All **61 packages**, shelved by ADR-097 suite. Versions and status come from
 | **Animatronics** | [`animatronics/`](animatronics/) | 0.2.1 | ready | The motion layer for a Halloween prop or any servo animatronic. |
 | **Brand Graphics** | [`brand-graphics/`](brand-graphics/) | 1.1.0 | ready | On-brand OSHAL motion graphics — a short brief becomes the validated electric-"oshal" intro look via Google Vids on the operator's signed-in Chrome. |
 | **Camera Ops** | [`camera/`](camera/) | 1.1.0 | ready | Remote camera control - connect a GoPro (Open GoPro HTTP) or other cameras as device nodes and drive them: record, photo, modes, settings, low-latency preview. |
-| **Create** | [`create/`](create/) | 1.8.0 | ready | One studio for everything you make: decks, documents and workbooks from AI Office, portraits, short videos, story episodes, LoRA characters and 3D scans — a single home page that shows what you were working on and one tap to pick up where you left off, in every studio you already have. |
+| **Create** | [`create/`](create/) | 1.8.1 | ready | One studio for everything you make: decks, documents and workbooks from AI Office, portraits, short videos, story episodes, LoRA characters and 3D scans — a single home page that shows what you were working on and one tap to pick up where you left off, in every studio you already have. |
 | **Creative Studio** | [`creative-studio/`](creative-studio/) | 1.2.1 | ready | A creative bot that just keeps making short kid-safe videos - it rotates a public-domain library (fables, fairytales, famous sayings), animates each ~100-word story across ~10 continuous Google Vids Extend scenes on the remote worker (ADR-080), downloads the finished MP4, and saves it to your content folder + Google Drive. |
 | **Dungeon Master** | [`dnd/`](dnd/) | 0.21.2 | ready | Play D&D with an AI Dungeon Master on a cinematic shared board: claimed heroes and visible AI companions follow an explicit move, action, target, dice, result, and advance loop with natural narration, saved characters, multiplayer join codes, playback, and rewind. |
 | **Game Show** | [`game-show/`](game-show/) | 0.11.1 | ready | TV-style AI game night: Family Feud, Jeopardy, Wheel of Fortune and Whammy, each with its own television set — podium characters, sound cues and opening titles. |

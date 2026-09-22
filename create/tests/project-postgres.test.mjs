@@ -2,6 +2,7 @@
  * CHANGE LOG
  * SEQ | AUTHOR | DESCRIPTION
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove migration, real PostgreSQL constraints/concurrency and HTTP owner boundaries in a disposable database with synthetic data only.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The migration case asserted relforcerowsecurity was FALSE, so it pinned the defect in place: the four tables are owned by the role the api connects as, PostgreSQL exempts a table owner from its own row security unless the table is FORCEd, and this suite recorded that missing FORCE as the expected state. It now requires the opposite. The fixture also migrates as the application role now, so the reader here is the OWNER, which is the installed condition and the only one under which the difference is observable.
  */
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -39,7 +40,10 @@ test('real migrations are idempotent and exact-owner RLS denies missing or misma
     await client.query('ROLLBACK');
   } finally { client.release(); }
   const flags = await db.admin.query("SELECT relrowsecurity,relforcerowsecurity FROM pg_class WHERE relname LIKE 'create_project%' AND relkind='r'");
-  assert.equal(flags.rows.length, 4); assert.ok(flags.rows.every(row => row.relrowsecurity && !row.relforcerowsecurity));
+  // FORCE, not merely ENABLE: the api owns these tables and is the role that reads them, and an
+  // owner is exempt from its own row security until the table is forced. Asserting the absence of
+  // FORCE here is what kept the gap on record as expected behaviour.
+  assert.equal(flags.rows.length, 4); assert.ok(flags.rows.every(row => row.relrowsecurity && row.relforcerowsecurity));
 });
 
 test('durable project CRUD isolates users, colliding subjects and administrators', async t => {

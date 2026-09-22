@@ -12,6 +12,8 @@
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Register shared artifact handoffs and bounded read-only editor context against the real core contracts.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Retain the Home boot-order guard for the access-gated artifact handoff in the existing surface recipe.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register the brand kit: shared contract, HTTP boundary, PostgreSQL ownership and the real page, editor and Home in Chromium.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Register the owner-role row-security proof: the api owns these tables and is the role that reads them, so the exact-owner policy only filters anything once the tables are FORCEd, and every other recipe here reads them through a role that is not the owner.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Extend the owner-role row-security recipe with the platform identity arm: the same policy must also be satisfiable by the oshal.current_sub / oshal.current_issuer stamp core's catalog-driven /api/me export and delete arrive with, or forcing these tables makes a person's export omit their projects and their deletion remove nothing, both reporting success.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -407,6 +409,45 @@ cases:
       fixtures:
         - tests/project-postgres.fixture.mjs
         - tests/project-api.fixture.mjs
+      cleanup: Remove the unique fixture container and temporary storage; never connect to the installed database.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never
+  - id: editor-owner-rls
+    name: Exact-owner row security holds against the role that OWNS the tables
+    purpose: >-
+      Apply the real migrations as the application role, so the reader is the table owner - the installed
+      condition - and prove the exact-owner policy still refuses a missing, mismatched or wrong-issuer
+      identity, including the write path, and that the platform identity arm lets core's catalog-driven
+      /api/me export and delete reach the same person's rows without widening the policy to anyone else.
+      One case performs the defect live: NO FORCE hands the row back to the wrong identity, FORCE takes it
+      away again.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/project-owner-rls.test.mjs
+    expected:
+      - Every table this package owns is row-security ENABLEd, FORCEd, and owned by the reading role.
+      - An unstamped, mismatched-subject or mismatched-issuer read returns no rows, and a cross-owner UPDATE/DELETE changes none.
+      - Writing a row for another owner is refused by WITH CHECK rather than silently dropped.
+      - Removing FORCE exempts the owner immediately, which is why ENABLE alone protects nothing here.
+      - Every owned table's policy carries both identity arms and no operator arm.
+      - Stamped only with the platform identity core arrives with, the catalog-driven /api/me export reads every owned table and the delete removes every row.
+      - A second person, an unstamped connection and the empty system stamp all read and delete nothing through either arm.
+    prerequisites:
+      - runner:node
+      - core:dependencies
+      - harness:oshal-core-root
+      - service:docker
+      - image:postgres-16-alpine-local
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/project-postgres.fixture.mjs
       cleanup: Remove the unique fixture container and temporary storage; never connect to the installed database.
     limits:
       timeoutMs: 180000
