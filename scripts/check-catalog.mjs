@@ -7,6 +7,7 @@
  * 2026-08-06 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Add the zero-dependency catalog integrity gate: every package manifest has exactly one catalog entry, mirrored identity/version/suite/displayName/source fields agree, the retired archive URL is forbidden, and the generated README is current.
  * 2026-08-06 00:10:00 | maintainer@emeraldcoastsystemsgroup.com   | Export the checker and allow fixture-only README-generation suppression so mutation tests can prove fail-closed drift detection without invoking repository-local generator code from a temporary tree.
  * 2026-09-16 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Mirror each manifest's dependency block too. It was the one field the catalog copied and the gate did not check, so the whole tiered-dependency migration left marketplace.json on the pre-tier flat shape unnoticed - creative-studio advertising one dependency where its manifest lists four, and the launchers advertising as hard dependencies the apps they merely route to. A manifest whose block cannot be read is a problem, never a silent "no dependencies".
+ * 2026-09-16 12:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Check the AUDIT BINDING the installer enforces: audits/<name>.json must exist and its app/version/sourceSha must match the catalog entry. calendar 1.1.0 shipped with its record left at 1.0.0, this gate passed, and EVERY install of that package was refused fail-closed ('audit version does not match catalog version') - green CI while the product could not be installed. The gate now mirrors exactly what scripts/oshal-package-audit.js treats as structural, so drift fails here instead of on an operator's machine.
  *
  * Usage: node scripts/check-catalog.mjs
  */
@@ -102,6 +103,29 @@ export function catalogProblems(repositoryRoot = REPOSITORY_ROOT, { checkGenerat
       if (!manifestValue) problems.push(`${directory}/oshal-app.yaml source has no ${key}`);
       else if (String(entry.source?.[key]) !== manifestValue) {
         problems.push(`${directory}: catalog source.${key}=${JSON.stringify(entry.source?.[key])}, manifest source.${key}=${JSON.stringify(manifestValue)}`);
+      }
+    }
+
+    // The audit binding the installer enforces structurally: a record that does not describe
+    // the catalog's version is refused in BOTH modes, so drift here breaks every install.
+    const recordPath = `audits/${packageName}.json`;
+    if (entry.audit?.record !== recordPath) {
+      problems.push(`${directory}: catalog audit.record=${JSON.stringify(entry.audit?.record)}, expected ${JSON.stringify(recordPath)}`);
+    } else if (!fs.existsSync(path.join(repositoryRoot, recordPath))) {
+      problems.push(`${directory}: ${recordPath} is missing`);
+    } else {
+      let record = null;
+      try { record = JSON.parse(fs.readFileSync(path.join(repositoryRoot, recordPath), 'utf8')); }
+      catch (error) { problems.push(`${recordPath} is not readable JSON: ${error.message}`); }
+      if (record) {
+        if (record.app !== packageName) problems.push(`${recordPath}: app=${JSON.stringify(record.app)}, expected ${JSON.stringify(packageName)}`);
+        if (String(record.version) !== String(entry.version)) {
+          problems.push(`${recordPath}: version=${JSON.stringify(record.version)}, catalog version=${JSON.stringify(entry.version)}`
+            + ' (the installer refuses this package in every mode until they agree)');
+        }
+        if (String(record.sourceSha) !== String(entry.audit?.sourceSha)) {
+          problems.push(`${recordPath}: sourceSha=${JSON.stringify(record.sourceSha)}, catalog audit.sourceSha=${JSON.stringify(entry.audit?.sourceSha)}`);
+        }
       }
     }
   }

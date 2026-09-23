@@ -19,6 +19,8 @@ import { readManifestDependencies } from './manifest-dependencies.mjs';
 
 const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
+const AUDIT_SHA = 'a'.repeat(40);
+
 const SOURCE = {
   type: 'git-subdir',
   url: 'https://github.com/emeraldcoastsystemsgroup/oshal-apps',
@@ -76,12 +78,20 @@ function createFixture(t, { manifest = TIERED_MANIFEST, dependencies = TIERED_MI
   fs.mkdirSync(path.join(root, 'example'));
   fs.writeFileSync(path.join(root, 'example', 'oshal-app.yaml'), manifest);
   fs.writeFileSync(path.join(root, 'README.md'), '# Fixture store\n');
+  // A real catalog entry carries an audit binding, and the gate refuses a package whose record
+  // does not describe the catalog's version — the shape that made calendar uninstallable.
+  fs.mkdirSync(path.join(root, 'audits'));
+  fs.writeFileSync(path.join(root, 'audits', 'example.json'), `${JSON.stringify({
+    profileVersion: 1, app: 'example', version: '1.2.3', sourceSha: AUDIT_SHA,
+    status: 'pending', auditedAt: null, evidence: [],
+  }, null, 2)}\n`);
   const entry = {
     name: 'example',
     suite: 'ai-engineering',
     displayName: 'Example App',
     version: '1.2.3',
     source: { ...SOURCE },
+    audit: { record: 'audits/example.json', sourceSha: AUDIT_SHA },
   };
   // Cloned: a test that mutates its fixture's block must not edit the shared expectation.
   if (dependencies !== null) entry.dependencies = structuredClone(dependencies);
@@ -171,8 +181,9 @@ test('the generator rewrites a drifted catalog into the one the gate accepts', (
   assert.deepEqual(rewritten.apps[0].dependencies, TIERED_MIRROR);
   assert.deepEqual(
     Object.keys(rewritten.apps[0]),
-    ['name', 'suite', 'displayName', 'version', 'dependencies', 'source'],
-    'a generated dependency block lands before source, where the catalog already carries it',
+    ['name', 'suite', 'displayName', 'version', 'dependencies', 'source', 'audit'],
+    'a generated dependency block lands before source, where the catalog already carries it, '
+      + 'and the audit binding keeps its place after it — the real catalog\'s order',
   );
 });
 

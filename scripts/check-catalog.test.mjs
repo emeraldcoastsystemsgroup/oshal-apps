@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 2026-08-06 00:10:00 | maintainer@emeraldcoastsystemsgroup.com   | Mutation-proof the catalog gate against version/source drift, missing and phantom entries, duplicate ids, and the retired schema URL using isolated temporary stores; prove every package job waits for both store contract gates.
  * 2026-09-16 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Require the catalog-parity job to run the dependency-mirror mutation suite too, so the guard that keeps marketplace.json's dependency block generated cannot be dropped from CI without this suite going red.
+ * 2026-09-16 12:00:00 | maintainer@emeraldcoastsystemsgroup.com   | The fixture carries the audit binding a real entry has, plus mutation cases for a drifted and a missing record — the exact shape that let calendar 1.1.0 ship against a 1.0.0 stamp and made every install of it fail closed while this gate stayed green.
  */
 
 import test from 'node:test';
@@ -14,6 +15,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { catalogProblems, CURRENT_SCHEMA } from './check-catalog.mjs';
+
+const AUDIT_SHA = 'a'.repeat(40);
 
 const SOURCE = {
   type: 'git-subdir',
@@ -39,6 +42,14 @@ function createFixture(t) {
     '',
   ].join('\n'));
   fs.writeFileSync(path.join(root, 'README.md'), '# Fixture store\n');
+  // A real catalog entry carries an audit binding, and the installer refuses a package whose
+  // record does not describe the catalog's version — so the fixture carries one too.
+  fs.mkdirSync(path.join(root, 'audits'));
+  fs.writeFileSync(path.join(root, 'audits', 'example.json'), `${JSON.stringify({
+    profileVersion: 1, app: 'example', version: '1.2.3', sourceSha: AUDIT_SHA,
+    status: 'pending', auditedAt: null, evidence: [],
+  }, null, 2)}
+`);
   const marketplace = {
     $schema: CURRENT_SCHEMA,
     apps: [{
@@ -47,6 +58,7 @@ function createFixture(t) {
       displayName: 'Example App',
       version: '1.2.3',
       source: { ...SOURCE },
+      audit: { record: 'audits/example.json', sourceSha: AUDIT_SHA },
     }],
   };
   const writeMarketplace = () => fs.writeFileSync(
@@ -123,4 +135,22 @@ test('every package job waits for non-empty discovery and catalog parity', () =>
       `${job} can start before the store contract gates`,
     );
   }
+});
+
+test('an audit record whose version drifts from the catalog fails the gate', (t) => {
+  const { root } = createFixture(t);
+  const recordPath = path.join(root, 'audits', 'example.json');
+  const record = JSON.parse(fs.readFileSync(recordPath, 'utf8'));
+  record.version = '1.0.0';                    // the package shipped 1.2.3; the stamp never moved
+  fs.writeFileSync(recordPath, `${JSON.stringify(record, null, 2)}
+`);
+  const problems = checkFixture(root);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /version="1\.0\.0", catalog version="1\.2\.3"/);
+});
+
+test('a missing audit record fails the gate', (t) => {
+  const { root } = createFixture(t);
+  fs.rmSync(path.join(root, 'audits', 'example.json'));
+  assert.deepEqual(checkFixture(root), ['example: audits/example.json is missing']);
 });
