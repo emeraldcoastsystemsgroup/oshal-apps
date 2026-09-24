@@ -368,7 +368,7 @@ sharedCss: ui/education.css
 
 # Ribbon visibility when /cockpit?app=little-monsters is focused.
 ribbon:
-  hideFrameworkItems: [tickets, chat, calendar, addressbook, dashboard, echo, logs, operations]
+  hideFrameworkItems: [tickets, chat, calendar, addressbook, dashboard, logs, operations]
   defaultView: lm-dashboard
   # The kids' app has its OWN tutor (see ui.assistant); the generic swarm-bot chat rail alongside it
   # is redundant and confusing. This is the field the pre-carve-out shell script used to fake by

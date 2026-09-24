@@ -13,10 +13,12 @@ displayName: System
 description: >-
   One desk for account infrastructure: Identity Hub, Storage, and Cloud accounts —
   each already its own app, gathered here so you don't have to hunt the full catalog.
-version: 1.0.0
+version: 1.0.1
 status: active
 scope: public
 theme: gray
+# Every account application is optional, so the framework concierge remains the stable rail.
+chatBot: general-bot
 
 source:
   type: git-subdir
@@ -93,7 +95,6 @@ ribbon:
     - calendar
     - addressbook
     - dashboard
-    - echo
     - logs
     - operations
   hideChatPanel: true

@@ -175,7 +175,6 @@ ribbon:
     - calendar
     - addressbook
     - dashboard
-    - echo
     - operations
   defaultView: presentations-studio
 

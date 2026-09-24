@@ -20,6 +20,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — GET /accounts (discovered accounts joined with books + connectionMissing), POST /accounts/discover, POST /accounts/books (+PATCH/DELETE), POST /accounts/books/:bookId/strategy (+DELETE revert), POST /accounts/books/:bookId/mix (overlay-merge on the ACTIVE override — never env defaults, so a mix edit cannot silently revert an applied strategy's other knobs), POST /accounts/books/:bookId/reset-breaker (confirm-gated, journaled), and GET /summary (every discovered account — unbooked rows flagged notTrading — with day-change fallback prior-close → broker day P/L → null, never 0).
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Cash-account settlement (ADR-134 D8): GET /accounts books[] carries accountType ('cash'|'margin'|null, from the core listBooks accounts join — ONE source; the UI no longer needs to derive it from accounts[]) and settlementPolicy; PATCH /accounts/books/:bookId accepts settlementPolicy as 'refuse' | 'warn' | null only (400 settlement_policy_invalid otherwise — 'off' is env-only, and the column CHECK is the DB-side pin). Not confirm-gated: the field can only tighten or soften a guard, never open an order path.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-134 pin retirement: GET /summary's double-count guard no longer reads SCHWAB_ACCOUNT_NUMBER. The kernel adapter's unbound rule is now single-account-or-refuse, so the ONLY state in which the legacy 'live' row still stands for a discovered account is: that book is UNBOUND and the login discovered exactly ONE Schwab account. The skip is now computed from those two facts (books.account_id IS NULL + the account count) instead of a last4 match against an env pin that no longer exists. On a multi-account login an unbound legacy book renders the adapter's refusal as this row's `error` - an honest row rather than another account's money.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | The arming acknowledgement (BACKLOG "Arming a second autopilot leg is a deliberate, gated act"). POST /accounts/books/:bookId/arm-ack records - or withdraws - the acknowledgement the kernel dispatch now requires before an autopilot leg pinned to a NON-LEGACY book may fire, and GET /accounts books[] carries armAckRequired/armAckAt/armAckBy so the surface can say whether an account is armed. It is a route of its own rather than another field on PATCH: `enabled` says this book may take risk, the acknowledgement says the operator has read what an armed leg does to an account whose positions the engine did not open, and one PATCH carrying both would collapse the very distinction the gate exists to hold. Recording is confirm-gated like every other risk action here; WITHDRAWING is not, because it can only ever stop a leg.
  */
 
 import type { Router, Request, Response } from 'express';
@@ -31,6 +32,7 @@ import { callerSub, resolveBook, TradingError } from '@/app/routes/trading-route
 import { listAccounts, discoverBrokerAccounts } from '@/app/trading-accounts-store';
 import {
   listBooks, createBook, updateBook, deleteBook, loadBook, resetBreaker, ensureLegacyBooks, multiAccountEnabled,
+  recordArmAck, requiresArmAcknowledgement,
 } from '@/app/trading-books-store';
 import { getActiveOverride, applyOverride, revertOverride } from '@/app/trading-config-overrides';
 import { decryptToken } from '@/app/routes/connector-token-crypto';
@@ -112,6 +114,9 @@ export function registerTradingAccountRoutes(router: Router, ctx: AppContext): v
           strategy: activeByBook.get(b.bookId) ?? null,
           capitalCapUsd: b.capitalCapUsd, connectionMissing: b.connectionKey ? !liveKeys.has(b.connectionKey) : false,
           accountType: b.accountType ?? null, settlementPolicy: b.settlementPolicy ?? null,
+          // The arming gate, so the surface can say "armed" / "not armed yet" rather than implying
+          // that a book being enabled is the same thing as a leg being allowed to fire for it.
+          armAckRequired: requiresArmAcknowledgement(b), armAckAt: b.armAckAt ?? null, armAckBy: b.armAckBy ?? null,
         })),
       });
     } catch (err) { fail(res, err); }
@@ -159,6 +164,30 @@ export function registerTradingAccountRoutes(router: Router, ctx: AppContext): v
         capitalCapUsd: b.capitalCapUsd === undefined ? undefined : (b.capitalCapUsd == null ? null : Number(b.capitalCapUsd)),
         settlementPolicy: b.settlementPolicy === undefined ? undefined : (b.settlementPolicy as 'refuse' | 'warn' | null),
       });
+      if (!book) { res.status(404).json({ error: 'unknown_book' }); return; }
+      res.json({ book });
+    } catch (err) { fail(res, err); }
+  });
+
+  /** POST /accounts/books/:bookId/arm-ack { acknowledge?, note?, confirm:true } — record (or, with
+   *  acknowledge:false, withdraw) the arming acknowledgement for this book. The kernel's schedule
+   *  dispatch hard-skips every fire for a NON-LEGACY book that has none, so this is the deliberate
+   *  act that puts a second account under the engine — deliberately NOT a field on PATCH beside
+   *  `enabled`, which says only that the book may take risk. Withdrawal needs no confirm: it can
+   *  only ever stop a leg. */
+  router.post('/accounts/books/:bookId/arm-ack', async (req: Request, res: Response) => {
+    const s = sub(req, res); if (!s) return;
+    const b = (req.body || {}) as { acknowledge?: boolean; note?: string; confirm?: boolean };
+    const acknowledge = b.acknowledge !== false;
+    if (acknowledge && b.confirm !== true) {
+      res.status(428).json({
+        error: 'confirm_required',
+        message: 'Arming the autopilot for this account lets the engine BUY with its idle cash on its own schedule — resend with confirm:true.',
+      });
+      return;
+    }
+    try {
+      const book = await recordArmAck(ctx.pool, s, String(req.params.bookId), acknowledge, s, b.note ? String(b.note) : null);
       if (!book) { res.status(404).json({ error: 'unknown_book' }); return; }
       res.json({ book });
     } catch (err) { fail(res, err); }

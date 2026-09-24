@@ -204,7 +204,6 @@ ribbon:
     - calendar
     - addressbook
     - dashboard
-    - echo
     - operations
   defaultView: video-studio
 

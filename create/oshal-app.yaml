@@ -17,6 +17,7 @@
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: the Brand Kit: one private kit per person (colors, Office fonts, logo, voice) with its own permissions and migration, a Brand Kit tile, branded templates, swatches, fonts and logo in the editor, and a Your brand band on Home.
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 1.8.1: the five tables this package owns now FORCE row level security. ENABLE alone exempts the table owner, and the api both owns them and reads them, so the exact-owner policy had never once filtered a row. Migration 003 repairs an installed database; 001 and 002 carry the same statements so a fresh install comes up forced.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 1.8.1: the exact-owner policy on all five tables gains a second arm on the PLATFORM identity (oshal.current_issuer / oshal.current_sub) alongside this package's own create.owner_* stamp. Forcing the tables makes the policy run for the role core reads them through, and core reaches them only through the catalog-driven /api/me export and delete, which stamp the platform settings and never create.owner_*. Without the second arm a person's data export would omit their Create projects and "delete all my data" would remove nothing, both reporting success. Migration 004 repairs an installed database; 001 and 002 carry the same shape for a fresh one. No operator arm.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | 1.8.2: explicitly bind the cockpit right rail to the stable framework general-bot without turning any optional member studio into a required dependency.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — create ("Create")
@@ -44,7 +45,7 @@ description: >-
   Office, portraits, short videos, story episodes, LoRA characters and 3D scans —
   a single home page that shows what you were working on and one tap to pick up
   where you left off, in every studio you already have.
-version: 1.8.1
+version: 1.8.2
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -65,6 +66,8 @@ authorization:
 status: active
 scope: public
 theme: create   # package-bundled skin: ui/create.css (ADR-085), used when Application colors is enabled
+# Every member studio is optional, so the right rail uses the stable framework concierge.
+chatBot: general-bot
 
 source:
   type: git-subdir
@@ -231,7 +234,6 @@ ribbon:
     - calendar
     - addressbook
     - dashboard
-    - echo
     - logs
     - operations
   hideChatPanel: true

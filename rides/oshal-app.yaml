@@ -25,6 +25,16 @@
 # 2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | Canonicalize the public package name as
 # "Get a Ride", matching the marketplace and generated catalog while retaining `rides` as the
 # immutable package id, route namespace, and source directory.
+#
+# 1.4.0 — the road distance is labelled for what it is. Keyless, the server measures the
+# straight line between the two geocoded pins and multiplies it by a stated detour factor;
+# the surface used to print that as "~N km by road", which reads as a driven route. It now
+# prints "road estimate (straight line × 1.3)". It also understands the server's new
+# basis:'routed' — the answer when an operator plugs a routing engine in through the optional
+# OSHAL_ROUTING_URL override — and shows that distance as routed. Before this change a routed
+# estimate fell through the surface's `basis === 'geocoded'` check and the distance row was
+# hidden outright, so the store half ships first. Guard: tests/rides-map-surface.test.js
+# ("the distance label says which measurement it is").
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: rides
@@ -34,7 +44,7 @@ description: >-
   AI transportation concierge on a real map — set pickup and destination by pin or
   address, see the measured distance, compare Uber ride types, and hand off a ready
   Uber ride link. Other swarm bots can ask it to plan a trip.
-version: 1.3.0
+version: 1.4.0
 status: active
 
 source:
@@ -200,7 +210,6 @@ ribbon:
     - calendar
     - addressbook
     - dashboard
-    - echo
     - logs
     - operations
   hideChatPanel: true

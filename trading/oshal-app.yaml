@@ -55,7 +55,7 @@ description: >-
   reason over it, and place the trade through your broker (Alpaca) — with a full decision
   trail from every order back to the signal that triggered it. Paper-trade and live-trade as
   two separate books. Cash equities. No crypto.
-version: 1.19.1
+version: 1.20.1
 status: active
 
 source:
@@ -383,7 +383,6 @@ ribbon:
     - calendar
     - addressbook
     - dashboard
-    - echo
     - logs
     - operations
   # Intelligent Trades is account/strategy-shaped, not ticket/queue-shaped: the cockpit's bottom

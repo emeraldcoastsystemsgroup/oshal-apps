@@ -20,6 +20,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | The event-playbook block (EVENT_ACTIVE … toggleEventPlanDetail) moved verbatim to view-events.js — this file had reached 870 code lines, past the 800-line decomposition bar; Lab / Studio / Tuning / roster stay. No behaviour change: the moved functions remain globals with the same names.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Strict-CSP cleanup + the sub-tab race (ADR-136 D2 tail). The four handler attributes here are gone: the roster is #rosterHost with ONE delegated listener (wireRoster/rosterAction) where only the BOOK ID rides the markup and the trading state is read from BOOKS at click time, and the applied-panel's 'Account strategies' link is a delegated data-act. Every sub-tab loader (roster, lab-applied, lab-knobs, tuning recs, tuning params) now captures RENDER_TOKEN and tabGen() before its first await and bails after it - including the catch paths - so a slow answer for the sub-tab just left can no longer overpaint the one just chosen; loadRosterTab bails BEFORE writing BOOKS or filling the live pickers. loadTuning is a plain function (it paints nothing after an await).
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Review follow-ups on the SEQ 2 lines: loadRosterTab carries JSDoc rather than a prose block, and loadTuneParams' catch binds its error and shows it in the same "foot err" shape its sibling loaders use instead of blanking the panel and swallowing the reason - a silent empty panel is indistinguishable from "no parameters".
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | acknowledgeArming(): the operator-facing half of the arming gate the kernel dispatch now enforces for a non-legacy book. Its copy states what an armed leg actually does to an account whose positions the engine did not open - it BUYS with the idle cash, and under ADR-159 it neither sells, trims, tops up nor stops a holding its own filled orders cannot account for, while a pinned lot still places real GTC sells for the shares its own entry bought. That last clause is a CORRECTION: before ADR-159 the engine did rotation-sell a hand-picked name, and copy still saying so would be wrong in the direction that makes an operator distrust what they are reading. toggleBook's confirm no longer implies that turning an account on is what starts a leg; it names the acknowledgement as the second act.
  */
 
 /* ── Account strategies roster — per-book strategy + trading control (ADR-134) ── */
@@ -149,9 +150,42 @@ async function makeBook(accountId, label) {
 }
 async function toggleBook(bookId, enable) {
   const bk = BOOKS.find(b => b.bookId === bookId); const nm = bk && bk.label ? bk.label : bookId;
-  if (enable && !confirm('START TRADING on ' + nm + '?\n\nThe engine will place REAL orders on this account using its assigned strategy, on its next cycle. Stop any time from this row.')) return;
+  // A second account needs BOTH acts: this flag, and the arming acknowledgement acknowledgeArming()
+  // records. Promising REAL orders on the strength of this one alone is a promise the dispatch does
+  // not keep - a leg pinned to an unacknowledged book fires nothing at all.
+  const unarmed = bk && bk.armAckRequired && !bk.armAckAt
+    ? '\n\nThis account is NOT armed: an autopilot leg for it still fires nothing until you use Arm autopilot and read what it says.'
+    : '';
+  if (enable && !confirm('START TRADING on ' + nm + '?\n\nThe engine will place REAL orders on this account using its assigned strategy, on its next cycle. Stop any time from this row.' + unarmed)) return;
   try { await api('/accounts/books/' + bookId, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(enable ? { enabled: true, confirm: true } : { enabled: false }) }); } catch (e) { alert(e.message); }
   try { await loadBooks(); } catch { /* the roster reload below re-fetches on its own */ }
+  if (VIEW === 'account' || VIEW === 'accounts') navigate(VIEW, { book: BOOK, kind: MODE, sub: SUB }); else loadRosterTab();
+}
+
+/**
+ * @description The arming acknowledgement for one account — the deliberate second act a NON-LEGACY
+ *   book needs before an autopilot leg pinned to it fires anything. The wording is the contract:
+ *   every line of it is what the engine does TODAY (ADR-159 for a holding it cannot account for,
+ *   ADR-138 for pinned lots), not what it did before the engine stopped managing what it did not buy.
+ * @param {string} bookId - The book being armed, or handed back to the operator.
+ * @returns {Promise<void>} Resolves once the roster / account view has been repainted.
+ */
+async function acknowledgeArming(bookId) {
+  const bk = BOOKS.find(b => b.bookId === bookId); const nm = bk && bk.label ? bk.label : bookId;
+  const armed = !!(bk && bk.armAckAt);
+  if (armed) {
+    if (!confirm('Withdraw the autopilot arming on ' + nm + '?\n\nAn autopilot leg for this account stops firing entirely: no rotation buys, no pinned-lot exits. Positions and working orders already at the venue are untouched.')) return;
+  } else if (!confirm(
+    'ARM THE AUTOPILOT on ' + nm + '?\n\n' +
+    'Until this is recorded, an autopilot leg for this account fires NOTHING. What changes when it is:\n\n' +
+    '\u2022 It BUYS. Rotation deploys this account\u2019s idle cash into the engine\u2019s own picks, on its own schedule.\n' +
+    '\u2022 A position you bought by hand is NOT sold, trimmed or topped up by rotation, and gets no engine stop \u2014 the engine manages only what its own filled orders account for. It stays visible, marked unmanaged.\n' +
+    '\u2022 A pinned lot places REAL GTC sell orders at the venue for the shares its own entry bought.\n' +
+    '\u2022 Everything held here still counts toward exposure, the capital cap and the drawdown breaker.\n\n' +
+    'You can withdraw this at any time from the same button.')) return;
+  try { await api('/accounts/books/' + encodeURIComponent(bookId) + '/arm-ack', jbody('POST', armed ? { acknowledge: false } : { acknowledge: true, confirm: true })); }
+  catch (e) { alert('Could not change the arming acknowledgement: ' + (e.message || 'unknown error')); }
+  try { await loadBooks(); } catch { /* the repaint below shows what the server has */ }
   if (VIEW === 'account' || VIEW === 'accounts') navigate(VIEW, { book: BOOK, kind: MODE, sub: SUB }); else loadRosterTab();
 }
 

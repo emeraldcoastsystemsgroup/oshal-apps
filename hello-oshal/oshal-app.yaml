@@ -14,9 +14,10 @@ name: hello-oshal
 suite: ai-engineering   # ADR-097: primary catalog shelf (tools keep their own category:)
 displayName: Hello OSHAL
 description: The minimal working OSHAL app package — one JSON route, one themed ribbon surface.
-version: 1.2.0
+version: 1.2.1
 status: active
 scope: person
+chatBot: general-bot
 
 uses: [test-catalog, app-dependencies]
 testing:
@@ -42,7 +43,8 @@ smoke:
       rejectValues: [noop, stub, empty]
     requiresAi: false
 
-# No bots, no migrations, no dependencies — the smallest possible package.
+# No packaged bot, no migrations, no dependencies — the smallest possible package. `chatBot`
+# references the stable framework concierge rather than declaring another agent.
 dependencies:
   required:
     apps: []

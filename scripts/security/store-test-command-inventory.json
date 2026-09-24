@@ -5,6 +5,7 @@
     ".|node --test scripts/gen-catalog-dependencies.test.mjs",
     ".|node --test scripts/app-dependency-declarations.test.mjs",
     ".|node --test scripts/check-connector-declarations.test.mjs",
+    ".|node --test scripts/check-concierge-coverage.test.mjs",
     ".|node --test scripts/check-engine-container-pattern.test.mjs",
     ".|node --test scripts/check-forced-rls.test.mjs",
     ".|node --test scripts/check-service-activations.test.mjs",

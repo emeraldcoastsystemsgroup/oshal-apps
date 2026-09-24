@@ -160,7 +160,6 @@ ribbon:
     - calendar
     - addressbook
     - dashboard
-    - echo
     - logs
     - operations
   defaultView: identity-home

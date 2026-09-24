@@ -84,8 +84,10 @@ description: >-
   allowed to stake anything. The Fantasy tab reads your ESPN league, scores ESPN'''s raw projections
   with YOUR league'''s own rules, and sets the lineup with the best chance of beating the team you
   actually play that week — which is not always the highest-projected one.
-version: 0.9.0
+version: 0.9.1
 status: active
+# Sports Edge packages no agent; the stable framework concierge owns its right rail.
+chatBot: general-bot
 uses: [test-catalog, app-dependencies]
 testing:
   version: 1
@@ -240,7 +242,6 @@ ribbon:
     - tickets
     - calendar
     - addressbook
-    - echo
     - logs
     - operations
   defaultView: sports-edge-home

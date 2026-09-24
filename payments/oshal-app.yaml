@@ -28,10 +28,12 @@ description: >-
   Take payments through your own Square or PayPal account. Pick a provider, enter the
   amount, and charge — Square runs a card payment, PayPal sends the customer an invoice.
   Pluggable across providers; sandbox by default for safe testing.
-version: 1.1.0
+version: 1.1.1
 status: active
 
 theme: ocean
+# Payment execution stays deterministic and confirm-gated; the framework concierge owns the rail.
+chatBot: general-bot
 
 source:
   type: git-subdir
@@ -128,7 +130,6 @@ ribbon:
     - calendar
     - addressbook
     - dashboard
-    - echo
     - logs
     - operations
   defaultView: payments-home

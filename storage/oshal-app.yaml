@@ -131,7 +131,6 @@ ribbon:
     - calendar
     - addressbook
     - dashboard
-    - echo
     - operations
   defaultView: storage-assistant
 

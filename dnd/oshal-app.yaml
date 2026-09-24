@@ -208,7 +208,7 @@ sharedCss: ui/dnd.css
 # Ribbon shape when /cockpit?app=dnd is focused — clear the office chrome, this is
 # a game table.
 ribbon:
-  hideFrameworkItems: [tickets, chat, calendar, addressbook, dashboard, echo, logs, operations]
+  hideFrameworkItems: [tickets, chat, calendar, addressbook, dashboard, logs, operations]
   hideChatPanel: true
   hideAssistant: true
   defaultView: dnd-table

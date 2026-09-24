@@ -34,9 +34,11 @@ description: >-
   sizing) and a blade studio (NACA sections, panel-method polars, Cp sweeps,
   STL/OBJ/SCAD/DXF export). Every model runs in-process and deterministically;
   every site parameter is illustrative, not surveyed.
-version: 1.1.0
+version: 1.1.1
 status: active
 scope: person
+# Ocean Lab has deterministic tools but no packaged bot; use the stable framework concierge.
+chatBot: general-bot
 
 source:
   type: git-subdir
@@ -262,7 +264,6 @@ ribbon:
     - calendar
     - addressbook
     - dashboard
-    - echo
     - logs
     - operations
   hideChatPanel: true

@@ -188,7 +188,6 @@ workflow:
 ribbon:
   hideFrameworkItems:
     - addressbook
-    - echo
     - logs
     - operations
   defaultView: vids-studio

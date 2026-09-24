@@ -224,7 +224,6 @@ ribbon:
     - calendar
     - addressbook
     - dashboard
-    - echo
     - logs
     - operations
   hideChatPanel: true

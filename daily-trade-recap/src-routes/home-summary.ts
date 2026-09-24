@@ -1,8 +1,22 @@
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Count the records the production recap actually writes. The tiles counted `workflow_runs` for ticket_type 'daily-trade-recap', but the nightly recap is a host scheduled task that creates no ticket and no workflow run, so every tile read 0 on a good night and a bad one alike - there has never been a single row of that type. Home now reads the two records the pipeline really leaves behind: a trading session in `oshal_trading_daily_equity` (written by the trading schedule, independent of the recap) and the day's published-report row in `oshal_trading_strategy_journal` (written by the recap's own publish step). A recorded recap moves a tile, a session that finished the day with no recap is counted and named as an item, and the ticket path's own `approval_required` backlog - the June tickets the workflow-run states could never see - is counted and listed. A market holiday records no session, so it raises nothing.
+ */
 /** Saved daily-trade-recap evidence. GET is owner-scoped, bounded, and side-effect free. */
 import { Router } from 'express';
 import type { AppContext } from '@/app/composition/app-context';
 const clip = (v: unknown, cap = 400) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0,cap);
 const date = (v: unknown) => { const d = new Date(String(v)); return Number.isFinite(d.getTime()) ? d.toISOString() : 'date unavailable'; };
+// Every window is an Eastern trading day, because that is the unit both records are keyed on.
+const ET = "($2::timestamptz AT TIME ZONE 'America/New_York')::date";
+// A session is judged only once its day is OVER: the trading schedule records equity during the
+// session, hours before the after-close recap runs, so counting today would report every normal
+// afternoon as a miss.
+const CLOSED = `et_day < ${ET} AND et_day > (${ET} - 7)`;
+const REPORT = (a: string) => `${a}kind='report' AND ${a}source='daily-report'`;
 export function createHomeSummaryRoutes(ctx: AppContext): Router {
  const router = Router();
  router.get('/', async (req, res) => {
@@ -11,21 +25,33 @@ export function createHomeSummaryRoutes(ctx: AppContext): Router {
   if (!sub || oidc?.isAuthenticated?.() !== true) { res.status(401).json({error:'not_authenticated'}); return; }
   const now = new Date();
   const result = await Promise.allSettled([
-  "SELECT count(*) FILTER (WHERE status='running')::text AS active, count(*) FILTER (WHERE status IN ('suspended','escalated'))::text AS review, count(*) FILTER (WHERE status='error')::text AS failed, count(*) FILTER (WHERE status='completed' AND finished_at > $2::timestamptz - interval '120 hours' AND finished_at <= $2)::text AS five FROM workflow_runs WHERE owner_sub = $1 AND ticket_type='daily-trade-recap' AND started_at <= $2 AND updated_at <= $2",
-  "SELECT r.workflow_name, r.status, r.started_at, r.finished_at, s.node_title, s.status AS step_status FROM workflow_runs r LEFT JOIN LATERAL (SELECT node_title, status FROM workflow_run_steps s WHERE s.run_id=r.run_id AND s.owner_sub = $1 AND s.created_at <= $2 ORDER BY seq DESC LIMIT 1) s ON true WHERE r.owner_sub = $1 AND r.ticket_type='daily-trade-recap' AND r.started_at <= $2 AND r.updated_at <= $2 ORDER BY r.started_at DESC, r.run_id LIMIT 3"
+  `SELECT (SELECT count(DISTINCT et_day)::text FROM oshal_trading_daily_equity WHERE user_sub = $1 AND ${CLOSED}) AS sessions,`
+   + ` (SELECT count(DISTINCT et_day)::text FROM oshal_trading_strategy_journal WHERE user_sub = $1 AND ${REPORT('')} AND ${CLOSED}) AS recaps,`
+   + ` (SELECT count(*)::text FROM (SELECT DISTINCT et_day FROM oshal_trading_daily_equity WHERE user_sub = $1 AND ${CLOSED}) e`
+   + ` WHERE NOT EXISTS (SELECT 1 FROM oshal_trading_strategy_journal j WHERE j.user_sub = $1 AND ${REPORT('j.')} AND j.et_day = e.et_day)) AS missed`,
+  "SELECT count(*)::text AS review FROM tickets WHERE owner_sub = $1 AND ticket_type='daily-trade-recap' AND status='approval_required' AND created_at <= $2",
+  `SELECT to_char(e.et_day,'YYYY-MM-DD') AS session_day,`
+   + ` (SELECT max(j.created_at) FROM oshal_trading_strategy_journal j WHERE j.user_sub = $1 AND ${REPORT('j.')} AND j.et_day = e.et_day) AS recap_at,`
+   + ` (SELECT left(max(j.summary),400) FROM oshal_trading_strategy_journal j WHERE j.user_sub = $1 AND ${REPORT('j.')} AND j.et_day = e.et_day) AS recap_summary`
+   + ` FROM (SELECT DISTINCT et_day FROM oshal_trading_daily_equity WHERE user_sub = $1 AND ${CLOSED}) e ORDER BY e.et_day DESC LIMIT 5`,
+  "SELECT title, status, created_at FROM tickets WHERE owner_sub = $1 AND ticket_type='daily-trade-recap' AND status='approval_required' AND created_at <= $2 ORDER BY created_at DESC, ticket_id LIMIT 3"
 ].map(text => ctx.pool.query({text,values:[String(sub),now],query_timeout:1800} as any)));
   const rows = (i: number): any[] => { const r=result[i]; return r.status==='fulfilled' ? r.value.rows : []; };
-  const metrics = [[0,"active","runs-active","Recaps running"],[0,"review","runs-review","Recaps needing review"],[0,"failed","runs-failed","Failed recap runs"],[0,"five","runs-completed-5d","Runs completed / 5 days"]].map(([i,key,id,label]) => ({id,label,value:result[Number(i)].status==='fulfilled' ? String(rows(Number(i))[0]?.[key] ?? '0') : 'Unavailable'}));
+  const cell = (i: number, key: string) => result[i].status==='fulfilled' ? String(rows(i)[0]?.[key] ?? '0') : 'Unavailable';
+  const metrics = [[0,"missed","recaps-missed","Sessions with no recap / 7 days"],[0,"recaps","recaps-recorded","Recaps recorded / 7 days"],[0,"sessions","trading-sessions","Trading sessions / 7 days"],[1,"review","recaps-awaiting-review","Recaps awaiting review"]].map(([i,key,id,label]) => ({id,label,value:cell(Number(i),String(key))}));
   const items: any[] = [];
   const item = (title: unknown, detail: string, body: string, actions: string[], tone = 'neutral') => {
    const text = clip(title,120), notes = clip(detail + '\n' + body,2000);
    items.push({text,detail:clip(detail),tone,fix:"recap-review",actions:actions.map(integration => ({integration,context:{title:text,notes}}))});
   };
-  rows(1).forEach(r => item(r.workflow_name || 'Daily trade recap', clip(r.status) + ' · started ' + date(r.started_at), 'Last recorded step: ' + clip(r.node_title || 'none') + ' / ' + clip(r.step_status || 'not recorded') + '. Workflow status is not proof of delivery or investment performance.', ['prepare-document','prepare-episode'], ['error','escalated','suspended'].includes(r.status) ? 'warn' : 'neutral'));
+  rows(2).forEach(r => r.recap_at
+   ? item('Recap recorded for ' + clip(r.session_day,10), 'recorded ' + date(r.recap_at), clip(r.recap_summary) + ' A recorded report is not proof that an email arrived or a video was published.', ['prepare-document','prepare-episode'])
+   : item('No recap recorded for ' + clip(r.session_day,10), 'closed session with no published report', 'The trading schedule recorded this session, and the recap pipeline recorded no published report for it. Re-run scripts/run-daily-recap.ps1 for that date, or check the run log.', ['prepare-document','prepare-episode'], 'warn'));
+  rows(3).forEach(r => item(r.title || 'Daily trade recap ticket', clip(r.status) + ' since ' + date(r.created_at), 'This recap ticket is parked at its approval gate and nothing downstream of the gate has run. Approving or cancelling it is the only thing that clears it.', ['prepare-document','prepare-episode'], 'warn'));
   const failed=result.filter(r => r.status==='rejected').length;
   if(failed) items.push({text:'Some saved sources cannot be checked.',tone:'warn',fix:"recap-review"});
-  else if(!items.length) items.push({text:'No saved work yet. Open the app to begin.',tone:'neutral',fix:"recap-review"});
-  items.push({text:"Counts exact-owner daily-trade-recap graph executions, with the latest same-owner recorded step. A completed workflow is not proof that an email arrived or a video was published. Review actions prepare a production handoff; Home never reruns the existing render/email pipeline.",tone:'neutral',fix:"recap-review"});
+  else if(!items.length) items.push({text:'No recorded trading session in the window. Open the app to begin.',tone:'neutral',fix:"recap-review"});
+  items.push({text:"Counts exact-owner Eastern trading days: sessions recorded by the trading schedule, published reports recorded by the recap pipeline, and recap tickets parked at their approval gate. Today is excluded because the after-close recap has not run yet. A recorded report is not proof that an email arrived or a video was published. Review actions prepare a production handoff; Home never reruns the existing render/email pipeline.",tone:'neutral',fix:"recap-review"});
   res.status(failed===result.length ? 503 : 200).json({metrics,tiles:metrics,items,asOf:now.toISOString(),partial:failed>0});
  });
  return router;

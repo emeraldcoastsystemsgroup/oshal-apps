@@ -57,6 +57,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | Exposure review round 2: the five async card painters move out of renderAccountView into kickAccountCards(token, b). renderAccountView had grown to exactly the 50-line function limit, so the next line added to it would have broken the rule; the painters were already one list doing one job and read better named. No painter, token or ordering change - each still fills its own placeholder and re-checks stale(token) before it paints. The withheld-rules block also says that the SERVER withholds too (exits.rules comes back null when the protected-lot read failed), so the card is not the only thing standing between a consumer and stops drawn over ring-fenced shares.
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | The Exits card shows BOTH cost bases wherever they disagree. The venue's average carries the broker's wash-sale adjustment - after a loss sale and a re-buy inside 30 days the disallowed loss is folded into the replacement shares - so the Avg and Stop columns were printing a cost the engine never paid, next to a 'Now' column the engine computes off its OWN cost (SEQ 7 / the payload's SEQ 9). The row read as a position about to be stopped out while the engine had already decided it was not. Each cell now prints the venue number with the engine's own beneath it whenever the two differ, the foot names the adjustment and counts the rows carrying one, and the not-in-force row shows it too - an off-hours paint is exactly when the operator goes looking. Both numbers arrive on the payload (engineBasisPx / engineStopPx); nothing here derives a basis, and nothing here decides whether a holding is managed - that stays the server's `governance`.
  * 9 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 D5: the Earnings rules card. The kernel's earnings-reaction rule store has existed since 2026-09-06 with no way for a person to reach it - a rule could only be created or read by calling the module - so this view gains the #earningsRulesCard placeholder and kickAccountCards gains its painter. The card itself lives in view-earnings-rules.js rather than here, on the same reasoning that carved the event playbooks out to view-events.js: this file is already the largest on the surface and a card that owns a form belongs with its own form.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com   | The account header gains the arming acknowledgement for a NON-LEGACY book (data-act="armack" -> acknowledgeArming in view-strategies.js, beside Start/Stop trading, which owns the wording). armAckRequired and armAckAt ride the book row from GET /accounts, so the button asks the server which books carry the gate rather than re-deriving it from the ref here - the kernel dispatch that enforces it reads the same predicate. A legacy paper/live book renders no button, which is the honest answer: it carries no gate.
  */
 
 /* ── the view ──────────────────────────────────────────────────────────────── */
@@ -147,9 +148,19 @@ function accountHeader(b, autopilotOff) {
   const toggle = (MODE === 'live' && b && b.bookId)
     ? ' <button class="btn ghost" data-act="toggle">' + (autopilotOff ? 'Start trading…' : 'Stop trading') + '</button>'
     : '';
+  // The arming acknowledgement (BACKLOG "Arming a second autopilot leg is a deliberate, gated act").
+  // Only a NON-LEGACY book carries the gate, and the server says which - armAckRequired rides the
+  // book row rather than being inferred here from the ref, so one rule governs the button and the
+  // dispatch that enforces it.
+  const armack = (b && b.bookId && b.armAckRequired)
+    ? ' <button class="btn ghost" data-act="armack" title="' +
+      (b.armAckAt ? 'Armed - an autopilot leg for this account may fire. Click to withdraw.'
+                  : 'NOT armed - an autopilot leg for this account fires nothing until you acknowledge what it does.') +
+      '">' + (b.armAckAt ? 'Armed ✓' : 'Arm autopilot…') + '</button>'
+    : '';
   const research = ' <button class="btn ghost" id="acctResearchBtn" data-act="research" title="Quote, chart, fundamentals, news and filings for one stock">Research a stock</button>';
   return '<div class="panel acct-head" id="acctHead"><h2>' + esc(DISP) + '</h2>' + pills + settlementControlHtml(b) +
-    '<span class="spacer"></span>' + research + buy + toggle +
+    '<span class="spacer"></span>' + research + buy + toggle + armack +
     '<div id="stratLine" class="sub" style="flex-basis:100%">Loading strategy…</div></div>';
 }
 /* CASH accounts only (ADR-134 D8): how a buy funded by UNSETTLED sale proceeds is treated on this account —
@@ -184,13 +195,14 @@ function wireAccountHeader() {
  * @description Run one header action. The book id is resolved from BOOK through bookOf() at CLICK
  * time (never baked into the markup), so a repaint or an account switch can never fire an action
  * against the account that was showing when the button was painted.
- * @param {string} act - The data-act value: research | buy | toggle | lab | set | reset.
+ * @param {string} act - The data-act value: research | buy | toggle | armack | lab | set | reset.
  * @returns {void}
  */
 function acctHeaderAction(act) {
   if (act === 'research') { navigate('research', { sub: 'stock' }); return; }
   if (act === 'buy') { openTicket(); return; }
   if (act === 'toggle') { acctToggleTrading(); return; }
+  if (act === 'armack') { const bk = bookOf(BOOK); if (bk && bk.bookId) acknowledgeArming(bk.bookId); return; }
   if (act === 'lab') { navigate('strategies', { sub: 'lab' }); return; }
   const b = bookOf(BOOK);
   if (!b || !b.bookId) return;

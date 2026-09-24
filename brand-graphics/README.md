@@ -14,7 +14,7 @@ carve, and the first packaged **CLI tool**: `brand_graphic`'s script ships in
 | Piece | File |
 |---|---|
 | Manifest | `oshal-app.yaml` |
-| Bot persona | `personas/brand-graphics.yaml` (agentId `b00f0000-…-000000000001`) |
+| Bot persona | `personas/brand-graphics.yaml` (agentId `b0110000-…-000000000001`) |
 | CLI tool | `tools/oshal-brand.js` — enqueues a `kind: 'brand'` job to `/api/vids/jobs` |
 
 No routes, no migrations, no schedules, no theme CSS — the cockpit tile embeds the

@@ -144,7 +144,6 @@ ribbon:
     - calendar
     - addressbook
     - dashboard
-    - echo
     - operations
   defaultView: lora-studio
 

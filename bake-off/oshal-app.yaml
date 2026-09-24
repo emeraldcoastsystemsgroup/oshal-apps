@@ -216,7 +216,6 @@ ribbon:
   hideFrameworkItems:
     - addressbook
     - calendar
-    - echo
   defaultView: bake-off-home
 
 summary:

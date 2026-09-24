@@ -194,6 +194,16 @@ ribbon:
   defaultView: my-home
 ```
 
+Every package with a non-empty `ui.static`, `ui.dynamic`, or ADR-141 group `toolbar` owns a
+cockpit surface and must declare the concierge responsible for its right rail. A nonblank
+top-level `chatBot`, `workflow.workerBot`, or first `bots[].name` satisfies that contract. A
+surface-only package may reference the stable framework `general-bot`; a group may borrow a bot
+from a required member. Do not make an optional application required merely to borrow its bot.
+Declare the bot name as a direct string and keep these fields in canonical block form: the
+zero-dependency gate rejects YAML anchors, aliases, merge keys, tags, duplicate relevant keys and
+implicitly typed non-string names rather than guessing how the runtime parser will resolve them.
+`node scripts/check-concierge-coverage.mjs` checks the whole manifest tree with no allowlist.
+
 ### Joining the artifact exchange — "Send to…" (ADR-139)
 
 #### Choosing an existing file (Stage 4a)
@@ -689,7 +699,8 @@ returning up to four legacy tiles for existing group displays. See
 
 1. Read this file and [`hello-oshal/`](hello-oshal/) (minimal) and [`little-monsters/`](little-monsters/) (full).
 2. `node scripts/oshal-app.js init <name>`.
-3. Fill `oshal-app.yaml` (§4). Keep every path package-relative (§3).
+3. Fill `oshal-app.yaml` (§4), including a concierge for every cockpit surface. Keep every path
+   package-relative (§3).
 4. Write `routes/*.js` as compiled CommonJS exporting the named factories (§5). Self-contained
    if possible; else `@/…` imports for framework modules.
 5. Add personas/migrations/ui as the app needs.

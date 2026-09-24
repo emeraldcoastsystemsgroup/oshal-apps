@@ -22,7 +22,7 @@ description: >-
   electric-"oshal" intro look — deep navy, glowing electric-blue energy, the
   lowercase wordmark traced in light — on the operator's signed-in Chrome, and
   returns the project URL.
-version: 1.1.0
+version: 1.1.1
 status: inactive
 
 theme: midnight
@@ -93,8 +93,16 @@ uses:
 
 # The brand specialist bot — upserted + registered in the ACTIVE bot registry by the
 # loader from this manifest (ADR-085; zero core-registry edits).
+#
+# THE agentId IS THIS PACKAGE'S OWN AND MUST STAY UNIQUE. Until 1.1.1 this block declared
+# a bot named `brand-graphics` under b00f0000-...-0001, which is the drone package's
+# `drone-operator`. The loader upserts a declared bot BY agentId, so activating this package
+# would have renamed drone-operator to brand-graphics and taken the drone app's bot with it —
+# the same displacement that put portrait-studio on top of drone-operator during the ADR-085
+# carve. Never reuse another package's agentId to reach its bot; declare `workflow.workerBot`
+# by NAME, which the loader resolves, or `uses:` a kernel skill.
 bots:
-  - agentId: b00f0000-0000-0000-0000-000000000001
+  - agentId: b0110000-0000-0000-0000-000000000001
     name: brand-graphics
     persona: personas/brand-graphics.yaml
     role: media/brand-graphics
@@ -167,7 +175,6 @@ workflow:
 ribbon:
   hideFrameworkItems:
     - addressbook
-    - echo
     - logs
     - operations
   defaultView: brand-graphics

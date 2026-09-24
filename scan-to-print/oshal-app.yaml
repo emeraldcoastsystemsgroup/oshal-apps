@@ -239,7 +239,6 @@ ribbon:
     - calendar
     - addressbook
     - dashboard
-    - echo
     - logs
     - operations
   defaultView: scan-to-print

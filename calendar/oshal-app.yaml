@@ -2,7 +2,7 @@ name: calendar
 suite: ai-home
 displayName: Calendar Preparation
 description: Sync your upcoming primary-calendar events explicitly, prepare reviewed gift, meal, travel and meeting plans, and receive an opt-in cited brief before a meeting.
-version: 1.1.0
+version: 1.1.1
 status: active
 scope: person
 source:
@@ -11,6 +11,8 @@ source:
   path: calendar
   ref: main
 theme: midnight
+# Calendar packages no bot of their own; the stable framework concierge owns the right rail.
+chatBot: general-bot
 dependencies:
   required:
     apps: []

@@ -267,7 +267,6 @@ workflow:
 ribbon:
   hideFrameworkItems:
     - addressbook
-    - echo
     - logs
     - operations
   defaultView: creative-studio

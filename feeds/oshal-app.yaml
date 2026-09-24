@@ -185,7 +185,6 @@ workflow:
 ribbon:
   hideFrameworkItems:
     - addressbook
-    - echo
     - logs
     - operations
   defaultView: feeds-dashboard

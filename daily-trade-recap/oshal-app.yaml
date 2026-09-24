@@ -29,6 +29,7 @@
 
 name: daily-trade-recap
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Register bounded recorded-report briefing collection and isolated contract evidence.
+# CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: Home counts the records the production nightly actually writes. The four tiles counted `workflow_runs` for ticket_type 'daily-trade-recap', but the nightly recap is a host scheduled task (scripts/run-daily-recap.ps1) that creates no ticket and no workflow run - the type has never had a single row, so every tile read 0 on a good night and a bad one alike. Home now reads the recorded Eastern trading session (oshal_trading_daily_equity, written by the trading schedule and independent of the recap), the day's published report (oshal_trading_strategy_journal kind='report' source='daily-report', written by the recap's own publish step) and the ticket path's own approval_required backlog, which workflow-run states could never see. A market holiday records no session, so it raises nothing.
 # CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1, ADR-157 S3: classify the recorded-report collector as a system service. It is not one person's job — collectCompletedReports opens runWithSystemIdentity and reads the journal for EVERY owner, then fans each row to the owner recorded on it, so a per-person activation would run the same whole-application sweep once per activating person. No `requires:` is declared because this package imports no ADR-149 authorization catalog, and the loader refuses a `requires` naming a permission no catalog defines.
 suite: ai-finance   # ADR-097: primary catalog shelf (tools keep their own category:)
 displayName: Daily Trade Recap
@@ -39,7 +40,7 @@ description: >-
   briefing collection reads its report journal and does not generate reports or trade.
 scope: public
 ticketType: daily-trade-recap
-version: 1.2.1
+version: 1.3.0
 
 uses: [jarvis-briefings, test-catalog, app-dependencies]
 testing:

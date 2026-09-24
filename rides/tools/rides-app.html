@@ -1249,13 +1249,27 @@ function refreshRoute() {
   else drawRoute();
 }
 
-/** Show what the fare was actually measured from, or say plainly that it could not be. */
+/**
+ * Show what the fare was actually measured from, or say plainly that it could not be.
+ *
+ * The road figure is NOT a driven route unless an operator has plugged a routing engine in
+ * (OSHAL_ROUTING_URL on the server). Keyless — the accepted default — it is the measured
+ * straight line multiplied by a stated detour factor, so the label says "road estimate" and
+ * names the factor rather than letting a bare "by road" read as a routed distance. The server
+ * says which one it did in `basis`: 'routed' = a routing engine measured the streets,
+ * 'geocoded' = straight line × factor, anything else = a pin could not be placed.
+ */
 function renderDistance(result) {
   const row = $('#distanceRow');
   if (!row) return;
-  if (result && result.basis === 'geocoded' && Number.isFinite(result.distanceKm)) {
+  const routed = !!result && result.basis === 'routed';
+  const measured = !!result && (routed || result.basis === 'geocoded');
+  if (measured && Number.isFinite(result.distanceKm)) {
     const mi = (result.distanceKm * 0.621371).toFixed(1);
-    $('#distanceLabel').textContent = `${result.straightLineKm} km straight line · ~${result.distanceKm} km (${mi} mi) by road`;
+    const road = routed
+      ? `${result.distanceKm} km (${mi} mi) by road, routed`
+      : `~${result.distanceKm} km (${mi} mi) road estimate (straight line × ${result.roadFactor || 1.3})`;
+    $('#distanceLabel').textContent = `${result.straightLineKm} km straight line · ${road}`;
     row.hidden = false;
   } else {
     row.hidden = true;

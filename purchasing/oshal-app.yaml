@@ -273,7 +273,6 @@ ribbon:
     - calendar
     - addressbook
     - dashboard
-    - echo
     - logs
     - operations
   # The Assistant surface IS the chat, so hide the cockpit's generic right-rail

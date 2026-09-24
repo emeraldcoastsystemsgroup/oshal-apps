@@ -30,10 +30,12 @@ description: >-
   tools, your profile picture, your LinkedIn and Facebook presence, and the
   documents you print into the swarm — with a setup page that shows what is
   connected and what still needs you.
-version: 1.1.0
+version: 1.1.1
 status: active
 scope: public
 theme: daylight
+# career-hunter is a required member, so its packaged concierge owns this group's right rail.
+chatBot: career-hunter
 
 source:
   type: git-subdir
@@ -111,6 +113,5 @@ ribbon:
     - calendar
     - addressbook
     - dashboard
-    - echo
     - logs
     - operations

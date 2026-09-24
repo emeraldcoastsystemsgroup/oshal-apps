@@ -59,8 +59,10 @@ description: >-
   playable hands are ranked with Kelly-sized stakes and explicit risk flags. Portfolio view and
   order placement ride the per-user connector, confirm-gated and demo-exchange-first
   (KALSHI_LIVE_ENABLED gates live money; every order and refusal is audited).
-version: 1.6.0
+version: 1.6.1
 status: active
+# This package owns deterministic surfaces and routes; the framework concierge owns its right rail.
+chatBot: general-bot
 
 # These capabilities are the minimum core contract; older cores must reject the package.
 uses: [jarvis-briefings, test-catalog, app-dependencies]
@@ -258,7 +260,6 @@ ribbon:
     - tickets
     - calendar
     - addressbook
-    - echo
     - logs
     - operations
   defaultView: kalshi-home

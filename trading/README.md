@@ -385,6 +385,39 @@ Event playbooks** and on the account page (arm / disarm / delete). Routes: `GET`
 Schwab Conditional Offer to Purchase and its post-pricing confirmation are manual steps the dry run
 lists; a reminder sequence for them is in the BACKLOG.
 
+### Arming an account is a deliberate, gated act (1.20.0)
+
+Turning an account **on** and letting the autopilot **fire for it** are two different acts, and
+until 1.20.0 only the first one existed on this surface. The engine has always resolved exactly one
+account per schedule, from that schedule's own record, so enabling a second account never widened
+what the autopilot traded — but nothing said so, and nothing stood between a schedule written by
+hand and an account full of positions the engine never bought.
+
+A **second** account (not the two built-in paper/live books) now carries an arming acknowledgement.
+Until it is recorded, an autopilot leg for that account fires **nothing**: no rotation buys, no
+pinned-lot exits. The **Arm autopilot...** button on the account page records it, and the confirm it
+shows is the contract:
+
+- **It BUYS.** Rotation deploys the account's idle cash into the engine's own picks, on its own schedule.
+- **A position you bought by hand is not sold, trimmed or topped up by rotation, and gets no engine
+  stop** — the engine manages only what its own filled orders account for. It stays visible, marked
+  unmanaged. (This is the ADR-159 rule; before it, a hand-picked name *was* rotation-sold.)
+- **A pinned lot still places real GTC sell orders at the venue** for the shares its own entry bought.
+- Everything held there still counts toward exposure, the capital cap and the drawdown breaker.
+
+Withdrawing it from the same button stops the leg entirely and touches nothing already at the venue.
+The gate itself is enforced in the framework's schedule dispatch, so a leg armed out of band hits the
+same wall.
+
+### API added in 1.20.0 (the arming acknowledgement)
+
+- `POST /api/trading/accounts/books/:bookId/arm-ack` — records the acknowledgement. Body:
+  `{ acknowledge?: true, note?, confirm: true }`; 428 `confirm_required` without the flag, 404
+  `unknown_book`. `{ acknowledge: false }` **withdraws** it and needs no confirm — it can only ever
+  stop a leg. Answers `{ book }`.
+- `GET /api/trading/accounts` — every `books[]` row gains `armAckRequired` (whether this account
+  carries the gate at all), `armAckAt` and `armAckBy`.
+
 ### Earnings rules — react to what a company actually filed (1.19.0, ADR-136 D5)
 
 An **earnings rule** is a standing instruction on one account and one **held** name: *when this

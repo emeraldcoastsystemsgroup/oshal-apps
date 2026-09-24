@@ -382,7 +382,6 @@ ribbon:
   hideFrameworkItems:
     - addressbook
     - calendar
-    - echo
   defaultView: venture-home
 
 summary:

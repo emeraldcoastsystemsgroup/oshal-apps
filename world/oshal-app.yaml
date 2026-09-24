@@ -410,7 +410,6 @@ workflow:
 ribbon:
   hideFrameworkItems:
     - addressbook
-    - echo
     - logs
     - operations
   defaultView: world-dashboard
