@@ -70,6 +70,8 @@
   .pill.ok { background:rgba(55,210,127,.14); color:var(--ok); }
   .pill.off { background:var(--panel2); color:var(--muted); }
   .pill.exp { background:rgba(255,139,139,.14); color:var(--danger); }
+  .pill.soon, .pill.expiring { background:rgba(255,206,107,.14); color:var(--warn); }
+  .warn { color:var(--warn); }
   .accts { display:flex; flex-direction:column; gap:5px; }
   .acct { font-size:12px; color:var(--muted); display:flex; align-items:center; gap:6px; }
   .acct .star { color:var(--warn); }
@@ -408,6 +410,17 @@
     background: color-mix(in srgb, var(--identity-danger) 12%, transparent);
   }
 
+  .pill.soon,
+  .pill.expiring {
+    border-color: color-mix(in srgb, var(--identity-warn) 55%, transparent);
+    color: var(--identity-warn);
+    background: color-mix(in srgb, var(--identity-warn) 12%, transparent);
+  }
+
+  .warn {
+    color: var(--identity-warn);
+  }
+
   .acct {
     min-width: 0;
     font-size: 12px;
@@ -628,10 +641,15 @@ function cardFor(p) {
   const icon = p.id === 'any-llm' ? 'codicon-hubot' : (iconByCategory[p.category] || 'codicon-plug');
   let pill = '<span class="pill off">Not connected</span>';
   const anyExpired = needsAttention(p);
-  if (p.connected) pill = anyExpired ? '<span class="pill exp">Reconnect</span>' : '<span class="pill ok">Connected</span>';
+  const anyExpiring = (p.connections || []).some((c) => !!c.expiring);
+  if (p.connected) {
+    if (anyExpired) pill = '<span class="pill exp">Reconnect</span>';
+    else if (anyExpiring) pill = '<span class="pill soon">Expiring</span>';
+    else pill = '<span class="pill ok">Connected</span>';
+  }
   const accts = (p.connections || []).map((c) => {
     const nm = esc(c.label || c.account || 'account');
-    return `<div class="acct">${c.isDefault ? '<span class="star" title="Default">★</span>' : ''}${nm}${c.tenantId ? '<span class="shared">shared</span>' : ''}${accountIsDead(p, c) ? ' <span class="err">· expired</span>' : ''}</div>`;
+    return `<div class="acct">${c.isDefault ? '<span class="star" title="Default">★</span>' : ''}${nm}${c.tenantId ? '<span class="shared">shared</span>' : ''}${accountIsDead(p, c) ? ' <span class="err">· expired</span>' : (c.expiring ? ' <span class="warn">· expiring</span>' : '')}</div>`;
   }).join('');
   return `
     <div class="card">

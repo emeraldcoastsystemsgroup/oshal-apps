@@ -3,6 +3,7 @@
  * -----------------------------------------------------------------------------
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 2026-09-24 17:35:00 | maintainer@emeraldcoastsystemsgroup.com   | Add 'expiring' to CONNECTION_KEYS and assert that an expiring unrenewable connection renders the Expiring pill and · expiring marker while leaving healthy connections unaffected.
  * 2026-09-16 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Run the shipped surface instead of counting `c.expired` matches in it. Four regex hits could never show that the marker, the pill, the tile and the filter actually RENDER, and they could not see the case the hub missed entirely: a grant the provider has revoked keeps its refresh token, so `expired` is false for it forever and the one screen built to show a broken login showed nothing. The surface script now runs in a vm over a stub DOM and a stub fetch, and the assertions read what it produced.
  * 2026-08-12 20:40:00 | maintainer@emeraldcoastsystemsgroup.com   | Initial BUG-13 guard, consuming half: every per-connection key the Identity Hub surface reads off /api/connect/list is in the response contract core promises, and the access-review inventory derives `expired` from core's shared isConnectionExpired rather than re-deriving `expiry < now`.
  *
@@ -29,7 +30,7 @@ const ROUTES_TS = path.resolve(__dirname, '..', 'src-routes', 'identity-routes.t
 const ROUTES_JS = path.resolve(__dirname, '..', 'routes', 'identity-routes.js');
 
 /** The per-connection keys /api/connect/list promises. Mirror of core's CONNECTION_KEYS. */
-const CONNECTION_KEYS = ['connectionId', 'label', 'account', 'tenantId', 'isDefault', 'expired'];
+const CONNECTION_KEYS = ['connectionId', 'label', 'account', 'tenantId', 'isDefault', 'expired', 'expiring'];
 
 const html = fs.readFileSync(SURFACE, 'utf8');
 
@@ -173,6 +174,18 @@ test('a lapsed, unrenewable login renders the marker, the pill, the tile and the
   assert.equal(r.surface.providerMatches(dead), true, 'the needs-attention filter hides it');
 });
 
+test('an unrenewable connection within the warning window renders the Expiring pill and marker', async () => {
+  const soon = providerFixture({}, { expired: false, expiring: true });
+  const r = await renderSurface({ providers: [soon], liveness: [{ provider: 'google', status: 'ok' }] });
+
+  assert.match(r.main, /· expiring/, 'the account row shows no expiring marker');
+  assert.match(r.main, /pill soon">Expiring/, 'the card shows no Expiring pill');
+  assert.doesNotMatch(r.main, /pill exp">Reconnect/);
+  assert.doesNotMatch(r.main, /· expired/);
+  // Expiring is distinct from expired: it is not yet dead, so needAttentionCount remains 0
+  assert.equal(needAttentionCount(r.metrics), 0);
+});
+
 test('a grant the provider has REVOKED reaches the same four places', async () => {
   // The case `expired` cannot see. isConnectionExpired means "lapsed AND nothing left to renew
   // it", so a revoked grant - whose refresh token is still stored, and still dead - is false
@@ -236,6 +249,11 @@ for (const [name, file] of [['source', ROUTES_TS], ['compiled', ROUTES_JS]]) {
       'the inventory must derive expired from core isConnectionExpired, so the advisor bot and '
       + 'the hub cannot disagree about which logins are broken',
     );
+    assert.ok(
+      /isConnectionExpiring/.test(src),
+      'the inventory must derive expiring from core isConnectionExpiring, so the advisor bot and '
+      + 'the hub warn about unrenewable connections before they lapse',
+    );
     // The naive rule is the specific regression: it reports every refreshable connection whose
     // short-lived access token has lapsed (most healthy OAuth connections, most of the time).
     assert.ok(
@@ -249,3 +267,26 @@ for (const [name, file] of [['source', ROUTES_TS], ['compiled', ROUTES_JS]]) {
     );
   });
 }
+
+const MANIFEST = path.resolve(__dirname, '..', 'oshal-app.yaml');
+const BRIEFINGS_TS = path.resolve(__dirname, '..', 'src-routes', 'expiring-connection-briefings.ts');
+const BRIEFINGS_JS = path.resolve(__dirname, '..', 'routes', 'expiring-connection-briefings.js');
+
+test('the identity manifest registers the expiring-connection briefing', () => {
+  const yaml = fs.readFileSync(MANIFEST, 'utf8');
+  assert.ok(/uses:.*jarvis-briefings/.test(yaml), 'manifest must include jarvis-briefings in uses');
+  assert.ok(/id:\s*expiring-connections/.test(yaml), 'manifest must declare expiring-connections briefing');
+  assert.ok(/sessionId:\s*identity-expiring-connections/.test(yaml), 'manifest must declare identity-expiring-connections sessionId');
+  assert.ok(/routes\/expiring-connection-briefings\.js/.test(yaml), 'manifest must mount expiring-connection-briefings route');
+});
+
+for (const [name, file] of [['source', BRIEFINGS_TS], ['compiled', BRIEFINGS_JS]]) {
+  test(`the ${name} expiring-connection briefing collector complies with kernel briefing contract`, () => {
+    const src = fs.readFileSync(file, 'utf8');
+    assert.ok(/isConnectionExpiring/.test(src), 'briefing collector must filter using isConnectionExpiring');
+    assert.ok(/saveCompletedBriefing/.test(src), 'briefing collector must deliver via taskStore.saveCompletedBriefing');
+    assert.ok(/identity-expiring-connections/.test(src), 'briefing collector must target identity-expiring-connections session');
+    assert.ok(/daysLeft/.test(src), 'briefing collector must state days remaining');
+  });
+}
+

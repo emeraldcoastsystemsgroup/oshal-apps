@@ -86,6 +86,27 @@ cases:
       timeoutMs: 30000
       maxMemoryMb: 256
     installation: never
+  - id: guide
+    name: Deck-builder guide operations
+    purpose: Exercise the signed-in guide route and verify only bounded editor actions reach the surface.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/presentations-guide.test.mjs
+    expected:
+      - Anonymous guide requests stop before bot execution.
+      - Valid deck-builder replies expose only whitelisted editor operations with bounded fields.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
   - id: brand-look
     name: Your brand in AI Office
     purpose: Run the surface's own brand code against a stubbed session to prove the look, byline and voice rules.

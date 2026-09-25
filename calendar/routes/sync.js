@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.createCalendarSyncRoutes = createCalendarSyncRoutes;
 const express_1 = require("express");
 const connectors_routes_1 = require("@/app/routes/connectors-routes");
-const google_calendar_service_1 = require("@/features/google-calendar/services/google-calendar-service");
+const google_calendar_service_1 = require("@/features/google-calendar");
 /** Explicit sync uses only the caller's Google credentials; no deployment token fallback. */
 function createCalendarSyncRoutes(ctx) {
     const r = (0, express_1.Router)();

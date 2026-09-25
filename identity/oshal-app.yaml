@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.1.1: register every shipped test and preserve the existing readiness smoke for versioned Test Lab discovery.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: the hub asks whether each provider still HONORS its stored grant, so a revoked login reaches Need attention instead of sitting green forever.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register unrenewable expiring connection briefing source in Jarvis briefing settings.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — identity ("Identity Hub")
@@ -51,8 +52,15 @@ version: 1.2.0
 testing:
   version: 1
   catalog: tests/test-lab.yaml
-uses: [test-catalog, app-dependencies]
+uses: [test-catalog, app-dependencies, jarvis-briefings]
 status: active
+
+briefings:
+  - id: expiring-connections
+    title: Expiring connection alerts
+    description: Warns before an unrenewable connection authorization lapses so you can reconnect before it breaks.
+    sessionId: identity-expiring-connections
+    defaults: { enabled: true, frequency: as-available, channel: voice }
 
 # Trustworthy blue skin for the keys/identity surface.
 theme: ocean
@@ -139,6 +147,13 @@ routes:
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/identity/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/expiring-connection-briefings.js
+    factory: createExpiringConnectionBriefingRoutes
+    mountPath: /api/identity/briefings
     auth: service
     requiresContext: true
     requiresAi: false

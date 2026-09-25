@@ -2,7 +2,7 @@ name: calendar
 suite: ai-home
 displayName: Calendar Preparation
 description: Sync your upcoming primary-calendar events explicitly, prepare reviewed gift, meal, travel and meeting plans, and receive an opt-in cited brief before a meeting.
-version: 1.1.1
+version: 1.1.2
 status: active
 scope: person
 source:
@@ -29,6 +29,7 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - google-calendar
   - jarvis-briefings
   - test-catalog
 testing:

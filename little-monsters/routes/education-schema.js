@@ -231,7 +231,10 @@ async function validateSchema(pool) {
     logger.info('Education schema and security invariants are present');
 }
 async function bootstrapBaseSchema(pool) {
-    const migrationPath = path.resolve(process.cwd(), 'scripts/migrations/019-education-platform.sql');
+    const packageMigration = path.resolve(__dirname, '../migrations/019-education-platform.sql');
+    const migrationPath = fs.existsSync(packageMigration)
+        ? packageMigration
+        : path.resolve(process.cwd(), 'scripts/migrations/019-education-platform.sql');
     if (!fs.existsSync(migrationPath)) {
         logger.error({ migrationPath }, 'Education migration file not found; schema bootstrap skipped');
         return false;

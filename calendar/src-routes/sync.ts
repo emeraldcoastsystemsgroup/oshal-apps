@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { AppContext } from '@/app/composition/app-context';
 import { getValidAccessToken } from '@/app/routes/connectors-routes';
-import { GoogleCalendarService } from '@/features/google-calendar/services/google-calendar-service';
+import { GoogleCalendarService } from '@/features/google-calendar';
 /** Explicit sync uses only the caller's Google credentials; no deployment token fallback. */
 export function createCalendarSyncRoutes(ctx:AppContext):Router {
  const r=Router();r.post('/',async(req,res)=>{
